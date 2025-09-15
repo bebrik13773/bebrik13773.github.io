@@ -1,2 +1,2 @@
 это бобер кликер.
-<button onclick="/bober-game.mygamesonline.org ">Зайти в кликер</button>
+<button onclick="window.location.replace ('/bober-game.mygamesonline.org'); ">Зайти в кликер</button>
