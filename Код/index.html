@@ -562,7 +562,7 @@
         document.getElementById('submitLogin').onclick = function() {
             const login = document.getElementById('login').value;
             const password = document.getElementById('password').value;
-            fetch('login-t.php', {
+            fetch('bober-game.mygamesonline.org/login-t.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -650,7 +650,7 @@ alert('Пожалуйста, войдите в акаунт.');
 	{
 		//Сохранение значения plus
 		saveScore(score)
-		fetch('save-plus.php', {
+		fetch('bober-game.mygamesonline.org/save-plus.php', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -665,7 +665,7 @@ alert('Пожалуйста, войдите в акаунт.');
         document.getElementById('submitRegister').onclick = function() {
             const regLogin = document.getElementById('regLogin').value;
             const regPassword = document.getElementById('regPassword').value;
-            fetch('register-t.php', {
+            fetch('bober-game.mygamesonline.org/register-t.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -680,7 +680,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
 		document.getElementById('shop').style.display = 'none';
        function saveScore(score) {
-            fetch('save-score.php', {
+            fetch('bober-game.mygamesonline.org/save-score.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
