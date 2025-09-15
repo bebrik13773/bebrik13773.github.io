@@ -562,7 +562,7 @@
         document.getElementById('submitLogin').onclick = function() {
             const login = document.getElementById('login').value;
             const password = document.getElementById('password').value;
-            fetch('bober-game.mygamesonline.org/login-t.php', {
+            fetch('http://bober-game.mygamesonline.org/login-t.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
