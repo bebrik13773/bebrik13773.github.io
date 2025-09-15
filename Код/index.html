@@ -334,7 +334,7 @@
 
 
     <script>
-    
+    window.location.replace("/tex");
         let login = 0;
         let score = 0;
         let userId = null;
@@ -680,7 +680,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
 		document.getElementById('shop').style.display = 'none';
        function saveScore(score) {
-            fetch('bober-game.mygamesonline.org/save-score.php', {
+            fetch('https://save-score.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
