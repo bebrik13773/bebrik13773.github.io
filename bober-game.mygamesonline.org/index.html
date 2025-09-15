@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript" >
+   (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+   m[i].l=1*new Date();
+   for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+   k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+   (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+   ym(99734810, "init", {
+        clickmap:true,
+        trackLinks:true,
+        accurateTrackBounce:true,
+        webvisor:true
+   });
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/99734810" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бобер кликер</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #8b00ff;
+            @media only screen and (max-width: 768px) {
+background-image: url('fon.jpg');
+}
+        }
+        #clicker {
+			width: 200px;
+			height: 200px;
+			background-image: url(skins/bober.png);
+            color: white;
+            font-size: 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #clicker:active {
+            transform: scale(1.11);
+        }
+        #loginForm, #registerForm {
+            display: none;
+            margin: 20px;
+        }
+        input {
+            margin: 5px;
+            padding: 10px;
+            width: 200px;
+        }
+    </style>
+<style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+			background-color: #8b00ff;
+        }
+        
+        #clicker {
+            width: 200px;
+			background-color: #33c5c7;
+            height: 200px;
+            background-image: url(skins/bober.png);
+            background-size: cover;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #clicker:active {
+			transform: scale(1.1);
+        }
+		#SkinShopButton1 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/bober.png');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton2 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/bumazny-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton3 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/matvey-new-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton4 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/klub-smz-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton5 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/nosok-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton6 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/Shok-upok-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton7 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/strany-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton8 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/dev.png');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#ShopButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#ShopButton:active {
+		transform: scale(0.9);
+		}
+        #score {
+            font-size: 25px;
+            margin-top: 20px;
+        }
+		#submitRegister {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#submitRegister:active {
+			transform: scale(0.9);
+		}
+		#submitLogin {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#submitLogin:active {
+			transform: scale(0.9);
+		}
+		#registerButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#skinShop {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#ludButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#register:active {
+			transform: scale(0.9);
+		}
+		#loginButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#save {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#shopButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#shopExit {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+    </style>
+</head>
+<body>
+<div id="clicerMex">
+    <h1>БОБЕР 🦫 КЛИКЕР</h1>
+    <button id="clicker"></button>
+    <p id="score">Счет: 0</p>
+    <button id="save" onclick="Save()">Сохранить</button>
+<br>
+<br>
+    <button id="loginButton">Войти</button>
+    <button id="registerButton">Регистрация</button>
+<br>
+
+    <div id="loginForm">
+        <h2>Форма Входа</h2>
+        <input type="text" id="login" placeholder="Логин">
+        <input type="password" id="password" placeholder="Пароль">
+        <button id="submitLogin">Войти</button>
+    </div>
+
+    <div id="registerForm">
+        <h2>Форма Регистрации</h2>
+        <input type="text" id="regLogin" placeholder="Логин">
+        <input type="password" id="regPassword" placeholder="Пароль">
+        <h2>Пожалуйста, не регистрируйтесь с логином на русском языке 🇷🇺, используйте только английский 🇬🇧. Иначе вы не сможете войти в аккаунт 🔐.</h2>
+        <br>
+        <button id="submitRegister">Зарегистрироваться</button>
+    </div>
+<br>
+<button id="shopButton"onclick="shopShow()">Магазин</button>
+</div>
+<button id="shopExit" onclick="shopClose()">Выход</button>
+<br>
+<div id="shop">
+<button id="ludButton">Улудшения</button> <button id="skinShop">Скины</button>
+<h1 id="lud">Магазин улудшений</h1>
+<div id="lud">
+<button  id="ShopButton" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
+<br>
+<br>
+<button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
+</div>
+<div id="skins">
+	<button  id="SkinShopButton1" onclick="buySkin1()">Просто бобер - цена: бесплатно!</button>
+	<br>
+	<button id="SkinShopButton2" onclick="buySkin2()">Бумажный бобер - цена: 5000 </button>
+	<br>
+	<button id="SkinShopButton3" onclick="buySkin3()">Стандартный бобер - цена: бесплатно!</button>
+	<br>
+	<button id="SkinShopButton4" onclick="buySkin4()">Клубничный йогурт бобер - цена: 15000</button>
+	<br>
+	<button id="SkinShopButton5" onclick="buySkin5()">Носок бобер - цена: 30000 </button>
+	<br>
+	<button id="SkinShopButton6" onclick="buySkin6()">Шоколад бобер - цена: 50000 </button>
+	<br>
+	<button id="SkinShopButton7" onclick="buySkin7()">Странный бобер - цена: 30000</button>
+	<br>
+	<button id="SkinShopButton8" onclick="alert(skin.lenght); alert(skin[4]); alert(skin); skinLoad(); saveScore(); alert(score);">В разработке</button>
+</div>
+</div>
+<br>
+<div id="leaderboard">Войдите в аккаунт чтобы увидеть таблицу лидеров!</div>
+
+
+    <script>
+    
+        let login = 0;
+        let score = 0;
+        let userId = null;
+        let plus = 1;
+		let skins = {
+			skin1: 'bober.png',
+		 skin2: 'bumazny-bober.jpg',
+		  skin3: 'matvey-new-bober.jpg',
+		   skin4: 'klub-smz-bober.jpg',
+		    skin5: 'nosok-bober.jpg',
+		     skin6 : 'Shok-upok-bober.jpg',
+			 skin7: 'strany-bober.jpg',
+			 };
+			 const skin = ["skins/bober.png",true,false,true,false,false,false,false]
+		
+		  
+		function buySkin1() {
+			if (userId) {
+				if (skin[1] == true) {
+					let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result1 == true) {
+						skin[0] = "skins/bober.png";
+						alert("Скин успешно установлен!");
+						skinLoad();
+					}
+				} else {
+					let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result1a == true) {
+						if (score > 0) {
+							skin[1] = true;
+							score = score - 0;
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!")
+						}
+				    }
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+		function buySkin2()
+		{
+			if (userId) {
+				if (skin[2] == true) {
+					let result3 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result3 == true) {
+						skin[0] = "skins/bumazny-bober.jpg";
+						alert("Скин успешно установлен!");
+						skinLoad();
+					}
+				} else {
+					let result3a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result3a == true) {
+						if (score > 8666) {
+							skin[2] = true;
+							score = score - 8666;
+							saveScore(score);
+							saveSkin(skin);
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!");
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+
+		function skinLoad() {
+			document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
+
+		}
+		function buySkin3() {
+			if (userId) {
+				if (skin[3] == true) {
+					let result3 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result3 == true) {
+						skin[0] = "skins/matvey-new-bober.jpg";
+						alert("Скин успешно установлен!");
+						skinLoad();
+						saveScore();
+					}
+				} else {
+					let result3a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result3a == true) {
+						if (score > 8666) {
+							skin[3] = true;
+							score = score - 8666;
+							saveScore(score);
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!");
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+		function buySkin4() {
+			if (userId) {
+				if (skin[4] == true) {
+					let result4 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result4 == true) {
+						skin[0] = skins[5]
+						alert("Скин успешно установлен!")
+					}
+				} else {
+					let result4a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result4a == true) {
+						if (score > 0) {
+							skin[4] = true;
+							score = score - 0
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!")
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+		function buySkin5() {
+			if (userId) {
+				if (skin[5] == true) {
+					let result5 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result5 == true) {
+						skin[0] = "bober.png"
+						alert("Скин успешно установлен!")
+					}
+				} else {
+					let result5a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result5a == true) {
+						if (score > 0) {
+							skin[5] = true;
+							score = score - 0
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!")
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+		function buySkin6() {
+			if (userId) {
+				if (skin[6] == true) {
+					let result6 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result6 == true) {
+						skin[0] = "bober.png"
+						alert("Скин успешно установлен!")
+					}
+				} else {
+					let result6a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result6a == true) {
+						if (score > 0) {
+							skin[6] = true;
+							score = score - 0
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!")
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+		function buySkin7() {
+			if (userId) {
+				if (skin[7] == true) {
+					let result7 = confirm("Этот скин уже куплен. Хотите установить его?");
+					if (result7 == true) {
+						skin[0] = "bober.png"
+						alert("Скин успешно установлен!")
+					}
+				} else {
+					let result7a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+					if (result7a == true) {
+						if (score > 0) {
+							skin[7] = true;
+							score = score - 0
+							alert("Успешная покука скина!");
+						} else {
+							alert("Недостаточно средств!")
+						}
+					}
+				}
+			} else {
+				alert('Пожалуйста, войдите в акаунт.');
+			}
+		}
+		
+        document.getElementById('clicker').onclick = function() {
+            if (userId) {
+                score = score + plus ;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+            } else {
+                alert('Пожалуйста, войдите в акаунт.');
+            }
+        };
+		document.getElementById('shopExit').style.display = 'none';
+		
+        document.getElementById('loginButton').onclick = function() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        };
+
+        document.getElementById('registerButton').onclick = function() {
+            document.getElementById('registerForm').style.display = 'block';
+            document.getElementById('loginForm').style.display = 'none';
+        };
+
+       
+        document.getElementById('submitLogin').onclick = function() {
+            const login = document.getElementById('login').value;
+            const password = document.getElementById('password').value;
+            fetch('login-t.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ login: login, password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    userId = data.userId;
+                    score = data.skin;
+                    plus = data.score;
+					const skin = data.plus;
+                    document.getElementById('score').innerText = 'Счет: ' + score;
+                    alert('Успешный вход!');
+                    loadLeaderboard();
+					skinLoad();
+                    document.getElementById('registerForm').style.display = 'none';
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('loginButton').style.display = 'none';
+                    document.getElementById('registerButton').style.display = 'none';
+                    
+                } else {
+                    alert('Ошибка входа: ' + data.message);
+                }
+            });
+        };
+         function shopShow() {
+			document.getElementById('shop').style.display = 'block';
+			document.getElementById('shopButton').style.display = 'none';
+			document.getElementById('shopExit').style.display = 'block';
+			document.getElementById('clicerMex').style.display = 'none';
+			document.getElementById('leaderboard').style.display = 'none';
+         }
+		 function shopClose()
+		 {
+			 document.getElementById('shop').style.display = 'none';
+			 document.getElementById('shopButton').style.display = 'block';
+			 document.getElementById('shopExit').style.display = 'none';
+			 document.getElementById('clicerMex').style.display = 'block';
+			 document.getElementById('leaderboard').style.display = 'block';
+		 }
+         function Save() {
+if (userId) {
+saveScore(score);
+alert("Успешное сохранение");
+} else {
+alert('Пожалуйста, войдите в акаунт.');
+}
+}
+
+	function buyUpgrade1()
+	{
+		//Функция покупки улудшения 1
+		if (userId) {
+			if (score > 5000) {
+				plus = plus + 1
+				score = score - 5000
+				saveplus()
+				alert("Успешная покука улучшения!")
+			} else {
+				alert("Недостаточно средств!")
+			}
+		} else {
+			alert('Пожалуйста, войдите в систему!');
+		}
+	};
+	function buyUpgrade2()
+	{
+		//Функция покупки улудшения 2
+		if (userId) {
+			if (score > 20000) {
+				plus = plus + 5
+				score = score - 20000
+				saveplus()
+				alert("Успешная покука улучшения!")
+			} else {
+				alert("Недостаточно средств!")
+			}
+		} else {
+			alert('Пожалуйста, войдите в систему!');
+		}
+	};
+	function saveplus()
+	{
+		//Сохранение значения plus
+		saveScore(score)
+		fetch('save-plus.php', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ userId: userId, plus: plus })
+		})
+		.then(response => response.json())
+		.then(data => console.log(data))
+		.catch(error => console.error('Ошибка:', error));
+	};
+	
+        document.getElementById('submitRegister').onclick = function() {
+            const regLogin = document.getElementById('regLogin').value;
+            const regPassword = document.getElementById('regPassword').value;
+            fetch('register-t.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ login: regLogin, password: regPassword })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            });
+        };
+
+		document.getElementById('shop').style.display = 'none';
+       function saveScore(score) {
+            fetch('save-score.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+				body: JSON.stringify({ userId: userId, score: score, skin: skin })
+            })
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(error => console.error('Ошибка:', error));
+        }
+
+
+        function loadLeaderboard() {
+    fetch('leaderboard.php')
+        .then(response => response.json())
+        .then(data => {
+            const leaderboard = document.getElementById('leaderboard');
+            leaderboard.innerHTML = '<h2>Топ игрок</h2>';
+            data.forEach(player => {
+                leaderboard.innerHTML += `<p>1. Имя пользователя: ${player.login} Счёт: ${player.score}</p>`;
+            });
+        });
+}
+
+        window.onload = loadLeaderboard();
+
+    </script>
+</body>
+</html>
