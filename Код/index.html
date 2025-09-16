@@ -335,8 +335,12 @@
 
 
     <script>
-	    const test = new URLSearchParams(window.location.search);
-		console.log(test);
+	    const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+	    const test = urlParams.get('test');
+		if (test == null) {
+		    console.log(test);
+		};
         //window.location.replace("tex.html");
         let login = 0;
         let score = 0;
