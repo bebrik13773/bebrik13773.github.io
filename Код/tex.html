@@ -201,7 +201,7 @@
         <p>К сожалению, игра находится на техническом обслуживании. Покликать бобра сейчас не получится. Мы работаем над улучшением игры и скоро вернёмся!</p>
         <button class="retry-button" onclick="window.location.replace('/Код');">Попробовать снова</button>
 		<br>
-		<button onclick="test()"></button>
+		<button onclick="test();"></button>
 
     </div>
 	 <footer class="footer">
@@ -240,10 +240,10 @@
     </footer>
 	<script>
 function test() {
-if (test == true){
+let conf = confirm("Войти в режим разработчика?");
+if (conf == true){
 window.location.replace('/Код?test=true');
-}
-};
+}};
 </script>
 </body>
 </html>
