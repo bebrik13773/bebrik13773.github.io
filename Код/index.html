@@ -700,7 +700,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
 
         function loadLeaderboard() {
-    fetch('https://bober-api.gt.tc/leaderboard.php')
+    fetch('https://bober-api.gt.tc/leaderboard.php', { mode: 'no-cors' })
         .then(response => response.json())
         .then(data => {
             const leaderboard = document.getElementById('leaderboard');
