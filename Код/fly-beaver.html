@@ -64,6 +64,17 @@
             z-index: 10;
         }
         
+        #level-indicator {
+            position: absolute;
+            top: 50px;
+            right: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 10;
+        }
+        
         .screen {
             position: absolute;
             top: 0;
@@ -82,6 +93,10 @@
         }
         
         #game-over {
+            display: none;
+        }
+        
+        #pause-screen {
             display: none;
         }
         
@@ -179,6 +194,24 @@
             cursor: pointer;
         }
         
+        #pause-btn {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            z-index: 30;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
         .instructions {
             background: rgba(0, 0, 0, 0.6);
             padding: 12px;
@@ -186,6 +219,12 @@
             margin-top: 15px;
             max-width: 80%;
             font-size: 14px;
+        }
+        
+        .difficulty-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ffd700;
         }
         
         /* Анимации */
@@ -222,6 +261,11 @@
                 font-size: 16px;
             }
             
+            #level-indicator {
+                font-size: 14px;
+                top: 45px;
+            }
+            
             .controls {
                 font-size: 14px;
             }
@@ -247,12 +291,6 @@
                 padding: 8px;
             }
         }
-        
-        .texture-preloader {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-        }
     </style>
 </head>
 <body>
@@ -260,6 +298,7 @@
         <canvas id="game-canvas"></canvas>
         <div id="score">0</div>
         <div id="high-score">Рекорд: 0</div>
+        <div id="level-indicator">Уровень: 1</div>
         
         <div id="start-screen" class="screen">
             <h1>ЛЕТАЮЩИЙ БОБЕР</h1>
@@ -267,6 +306,7 @@
             <button id="start-button">НАЧАТЬ</button>
             <div class="controls">
                 Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК
+                <div class="difficulty-info">Сложность увеличивается каждые 10 очков!</div>
             </div>
             <div class="instructions">
                 Пролетай через брёвна, чтобы набрать очки.<br>Избегай столкновений!
@@ -277,26 +317,23 @@
             <h1>ИГРА ОКОНЧЕНА</h1>
             <div class="subtitle">Твой счёт: <span id="final-score">0</span></div>
             <div class="subtitle">Рекорд: <span id="final-high-score">0</span></div>
+            <div class="subtitle">Достигнутый уровень: <span id="final-level">1</span></div>
             <button id="restart-button">ИГРАТЬ СНОВА</button>
             <button id="exit-button" style="background: linear-gradient(to bottom, #ff6b6b, #c44); box-shadow: 0 6px 0 #a33, 0 8px 10px rgba(0,0,0,0.4);">ВЫЙТИ</button>
         </div>
         
+        <div id="pause-screen" class="screen">
+            <h1>ПАУЗА</h1>
+            <div class="subtitle">Счёт: <span id="pause-score">0</span></div>
+            <div class="subtitle">Уровень: <span id="pause-level">1</span></div>
+            <button id="resume-button">ПРОДОЛЖИТЬ</button>
+            <button id="restart-from-pause">ЗАНОВО</button>
+            <button id="exit-from-pause" style="background: linear-gradient(to bottom, #ff6b6b, #c44); box-shadow: 0 6px 0 #a33, 0 8px 10px rgba(0,0,0,0.4);">ВЫЙТИ</button>
+        </div>
+        
         <div id="mute-btn">🔊</div>
         <div id="exit-btn">←</div>
-        
-        <!-- Аудио элементы -->
-        <audio id="background-music" loop>
-            <source src="https://cdn.pixabay.com/download/audio/2021/10/25/audio_172d7dec90.mp3?filename=fun-whistle-by-keleos-186853.mp3" type="audio/mpeg">
-        </audio>
-        <audio id="flap-sound">
-            <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_5c4c453c2c.mp3?filename=wing-flap-103298.mp3" type="audio/mpeg">
-        </audio>
-        <audio id="score-sound">
-            <source src="https://cdn.pixabay.com/download/audio/2022/03/19/audio_3c0811d8ff.mp3?filename=power-up-6768.mp3" type="audio/mpeg">
-        </audio>
-        <audio id="hit-sound">
-            <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_6eef1cce2c.mp3?filename=impact-7035.mp3" type="audio/mpeg">
-        </audio>
+        <div id="pause-btn">⏸️</div>
     </div>
 
     <script>
@@ -305,21 +342,24 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const highScoreElement = document.getElementById('high-score');
+        const levelIndicator = document.getElementById('level-indicator');
         const finalScoreElement = document.getElementById('final-score');
         const finalHighScoreElement = document.getElementById('final-high-score');
+        const finalLevelElement = document.getElementById('final-level');
+        const pauseScoreElement = document.getElementById('pause-score');
+        const pauseLevelElement = document.getElementById('pause-level');
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over');
+        const pauseScreen = document.getElementById('pause-screen');
         const startButton = document.getElementById('start-button');
         const restartButton = document.getElementById('restart-button');
+        const resumeButton = document.getElementById('resume-button');
+        const restartFromPauseButton = document.getElementById('restart-from-pause');
         const exitButton = document.getElementById('exit-button');
+        const exitFromPauseButton = document.getElementById('exit-from-pause');
         const muteBtn = document.getElementById('mute-btn');
         const exitBtn = document.getElementById('exit-btn');
-        
-        // Аудио элементы
-        const backgroundMusic = document.getElementById('background-music');
-        const flapSound = document.getElementById('flap-sound');
-        const scoreSound = document.getElementById('score-sound');
-        const hitSound = document.getElementById('hit-sound');
+        const pauseBtn = document.getElementById('pause-btn');
         
         // Установка размеров canvas
         function resizeCanvas() {
@@ -333,17 +373,22 @@
         
         // Игровые переменные
         let gameRunning = false;
+        let gamePaused = false;
         let score = 0;
         let highScore = localStorage.getItem('flappyBeaverHighScore') || 0;
+        let currentLevel = 1;
         let frames = 0;
-        let gameSpeed = 2;
-        let isMuted = false;
+        let baseGameSpeed = 2;
+        let currentGameSpeed = baseGameSpeed;
+        let isMuted = true; // По умолчанию звук выключен
+        let isMobile = 'ontouchstart' in window;
         
         highScoreElement.textContent = `Рекорд: ${highScore}`;
+        levelIndicator.textContent = `Уровень: ${currentLevel}`;
         
         // Функция вибрации для мобильных устройств
         function vibrate(pattern) {
-            if ('vibrate' in navigator) {
+            if (isMobile && 'vibrate' in navigator) {
                 navigator.vibrate(pattern);
             }
         }
@@ -469,7 +514,7 @@
             },
             
             update: function() {
-                if (gameRunning) {
+                if (gameRunning && !gamePaused) {
                     // Плавное увеличение скорости падения
                     this.velocity += this.gravity;
                     
@@ -487,8 +532,6 @@
                     // Проверка столкновения с землей
                     if (this.y + this.height >= canvas.height - ground.height) {
                         this.y = canvas.height - ground.height - this.height;
-                        if (!isMuted) hitSound.play();
-                        // Вибрация при столкновении
                         vibrate(200);
                         gameOver();
                     }
@@ -504,8 +547,6 @@
             flap: function() {
                 this.velocity = this.jump;
                 this.rotation = -0.4;
-                if (!isMuted) flapSound.play();
-                // Короткая вибрация при взмахе
                 vibrate(50);
             }
         };
@@ -538,7 +579,7 @@
             position: [],
             gap: 200,
             maxYPos: -150,
-            dx: gameSpeed,
+            dx: currentGameSpeed,
             
             draw: function() {
                 for (let i = 0; i < this.position.length; i++) {
@@ -561,13 +602,22 @@
             },
             
             update: function() {
-                if (gameRunning) {
-                    if (frames % 100 === 0) {
+                if (gameRunning && !gamePaused) {
+                    // Увеличиваем скорость в зависимости от уровня
+                    this.dx = currentGameSpeed;
+                    
+                    // Уменьшаем интервал между брёвнами с повышением уровня
+                    const spawnInterval = Math.max(60, 100 - (currentLevel * 5));
+                    
+                    if (frames % spawnInterval === 0) {
+                        // Уменьшаем зазор между брёвнами с повышением уровня
+                        const currentGap = Math.max(160, this.gap - (currentLevel * 5));
+                        
                         this.position.push({
                             x: canvas.width,
                             y: 0,
                             width: 60,
-                            top: 100 + Math.random() * 150,
+                            top: 100 + Math.random() * (150 - currentLevel * 5),
                             counted: false
                         });
                     }
@@ -589,8 +639,6 @@
                             beaver.x + 10 < p.x + p.width && 
                             (beaver.y + 5 < p.top || beaver.y + beaver.height - 5 > p.top + this.gap)
                         ) {
-                            if (!isMuted) hitSound.play();
-                            // Вибрация при столкновении
                             vibrate(200);
                             gameOver();
                         }
@@ -600,13 +648,15 @@
                             score++;
                             scoreElement.textContent = score;
                             p.counted = true;
-                            if (!isMuted) scoreSound.play();
-                            // Короткая вибрация при получении очка
                             vibrate(100);
                             
-                            // Увеличиваем скорость с каждым 5 очком
-                            if (score % 5 === 0) {
-                                this.dx += 0.2;
+                            // Повышение уровня каждые 10 очков
+                            const newLevel = Math.floor(score / 10) + 1;
+                            if (newLevel > currentLevel) {
+                                currentLevel = newLevel;
+                                levelIndicator.textContent = `Уровень: ${currentLevel}`;
+                                currentGameSpeed = baseGameSpeed + (currentLevel * 0.3);
+                                vibrate(150);
                             }
                         }
                     }
@@ -666,30 +716,25 @@
         // Функция начала игры
         function startGame() {
             gameRunning = true;
+            gamePaused = false;
             score = 0;
+            currentLevel = 1;
+            currentGameSpeed = baseGameSpeed;
             frames = 0;
             scoreElement.textContent = score;
+            levelIndicator.textContent = `Уровень: ${currentLevel}`;
             
             beaver.y = canvas.height / 2;
             beaver.velocity = 0;
             beaver.rotation = 0;
             
             logs.position = [];
-            logs.dx = gameSpeed;
+            logs.dx = currentGameSpeed;
             clouds.position = [];
             
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            
-            // Запуск фоновой музыки
-            if (!isMuted) {
-                try {
-                    backgroundMusic.currentTime = 0;
-                    backgroundMusic.play().catch(e => console.log("Автовоспроизведение заблокировано"));
-                } catch (e) {
-                    console.log("Ошибка воспроизведения музыки", e);
-                }
-            }
+            pauseScreen.style.display = 'none';
             
             // Генерация начальных облаков
             for (let i = 0; i < 5; i++) {
@@ -702,12 +747,25 @@
             }
         }
         
+        // Функция паузы игры
+        function togglePause() {
+            if (!gameRunning) return;
+            
+            gamePaused = !gamePaused;
+            
+            if (gamePaused) {
+                pauseScoreElement.textContent = score;
+                pauseLevelElement.textContent = currentLevel;
+                pauseScreen.style.display = 'flex';
+            } else {
+                pauseScreen.style.display = 'none';
+            }
+        }
+        
         // Функция завершения игры
         function gameOver() {
             gameRunning = false;
-            
-            // Остановка фоновой музыки
-            backgroundMusic.pause();
+            gamePaused = false;
             
             // Обновление рекорда
             if (score > highScore) {
@@ -718,6 +776,7 @@
             
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
+            finalLevelElement.textContent = currentLevel;
             gameOverScreen.style.display = 'flex';
         }
         
@@ -744,20 +803,20 @@
             
             // Рисуем облака
             clouds.draw();
-            clouds.update();
+            if (!gamePaused) clouds.update();
             
             // Рисуем землю
             ground.draw();
             
             // Рисуем брёвна
             logs.draw();
-            logs.update();
+            if (!gamePaused) logs.update();
             
             // Рисуем и обновляем бобра
             beaver.draw();
-            beaver.update();
+            if (!gamePaused) beaver.update();
             
-            frames++;
+            if (!gamePaused) frames++;
             
             requestAnimationFrame(loop);
         }
@@ -767,10 +826,6 @@
             startGame();
             // Вибрация при начале игры
             vibrate(100);
-            // Запускаем музыку после клика пользователя
-            if (!isMuted) {
-                backgroundMusic.play().catch(e => console.log("Автовоспроизведение заблокировано"));
-            }
         });
         
         restartButton.addEventListener('click', function() {
@@ -779,34 +834,55 @@
             vibrate(100);
         });
         
+        resumeButton.addEventListener('click', function() {
+            togglePause();
+            // Вибрация при продолжении
+            vibrate(50);
+        });
+        
+        restartFromPauseButton.addEventListener('click', function() {
+            startGame();
+            // Вибрация при перезапуске
+            vibrate(100);
+        });
+        
         exitButton.addEventListener('click', exitGame);
+        exitFromPauseButton.addEventListener('click', exitGame);
         exitBtn.addEventListener('click', exitGame);
+        
+        pauseBtn.addEventListener('click', togglePause);
         
         // Управление бобром
         document.addEventListener('keydown', function(e) {
             if (e.code === 'Space') {
-                if (gameRunning) {
+                if (gameRunning && !gamePaused) {
                     beaver.flap();
-                } else if (startScreen.style.display === 'none') {
+                } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
                     startGame();
                 }
+                e.preventDefault();
+            }
+            
+            // Пауза по клавише P или Escape
+            if ((e.code === 'KeyP' || e.code === 'Escape') && gameRunning) {
+                togglePause();
                 e.preventDefault();
             }
         });
         
         canvas.addEventListener('click', function() {
-            if (gameRunning) {
+            if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (startScreen.style.display === 'none') {
+            } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
                 startGame();
             }
         });
         
         // Сенсорное управление для мобильных устройств
         canvas.addEventListener('touchstart', function(e) {
-            if (gameRunning) {
+            if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (startScreen.style.display === 'none') {
+            } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
                 startGame();
             }
             e.preventDefault();
@@ -816,13 +892,6 @@
         muteBtn.addEventListener('click', function() {
             isMuted = !isMuted;
             this.textContent = isMuted ? '🔇' : '🔊';
-            
-            if (isMuted) {
-                backgroundMusic.pause();
-            } else if (gameRunning) {
-                backgroundMusic.play().catch(e => console.log("Автовоспроизведение заблокировано"));
-            }
-            // Вибрация при переключении звука
             vibrate(50);
         });
         
@@ -830,24 +899,11 @@
         loop();
         
         // Адаптация под мобильные устройства
-        if ('ontouchstart' in window) {
+        if (isMobile) {
             document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> КАСАНИЕ';
+        } else {
+            document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК<br>Пауза: P или ESC';
         }
-        
-        // Предзагрузка аудио
-        window.addEventListener('load', function() {
-            backgroundMusic.volume = 0.3;
-            flapSound.volume = 0.5;
-            scoreSound.volume = 0.5;
-            hitSound.volume = 0.5;
-            
-            // Пытаемся предзагрузить музыку
-            try {
-                backgroundMusic.load();
-            } catch (e) {
-                console.log("Ошибка предзагрузки музыки", e);
-            }
-        });
     </script>
 </body>
-</html>
+    </html>
