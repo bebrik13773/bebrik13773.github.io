@@ -361,6 +361,18 @@
         const exitBtn = document.getElementById('exit-btn');
         const pauseBtn = document.getElementById('pause-btn');
         
+        // Создаем аудио элементы
+        const flapSound = new Audio('https://www.myinstants.com/media/sounds/sfx_wing.mp3');
+        const scoreSound = new Audio('https://www.myinstants.com/media/sounds/xbox-360-achievement-sound.mp3');
+        const hitSound = new Audio('https://www.myinstants.com/media/sounds/minecraft-death-sound-effect.mp3');
+        const levelupSound = new Audio('https://www.myinstants.com/media/sounds/orb.mp3');
+        
+        // Настраиваем громкость
+        flapSound.volume = 0.6;
+        scoreSound.volume = 0.7;
+        hitSound.volume = 0.8;
+        levelupSound.volume = 0.7;
+        
         // Установка размеров canvas
         function resizeCanvas() {
             canvas.width = canvas.offsetWidth;
@@ -380,7 +392,7 @@
         let frames = 0;
         let baseGameSpeed = 2;
         let currentGameSpeed = baseGameSpeed;
-        let isMuted = true; // По умолчанию звук выключен
+        let isMuted = false;
         let isMobile = 'ontouchstart' in window;
         
         highScoreElement.textContent = `Рекорд: ${highScore}`;
@@ -393,6 +405,20 @@
             }
         }
         
+        // Функция воспроизведения звука
+        function playSound(sound) {
+            if (isMuted) return;
+            
+            try {
+                sound.currentTime = 0;
+                sound.play().catch(e => {
+                    console.log("Автовоспроизведение заблокировано, звук будет работать после взаимодействия с игрой");
+                });
+            } catch (e) {
+                console.log("Ошибка воспроизведения звука:", e);
+            }
+        }
+        
         // Создаем текстуры
         function createWoodTexture() {
             const textureCanvas = document.createElement('canvas');
@@ -400,17 +426,14 @@
             textureCanvas.height = 60;
             const textureCtx = textureCanvas.getContext('2d');
             
-            // Основной цвет древесины
             textureCtx.fillStyle = '#8B4513';
             textureCtx.fillRect(0, 0, 60, 60);
             
-            // Более темные полосы (годовые кольца)
             textureCtx.fillStyle = '#5D4037';
             for (let i = 0; i < 60; i += 4) {
                 textureCtx.fillRect(0, i, 60, 1);
             }
             
-            // Случайные пятна и текстура
             textureCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             for (let i = 0; i < 30; i++) {
                 const x = Math.random() * 60;
@@ -428,11 +451,9 @@
             textureCanvas.height = 30;
             const textureCtx = textureCanvas.getContext('2d');
             
-            // Основной цвет меха
             textureCtx.fillStyle = '#8B5A2B';
             textureCtx.fillRect(0, 0, 40, 30);
             
-            // Текстура меха
             textureCtx.fillStyle = '#6B4C2B';
             for (let i = 0; i < 40; i += 3) {
                 for (let j = 0; j < 30; j += 4) {
@@ -451,11 +472,9 @@
             textureCanvas.height = 60;
             const textureCtx = textureCanvas.getContext('2d');
             
-            // Основной цвет земли
             textureCtx.fillStyle = '#8B4513';
             textureCtx.fillRect(0, 0, 60, 60);
             
-            // Текстура земли
             textureCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
             for (let i = 0; i < 60; i += 4) {
                 for (let j = 0; j < 60; j += 4) {
@@ -490,22 +509,17 @@
                 ctx.translate(this.x + this.width/2, this.y + this.height/2);
                 ctx.rotate(this.rotation);
                 
-                // Тело бобра
                 ctx.drawImage(beaverTexture, -this.width/2, -this.height/2, this.width, this.height);
                 
-                // Хвост (плоский и широкий)
                 ctx.fillStyle = '#6B4C2B';
                 ctx.fillRect(this.width/2 - 5, -this.height/4, 12, this.height/2);
                 
-                // Нос
                 ctx.fillStyle = '#5C4033';
                 ctx.fillRect(-this.width/2 - 5, 0, 8, 8);
                 
-                // Глаза
                 ctx.fillStyle = 'black';
                 ctx.fillRect(this.width/4 - 5, -this.height/4, 4, 4);
                 
-                // Лапы
                 ctx.fillStyle = '#5C4033';
                 ctx.fillRect(-this.width/2 + 5, this.height/2 - 5, 8, 5);
                 ctx.fillRect(-this.width/2 + 20, this.height/2 - 5, 8, 5);
@@ -515,28 +529,24 @@
             
             update: function() {
                 if (gameRunning && !gamePaused) {
-                    // Плавное увеличение скорости падения
                     this.velocity += this.gravity;
                     
-                    // Ограничение максимальной скорости падения
                     if (this.velocity > this.maxFallSpeed) {
                         this.velocity = this.maxFallSpeed;
                     }
                     
                     this.y += this.velocity;
                     
-                    // Поворот бобра в зависимости от скорости
                     this.rotation = this.velocity * 0.03;
                     this.rotation = Math.max(-0.4, Math.min(0.4, this.rotation));
                     
-                    // Проверка столкновения с землей
                     if (this.y + this.height >= canvas.height - ground.height) {
                         this.y = canvas.height - ground.height - this.height;
+                        playSound(hitSound);
                         vibrate(200);
                         gameOver();
                     }
                     
-                    // Проверка столкновения с потолком
                     if (this.y <= 0) {
                         this.y = 0;
                         this.velocity = 0;
@@ -547,6 +557,7 @@
             flap: function() {
                 this.velocity = this.jump;
                 this.rotation = -0.4;
+                playSound(flapSound);
                 vibrate(50);
             }
         };
@@ -556,16 +567,13 @@
             height: 60,
             
             draw: function() {
-                // Трава сверху
                 ctx.fillStyle = '#3CB371';
                 ctx.fillRect(0, canvas.height - this.height, canvas.width, 12);
                 
-                // Земля с текстурой
                 const pattern = ctx.createPattern(groundTexture, 'repeat');
                 ctx.fillStyle = pattern;
                 ctx.fillRect(0, canvas.height - this.height + 12, canvas.width, this.height - 12);
                 
-                // Трава поверх земли
                 ctx.fillStyle = '#3CB371';
                 for (let i = 0; i < canvas.width; i += 20) {
                     ctx.fillRect(i, canvas.height - this.height, 8, 4);
@@ -585,17 +593,13 @@
                 for (let i = 0; i < this.position.length; i++) {
                     let p = this.position[i];
                     
-                    // Верхнее бревно
                     ctx.drawImage(woodTexture, p.x, 0, p.width, p.top);
                     
-                    // Кора на верхнем бревне
                     ctx.fillStyle = '#5D4037';
                     ctx.fillRect(p.x, p.top - 12, p.width, 12);
                     
-                    // Нижнее бревно
                     ctx.drawImage(woodTexture, p.x, p.top + this.gap, p.width, canvas.height - p.top - this.gap);
                     
-                    // Кора на нижнем бревне
                     ctx.fillStyle = '#5D4037';
                     ctx.fillRect(p.x, p.top + this.gap, p.width, 12);
                 }
@@ -603,14 +607,11 @@
             
             update: function() {
                 if (gameRunning && !gamePaused) {
-                    // Увеличиваем скорость в зависимости от уровня
                     this.dx = currentGameSpeed;
                     
-                    // Уменьшаем интервал между брёвнами с повышением уровня
                     const spawnInterval = Math.max(60, 100 - (currentLevel * 5));
                     
                     if (frames % spawnInterval === 0) {
-                        // Уменьшаем зазор между брёвнами с повышением уровня
                         const currentGap = Math.max(160, this.gap - (currentLevel * 5));
                         
                         this.position.push({
@@ -625,37 +626,35 @@
                     for (let i = 0; i < this.position.length; i++) {
                         let p = this.position[i];
                         
-                        // Движение брёвен
                         p.x -= this.dx;
                         
-                        // Удаление брёвен за пределами экрана
                         if (p.x + p.width <= 0) {
                             this.position.shift();
                         }
                         
-                        // Проверка столкновения
                         if (
                             beaver.x + beaver.width - 10 > p.x && 
                             beaver.x + 10 < p.x + p.width && 
                             (beaver.y + 5 < p.top || beaver.y + beaver.height - 5 > p.top + this.gap)
                         ) {
+                            playSound(hitSound);
                             vibrate(200);
                             gameOver();
                         }
                         
-                        // Добавление очков
                         if (p.x + p.width < beaver.x && !p.counted) {
                             score++;
                             scoreElement.textContent = score;
                             p.counted = true;
+                            playSound(scoreSound);
                             vibrate(100);
                             
-                            // Повышение уровня каждые 10 очков
                             const newLevel = Math.floor(score / 10) + 1;
                             if (newLevel > currentLevel) {
                                 currentLevel = newLevel;
                                 levelIndicator.textContent = `Уровень: ${currentLevel}`;
                                 currentGameSpeed = baseGameSpeed + (currentLevel * 0.3);
+                                playSound(levelupSound);
                                 vibrate(150);
                             }
                         }
@@ -672,10 +671,8 @@
                 for (let i = 0; i < this.position.length; i++) {
                     let c = this.position[i];
                     
-                    // Более реалистичные облака
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                     
-                    // Рисуем облако как несколько перекрывающихся кругов
                     ctx.beginPath();
                     ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
                     ctx.arc(c.x + c.size * 0.8, c.y - c.size * 0.3, c.size * 0.9, 0, Math.PI * 2);
@@ -684,7 +681,6 @@
                     ctx.arc(c.x - c.size * 0.5, c.y, c.size * 0.7, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    // Добавляем легкую тень для объема
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
                     ctx.beginPath();
                     ctx.arc(c.x + c.size * 0.3, c.y + c.size * 0.2, c.size * 0.9, 0, Math.PI * 2);
@@ -736,7 +732,11 @@
             gameOverScreen.style.display = 'none';
             pauseScreen.style.display = 'none';
             
-            // Генерация начальных облаков
+            // Предзагрузка звуков
+            [flapSound, scoreSound, hitSound, levelupSound].forEach(sound => {
+                sound.load();
+            });
+            
             for (let i = 0; i < 5; i++) {
                 clouds.position.push({
                     x: Math.random() * canvas.width,
@@ -767,7 +767,6 @@
             gameRunning = false;
             gamePaused = false;
             
-            // Обновление рекорда
             if (score > highScore) {
                 highScore = score;
                 localStorage.setItem('flappyBeaverHighScore', highScore);
@@ -782,37 +781,28 @@
         
         // Функция выхода из игры
         function exitGame() {
-            // Вибрация при выходе
             vibrate(100);
-            
-            // Перенаправление на главную страницу
             window.location.href = "/index.html";
         }
         
         // Основной игровой цикл
         function loop() {
-            // Очистка холста
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Рисуем небо
             const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             skyGradient.addColorStop(0, '#87CEEB');
             skyGradient.addColorStop(1, '#6b8cff');
             ctx.fillStyle = skyGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Рисуем облака
             clouds.draw();
             if (!gamePaused) clouds.update();
             
-            // Рисуем землю
             ground.draw();
             
-            // Рисуем брёвна
             logs.draw();
             if (!gamePaused) logs.update();
             
-            // Рисуем и обновляем бобра
             beaver.draw();
             if (!gamePaused) beaver.update();
             
@@ -821,28 +811,24 @@
             requestAnimationFrame(loop);
         }
         
-        // Обработчики событий для кнопок
+        // Обработчики событий
         startButton.addEventListener('click', function() {
             startGame();
-            // Вибрация при начале игры
             vibrate(100);
         });
         
         restartButton.addEventListener('click', function() {
             startGame();
-            // Вибрация при перезапуске
             vibrate(100);
         });
         
         resumeButton.addEventListener('click', function() {
             togglePause();
-            // Вибрация при продолжении
             vibrate(50);
         });
         
         restartFromPauseButton.addEventListener('click', function() {
             startGame();
-            // Вибрация при перезапуске
             vibrate(100);
         });
         
@@ -852,7 +838,6 @@
         
         pauseBtn.addEventListener('click', togglePause);
         
-        // Управление бобром
         document.addEventListener('keydown', function(e) {
             if (e.code === 'Space') {
                 if (gameRunning && !gamePaused) {
@@ -863,7 +848,6 @@
                 e.preventDefault();
             }
             
-            // Пауза по клавише P или Escape
             if ((e.code === 'KeyP' || e.code === 'Escape') && gameRunning) {
                 togglePause();
                 e.preventDefault();
@@ -878,7 +862,6 @@
             }
         });
         
-        // Сенсорное управление для мобильных устройств
         canvas.addEventListener('touchstart', function(e) {
             if (gameRunning && !gamePaused) {
                 beaver.flap();
@@ -888,7 +871,6 @@
             e.preventDefault();
         });
         
-        // Кнопка mute
         muteBtn.addEventListener('click', function() {
             isMuted = !isMuted;
             this.textContent = isMuted ? '🔇' : '🔊';
@@ -898,7 +880,7 @@
         // Запуск игры
         loop();
         
-        // Адаптация под мобильные устройства
+        // Адаптация под устройства
         if (isMobile) {
             document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> КАСАНИЕ';
         } else {
@@ -906,4 +888,4 @@
         }
     </script>
 </body>
-    </html>
+</html>
