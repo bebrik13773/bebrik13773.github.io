@@ -755,7 +755,7 @@ alert('Пожалуйста, войдите в акаунт.');
         document.getElementById('submitRegister').onclick = function() {
             const regLogin = document.getElementById('regLogin').value;
             const regPassword = document.getElementById('regPassword').value;
-            fetch('bober-game.mygamesonline.org/register-t.php', {
+            fetch('http://bober-game.mygamesonline.org/register-t.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
