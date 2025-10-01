@@ -11,7 +11,8 @@ jobs:
     - name: 📂 Sync files
       uses: webitsbr/github-to-ftp@1.0.1
       with:
+        local-dir: ./Код/
         server: ${{ secrets.server }}
-        server-dir: ${{ secrets.dir }}
+        server-dir: htdocs/
         username: ${{ secrets.username }}
         password: ${{ secrets.password }}
