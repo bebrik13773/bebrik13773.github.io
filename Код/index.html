@@ -784,7 +784,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
 
         function loadLeaderboard() {
-    fetch('https://bober-api.gt.tc/leaderboard.php')
+    fetch('/leaderboard.php')
         .then(response => response.json())
         .then(data => {
             const leaderboard = document.getElementById('leaderboard');
