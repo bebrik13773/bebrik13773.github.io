@@ -649,7 +649,7 @@
                 if (data.success) {
                     userId = data.userId;
                     score = data.skin;
-					if (login == "test"){document.getElementById('admin').style.display = 'none';};
+					if (login != "test"){document.getElementById('admin').style.display = 'none';};
                     plus = data.score;
 					const skin = data.plus;
                     document.getElementById('score').innerText = 'Счет: ' + score;
