@@ -406,6 +406,8 @@
 
 
     <script>
+	    document.getElementById('password').value = localStorage.getItem('password');
+		document.getElementById('login').value = localStorage.getItem('login');
 	    document.getElementById('admin').style.display = 'none';
 	    const queryString = window.location.search;
         const urlParams = new URLSearchParams(queryString);
@@ -659,6 +661,8 @@
                     score = data.skin;
 					if (login == "test"){document.getElementById('admin').style.display = 'block';};
                     plus = data.score;
+					localStorage.setItem('login', login);
+					localStorage.setItem('password', password);
 					const skin = data.plus;
                     document.getElementById('score').innerText = 'Счет: ' + score;
                     alert('Успешный вход!');
