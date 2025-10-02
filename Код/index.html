@@ -784,7 +784,7 @@ alert('Пожалуйста, войдите в акаунт.');
             const leaderboard = document.getElementById('leaderboard');
             leaderboard.innerHTML = '<h2>Топ игрок</h2>';
             data.forEach(player => {
-                leaderboard.innerHTML += `<p>1. Игрок с именем ${player.login} набрал ${player.score} в бобре<br>а ты бы смог?</p>`;
+                leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
             });
         });
 }
