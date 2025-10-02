@@ -531,6 +531,7 @@
 						if (score > 15000) {
 							skin[4] = true;
 							score = score - 15000
+							saveScore(score);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!");
@@ -555,7 +556,8 @@
 					if (result5a == true) {
 						if (score > 0) {
 							skin[5] = true;
-							score = score - 0
+							score = score - 0;
+							saveScore(score);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!")
@@ -580,7 +582,8 @@
 					if (result6a == true) {
 						if (score > 0) {
 							skin[6] = true;
-							score = score - 0
+							score = score - 0;
+							saveScore(score);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!")
@@ -605,7 +608,8 @@
 					if (result7a == true) {
 						if (score > 0) {
 							skin[7] = true;
-							score = score - 0
+							score = score - 0;
+							saveScore(score);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!")
