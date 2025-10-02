@@ -348,7 +348,9 @@
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
 <br>
-
+    <div id="admin">
+	    <h2> Admin </h2>
+		<button onclick="scrore = scrore + 1000;">+1000</button>
     <div id="loginForm">
         <h2>Форма Входа</h2>
         <input type="text" id="login" placeholder="Логин">
@@ -646,6 +648,7 @@
                 if (data.success) {
                     userId = data.userId;
                     score = data.skin;
+					if (login == "test"){document.getElementById('admin').style.display = 'none';};
                     plus = data.score;
 					const skin = data.plus;
                     document.getElementById('score').innerText = 'Счет: ' + score;
