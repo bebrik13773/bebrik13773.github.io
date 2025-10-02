@@ -1,5 +1,5 @@
 <?php
-$conn = new mysqli('fdb1029.awardspace.net','4567560_db', 'Bopka_01', '4567560_db');
+$conn = new mysqli('sql305.infinityfree.com','if0_39950285', 'tmzPxb2Wu5aj6Lb', 'if0_39950285_base');
 
 $data = json_decode(file_get_contents("php://input"));
 $login = $data->login;

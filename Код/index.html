@@ -722,7 +722,7 @@ alert('Пожалуйста, войдите в акаунт.');
 	{
 		//Сохранение значения plus
 		saveScore(score)
-		fetch('bober-game.mygamesonline.org/save-plus.php', {
+		fetch('/save-plus.php', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -737,7 +737,7 @@ alert('Пожалуйста, войдите в акаунт.');
         document.getElementById('submitRegister').onclick = function() {
             const regLogin = document.getElementById('regLogin').value;
             const regPassword = document.getElementById('regPassword').value;
-            fetch('http://bober-game.mygamesonline.org/register-t.php', {
+            fetch('/register-t.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -752,7 +752,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
 		document.getElementById('shop').style.display = 'none';
        function saveScore(score) {
-            fetch('https://save-score.php', {
+            fetch('/save-score.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
