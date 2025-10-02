@@ -469,11 +469,11 @@
 				} else {
 					let result3a = confirm("Этот скин ёще не куплен. Хотите купить его?");
 					if (result3a == true) {
-						if (score > 8666) {
+						if (score > 5000) {
 							skin[2] = true;
-							score = score - 8666;
+							score = score - 5000;
 							saveScore(score);
-							saveSkin(skin);
+							//saveSkin(skin);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!");
