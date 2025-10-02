@@ -522,18 +522,18 @@
 				if (skin[4] == true) {
 					let result4 = confirm("Этот скин уже куплен. Хотите установить его?");
 					if (result4 == true) {
-						skin[0] = skins[5]
-						alert("Скин успешно установлен!")
+						skin[0] = "skins/klub-smz-bober.jpg";
+						alert("Скин успешно установлен!");
 					}
 				} else {
 					let result4a = confirm("Этот скин ёще не куплен. Хотите купить его?");
 					if (result4a == true) {
-						if (score > 0) {
+						if (score > 15000) {
 							skin[4] = true;
-							score = score - 0
+							score = score - 15000
 							alert("Успешная покука скина!");
 						} else {
-							alert("Недостаточно средств!")
+							alert("Недостаточно средств!");
 						}
 					}
 				}
