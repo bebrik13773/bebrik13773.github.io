@@ -665,9 +665,9 @@ class AutoClickerDetector {
         this.detectionCount = 0;
         this.maxDetections = 2;
         this.isMobile = this.checkMobileDevice();
+        this.unbanCode = "UNBAN2024"; // Код для разбана (можно изменить)
         
         this.config = {
-            // Разные настройки для мобильных и десктопов
             maxCPS: this.isMobile ? 15 : 10,
             minClicksForAnalysis: this.isMobile ? 10 : 8,
             timeWindow: this.isMobile ? 2000 : 1500,
@@ -681,7 +681,6 @@ class AutoClickerDetector {
     }
 
     init() {
-        // Проверяем, не забанен ли пользователь
         if (this.isBanned()) {
             this.showBanScreen();
             return;
@@ -706,13 +705,11 @@ class AutoClickerDetector {
         const now = Date.now();
         const timeSinceLastClick = now - this.lastClickTime;
         
-        // Фильтруем старые клики
         this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
         
-        // Проверяем мультитач (особенно для мобильных)
         const simultaneousClicks = this.clicks.filter(click => Math.abs(click.time - now) < 10);
         if (simultaneousClicks.length >= this.config.multiTouchThreshold) {
-            this.suspiciousCount += 0.5; // Меньший штраф за мультитач
+            this.suspiciousCount += 0.5;
         }
         
         this.clicks.push({
@@ -741,7 +738,6 @@ class AutoClickerDetector {
         let detected = false;
         let reason = '';
 
-        // Более строгие проверки для десктопов, более мягкие для мобильных
         if (cps > this.config.maxCPS * (this.isMobile ? 2 : 1.5)) {
             detected = true;
             reason = `Сверхвысокая скорость: ${cps.toFixed(1)} CPS`;
@@ -762,7 +758,6 @@ class AutoClickerDetector {
                 this.suspiciousCount = 0;
             }
         } else {
-            // Медленнее сбрасываем счетчик для мобильных
             this.suspiciousCount = Math.max(0, this.suspiciousCount - (this.isMobile ? 0.1 : 0.2));
         }
     }
@@ -809,13 +804,11 @@ class AutoClickerDetector {
     }
 
     calculateHumanFactor() {
-        // Фактор "человечности" - оценивает случайность кликов
         if (this.clicks.length < 5) return 1;
         
         const positionVariance = this.calculatePositionVariance();
         const regularity = this.calculateRegularity();
         
-        // Человеческие клики имеют среднюю регулярность и хорошую дисперсию позиций
         const humanScore = Math.min(positionVariance / 50, 1) * (1 - regularity * 0.5);
         return humanScore;
     }
@@ -957,7 +950,6 @@ class AutoClickerDetector {
     }
 
     banUser() {
-        // Сохраняем информацию о бане
         const banInfo = {
             banned: true,
             reason: "Использование автокликера",
@@ -1020,17 +1012,33 @@ class AutoClickerDetector {
                     ">
                         <strong>Причина:</strong> Нарушение правил игры - использование автоматизированных средств
                     </div>
-                    <p style="color: #aaa; font-size: 0.9em;">
+                    <p style="color: #aaa; font-size: 0.9em; margin-bottom: 20px;">
                         По вопросам разблокировки обратитесь в поддержку
                     </p>
+                    <button id="contactSupportBtn" style="
+                        background: transparent;
+                        color: #74b9ff;
+                        border: 1px solid #74b9ff;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 0.9em;
+                    ">Обратиться в поддержку</button>
                 </div>
             </div>
         `;
         
+        // Обработчик для кнопки обращения в поддержку
+        banScreen.querySelector('#contactSupportBtn').addEventListener('click', () => {
+            this.showUnbanModal();
+        });
+        
         // Запрещаем любые действия на забаненной странице
         banScreen.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+            if (e.target.id !== 'contactSupportBtn') {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         });
         
         banScreen.addEventListener('contextmenu', (e) => {
@@ -1043,8 +1051,129 @@ class AutoClickerDetector {
         document.body.style.overflow = 'hidden';
     }
 
+    showUnbanModal() {
+        const modal = document.createElement('div');
+        modal.innerHTML = `
+            <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10001;
+                font-family: Arial, sans-serif;
+            ">
+                <div style="
+                    background: linear-gradient(135deg, #1e3c72, #2a5298);
+                    color: white;
+                    padding: 30px;
+                    border-radius: 15px;
+                    max-width: 400px;
+                    width: 90%;
+                    text-align: center;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                ">
+                    <h2 style="margin-bottom: 20px; color: #fff;">Разблокировка аккаунта</h2>
+                    <p style="margin-bottom: 20px; color: #ccc;">
+                        Для разблокировки аккаунта введите код, полученный в поддержке
+                    </p>
+                    <input type="text" id="unbanCodeInput" placeholder="Введите код разблокировки" style="
+                        width: 100%;
+                        padding: 12px;
+                        margin-bottom: 20px;
+                        border: none;
+                        border-radius: 8px;
+                        font-size: 16px;
+                        box-sizing: border-box;
+                        background: rgba(255,255,255,0.9);
+                    ">
+                    <div style="display: flex; gap: 10px;">
+                        <button id="submitUnbanCode" style="
+                            flex: 1;
+                            background: #00b894;
+                            color: white;
+                            border: none;
+                            padding: 12px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 16px;
+                            font-weight: bold;
+                        ">Разблокировать</button>
+                        <button id="cancelUnban" style="
+                            flex: 1;
+                            background: #636e72;
+                            color: white;
+                            border: none;
+                            padding: 12px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 16px;
+                        ">Отмена</button>
+                    </div>
+                    <div id="unbanMessage" style="margin-top: 15px; min-height: 20px;"></div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Обработчики для модального окна
+        modal.querySelector('#submitUnbanCode').addEventListener('click', () => {
+            this.processUnbanCode(modal);
+        });
+        
+        modal.querySelector('#cancelUnban').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        // Разблокировка по нажатию Enter
+        modal.querySelector('#unbanCodeInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.processUnbanCode(modal);
+            }
+        });
+        
+        // Фокус на поле ввода
+        modal.querySelector('#unbanCodeInput').focus();
+    }
+
+    processUnbanCode(modal) {
+        const input = modal.querySelector('#unbanCodeInput');
+        const message = modal.querySelector('#unbanMessage');
+        const code = input.value.trim();
+        
+        if (!code) {
+            message.innerHTML = '<span style="color: #ff7675;">Введите код разблокировки</span>';
+            return;
+        }
+        
+        if (code === this.unbanCode) {
+            message.innerHTML = '<span style="color: #55efc4;">Код принят! Разблокировка...</span>';
+            
+            // Удаляем информацию о бане
+            setTimeout(() => {
+                localStorage.removeItem('clicker_ban_info');
+                modal.remove();
+                location.reload();
+            }, 1500);
+        } else {
+            message.innerHTML = '<span style="color: #ff7675;">Неверный код разблокировки</span>';
+            input.value = '';
+            input.focus();
+            
+            // Добавляем небольшую задержку при неправильном коде
+            input.style.background = 'rgba(255, 118, 117, 0.2)';
+            setTimeout(() => {
+                input.style.background = 'rgba(255,255,255,0.9)';
+            }, 1000);
+        }
+    }
+
     getUserIP() {
-        // Это упрощенный метод, в реальном приложении нужно получать IP с сервера
         return 'unknown';
     }
 
@@ -1086,10 +1215,11 @@ function checkBanOnLoad() {
 if (!checkBanOnLoad()) {
     const clickDetector = new AutoClickerDetector();
     
-    // Для отладки (можно удалить в продакшене)
+    // Для отладки
     window.clickDetector = clickDetector;
     
     console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
+    console.log('Код разбана (только для разработки):', clickDetector.unbanCode);
 }
 
 // Функция для сброса бана (для тестирования)
@@ -1102,9 +1232,37 @@ function resetBan() {
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Сбросить бан (dev)';
-    resetBtn.style.cssText = 'position: fixed; bottom: 10px; right: 10px; z-index: 9999; padding: 5px; font-size: 10px;';
+    resetBtn.style.cssText = `
+        position: fixed; 
+        bottom: 10px; 
+        right: 10px; 
+        z-index: 9999; 
+        padding: 8px 12px; 
+        font-size: 12px;
+        background: #e17055;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    `;
     resetBtn.onclick = resetBan;
     document.body.appendChild(resetBtn);
+    
+    // Также показываем код разбана для удобства тестирования
+    const codeInfo = document.createElement('div');
+    codeInfo.textContent = 'Код разбана: UNBAN2024';
+    codeInfo.style.cssText = `
+        position: fixed; 
+        bottom: 40px; 
+        right: 10px; 
+        z-index: 9999; 
+        padding: 5px 10px; 
+        font-size: 11px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        border-radius: 4px;
+    `;
+    document.body.appendChild(codeInfo);
 }
 </script>
 	 <footer class="footer">
