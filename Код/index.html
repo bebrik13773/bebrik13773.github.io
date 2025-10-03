@@ -436,6 +436,7 @@
 					if (result1 == true) {
 						skin[0] = tex;
 						alert("Скин успешно установлен!");
+						saveScore(score);
 						skinLoad();
 					}
 				} else {
@@ -443,6 +444,7 @@
 					if (result1a == true) {
 						if (score > sum) {
 							skin[id] = true;
+							saveScore(score);
 							score = score - sum;
 							alert("Успешная покука скина!");
 						} else {
