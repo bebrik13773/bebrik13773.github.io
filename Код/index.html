@@ -375,7 +375,7 @@
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
 <div id="shop">
-<button id="ludButton">Улудшения</button> <button id="skinShop">Скины</button>
+<button id="ludButton">Улучшения</button> <button id="skinShop">Скины</button>
 <h1 id="lud">Магазин улудшений</h1>
 <div id="lud">
 <button  id="ShopButton" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
@@ -656,6 +656,7 @@ alert('Пожалуйста, войдите в акаунт.');
 
     </script>
 	<script>
+
 class AutoClickerDetector {
     constructor() {
         this.clicks = [];
@@ -668,13 +669,13 @@ class AutoClickerDetector {
         this.unbanCode = "UNBAN2024"; // Код для разбана (можно изменить)
         
         this.config = {
-            maxCPS: this.isMobile ? 15 : 10,
-            minClicksForAnalysis: this.isMobile ? 10 : 8,
+            maxCPS: this.isMobile ? 16 : 14,
+            minClicksForAnalysis: this.isMobile ? 10 : 9,
             timeWindow: this.isMobile ? 2000 : 1500,
             regularityThreshold: 0.9,
             positionThreshold: this.isMobile ? 10 : 5,
-            minInterval: this.isMobile ? 30 : 40,
-            multiTouchThreshold: this.isMobile ? 3 : 1
+            minInterval: this.isMobile ? 30 : 43,
+            multiTouchThreshold: this.isMobile ? 3 : 2
         };
         
         this.init();
@@ -1068,7 +1069,7 @@ class AutoClickerDetector {
                 font-family: Arial, sans-serif;
             ">
                 <div style="
-                    background: linear-gradient(135deg, #1e3c72, #2a5298);
+                    background: linear-gradient(135deg, #1e3c73, #2a5298);
                     color: white;
                     padding: 30px;
                     border-radius: 15px;
