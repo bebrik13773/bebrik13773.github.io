@@ -403,7 +403,21 @@
 </div>
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
-
+<script src="https://unpkg.com/antiautoclick@1.0.6/antiautoclick.js">
+const options = {
+    clicksToSave: 50,
+    detectNonhumanClick: true,
+    detectClickInterval: {
+      enabled: true,
+      margin: 10
+    },
+    detectFastClicking: {
+      enabled: true,
+      maximumAvgPerSecond: 40
+    }
+  }
+const detector = new antiautoclick('window.location.reload();', options);
+</script>
     <script>
 	    document.getElementById('password').value = localStorage.getItem('password');
 		document.getElementById('login').value = localStorage.getItem('login');
