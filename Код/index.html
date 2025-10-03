@@ -656,7 +656,7 @@
             .then(data => {
                 if (data.success) {
                     userId = data.userId;
-                    score = data.score
+                    score = data.skin;
 					if (login == "test"){document.getElementById('admin').style.display = 'block';};
                     plus = data.score;
 					localStorage.setItem('login', login);
