@@ -808,7 +808,7 @@ class AutoClickerDetector {
         
         this.config = {
             // Разные настройки для мобильных и десктопов
-            maxCPS: this.isMobile ? 15 : 17,
+            maxCPS: this.isMobile ? 8 : 12,
             minClicksForAnalysis: this.isMobile ? 6 : 8,
             timeWindow: this.isMobile ? 2000 : 1500,
             regularityThreshold: this.isMobile ? 0.9 : 0.85,
@@ -839,7 +839,7 @@ class AutoClickerDetector {
     getUserId() {
         // Получаем ID пользователя из вашей системы
         // Замените этот код на получение реального ID пользователя
-        return userId;
+        return window.gameUserId || localStorage.getItem('userId') || 'unknown';
     }
 
     handleClick(e) {
@@ -1103,7 +1103,7 @@ class AutoClickerDetector {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ userId: this.userId})
+                body: JSON.stringify({ userId: userId})
             });
             
             if (response.ok) {
