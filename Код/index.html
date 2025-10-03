@@ -802,51 +802,75 @@ class AutoClickerDetector {
         this.checkInterval = null;
         this.lastClickTime = 0;
         this.detectionCount = 0;
-        this.maxDetections = 2; // Максимальное количество обнаружений перед блокировкой
+        this.maxDetections = 3; // Предупреждение → Предупреждение → Бан
+        this.userId = this.getUserId(); // Получаем ID пользователя
+        this.isMobile = this.detectMobile();
         
         this.config = {
-            maxCPS: 12,           // Максимальная скорость кликов в секунду
-            minClicksForAnalysis: 8, // Минимальное количество кликов для анализа
-            timeWindow: 1500,      // Время анализа в мс
-            regularityThreshold: 0.85, // Порог регулярности
-            positionThreshold: 2,  // Минимальная дисперсия позиций
-            minInterval: 40        // Минимальный интервал между кликами (мс)
+            // Разные настройки для мобильных и десктопов
+            maxCPS: this.isMobile ? 8 : 12,
+            minClicksForAnalysis: this.isMobile ? 6 : 8,
+            timeWindow: this.isMobile ? 2000 : 1500,
+            regularityThreshold: this.isMobile ? 0.9 : 0.85,
+            positionThreshold: this.isMobile ? 1 : 2,
+            minInterval: this.isMobile ? 60 : 40
         };
         
         this.init();
     }
 
     init() {
+        // Восстанавливаем счетчик обнаружений из localStorage
+        this.detectionCount = parseInt(localStorage.getItem('autoClicker_detections') || '0');
+        
         const events = ['click', 'touchstart', 'mousedown'];
         events.forEach(event => {
             document.addEventListener(event, this.handleClick.bind(this), true);
         });
         
         this.startContinuousCheck();
-        
-        // Защита от остановки скрипта
         this.backupCheck();
+    }
+
+    detectMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    getUserId() {
+        // Получаем ID пользователя из вашей системы
+        // Замените этот код на получение реального ID пользователя
+        return window.gameUserId || localStorage.getItem('userId') || 'unknown';
     }
 
     handleClick(e) {
         const now = Date.now();
         const timeSinceLastClick = now - this.lastClickTime;
         
-        // Проверка на слишком маленький интервал (невозможный для человека)
-        if (timeSinceLastClick < this.config.minInterval && this.lastClickTime !== 0) {
-            this.suspiciousCount += 2;
+        // Более мягкая проверка интервалов для мобильных
+        if (timeSinceLastClick < this.config.minInterval && this.lastClickTime !== 0 && !this.isMobile) {
+            this.suspiciousCount += 1;
         }
         
         // Фильтруем старые клики
         this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
         
-        this.clicks.push({
+        // Добавляем новый клик
+        const clickData = {
             time: now,
             type: e.type,
-            x: e.clientX || (e.touches ? e.touches[0].clientX : 0),
-            y: e.clientY || (e.touches ? e.touches[0].clientY : 0),
             trusted: e.isTrusted
-        });
+        };
+        
+        // Для тач-событий используем координаты касания
+        if (e.type === 'touchstart') {
+            clickData.x = e.touches[0].clientX;
+            clickData.y = e.touches[0].clientY;
+        } else {
+            clickData.x = e.clientX;
+            clickData.y = e.clientY;
+        }
+        
+        this.clicks.push(clickData);
 
         // Проверяем подозрительные паттерны
         if (this.clicks.length >= this.config.minClicksForAnalysis) {
@@ -858,7 +882,10 @@ class AutoClickerDetector {
 
     checkSuspiciousPatterns(timeSinceLastClick) {
         const cps = this.calculateCPS();
-        if (cps < this.config.maxCPS) return;
+        
+        // Для мобильных требуем более высоких значений для срабатывания
+        const cpsThreshold = this.isMobile ? this.config.maxCPS * 1.5 : this.config.maxCPS;
+        if (cps < cpsThreshold) return;
 
         const regularity = this.calculateRegularity();
         const positionVariance = this.calculatePositionVariance();
@@ -866,30 +893,33 @@ class AutoClickerDetector {
         let detected = false;
         let reason = '';
 
-        // Проверка 1: Сверхчеловеческая скорость
-        if (cps > this.config.maxCPS * 1.5) {
-            detected = true;
-            reason = `Экстремальная скорость: ${cps.toFixed(1)} CPS`;
-        }
-        // Проверка 2: Высокая скорость + регулярность
-        else if (cps > this.config.maxCPS && regularity > this.config.regularityThreshold) {
-            detected = true;
-            reason = `Регулярные клики: ${cps.toFixed(1)} CPS, регулярность ${Math.round(regularity * 100)}%`;
-        }
-        // Проверка 3: Клики в одну точку с высокой скоростью
-        else if (cps > this.config.maxCPS && positionVariance < this.config.positionThreshold) {
-            detected = true;
-            reason = `Клик в одну точку: дисперсия ${positionVariance.toFixed(2)}`;
-        }
-        // Проверка 4: Нерегулярные, но сверхбыстрые клики
-        else if (cps > this.config.maxCPS * 2) {
-            detected = true;
-            reason = `Сверхвысокая скорость: ${cps.toFixed(1)} CPS`;
+        // Более строгие условия для мобильных
+        if (this.isMobile) {
+            // На мобильных срабатываем только при явных признаках
+            if (cps > 15 || (cps > 10 && regularity > 0.95 && positionVariance < 1)) {
+                detected = true;
+                reason = `Мобильный автокликер: ${cps.toFixed(1)} CPS`;
+            }
+        } else {
+            // Стандартные проверки для десктопов
+            if (cps > this.config.maxCPS * 2) {
+                detected = true;
+                reason = `Экстремальная скорость: ${cps.toFixed(1)} CPS`;
+            } else if (cps > this.config.maxCPS && regularity > this.config.regularityThreshold) {
+                detected = true;
+                reason = `Регулярные клики: ${cps.toFixed(1)} CPS`;
+            } else if (cps > this.config.maxCPS && positionVariance < this.config.positionThreshold) {
+                detected = true;
+                reason = `Клик в одну точку`;
+            }
         }
 
         if (detected) {
             this.suspiciousCount++;
-            this.onDetection(reason, cps);
+            // Требуем нескольких подозрительных событий для мобильных
+            if (!this.isMobile || this.suspiciousCount > 2) {
+                this.onDetection(reason, cps);
+            }
         }
     }
 
@@ -916,7 +946,6 @@ class AutoClickerDetector {
         const stdDev = Math.sqrt(variance);
         const coefficientOfVariation = stdDev / avg;
         
-        // Чем меньше коэффициент вариации, тем регулярнее клики
         return Math.max(0, 1 - coefficientOfVariation);
     }
 
@@ -939,45 +968,51 @@ class AutoClickerDetector {
         this.checkInterval = setInterval(() => {
             if (this.clicks.length > 10) {
                 const cps = this.calculateCPS();
-                if (cps > this.config.maxCPS * 3) {
-                    this.onDetection(`Постоянная экстремальная скорость: ${cps.toFixed(1)} CPS`, cps);
+                // Более высокий порог для постоянной проверки
+                if (cps > this.config.maxCPS * (this.isMobile ? 3 : 2.5)) {
+                    this.onDetection(`Постоянная высокая скорость: ${cps.toFixed(1)} CPS`, cps);
                 }
             }
             
             // Постепенно уменьшаем счетчик подозрений
-            this.suspiciousCount = Math.max(0, this.suspiciousCount - 0.2);
-        }, 2000);
+            this.suspiciousCount = Math.max(0, this.suspiciousCount - 0.1);
+        }, 3000);
     }
 
     backupCheck() {
-        // Резервная проверка на случай попыток обхода
         setInterval(() => {
             const now = Date.now();
             const recentClicks = this.clicks.filter(click => now - click.time < 1000);
-            if (recentClicks.length > 20) {
+            // Высокий порог для резервной проверки
+            if (recentClicks.length > (this.isMobile ? 15 : 25)) {
                 this.onDetection("Резервное обнаружение: слишком много кликов", recentClicks.length);
             }
-        }, 3000);
+        }, 4000);
     }
 
     onDetection(reason, cps) {
         this.detectionCount++;
+        localStorage.setItem('autoClicker_detections', this.detectionCount.toString());
         
         console.warn(`Обнаружен автокликер! (${this.detectionCount}/${this.maxDetections})`, {
             reason: reason,
             cps: cps,
             clicks: this.clicks.length,
-            time: new Date().toLocaleTimeString()
+            mobile: this.isMobile,
+            userId: this.userId
         });
 
-        // Показываем предупреждение только при первом обнаружении
-        if (this.detectionCount === 1) {
-            this.showWarning();
-        }
-        
-        // Перезагружаем страницу при достижении лимита обнаружений
-        if (this.detectionCount >= this.maxDetections) {
-            this.reloadPage();
+        // Обработка в зависимости от количества обнаружений
+        switch(this.detectionCount) {
+            case 1:
+                this.showFirstWarning();
+                break;
+            case 2:
+                this.showSecondWarning();
+                break;
+            case 3:
+                this.banUser();
+                break;
         }
         
         // Сбрасываем статистику
@@ -985,47 +1020,167 @@ class AutoClickerDetector {
         this.suspiciousCount = 0;
     }
 
-    showWarning() {
+    showFirstWarning() {
+        this.showFullscreenWarning(
+            "⚠ ПРЕДУПРЕЖДЕНИЕ СИСТЕМЫ",
+            "Обнаружена подозрительная активность. Возможно использование автокликера.",
+            "Продолжайте играть честно!",
+            "#f39c12"
+        );
+    }
+
+    showSecondWarning() {
+        this.showFullscreenWarning(
+            "⚠ ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ",
+            "Продолжение использования автокликера приведет к блокировке!",
+            "Следующее нарушение приведет к бану!",
+            "#e74c3c"
+        );
+    }
+
+    showFullscreenWarning(title, message, subtitle, color) {
+        // Убираем предыдущие предупреждения
+        const existing = document.getElementById('fullscreen-warning');
+        if (existing) existing.remove();
+
         const warning = document.createElement('div');
+        warning.id = 'fullscreen-warning';
         warning.innerHTML = `
             <div style="
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
-                background: #ff6b6b;
+                height: 100%;
+                background: ${color};
                 color: white;
-                padding: 15px;
-                text-align: center;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
                 z-index: 10000;
                 font-family: Arial, sans-serif;
-                font-size: 16px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                text-align: center;
+                padding: 20px;
+                box-sizing: border-box;
             ">
-                ⚠ Обнаружена подозрительная активность! Прекратите использование автокликеров, иначе страница будет перезагружена.
+                <h1 style="font-size: 2.5em; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">${title}</h1>
+                <p style="font-size: 1.5em; margin-bottom: 20px; max-width: 600px; line-height: 1.4;">${message}</p>
+                <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">${subtitle}</p>
+                <button onclick="this.closest('#fullscreen-warning').remove()" style="
+                    background: white;
+                    color: ${color};
+                    border: none;
+                    padding: 15px 30px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 1.2em;
+                    font-weight: bold;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                ">Понятно</button>
             </div>
         `;
         document.body.appendChild(warning);
 
+        // Автоудаление через 8 секунд
         setTimeout(() => {
             if (warning.parentElement) {
                 warning.parentElement.removeChild(warning);
             }
-        }, 5000);
+        }, 8000);
     }
 
-    reloadPage() {
-        console.log('Перезагрузка страницы из-за обнаружения автокликера');
+    async banUser() {
+        console.log(`Бан пользователя: ${this.userId}`);
         
-        // Можно добавить дополнительную логику перед перезагрузкой
-        if (typeof this.beforeReload === 'function') {
-            this.beforeReload();
+        // Показываем сообщение о бане
+        this.showBanMessage();
+        
+        try {
+            // Отправляем запрос на бан
+            const response = await fetch('/ban.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ userId: userId})
+            });
+            
+            if (response.ok) {
+                console.log('Пользователь успешно забанен');
+            } else {
+                console.error('Ошибка при бане пользователя:', response.status);
+            }
+        } catch (error) {
+            console.error('Ошибка при отправке запроса на бан:', error);
         }
         
-        // Перезагружаем страницу
+        // Блокируем интерфейс на 30 секунд перед перезагрузкой
         setTimeout(() => {
             window.location.reload();
-        }, 1000);
+        }, 30000);
+    }
+
+    showBanMessage() {
+        const banMessage = document.createElement('div');
+        banMessage.id = 'ban-message';
+        banMessage.innerHTML = `
+            <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: #2c3e50;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 10001;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 20px;
+                box-sizing: border-box;
+            ">
+                <h1 style="font-size: 3em; margin-bottom: 30px; color: #e74c3c;">🚫 ЗАБЛОКИРОВАНО</h1>
+                <p style="font-size: 1.5em; margin-bottom: 20px; max-width: 600px; line-height: 1.4;">
+                    Ваш аккаунт заблокирован за использование автокликера.
+                </p>
+                <p style="font-size: 1.2em; margin-bottom: 40px; opacity: 0.9;">
+                    Страница будет перезагружена через 30 секунд.
+                </p>
+                <div style="
+                    width: 200px;
+                    height: 10px;
+                    background: #34495e;
+                    border-radius: 5px;
+                    overflow: hidden;
+                    margin-bottom: 20px;
+                ">
+                    <div id="ban-timer" style="
+                        width: 100%;
+                        height: 100%;
+                        background: #e74c3c;
+                        transform: scaleX(1);
+                        transform-origin: left;
+                        transition: transform 30s linear;
+                    "></div>
+                </div>
+                <p style="font-size: 1em; opacity: 0.7;">
+                    User ID: ${this.userId}
+                </p>
+            </div>
+        `;
+        document.body.appendChild(banMessage);
+
+        // Запускаем анимацию таймера
+        setTimeout(() => {
+            const timer = document.getElementById('ban-timer');
+            if (timer) {
+                timer.style.transform = 'scaleX(0)';
+            }
+        }, 100);
     }
 
     setConfig(newConfig) {
@@ -1047,20 +1202,15 @@ class AutoClickerDetector {
 // Инициализация детектора
 const clickDetector = new AutoClickerDetector();
 
-// Дополнительные настройки (опционально)
-clickDetector.setConfig({
-    maxCPS: 16, // Более строгий лимит
-    minClicksForAnalysis: 6
-});
-
-// Кастомные действия перед перезагрузкой
-clickDetector.beforeReload = function() {
-    // Можно сохранить статистику или показать сообщение
-    localStorage.setItem('last_autoClick_detection', new Date().toISOString());
-};
-
-// Для отладки: вывести детектор в глобальную область видимости
+// Для отладки
 window.clickDetector = clickDetector;
+
+// Функция для сброса счетчика (можно использовать для тестирования)
+window.resetDetector = function() {
+    localStorage.removeItem('autoClicker_detections');
+    clickDetector.detectionCount = 0;
+    console.log('Счетчик обнаружений сброшен');
+};
 </script>
 	 <footer class="footer">
         <div class="footer-container">
