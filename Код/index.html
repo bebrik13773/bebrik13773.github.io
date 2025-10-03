@@ -591,6 +591,21 @@ alert('Пожалуйста, войдите в акаунт.');
 		.catch(error => console.error('Ошибка:', error));
 	};
 	
+		function saveskin()
+	{
+		//Сохранение значения skin
+		saveScore(score)
+		fetch('/save-skin.php', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ userId: userId, skin: skin })
+		})
+		.then(response => response.json())
+		.then(data => console.log(data))
+		.catch(error => console.error('Ошибка:', error));
+	};
         document.getElementById('submitRegister').onclick = function() {
             const regLogin = document.getElementById('regLogin').value;
             const regPassword = document.getElementById('regPassword').value;
