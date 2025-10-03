@@ -413,6 +413,19 @@
 		//if (test == null) {
 	//		window.location.replace("tex.html");
 	//	};
+const options = {
+    clicksToSave: 50,
+    detectNonhumanClick: true,
+    detectClickInterval: {
+      enabled: true,
+      margin: 10
+    },
+    detectFastClicking: {
+      enabled: true,
+      maximumAvgPerSecond: 40
+    }
+  };
+const detector = new antiautoclick(window.location.reload();, options);
         let login = 0;
         let score = 0;
         let userId = null;
