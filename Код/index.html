@@ -465,6 +465,27 @@
         skin7: 'strany-bober.jpg',
     };
     const skin = []
+        // Функция сохранения энергии на сервере
+    function saveEnergy() {
+        if (!userId) return;
+        fetch('/save-energy.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
+        });
+    }
+
+    // Восстановление энергии по времени (работает и оффлайн)
+    function updateEnergy() {
+        const now = Date.now();
+        let delta = now - lastEnergyUpdate;
+        if (delta > 0) {
+            let regen = delta * ENERGY_REGEN_PER_MS;
+            energy = Math.min(ENERGY_MAX, energy + regen);
+            lastEnergyUpdate = now;
+        }
+        updateEnergyUI();
+    }
     
     // Покупка и установка скина
     function buySkin(id, sum, tex) {
@@ -528,27 +549,6 @@
         document.getElementById('energy').innerText = Math.floor(energy);
     }
 
-    // Функция сохранения энергии на сервере
-    function saveEnergy() {
-        if (!userId) return;
-        fetch('/save-energy.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
-        });
-    }
-
-    // Восстановление энергии по времени (работает и оффлайн)
-    function updateEnergy() {
-        const now = Date.now();
-        let delta = now - lastEnergyUpdate;
-        if (delta > 0) {
-            let regen = delta * ENERGY_REGEN_PER_MS;
-            energy = Math.min(ENERGY_MAX, energy + regen);
-            lastEnergyUpdate = now;
-        }
-        updateEnergyUI();
-    }
 
     // Периодическое восстановление энергии (онлайн)
     setInterval(() => {
