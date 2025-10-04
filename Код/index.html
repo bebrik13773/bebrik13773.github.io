@@ -603,21 +603,11 @@
         .then(data => {
             if (data.success) {
                 userId = data.userId;
-                score = data.score !== undefined ? data.score : 0;
-                plus = data.plus !== undefined ? data.plus : 1;
+                score = data.score !== undefined ? data.skin : 0;
+                plus = data.plus !== undefined ? data.score : 1;
                 localStorage.setItem('login', login);
                 localStorage.setItem('password', password);
                 // --- Установка и сохранение скина из базы ---
-                if (typeof data.skin === 'string') {
-                    try {
-                        let loadedSkin = JSON.parse(data.skin);
-                        if (Array.isArray(loadedSkin)) {
-                            for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
-                        }
-                    } catch(e) {}
-                } else if (Array.isArray(data.skin)) {
-                    for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
-                }
                 skinLoad();
                 energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
                 lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
