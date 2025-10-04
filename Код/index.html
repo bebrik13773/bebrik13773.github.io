@@ -484,6 +484,7 @@
             let regen = delta * ENERGY_REGEN_PER_MS;
             energy = Math.min(ENERGY_MAX, energy + regen);
             lastEnergyUpdate = now;
+            updateEnergyUI(); // Обновляем UI после изменения энергии
         }
     }
     // Функция обновления UI энергии
@@ -548,12 +549,14 @@
             alert('Пожалуйста, войдите в акаунт.');
         }
 
+    }, {passive: false});
+
+    document.getElementById('shopExit').style.display = 'none';
+    
     // Периодическое восстановление энергии (онлайн)
     setInterval(() => {
         updateEnergy();
     }, 1000);
-    }, {passive: false});
-    document.getElementById('shopExit').style.display = 'none';
     
     // Открытие формы входа
     document.getElementById('loginButton').onclick = function() {
@@ -575,7 +578,6 @@
                 energy -= plus;
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 updateEnergyUI();
-                saveEnergy();
             } else {
                 alert('Недостаточно энергии!');
             }
