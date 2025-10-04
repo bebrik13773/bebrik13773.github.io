@@ -881,18 +881,8 @@
                 if (this.suspiciousCount >= 3) {
                     this.onDetection(reason, cps);
                     this.suspiciousCount = 0;
-                if (energy >= totalCost) {
-                    score += totalCost;
-                    energy -= totalCost;
-                    document.getElementById('score').innerText = 'Счет: ' + score;
-                    updateEnergyUI();
-                    saveEnergy();
-                } else {
-                    alert('Недостаточно энергии!');
                 }
-            const timeRange = this.clicks[this.clicks.length - 1].time - this.clicks[0].time;
-            if (timeRange === 0) return 1000;
-            return (this.clicks.length / timeRange) * 1000;
+            }
         }
 
         // Расчет регулярности кликов
