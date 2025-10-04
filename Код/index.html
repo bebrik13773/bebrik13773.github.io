@@ -347,6 +347,29 @@
     <h1>БОБЕР 🦫 КЛИКЕР</h1>
     <button id="clicker"></button>
     <p id="score">Счет: 0</p>
+    <div id="energy-container">
+        <span id="energy-icon" style="font-size: 28px; vertical-align: middle;">⚡</span>
+        <span id="energy" style="font-size: 25px; vertical-align: middle;">5000</span>
+    </div>
+    <style>
+        #energy-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+        #energy-icon {
+            margin-right: 8px;
+            color: #ffe600;
+            text-shadow: 0 0 6px #fff700, 0 0 2px #fff;
+        }
+        #energy {
+            color: #ffe600;
+            font-weight: bold;
+            text-shadow: 0 0 6px #fff700, 0 0 2px #fff;
+        }
+    </style>
     <button id="save" onclick="Save()">Сохранить</button>
 <br>
 <br>
@@ -426,6 +449,11 @@
     let score = 0;
     let userId = null;
     let plus = 1;
+    let energy = 5000;
+    let lastEnergyUpdate = Date.now();
+    const ENERGY_MAX = 5000;
+    const ENERGY_REGEN_TIME = 10 * 60 * 1000; // 10 минут в мс
+    const ENERGY_REGEN_PER_MS = ENERGY_MAX / ENERGY_REGEN_TIME;
     // Список скинов
     let skins = {
         skin1: 'bober.png',
@@ -478,8 +506,16 @@
     // Клик по кнопке (ПК)
     document.getElementById('clicker').onclick = function() {
         if (userId) {
-            score = score + plus ;
-            document.getElementById('score').innerText = 'Счет: ' + score;
+            updateEnergy();
+            if (energy >= plus) {
+                score += plus;
+                energy -= plus;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+                saveEnergy();
+            } else {
+                alert('Недостаточно энергии!');
+            }
         } else {
             alert('Пожалуйста, войдите в акаунт.');
         }
@@ -487,14 +523,53 @@
     // --- Добавлено: поддержка мультитача на мобильных устройствах ---
     document.getElementById('clicker').addEventListener('touchstart', function(e) {
         if (userId) {
-            e.preventDefault(); // Отключаем стандартное поведение (например, двойной тап)
+            e.preventDefault();
+            updateEnergy();
             let touches = e.touches.length;
-            // Если несколько пальцев, увеличиваем счет на plus * touches
-            score = score + plus * touches;
-            document.getElementById('score').innerText = 'Счет: ' + score;
+            let totalCost = plus * touches;
+            if (energy >= totalCost) {
+                score += totalCost;
+                energy -= totalCost;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+                saveEnergy();
+            } else {
+                alert('Недостаточно энергии!');
+            }
         } else {
             alert('Пожалуйста, войдите в акаунт.');
         }
+    // Функция обновления UI энергии
+    function updateEnergyUI() {
+        document.getElementById('energy').innerText = Math.floor(energy);
+    }
+
+    // Функция сохранения энергии на сервере
+    function saveEnergy() {
+        if (!userId) return;
+        fetch('/save-energy.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
+        });
+    }
+
+    // Восстановление энергии по времени (работает и оффлайн)
+    function updateEnergy() {
+        const now = Date.now();
+        let delta = now - lastEnergyUpdate;
+        if (delta > 0) {
+            let regen = delta * ENERGY_REGEN_PER_MS;
+            energy = Math.min(ENERGY_MAX, energy + regen);
+            lastEnergyUpdate = now;
+        }
+        updateEnergyUI();
+    }
+
+    // Периодическое восстановление энергии (онлайн)
+    setInterval(() => {
+        updateEnergy();
+    }, 1000);
     }, {passive: false});
     document.getElementById('shopExit').style.display = 'none';
     
@@ -579,6 +654,7 @@
     function Save() {
         if (userId) {
             saveScore(score);
+            saveEnergy();
             alert("Успешное сохранение");
         } else {
             alert('Пожалуйста, войдите в акаунт.');
