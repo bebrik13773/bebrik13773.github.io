@@ -468,7 +468,7 @@
         // Функция сохранения энергии на сервере
     function saveEnergy() {
         if (!userId) return;
-        fetch('/save-energy.php', {
+        fetch('https://bober-api.gt.tc/save-energy.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
@@ -486,7 +486,7 @@
         }
         updateEnergyUI();
     }
-    
+
     // Покупка и установка скина
     function buySkin(id, sum, tex) {
         if (userId) {
@@ -589,7 +589,7 @@
     document.getElementById('submitLogin').onclick = function() {
         const login = document.getElementById('login').value;
         const password = document.getElementById('password').value;
-        fetch('/login-t.php', {
+        fetch('https://bober-api.gt.tc/login-t.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -700,7 +700,7 @@
     {
         //Сохранение значения plus
         saveScore(score)
-        fetch('/save-plus.php', {
+        fetch('https://bober-api.gt.tc/save-plus.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -716,7 +716,7 @@
     {
         //Сохранение значения skin
         saveScore(score)
-        fetch('/save-skin.php', {
+        fetch('https://bober-api.gt.tc/save-skin.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -731,7 +731,7 @@
     document.getElementById('submitRegister').onclick = function() {
         const regLogin = document.getElementById('regLogin').value;
         const regPassword = document.getElementById('regPassword').value;
-        fetch('/register-t.php', {
+        fetch('https://bober-api.gt.tc/register-t.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -747,7 +747,7 @@
     document.getElementById('shop').style.display = 'none';
     // Сохранение счета и скина на сервер
     function saveScore(score) {
-        fetch('/save-score.php', {
+        fetch('https://bober-api.gt.tc/save-score.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -761,7 +761,7 @@
 
     // Загрузка таблицы лидеров
     function loadLeaderboard() {
-        fetch('/leaderboard.php')
+        fetch('https://bober-api.gt.tc/leaderboard.php')
             .then(response => response.json())
             .then(data => {
                 const leaderboard = document.getElementById('leaderboard');
