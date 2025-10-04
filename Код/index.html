@@ -486,7 +486,10 @@
             lastEnergyUpdate = now;
         }
     }
-
+    // Функция обновления UI энергии
+    function updateEnergyUI() {
+        document.getElementById('energy').innerText = Math.floor(energy);
+    }
     // Покупка и установка скина
     function buySkin(id, sum, tex) {
         if (userId) {
@@ -544,11 +547,6 @@
         } else {
             alert('Пожалуйста, войдите в акаунт.');
         }
-    // Функция обновления UI энергии
-    function updateEnergyUI() {
-        document.getElementById('energy').innerText = Math.floor(energy);
-    }
-
 
     // Периодическое восстановление энергии (онлайн)
     setInterval(() => {
