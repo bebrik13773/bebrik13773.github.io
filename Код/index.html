@@ -603,8 +603,8 @@
         .then(data => {
             if (data.success) {
                 userId = data.userId;
-                score = data.score !== undefined ? data.skin : 0;
-                plus = data.plus !== undefined ? data.score : 1;
+                score = data.score !== undefined ? data.score : 0;
+                plus = data.plus !== undefined ? data.plus : 1;
                 localStorage.setItem('login', login);
                 localStorage.setItem('password', password);
                 // --- Установка и сохранение скина из базы ---
