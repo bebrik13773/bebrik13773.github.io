@@ -728,8 +728,8 @@ class AutoClickerDetector {
         this.unbanCode = "UNBAN2024";
         // Конфиг для мобильных устройств стал строже
         this.config = {
-            maxCPS: this.isMobile ? 9 : 14, // было 16, стало 9
-            minClicksForAnalysis: this.isMobile ? 7 : 9, // было 10, стало 7
+            maxCPS: this.isMobile ? 10 : 15, // было 16, стало 9
+            minClicksForAnalysis: this.isMobile ? 7 : 10, // было 10, стало 7
             timeWindow: this.isMobile ? 1200 : 1500, // было 2000, стало 1200
             regularityThreshold: 0.85, // было 0.9
             positionThreshold: this.isMobile ? 7 : 5, // было 10, стало 7
