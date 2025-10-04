@@ -899,6 +899,15 @@
             return Math.max(0, 1 - coefficientOfVariation);
         }
 
+        // Расчет кликов в секунду (CPS)
+        calculateCPS() {
+            const now = Date.now();
+            // Фильтруем клики за последнюю секунду
+            const recentClicks = this.clicks.filter(click => now - click.time <= 1000);
+            // Возвращаем количество кликов в секунду
+            return recentClicks.length;
+        }
+
         // Расчет разброса координат кликов
         calculatePositionVariance() {
             const xs = this.clicks.map(c => c.x).filter(x => x !== undefined);
