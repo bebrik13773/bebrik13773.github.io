@@ -130,7 +130,9 @@
         #clicker {
 		    touch-action: manipulation;
             user-select: none;
-             -webkit-user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
             width: 200px;
 			background-color: #33c5c7;
             height: 200px;
@@ -216,7 +218,7 @@
 			background-image: url('skins/strany-bober.jpg');
 			background-size: cover;
 			border: none;
-			color: #fff;
+		 color: #fff;
 			border-radius: 10px;
 			cursor: pointer;
 			transition: transform 0.1s;
@@ -479,6 +481,18 @@
                 alert('Пожалуйста, войдите в акаунт.');
             }
         };
+        // --- Добавлено: поддержка мультитача на мобильных устройствах ---
+        document.getElementById('clicker').addEventListener('touchstart', function(e) {
+            if (userId) {
+                e.preventDefault(); // Отключаем стандартное поведение (например, двойной тап)
+                let touches = e.touches.length;
+                // Если несколько пальцев, увеличиваем счет на plus * touches
+                score = score + plus * touches;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+            } else {
+                alert('Пожалуйста, войдите в акаунт.');
+            }
+        }, {passive: false});
 		document.getElementById('shopExit').style.display = 'none';
 		
         document.getElementById('loginButton').onclick = function() {
@@ -1304,7 +1318,5 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
             <p>© Бобер кликер. Тапайте бобра.</p>
         </div>
     </footer>
-</body>
-</html>
 </body>
 </html>
