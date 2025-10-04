@@ -240,7 +240,7 @@
 			border-radius: 5px;
 			background: #4676D7;
 			color: #fff;
-			padding: 8px 16px;
+		 padding: 8px 16px;
 			font-size: 16px;
 		}
 		#ShopButton:active {
@@ -630,7 +630,7 @@ alert('Пожалуйста, войдите в акаунт.');
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // сериализация skin
+			body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // всегда строка!
 		})
 		.then(response => response.json())
 		.then(data => console.log(data))
