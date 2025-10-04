@@ -8,12 +8,20 @@ $stmt = $conn->prepare("SELECT id, password, plus, skin, energy, last_energy_upd
 $stmt->bind_param("s", $login);
 $stmt->execute();
 $stmt->store_result();
-$stmt->bind_result($id, $hashedPassword, $score, $plus, $skin, $energy, $leu);
+$stmt->bind_result($id, $hashedPassword, $plus, $skin, $energy, $lastEnergyUpdate, $score);
 $stmt->fetch();
 
 if (password_verify($password, $hashedPassword)) {
-	echo json_encode(['success' => true, 'userId' => $id, 'score' => $score, 'plus' => $plus, 'skin' => $skin]);
+	echo json_encode([
+		'success' => true,
+		'userId' => $id,
+		'score' => $score,
+		'plus' => $plus,
+		'skin' => $skin,
+		'energy' => $energy,
+		'lastEnergyUpdate' => $lastEnergyUpdate
+	]);
 } else {
-    echo json_encode(['success' => false, 'message' => 'Неверный логин или пароль.']);
+	echo json_encode(['success' => false, 'message' => 'Неверный логин или пароль.']);
 }
 ?>
