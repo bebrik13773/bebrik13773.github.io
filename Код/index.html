@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Бобер кликер</title>
-	    <style>
+    <!-- Основные стили для страницы и футера -->
+    <style>
+        /* Сброс стилей и базовые настройки */
         * {
             margin: 0;
             padding: 0;
@@ -23,6 +25,7 @@
             padding: 2rem;
         }
         
+        /* Стили для футера */
         .footer {
             color: white;
             padding: 2rem 1rem;
@@ -77,6 +80,7 @@
         }
         
         @media (max-width: 768px) {
+            /* Адаптивность футера */
             .footer-container {
                 flex-direction: column;
                 text-align: center;
@@ -88,6 +92,7 @@
             }
         }
     </style>
+    <!-- Стили для кликера и форм -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -97,9 +102,10 @@
 }
         }
         #clicker {
-			width: 200px;
-			height: 200px;
-			background-image: url(skins/bober.png);
+            /* Кнопка кликера */
+            width: 200px;
+            height: 200px;
+            background-image: url(skins/bober.png);
             color: white;
             font-size: 24px;
             border: none;
@@ -111,6 +117,7 @@
             transform: scale(1.11);
         }
         #loginForm, #registerForm {
+            /* Скрытие форм по умолчанию */
             display: none;
             margin: 20px;
         }
@@ -120,7 +127,7 @@
             width: 200px;
         }
     </style>
-<style>
+    <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
@@ -128,6 +135,7 @@
         }
         
         #clicker {
+            /* Кнопка кликера для мобильных и десктопа */
 		    touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
@@ -196,7 +204,7 @@
 			background-image: url('skins/nosok-bober.jpg');
 			background-size: cover;
 			border: none;
-			color: #fff;
+		 color: #fff;
 			border-radius: 10px;
 			cursor: pointer;
 			transition: transform 0.1s;
@@ -219,7 +227,7 @@
 			background-size: cover;
 			border: none;
 		 color: #fff;
-			border-radius: 10px;
+		 border-radius: 10px;
 			cursor: pointer;
 			transition: transform 0.1s;
 		}
@@ -343,20 +351,23 @@
     </style>
 </head>
 <body>
+<!-- Основной контейнер кликера -->
 <div id="clicerMex">
     <h1>БОБЕР 🦫 КЛИКЕР</h1>
     <button id="clicker"></button>
     <p id="score">Счет: 0</p>
     <button id="save" onclick="Save()">Сохранить</button>
-<br>
-<br>
+    <br>
+    <br>
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
-<br>
+    <br>
+    <!-- Админ-панель (скрыта по умолчанию) -->
     <div id="admin">
-	    <h2> Admin </h2>
-		<button onclick="score = score +1000;">+1000</button>
-	</div>
+        <h2> Admin </h2>
+        <button onclick="score = score +1000;">+1000</button>
+    </div>
+    <!-- Форма входа -->
     <div id="loginForm">
         <h2>Форма Входа</h2>
         <input type="text" id="login" placeholder="Логин">
@@ -364,6 +375,7 @@
         <button id="submitLogin">Войти</button>
     </div>
 
+    <!-- Форма регистрации -->
     <div id="registerForm">
         <h2>Форма Регистрации</h2>
         <input type="text" id="regLogin" placeholder="Логин">
@@ -377,8 +389,10 @@
 <br>
 </div>
 <br>
+<!-- Кнопка выхода из магазина -->
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
+<!-- Магазин с улучшениями и скинами -->
 <div id="shop">
 <button id="ludButton">Улучшения</button> <button id="skinShop">Скины</button>
 <h1 id="lud">Магазин улудшений</h1>
@@ -408,271 +422,285 @@
 </div>
 </div>
 <br>
+<!-- Таблица лидеров -->
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
-    <script>
+<script>
+// --- Логика авторизации, регистрации, магазина, скинов и очков ---
 
- document.getElementById('password').value = localStorage.getItem('password');
-		document.getElementById('login').value = localStorage.getItem('login');
-	    document.getElementById('admin').style.display = 'none';
-	    const queryString = window.location.search;
-		const testm = false
-        const urlParams = new URLSearchParams(queryString);
-	    const test = urlParams.get('test');
-		if (test == null && testm == true) {
-			window.location.replace("tex.html");
-		};
-        let login = 0;
-        let score = 0;
-        let userId = null;
-        let plus = 1;
-		let skins = {
-			skin1: 'bober.png',
-		 skin2: 'bumazny-bober.jpg',
-		  skin3: 'matvey-new-bober.jpg',
-		   skin4: 'klub-smz-bober.jpg',
-		    skin5: 'nosok-bober.jpg',
-		     skin6 : 'Shok-upok-bober.jpg',
-			 skin7: 'strany-bober.jpg',
-			 };
-		const skin = []
-		
-		  
-		function buySkin(id, sum, tex) {
-			if (userId) {
-				if (skin[id] == true) {
-					let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
-					if (result1 == true) {
-						skin[0] = tex;
-						skinLoad();
-						saveskin(); // сохраняем сразу после установки
-						alert("Скин успешно установлен!");
-					}
-				} else {
-					let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
-					if (result1a == true) {
-						if (score > sum) {
-							skin[id] = true;
-							skin[0] = tex; // сразу устанавливаем купленный скин
-							score = score - sum;
-							skinLoad();
-							saveskin(); // сохраняем сразу после покупки и установки
-							saveScore(score);
-							alert("Успешная покука скина!");
-						} else {
-							alert("Недостаточно средств!")
-						}
-				    }
-				}
-			} else {
-				alert('Пожалуйста, войдите в акаунт.');
-			}
-		}
-		
+// Восстановление логина и пароля из localStorage
+document.getElementById('password').value = localStorage.getItem('password');
+document.getElementById('login').value = localStorage.getItem('login');
+document.getElementById('admin').style.display = 'none';
+const queryString = window.location.search;
+const testm = false
+const urlParams = new URLSearchParams(queryString);
+const test = urlParams.get('test');
+if (test == null && testm == true) {
+    window.location.replace("tex.html");
+};
+let login = 0;
+let score = 0;
+let userId = null;
+let plus = 1;
+// Список скинов
+let skins = {
+    skin1: 'bober.png',
+    skin2: 'bumazny-bober.jpg',
+    skin3: 'matvey-new-bober.jpg',
+    skin4: 'klub-smz-bober.jpg',
+    skin5: 'nosok-bober.jpg',
+    skin6 : 'Shok-upok-bober.jpg',
+    skin7: 'strany-bober.jpg',
+};
+const skin = []
 
-		function skinLoad() {
-			document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
-			};
-
-
-		
-        document.getElementById('clicker').onclick = function() {
-            if (userId) {
-                score = score + plus ;
-                document.getElementById('score').innerText = 'Счет: ' + score;
-            } else {
-                alert('Пожалуйста, войдите в акаунт.');
+// Функция покупки скина
+function buySkin(id, sum, tex) {
+    if (userId) {
+        if (skin[id] == true) {
+            let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
+            if (result1 == true) {
+                skin[0] = tex;
+                skinLoad();
+                saveskin(); // сохраняем сразу после установки
+                alert("Скин успешно установлен!");
             }
-        };
-        // --- Добавлено: поддержка мультитача на мобильных устройствах ---
-        document.getElementById('clicker').addEventListener('touchstart', function(e) {
-            if (userId) {
-                e.preventDefault(); // Отключаем стандартное поведение (например, двойной тап)
-                let touches = e.touches.length;
-                // Если несколько пальцев, увеличиваем счет на plus * touches
-                score = score + plus * touches;
-                document.getElementById('score').innerText = 'Счет: ' + score;
-            } else {
-                alert('Пожалуйста, войдите в акаунт.');
-            }
-        }, {passive: false});
-		document.getElementById('shopExit').style.display = 'none';
-		
-        document.getElementById('loginButton').onclick = function() {
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('registerForm').style.display = 'none';
-        };
-
-        document.getElementById('registerButton').onclick = function() {
-            document.getElementById('registerForm').style.display = 'block';
-            document.getElementById('loginForm').style.display = 'none';
-        };
-
-       
-        document.getElementById('submitLogin').onclick = function() {
-            const login = document.getElementById('login').value;
-            const password = document.getElementById('password').value;
-            fetch('/login-t.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ login: login, password: password })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    userId = data.userId;
-                    score = data.skin;
-                    if (login == "test"){document.getElementById('admin').style.display = 'block';};
-                    plus = data.score;
-                    localStorage.setItem('login', login);
-                    localStorage.setItem('password', password);
-                    // --- Установка и сохранение скина из базы ---
-                    if (typeof data.skin === 'string') {
-                        try {
-                            let loadedSkin = JSON.parse(data.skin);
-                            if (Array.isArray(loadedSkin)) {
-                                // Копируем значения в существующий массив skin
-                                for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
-                            }
-                        } catch(e) {}
-                    }
-                    // Если сервер возвращает skin как массив (например, через API), тоже поддержим:
-                    else if (Array.isArray(data.skin)) {
-                        for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
-                    }
+        } else {
+            let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+            if (result1a == true) {
+                if (score > sum) {
+                    skin[id] = true;
+                    skin[0] = tex; // сразу устанавливаем купленный скин
+                    score = score - sum;
                     skinLoad();
-                    document.getElementById('score').innerText = 'Счет: ' + score;
-                    alert('Успешный вход!');
-                    loadLeaderboard();
-                    document.getElementById('registerForm').style.display = 'none';
-                    document.getElementById('loginForm').style.display = 'none';
-                    document.getElementById('loginButton').style.display = 'none';
-                    document.getElementById('registerButton').style.display = 'none';
+                    saveskin(); // сохраняем сразу после покупки и установки
+                    saveScore(score);
+                    alert("Успешная покука скина!");
                 } else {
-                    alert('Ошибка входа: ' + data.message);
+                    alert("Недостаточно средств!")
                 }
-            });
-        };
-         function shopShow() {
-			document.getElementById('shop').style.display = 'block';
-			document.getElementById('shopButton').style.display = 'none';
-			document.getElementById('shopExit').style.display = 'block';
-			document.getElementById('clicerMex').style.display = 'none';
-			document.getElementById('leaderboard').style.display = 'none';
-         }
-		 function shopClose()
-		 {
-			 document.getElementById('shop').style.display = 'none';
-			 document.getElementById('shopButton').style.display = 'block';
-			 document.getElementById('shopExit').style.display = 'none';
-			 document.getElementById('clicerMex').style.display = 'block';
-			 document.getElementById('leaderboard').style.display = 'block';
-		 }
-         function Save() {
-if (userId) {
-saveScore(score);
-alert("Успешное сохранение");
-} else {
-alert('Пожалуйста, войдите в акаунт.');
-}
-}
-
-	function buyUpgrade1()
-	{
-		//Функция покупки улудшения 1
-		if (userId) {
-			if (score > 5000) {
-				plus = plus + 1
-				score = score - 5000
-				saveplus()
-				alert("Успешная покука улучшения!")
-			} else {
-				alert("Недостаточно средств!")
-			}
-		} else {
-			alert('Пожалуйста, войдите в систему!');
-		}
-	};
-	function buyUpgrade2()
-	{
-		//Функция покупки улудшения 2
-		if (userId) {
-			if (score > 20000) {
-				plus = plus + 5
-				score = score - 20000
-				saveplus()
-				alert("Успешная покука улучшения!")
-			} else {
-				alert("Недостаточно средств!")
-			}
-		} else {
-			alert('Пожалуйста, войдите в систему!');
-		}
-	};
-	function saveplus()
-	{
-		//Сохранение значения plus
-		saveScore(score)
-		fetch('/save-plus.php', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ userId: userId, plus: plus })
-		})
-		.then(response => response.json())
-		.then(data => console.log(data))
-		.catch(error => console.error('Ошибка:', error));
-	};
-	
-		function saveskin()
-	{
-		//Сохранение значения skin
-		saveScore(score)
-		fetch('/save-skin.php', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // всегда строка!
-		})
-		.then(response => response.json())
-		.then(data => console.log(data))
-		.catch(error => console.error('Ошибка:', error));
-	};
-        document.getElementById('submitRegister').onclick = function() {
-            const regLogin = document.getElementById('regLogin').value;
-            const regPassword = document.getElementById('regPassword').value;
-            fetch('/register-t.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ login: regLogin, password: regPassword })
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-            });
-        };
-
-		document.getElementById('shop').style.display = 'none';
-       function saveScore(score) {
-            fetch('/save-score.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-				body: JSON.stringify({ userId: userId, score: score, skin: JSON.stringify(skin) }) // сериализация skin
-            })
-            .then(response => response.json())
-            .then(data => console.log(data))
-            .catch(error => console.error('Ошибка:', error));
+            }
         }
+    } else {
+        alert('Пожалуйста, войдите в акаунт.');
+    }
+}
+
+// Установка скина на кнопку
+function skinLoad() {
+    document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
+};
 
 
-        function loadLeaderboard() {
+		
+// Клик по кнопке кликера
+document.getElementById('clicker').onclick = function() {
+    if (userId) {
+        score = score + plus ;
+        document.getElementById('score').innerText = 'Счет: ' + score;
+    } else {
+        alert('Пожалуйста, войдите в акаунт.');
+    }
+};
+// --- Поддержка мультитача на мобильных устройствах ---
+document.getElementById('clicker').addEventListener('touchstart', function(e) {
+    if (userId) {
+        e.preventDefault(); // Отключаем стандартное поведение (например, двойной тап)
+        let touches = e.touches.length;
+        // Если несколько пальцев, увеличиваем счет на plus * touches
+        score = score + plus * touches;
+        document.getElementById('score').innerText = 'Счет: ' + score;
+    } else {
+        alert('Пожалуйста, войдите в акаунт.');
+    }
+}, {passive: false});
+document.getElementById('shopExit').style.display = 'none';
+
+// Показать форму входа
+document.getElementById('loginButton').onclick = function() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').style.display = 'none';
+};
+
+// Показать форму регистрации
+document.getElementById('registerButton').onclick = function() {
+    document.getElementById('registerForm').style.display = 'block';
+    document.getElementById('loginForm').style.display = 'none';
+};
+
+// Вход пользователя
+document.getElementById('submitLogin').onclick = function() {
+    const login = document.getElementById('login').value;
+    const password = document.getElementById('password').value;
+    fetch('/login-t.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ login: login, password: password })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            userId = data.userId;
+            score = data.skin;
+            if (login == "test"){document.getElementById('admin').style.display = 'block';};
+            plus = data.score;
+            localStorage.setItem('login', login);
+            localStorage.setItem('password', password);
+            // --- Установка и сохранение скина из базы ---
+            if (typeof data.skin === 'string') {
+                try {
+                    let loadedSkin = JSON.parse(data.skin);
+                    if (Array.isArray(loadedSkin)) {
+                        // Копируем значения в существующий массив skin
+                        for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
+                    }
+                } catch(e) {}
+            }
+            // Если сервер возвращает skin как массив (например, через API), тоже поддержим:
+            else if (Array.isArray(data.skin)) {
+                for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
+            }
+            skinLoad();
+            document.getElementById('score').innerText = 'Счет: ' + score;
+            alert('Успешный вход!');
+            loadLeaderboard();
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('loginButton').style.display = 'none';
+            document.getElementById('registerButton').style.display = 'none';
+        } else {
+            alert('Ошибка входа: ' + data.message);
+        }
+    });
+};
+
+// Открыть магазин
+function shopShow() {
+    document.getElementById('shop').style.display = 'block';
+    document.getElementById('shopButton').style.display = 'none';
+    document.getElementById('shopExit').style.display = 'block';
+    document.getElementById('clicerMex').style.display = 'none';
+    document.getElementById('leaderboard').style.display = 'none';
+}
+// Закрыть магазин
+function shopClose()
+{
+    document.getElementById('shop').style.display = 'none';
+    document.getElementById('shopButton').style.display = 'block';
+    document.getElementById('shopExit').style.display = 'none';
+    document.getElementById('clicerMex').style.display = 'block';
+    document.getElementById('leaderboard').style.display = 'block';
+}
+// Сохранить счет
+function Save() {
+    if (userId) {
+        saveScore(score);
+        alert("Успешное сохранение");
+    } else {
+        alert('Пожалуйста, войдите в акаунт.');
+    }
+}
+
+// Покупка улучшения 1
+function buyUpgrade1()
+{
+    //Функция покупки улудшения 1
+    if (userId) {
+        if (score > 5000) {
+            plus = plus + 1
+            score = score - 5000
+            saveplus()
+            alert("Успешная покука улучшения!")
+        } else {
+            alert("Недостаточно средств!")
+        }
+    } else {
+        alert('Пожалуйста, войдите в систему!');
+    }
+};
+// Покупка улучшения 2
+function buyUpgrade2()
+{
+    //Функция покупки улудшения 2
+    if (userId) {
+        if (score > 20000) {
+            plus = plus + 5
+            score = score - 20000
+            saveplus()
+            alert("Успешная покука улучшения!")
+        } else {
+            alert("Недостаточно средств!")
+        }
+    } else {
+        alert('Пожалуйста, войдите в систему!');
+    }
+};
+// Сохранение значения plus
+function saveplus()
+{
+    saveScore(score)
+    fetch('/save-plus.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, plus: plus })
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+};
+// Сохранение значения skin
+function saveskin()
+{
+    saveScore(score)
+    fetch('/save-skin.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // всегда строка!
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+};
+// Регистрация пользователя
+document.getElementById('submitRegister').onclick = function() {
+    const regLogin = document.getElementById('regLogin').value;
+    const regPassword = document.getElementById('regPassword').value;
+    fetch('/register-t.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ login: regLogin, password: regPassword })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+    });
+};
+
+document.getElementById('shop').style.display = 'none';
+// Сохранение счета на сервере
+function saveScore(score) {
+    fetch('/save-score.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, score: score, skin: JSON.stringify(skin) }) // сериализация skin
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+}
+
+// Загрузка таблицы лидеров
+function loadLeaderboard() {
     fetch('/leaderboard.php')
         .then(response => response.json())
         .then(data => {
@@ -684,13 +712,14 @@ alert('Пожалуйста, войдите в акаунт.');
         });
 }
 
-        window.onload = loadLeaderboard();
+window.onload = loadLeaderboard();
 
-    </script>
-	<script>
-
+</script>
+<script>
+// --- Античит: детектор автокликера ---
 class AutoClickerDetector {
     constructor() {
+        // ...инициализация переменных и конфигов...
         this.clicks = [];
         this.suspiciousCount = 0;
         this.checkInterval = null;
@@ -698,10 +727,9 @@ class AutoClickerDetector {
         this.detectionCount = 0;
         this.maxDetections = 2;
         this.isMobile = this.checkMobileDevice();
-        this.unbanCode = "UNBAN2024"; // Код для разбана (можно изменить)
-        
+        this.unbanCode = "UNBAN2024";
         this.config = {
-            maxCPS: this.isMobile ? 16 : 14,
+            maxCPS: this.isMobile ? 15 : 13,
             minClicksForAnalysis: this.isMobile ? 10 : 9,
             timeWindow: this.isMobile ? 2000 : 1500,
             regularityThreshold: 0.9,
@@ -709,68 +737,73 @@ class AutoClickerDetector {
             minInterval: this.isMobile ? 30 : 43,
             multiTouchThreshold: this.isMobile ? 3 : 2
         };
-        
         this.init();
     }
 
-    init() {
-        if (this.isBanned()) {
-            this.showBanScreen();
-            return;
-        }
-
-        const events = ['click', 'touchstart', 'mousedown'];
-        events.forEach(event => {
-            document.addEventListener(event, this.handleClick.bind(this), true);
-        });
-        
-        this.startContinuousCheck();
-        this.backupCheck();
-    }
-
+    // Проверка мобильного устройства
     checkMobileDevice() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                'ontouchstart' in window ||
                navigator.maxTouchPoints > 0;
     }
 
+    // Инициализация слушателей
+    init() {
+        if (this.isBanned()) {
+            this.showBanScreen();
+            return;
+        }
+        // Только на кнопке clicker!
+        const clicker = document.getElementById('clicker');
+        if (clicker) {
+            clicker.addEventListener('click', this.handleClick.bind(this), true);
+            clicker.addEventListener('mousedown', this.handleClick.bind(this), true);
+            clicker.addEventListener('touchstart', this.handleTouchStart.bind(this), {passive: false});
+        }
+        this.startContinuousCheck();
+        this.backupCheck();
+    }
+
+    // Обработка клика мышью
     handleClick(e) {
         const now = Date.now();
-        const timeSinceLastClick = now - this.lastClickTime;
-        
-        this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
-        
-        const simultaneousClicks = this.clicks.filter(click => Math.abs(click.time - now) < 10);
-        if (simultaneousClicks.length >= this.config.multiTouchThreshold) {
-            this.suspiciousCount += 0.5;
-        }
-        
-        this.clicks.push({
-            time: now,
-            type: e.type,
-            x: e.clientX || (e.touches ? e.touches[0].clientX : 0),
-            y: e.clientY || (e.touches ? e.touches[0].clientY : 0),
-            trusted: e.isTrusted
-        });
+        this.recordClicks(1, now, e);
+    }
 
-        if (this.clicks.length >= this.config.minClicksForAnalysis) {
-            this.checkSuspiciousPatterns(timeSinceLastClick);
+    // Обработка касания (мультитач)
+    handleTouchStart(e) {
+        const now = Date.now();
+        let touches = e.touches ? e.touches.length : 1;
+        this.recordClicks(touches, now, e);
+    }
+
+    // Запись кликов для анализа
+    recordClicks(count, now, e) {
+        this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
+        for (let i = 0; i < count; i++) {
+            this.clicks.push({
+                time: now,
+                type: e.type,
+                x: (e.touches && e.touches[i]) ? e.touches[i].clientX : (e.clientX || 0),
+                y: (e.touches && e.touches[i]) ? e.touches[i].clientY : (e.clientY || 0),
+                trusted: e.isTrusted
+            });
         }
-        
+        if (this.clicks.length >= this.config.minClicksForAnalysis) {
+            this.checkSuspiciousPatterns();
+        }
         this.lastClickTime = now;
     }
 
-    checkSuspiciousPatterns(timeSinceLastClick) {
+    // Проверка подозрительных паттернов
+    checkSuspiciousPatterns() {
         const cps = this.calculateCPS();
         if (cps < this.config.maxCPS) return;
-
         const regularity = this.calculateRegularity();
         const positionVariance = this.calculatePositionVariance();
         const humanFactor = this.calculateHumanFactor();
-        
         let detected = false;
         let reason = '';
-
         if (cps > this.config.maxCPS * (this.isMobile ? 2 : 1.5)) {
             detected = true;
             reason = `Сверхвысокая скорость: ${cps.toFixed(1)} CPS`;
@@ -783,7 +816,6 @@ class AutoClickerDetector {
             detected = true;
             reason = `Клик в одну точку`;
         }
-
         if (detected) {
             this.suspiciousCount++;
             if (this.suspiciousCount >= 3) {
@@ -795,6 +827,7 @@ class AutoClickerDetector {
         }
     }
 
+    // Подсчет CPS (кликов в секунду)
     calculateCPS() {
         if (this.clicks.length < 2) return 0;
         const timeRange = this.clicks[this.clicks.length - 1].time - this.clicks[0].time;
@@ -802,50 +835,44 @@ class AutoClickerDetector {
         return (this.clicks.length / timeRange) * 1000;
     }
 
+    // Оценка регулярности кликов
     calculateRegularity() {
         if (this.clicks.length < 3) return 0;
-        
         const intervals = [];
         for (let i = 1; i < this.clicks.length; i++) {
             intervals.push(this.clicks[i].time - this.clicks[i - 1].time);
         }
-        
         const avg = intervals.reduce((a, b) => a + b) / intervals.length;
         const variance = intervals.reduce((sum, interval) => {
             return sum + Math.pow(interval - avg, 2);
         }, 0) / intervals.length;
-        
         const stdDev = Math.sqrt(variance);
         const coefficientOfVariation = stdDev / avg;
-        
         return Math.max(0, 1 - coefficientOfVariation);
     }
 
+    // Оценка разброса координат кликов
     calculatePositionVariance() {
         const xs = this.clicks.map(c => c.x).filter(x => x !== undefined);
         const ys = this.clicks.map(c => c.y).filter(y => y !== undefined);
-        
         if (xs.length === 0) return 100;
-        
         const meanX = xs.reduce((a, b) => a + b) / xs.length;
         const meanY = ys.reduce((a, b) => a + b) / ys.length;
-        
         const varianceX = xs.reduce((sum, x) => sum + Math.pow(x - meanX, 2), 0) / xs.length;
         const varianceY = ys.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0) / ys.length;
-        
         return (varianceX + varianceY) / 2;
     }
 
+    // Оценка "человечности" кликов
     calculateHumanFactor() {
         if (this.clicks.length < 5) return 1;
-        
         const positionVariance = this.calculatePositionVariance();
         const regularity = this.calculateRegularity();
-        
         const humanScore = Math.min(positionVariance / 50, 1) * (1 - regularity * 0.5);
         return humanScore;
     }
 
+    // Периодическая проверка на высокую скорость
     startContinuousCheck() {
         this.checkInterval = setInterval(() => {
             if (this.clicks.length > 15) {
@@ -857,6 +884,7 @@ class AutoClickerDetector {
         }, 3000);
     }
 
+    // Резервная проверка на большое количество кликов
     backupCheck() {
         setInterval(() => {
             const now = Date.now();
@@ -867,9 +895,9 @@ class AutoClickerDetector {
         }, 5000);
     }
 
+    // Реакция на обнаружение автокликера
     onDetection(reason, cps) {
         this.detectionCount++;
-        
         console.warn(`Обнаружен автокликер! (${this.detectionCount}/${this.maxDetections})`, {
             reason: reason,
             cps: cps,
@@ -877,7 +905,6 @@ class AutoClickerDetector {
             mobile: this.isMobile,
             time: new Date().toLocaleTimeString()
         });
-
         if (this.detectionCount === 1) {
             this.showFirstWarning();
         } else if (this.detectionCount === 2) {
@@ -885,11 +912,11 @@ class AutoClickerDetector {
         } else if (this.detectionCount >= 3) {
             this.banUser();
         }
-        
         this.clicks = [];
         this.suspiciousCount = 0;
     }
 
+    // Первое предупреждение
     showFirstWarning() {
         const warning = document.createElement('div');
         warning.innerHTML = `
@@ -936,6 +963,7 @@ class AutoClickerDetector {
         document.body.appendChild(warning);
     }
 
+    // Второе предупреждение
     showSecondWarning() {
         const warning = document.createElement('div');
         warning.innerHTML = `
@@ -982,6 +1010,7 @@ class AutoClickerDetector {
         document.body.appendChild(warning);
     }
 
+    // Бан пользователя
     banUser() {
         const banInfo = {
             banned: true,
@@ -994,6 +1023,7 @@ class AutoClickerDetector {
         this.showBanScreen();
     }
 
+    // Проверка, забанен ли пользователь
     isBanned() {
         const banInfo = localStorage.getItem('clicker_ban_info');
         if (!banInfo) return false;
@@ -1006,6 +1036,7 @@ class AutoClickerDetector {
         }
     }
 
+    // Экран бана
     showBanScreen() {
         const banScreen = document.createElement('div');
         banScreen.innerHTML = `
@@ -1084,6 +1115,7 @@ class AutoClickerDetector {
         document.body.style.overflow = 'hidden';
     }
 
+    // Модальное окно разблокировки
     showUnbanModal() {
         const modal = document.createElement('div');
         modal.innerHTML = `
@@ -1174,6 +1206,7 @@ class AutoClickerDetector {
         modal.querySelector('#unbanCodeInput').focus();
     }
 
+    // Проверка кода разблокировки
     processUnbanCode(modal) {
         const input = modal.querySelector('#unbanCodeInput');
         const message = modal.querySelector('#unbanMessage');
@@ -1206,14 +1239,17 @@ class AutoClickerDetector {
         }
     }
 
+    // Получение IP (заглушка)
     getUserIP() {
         return 'unknown';
     }
 
+    // Изменение конфигурации
     setConfig(newConfig) {
         this.config = {...this.config, ...newConfig};
     }
 
+    // Удаление слушателей
     destroy() {
         const events = ['click', 'touchstart', 'mousedown'];
         events.forEach(event => {
@@ -1244,7 +1280,7 @@ function checkBanOnLoad() {
     return false;
 }
 
-// Инициализация только если пользователь не забанен
+// Инициализация античита
 if (!checkBanOnLoad()) {
     const clickDetector = new AutoClickerDetector();
     
@@ -1261,7 +1297,7 @@ function resetBan() {
     location.reload();
 }
 
-// Добавляем кнопку сброса бана только в режиме разработки
+// Кнопка сброса бана для локальной разработки
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     const resetBtn = document.createElement('button');
     resetBtn.textContent = 'Сбросить бан (dev)';
@@ -1298,7 +1334,8 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     document.body.appendChild(codeInfo);
 }
 </script>
-	 <footer class="footer">
+<!-- Футер сайта -->
+<footer class="footer">
         <div class="footer-container">
             <div class="footer-logo">
                 <h3>Бобер кликер</h3>
@@ -1333,5 +1370,4 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
         </div>
     </footer>
 </body>
-</html>
 </html>
