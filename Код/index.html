@@ -503,23 +503,7 @@
         document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
     };
 
-    // Клик по кнопке (ПК)
-    document.getElementById('clicker').onclick = function() {
-        if (userId) {
-            updateEnergy();
-            if (energy >= plus) {
-                score += plus;
-                energy -= plus;
-                document.getElementById('score').innerText = 'Счет: ' + score;
-                updateEnergyUI();
-                saveEnergy();
-            } else {
-                alert('Недостаточно энергии!');
-            }
-        } else {
-            alert('Пожалуйста, войдите в акаунт.');
-        }
-    };
+ 
     // --- Добавлено: поддержка мультитача на мобильных устройствах ---
     document.getElementById('clicker').addEventListener('touchstart', function(e) {
         if (userId) {
@@ -584,7 +568,23 @@
         document.getElementById('registerForm').style.display = 'block';
         document.getElementById('loginForm').style.display = 'none';
     };
-
+   // Клик по кнопке (ПК)
+    document.getElementById('clicker').onclick = function() {
+        if (userId) {
+            updateEnergy();
+            if (energy >= plus) {
+                score += plus;
+                energy -= plus;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+                saveEnergy();
+            } else {
+                alert('Недостаточно энергии!');
+            }
+        } else {
+            alert('Пожалуйста, войдите в акаунт.');
+        }
+    };
     // Обработка входа пользователя
     document.getElementById('submitLogin').onclick = function() {
         const login = document.getElementById('login').value;
