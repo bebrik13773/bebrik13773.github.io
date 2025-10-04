@@ -716,10 +716,8 @@ window.onload = loadLeaderboard();
 
 </script>
 <script>
-// --- Античит: детектор автокликера ---
 class AutoClickerDetector {
     constructor() {
-        // ...инициализация переменных и конфигов...
         this.clicks = [];
         this.suspiciousCount = 0;
         this.checkInterval = null;
@@ -728,14 +726,15 @@ class AutoClickerDetector {
         this.maxDetections = 2;
         this.isMobile = this.checkMobileDevice();
         this.unbanCode = "UNBAN2024";
+        // Конфиг для мобильных устройств стал строже
         this.config = {
-            maxCPS: this.isMobile ? 15 : 13,
-            minClicksForAnalysis: this.isMobile ? 10 : 9,
-            timeWindow: this.isMobile ? 2000 : 1500,
-            regularityThreshold: 0.9,
-            positionThreshold: this.isMobile ? 10 : 5,
-            minInterval: this.isMobile ? 30 : 43,
-            multiTouchThreshold: this.isMobile ? 3 : 2
+            maxCPS: this.isMobile ? 9 : 14, // было 16, стало 9
+            minClicksForAnalysis: this.isMobile ? 7 : 9, // было 10, стало 7
+            timeWindow: this.isMobile ? 1200 : 1500, // было 2000, стало 1200
+            regularityThreshold: 0.85, // было 0.9
+            positionThreshold: this.isMobile ? 7 : 5, // было 10, стало 7
+            minInterval: this.isMobile ? 25 : 43, // было 30, стало 25
+            multiTouchThreshold: this.isMobile ? 2 : 2 // было 3, стало 2
         };
         this.init();
     }
@@ -1283,10 +1282,7 @@ function checkBanOnLoad() {
 // Инициализация античита
 if (!checkBanOnLoad()) {
     const clickDetector = new AutoClickerDetector();
-    
-    // Для отладки
     window.clickDetector = clickDetector;
-    
     console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
     console.log('Код разбана (только для разработки):', clickDetector.unbanCode);
 }
@@ -1367,6 +1363,10 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
         
         <div class="footer-bottom">
             <p>© Бобер кликер. Тапайте бобра.</p>
+        </div>
+    </footer>
+</body>
+</html>
         </div>
     </footer>
 </body>
