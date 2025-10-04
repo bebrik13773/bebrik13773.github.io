@@ -475,6 +475,9 @@
             body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
         });
     }
+    setInterval(() => {
+    updateEnergy()
+  }, 2000)
 
     // Восстановление энергии по времени (работает и оффлайн)
     function updateEnergy() {
