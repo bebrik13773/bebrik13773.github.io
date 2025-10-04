@@ -603,9 +603,8 @@
         .then(data => {
             if (data.success) {
                 userId = data.userId;
-                score = data.skin;
-                if (login == "test"){document.getElementById('admin').style.display = 'block';};
-                plus = data.score;
+                score = data.score !== undefined ? data.score : 0;
+                plus = data.plus !== undefined ? data.plus : 1;
                 localStorage.setItem('login', login);
                 localStorage.setItem('password', password);
                 // --- Установка и сохранение скина из базы ---
@@ -613,18 +612,15 @@
                     try {
                         let loadedSkin = JSON.parse(data.skin);
                         if (Array.isArray(loadedSkin)) {
-                            // Копируем значения в существующий массив skin
                             for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
                         }
                     } catch(e) {}
-                }
-                // Если сервер возвращает skin как массив (например, через API), тоже поддержим:
-                else if (Array.isArray(data.skin)) {
+                } else if (Array.isArray(data.skin)) {
                     for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
                 }
                 skinLoad();
-                energy = data.energy ? data.energy : ENERGY_MAX;
-                last_energyUpdate = data.leu ? data.leu : Date.now();
+                energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
+                lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 alert('Успешный вход!');
                 loadLeaderboard();
@@ -632,9 +628,7 @@
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('loginButton').style.display = 'none';
                 document.getElementById('registerButton').style.display = 'none';
-            } else {
-                alert('Ошибка входа: ' + data.message);
-            }
+                if (login == "test"){document.getElementById('admin').style.display = 'block';};//Отображение админ панели если логин тест
         });
     };
 
