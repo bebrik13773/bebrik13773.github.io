@@ -128,6 +128,9 @@
         }
         
         #clicker {
+		    touch-action: manipulation;
+            user-select: none;
+             -webkit-user-select: none;
             width: 200px;
 			background-color: #33c5c7;
             height: 200px;
@@ -405,9 +408,6 @@
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
     <script>
-	   let com = fetch("https://api.github.com/repos/bebrik13773/bebrik13773.github.io/commits/main");
-setTimeout(() => { let come = JSON.parse(com); }, 2000)
-document.getElementById('gity') = come.commit.message;
 
  document.getElementById('password').value = localStorage.getItem('password');
 		document.getElementById('login').value = localStorage.getItem('login');
@@ -1270,7 +1270,6 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     document.body.appendChild(codeInfo);
 }
 </script>
-<p id="gity"></p>
 	 <footer class="footer">
         <div class="footer-container">
             <div class="footer-logo">
