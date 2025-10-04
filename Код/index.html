@@ -527,14 +527,19 @@
                     plus = data.score;
                     localStorage.setItem('login', login);
                     localStorage.setItem('password', password);
-                    // --- Установка скина из базы ---
+                    // --- Установка и сохранение скина из базы ---
                     if (typeof data.skin === 'string') {
                         try {
                             let loadedSkin = JSON.parse(data.skin);
                             if (Array.isArray(loadedSkin)) {
+                                // Копируем значения в существующий массив skin
                                 for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
                             }
                         } catch(e) {}
+                    }
+                    // Если сервер возвращает skin как массив (например, через API), тоже поддержим:
+                    else if (Array.isArray(data.skin)) {
+                        for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
                     }
                     skinLoad();
                     document.getElementById('score').innerText = 'Счет: ' + score;
