@@ -443,18 +443,20 @@
 					let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
 					if (result1 == true) {
 						skin[0] = tex;
-						alert("Скин успешно установлен!");
-						saveskin();
 						skinLoad();
+						saveskin(); // сохраняем сразу после установки
+						alert("Скин успешно установлен!");
 					}
 				} else {
 					let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
 					if (result1a == true) {
 						if (score > sum) {
 							skin[id] = true;
-							saveScore(score);
-							saveskin();
+							skin[0] = tex; // сразу устанавливаем купленный скин
 							score = score - sum;
+							skinLoad();
+							saveskin(); // сохраняем сразу после покупки и установки
+							saveScore(score);
 							alert("Успешная покука скина!");
 						} else {
 							alert("Недостаточно средств!")
@@ -521,20 +523,27 @@
                 if (data.success) {
                     userId = data.userId;
                     score = data.skin;
-					if (login == "test"){document.getElementById('admin').style.display = 'block';};
+                    if (login == "test"){document.getElementById('admin').style.display = 'block';};
                     plus = data.score;
-					localStorage.setItem('login', login);
-					localStorage.setItem('password', password);
-					const skin = data.plus;
+                    localStorage.setItem('login', login);
+                    localStorage.setItem('password', password);
+                    // --- Установка скина из базы ---
+                    if (typeof data.skin === 'string') {
+                        try {
+                            let loadedSkin = JSON.parse(data.skin);
+                            if (Array.isArray(loadedSkin)) {
+                                for (let i = 0; i < loadedSkin.length; i++) skin[i] = loadedSkin[i];
+                            }
+                        } catch(e) {}
+                    }
+                    skinLoad();
                     document.getElementById('score').innerText = 'Счет: ' + score;
                     alert('Успешный вход!');
                     loadLeaderboard();
-					skinLoad();
                     document.getElementById('registerForm').style.display = 'none';
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('loginButton').style.display = 'none';
                     document.getElementById('registerButton').style.display = 'none';
-                    
                 } else {
                     alert('Ошибка входа: ' + data.message);
                 }
