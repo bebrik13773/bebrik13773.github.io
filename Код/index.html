@@ -606,7 +606,7 @@
                 plus = data.plus !== undefined ? data.plus : 1;
                 localStorage.setItem('login', login);
                 localStorage.setItem('password', password);
-                skin = data.skin// --- Установка и сохранение скина из базы ---
+                skin = data.skin;// --- Установка и сохранение скина из базы ---
                 skinLoad();
                 energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
                 lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
