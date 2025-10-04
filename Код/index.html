@@ -203,7 +203,7 @@
 		}
 		#SkinShopButton6 {
 			width: 150px;
-			height: 150px;
+		 height: 150px;
 			background-image: url('skins/Shok-upok-bober.jpg');
 			background-size: cover;
 			border: none;
@@ -621,7 +621,7 @@ alert('Пожалуйста, войдите в акаунт.');
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ userId: userId, skin: skin })
+			body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // сериализация skin
 		})
 		.then(response => response.json())
 		.then(data => console.log(data))
@@ -650,7 +650,7 @@ alert('Пожалуйста, войдите в акаунт.');
                 headers: {
                     'Content-Type': 'application/json'
                 },
-				body: JSON.stringify({ userId: userId, score: score, skin: skin })
+				body: JSON.stringify({ userId: userId, score: score, skin: JSON.stringify(skin) }) // сериализация skin
             })
             .then(response => response.json())
             .then(data => console.log(data))

@@ -6,7 +6,7 @@ $userId = $data->userId;
 $skin = $data->skin;
 
 $stmt = $conn->prepare("UPDATE users SET skin = ? WHERE id = ?");
-$stmt->bind_param("ii", $skin, $userId);
+$stmt->bind_param("si", $skin, $userId); // s - ÑÑ‚Ñ€Ð¾ÐºÐ°, i - Ñ‡Ð¸ÑÐ»Ð¾
 $stmt->execute();
-echo json_encode(['message' => '‘÷åò ñîõðàíåí.']);
+echo json_encode(['message' => 'Ð¡ÐºÐ¸Ð½ ÑÐ¾Ñ…Ñ€Ð°Ð½Ñ‘Ð½.']);
 ?>
