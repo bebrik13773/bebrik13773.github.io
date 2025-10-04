@@ -881,15 +881,15 @@
                 if (this.suspiciousCount >= 3) {
                     this.onDetection(reason, cps);
                     this.suspiciousCount = 0;
+                if (energy >= totalCost) {
+                    score += totalCost;
+                    energy -= totalCost;
+                    document.getElementById('score').innerText = 'Счет: ' + score;
+                    updateEnergyUI();
+                    saveEnergy();
+                } else {
+                    alert('Недостаточно энергии!');
                 }
-            } else {
-                this.suspiciousCount = Math.max(0, this.suspiciousCount - (this.isMobile ? 0.1 : 0.2));
-            }
-        }
-
-        // Расчет CPS (кликов в секунду)
-        calculateCPS() {
-            if (this.clicks.length < 2) return 0;
             const timeRange = this.clicks[this.clicks.length - 1].time - this.clicks[0].time;
             if (timeRange === 0) return 1000;
             return (this.clicks.length / timeRange) * 1000;
