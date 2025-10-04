@@ -407,7 +407,7 @@
     <script>
 	   let com = fetch("https://api.github.com/repos/bebrik13773/bebrik13773.github.io/commits/main")
 com = JSON.parse(com)
-document.getElementById('gity') = 'Последнее изменение:, com;
+document.getElementById('gity') = ('Последнее изменение:, com;)
 
  document.getElementById('password').value = localStorage.getItem('password');
 		document.getElementById('login').value = localStorage.getItem('login');
