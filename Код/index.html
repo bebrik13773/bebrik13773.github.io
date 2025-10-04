@@ -547,6 +547,7 @@
         } else {
             alert('Пожалуйста, войдите в акаунт.');
         }
+    });
 
     // Периодическое восстановление энергии (онлайн)
     const energyTimer = setInterval(() => {
@@ -1358,23 +1359,23 @@
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         const resetBtn = document.createElement('button');
         resetBtn.textContent = 'Сбросить бан (dev)';
-        resetBtn.style.cssText = `
-            position: fixed; 
-            bottom: 10px; 
-            right: 10px; 
-            z-index: 9999; 
-            padding: 8px 12px; 
-            font-size: 12px;
-            background: #e17055;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        `;
-        resetBtn.onclick = resetBan;
-        document.body.appendChild(resetBtn);
-        
-        // Также показываем код разбана для удобства тестирования
+    resetBtn.style.cssText = `
+        position: fixed; 
+        bottom: 10px; 
+        right: 10px; 
+        z-index: 9999; 
+        padding: 8px 12px; 
+        font-size: 12px;
+        background: #e17055;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    `;
+    resetBtn.onclick = resetBan;
+    document.body.appendChild(resetBtn);
+    
+    // Также показываем код разбана для удобства тестирования
         const codeInfo = document.createElement('div');
         codeInfo.textContent = 'Код разбана: UNBAN2024';
         codeInfo.style.cssText = `
@@ -1426,22 +1427,4 @@
         </div>
     </footer>
 </body>
-</html>
-</html>
-                
-                <a href="https://t.me/+lxcAKwXFono2ODZi" class="footer-link" target="_blank">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
-                    </svg>
-                    Канал
-                </a>
-            </div>
-        </div>
-        
-        <div class="footer-bottom">
-            <p>© Бобер кликер. Тапайте бобра.</p>
-        </div>
-    </footer>
-</body>
-</html>
 </html>
