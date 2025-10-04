@@ -454,7 +454,7 @@
     const ENERGY_MAX = 5000;
     const ENERGY_REGEN_TIME = 10 * 60 * 1000; // 10 минут в мс
     // Раньше реген был 5000 за 10 минут. Уменьшаем скорость в 2 раза: 2500 за 10 минут
-    const ENERGY_REGEN_PER_MS = (ENERGY_MAX/2) / ENERGY_REGEN_TIME;
+    const ENERGY_REGEN_PER_MS = (ENERGY_MAX/1,5) / ENERGY_REGEN_TIME;
     // Список скинов
     let skins = {
         skin1: 'bober.png',
@@ -476,7 +476,8 @@
         });
     }
     setInterval(() => {
-    updateEnergy()
+    updateEnergy();
+    updateEnergyUI();
   }, 2000)
 
     // Восстановление энергии по времени (работает и оффлайн)
@@ -622,6 +623,8 @@
                     for (let i = 0; i < data.skin.length; i++) skin[i] = data.skin[i];
                 }
                 skinLoad();
+                energy = data.energy ? data.energy : ENERGY_MAX;
+                last_energyUpdate = data.leu ? data.leu : Date.now();
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 alert('Успешный вход!');
                 loadLeaderboard();
