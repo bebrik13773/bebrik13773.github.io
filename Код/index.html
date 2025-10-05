@@ -342,8 +342,86 @@
 			font-size: 16px;
 		}
     </style>
+    <style>
+    .notification-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    }
+
+    .notification {
+        padding: 15px 25px;
+        border-radius: 10px;
+        color: white;
+        font-size: 16px;
+        font-weight: 500;
+        opacity: 0;
+        transform: translateX(30px);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        cursor: pointer;
+        min-width: 200px;
+    }
+
+    .notification.success {
+        background-color: rgba(75, 192, 161, 0.9);
+    }
+
+    .notification.error {
+        background-color: rgba(241, 76, 76, 0.9);
+    }
+
+    .notification.show {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    @media (max-width: 768px) {
+        .notification-container {
+            top: 15px;
+            right: 15px;
+        }
+        
+        .notification {
+            font-size: 14px;
+            padding: 12px 20px;
+            min-width: 160px;
+        }
+    }
+</style>
 </head>
 <body>
+    <!-- Контейнер уведомлений -->
+<div class="notification-container" id="notifications"></div>
+
+<!-- Функция уведомлений -->
+<script>
+function showNotification(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('notifications');
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    container.appendChild(notification);
+    notification.classList.add('show');
+    
+    setTimeout(() => {
+        notification.style.opacity = 0;
+        notification.style.transform = 'translateX(30px)';
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, duration);
+}
+</script>
 <div id="clicerMex">
     <h1>БОБЕР 🦫 КЛИКЕР</h1>
     <button id="clicker"></button>
@@ -504,7 +582,7 @@
                     skin[0] = tex;
                     skinLoad();
                     saveskin(); // сохраняем сразу после установки
-                    alert("Скин успешно установлен!");
+                    showNotification("Скин успешно установлен!", "success");
                 }
             } else {
                 let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
@@ -516,14 +594,14 @@
                         skinLoad();
                         saveskin(); // сохраняем сразу после покупки и установки
                         saveScore(score);
-                        alert("Успешная покука скина!");
+                        showNotification("Успешная покука скина!", "success");
                     } else {
-                        alert("Недостаточно средств!")
+                        showNotification("Недостаточно средств!", "error");
                     }
                 }
             }
         } else {
-            alert('Пожалуйста, войдите в акаунт.');
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
         }
     }
     
@@ -546,10 +624,10 @@
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 updateEnergyUI();
             } else {
-                alert('Недостаточно энергии!');
+                showNotification("Недостаточно энергии!", "error");
             }
         } else {
-            alert('Пожалуйста, войдите в акаунт.');
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
         }
     });
 
@@ -582,10 +660,10 @@
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 updateEnergyUI();
             } else {
-                alert('Недостаточно энергии!');
+                showNotification("Недостаточно энергии!", "error");
             }
         } else {
-            alert('Пожалуйста, войдите в акаунт.');
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
         }
     };
     // Обработка входа пользователя
@@ -616,7 +694,7 @@ document.getElementById('submitLogin').onclick = function() {
             energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
             lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
             document.getElementById('score').innerText = 'Счет: ' + score;
-            alert('Успешный вход!');
+            showNotification("Успешный вход!", "success");
             loadLeaderboard();
             document.getElementById('registerForm').style.display = 'none';
             document.getElementById('loginForm').style.display = 'none';
@@ -665,9 +743,9 @@ function shopClose() {
         if (userId) {
             saveScore(score);
             saveEnergy();
-            alert("Успешное сохранение");
+            showNotification("Успешное сохранение", "success");
         } else {
-            alert('Пожалуйста, войдите в акаунт.');
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
         }
     }
 
@@ -680,12 +758,12 @@ function shopClose() {
                 plus = plus + 1
                 score = score - 5000
                 saveplus()
-                alert("Успешная покука улучшения!")
+                showNotification("Успешная покупка улучшения!", "success");
             } else {
-                alert("Недостаточно средств!")
+                showNotification(" Недостаточно средств!", "error");
             }
         } else {
-            alert('Пожалуйста, войдите в систему!');
+            showNotification('Пожалуйста, войдите в систему!', "error");
         }
     };
     // Покупка улучшения 2
@@ -697,12 +775,12 @@ function shopClose() {
                 plus = plus + 5
                 score = score - 20000
                 saveplus()
-                alert("Успешная покука улучшения!")
+                showNotification("Успешная покупка улучшения!", "success");
             } else {
-                alert("Недостаточно средств!")
+                showNotification(" Недостаточно средств!", "error")
             }
         } else {
-            alert('Пожалуйста, войдите в систему!');
+            showNotification('Пожалуйста, войдите в систему!', "error");
         }
     };
     // Сохранение значения plus
@@ -750,7 +828,7 @@ function shopClose() {
         })
         .then(response => response.json())
         .then(data => {
-            alert(data.message);
+            showNotification(data.message, "error");
         });
     };
 
