@@ -7,10 +7,11 @@ $data = json_decode(file_get_contents("php://input"));
 $userId = $data->userId;
 $energy = $data->energy;
 $lastEnergyUpdate = isset($data->lastEnergyUpdate) ? $data->lastEnergyUpdate : null;
+$ENERGY_MAX = $data->ENERGY_MAX;
 
 // Обновление энергии пользователя
-$stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update = ? WHERE id = ?");
-$stmt->bind_param("isi", $energy, $lastEnergyUpdate, $userId);
+$stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update = ?, ENERGY_MAX = ? WHERE id = ?");
+$stmt->bind_param("isi", $energy, $ENERGY_MAX, $lastEnergyUpdate, $userId);
 $stmt->execute();
 
 // Ответ клиенту
