@@ -329,7 +329,7 @@
 			border-radius: 5px;
 			background: #4676D7;
 			color: #fff;
-			padding: 8px 40%;
+			padding: 8px 48%;
 			font-size: 16px;
 		}
 		#shopExit {
@@ -338,7 +338,7 @@
 			border-radius: 5px;
 			background: #4676D7;
 			color: #fff;
-			padding: 8px 16px;
+			padding: 15px 77px;
 			font-size: 16px;
 		}
     </style>
@@ -489,6 +489,9 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <br>
 <button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
+<br>
+<br>
+<button id="ShopButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <div id="skins">
 	<button  id="SkinShopButton1" onclick="buySkin(1, 0, 'skins/bober.png')">Просто бобер - цена: бесплатно!</button>
@@ -525,6 +528,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     // Основные переменные игры
     let login = 0;
     let score = 0;
+    let logreg = 0;
     let userId = null;
     let plus = 1;
     let energy = 5000;
@@ -550,7 +554,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         fetch('https://bober-api.gt.tc/save-energy.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate })
+            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate, ENERGY_MAX: ENERGY_MAX })
         });
     }
     setInterval(() => {
@@ -668,40 +672,46 @@ function showNotification(message, type = 'success', duration = 3000) {
     // Обработка входа пользователя
 
 document.getElementById('submitLogin').onclick = function() {
-    const login = document.getElementById('login').value;
-    const password = document.getElementById('password').value;
-    fetch('https://bober-api.gt.tc/login-t.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ login: login, password: password })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            userId = data.userId;
-            score = data.score !== undefined ? data.score : 0;
-            plus = data.plus !== undefined ? data.plus : 1;
-            localStorage.setItem('login', login);
-            localStorage.setItem('password', password);
-            
-            // Преобразуем строку skin в массив
-            skin = JSON.parse(data.skin); // <-- Новое изменение
-            
-            skinLoad();
-            energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
-            lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
-            document.getElementById('score').innerText = 'Счет: ' + score;
-            showNotification("Успешный вход!", "success");
-            loadLeaderboard();
-            document.getElementById('registerForm').style.display = 'none';
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('loginButton').style.display = 'none';
-            document.getElementById('registerButton').style.display = 'none';
-            if (login == "test"){document.getElementById('admin').style.display = 'block';};
-        }
-    });
+    if (logreg == 0){
+        const login = document.getElementById('login').value;
+        logreg = 1
+        const password = document.getElementById('password').value;
+        fetch('https://bober-api.gt.tc/login-t.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login: login, password: password })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                userId = data.userId;
+                score = data.score !== undefined ? data.score : 0;
+                plus = data.plus !== undefined ? data.plus : 1;
+                localStorage.setItem('login', login);
+                localStorage.setItem('password', password);
+                
+                // Преобразуем строку skin в массив
+                skin = JSON.parse(data.skin); // <-- Новое изменение
+                ENERGY_MAX = data.ENERGY_MAX !== undefined ? data.ENERGY_MAX : ENERGY_MAX;
+                skinLoad();
+                energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
+                lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                showNotification("Успешный вход!", "success");
+                loadLeaderboard();
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('loginButton').style.display = 'none';
+                document.getElementById('registerButton').style.display = 'none';
+                if (login == "test"){document.getElementById('admin').style.display = 'block';};
+            }
+        });
+    }
+    else {
+        showNotification('Пожалуйста, подожтите идёт загрузка!', "error");
+    }
 };
 
     // Открытие магазина
@@ -782,6 +792,20 @@ function shopClose() {
             showNotification('Пожалуйста, войдите в систему!', "error");
         }
     };
+    function buyEnergyUpgrade()
+    {
+        if (userId) {
+            if (score > 10000) {
+                ENERGY_MAX = ENERGY_MAX + 1000;
+                score = score - 10000;
+                saveEnergy();
+                saveScore(score);
+            }
+        }
+        else {
+            showNotification('Пожалуйста, войдите в систему!', "error");
+        }
+    }
     // Сохранение значения plus
     function saveplus()
     {
