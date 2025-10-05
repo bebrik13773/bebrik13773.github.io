@@ -347,6 +347,33 @@
 			padding: 8px 16px;
 			font-size: 16px;
 		}
+        /* Стили для кнопки выхода */
+#shopExit {
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Убедимся, что контейнер с кнопкой не съезжает */
+#clicerMex {
+    transition: all 0.3s ease;
+    min-height: 500px;
+}
+
+/* Стиль для кнопки входа */
+#loginButton, #registerButton {
+    margin: 10px;
+    min-width: 120px;
+}
+@media (max-width: 768px) {
+    #shopExit {
+        bottom: 15px;
+        right: 15px;
+        font-size: 16px;
+        padding: 10px 20px;
+    }
+}
+
     </style>
 </head>
 <body>
@@ -633,9 +660,6 @@ document.getElementById('submitLogin').onclick = function() {
     });
 };
 
-    // Открытие магазина
-// Добавьте эти изменения в существующий JS-код
-
 // Обновленная функция открытия магазина
 function shopShow() {
     document.getElementById('shop').style.display = 'block';
@@ -644,11 +668,14 @@ function shopShow() {
     document.getElementById('clicerMex').style.display = 'none';
     document.getElementById('leaderboard').style.display = 'none';
     
-    // Добавляем фиксированное позиционирование для кнопки выхода
-    document.getElementById('shopExit').style.position = 'fixed';
-    document.getElementById('shopExit').style.bottom = '20px';
-    document.getElementById('shopExit').style.right = '20px';
-    document.getElementById('shopExit').style.zIndex = '1000';
+    // Установка стилей для кнопки выхода
+    const exitBtn = document.getElementById('shopExit');
+    exitBtn.style.position = 'fixed';
+    exitBtn.style.bottom = '30px';
+    exitBtn.style.right = '30px';
+    exitBtn.style.zIndex = '1000';
+    exitBtn.style.fontSize = '18px';  // Увеличенный шрифт
+    exitBtn.style.padding = '12px 24px';  // Больше внутреннего отступа
 }
 
 // Обновленная функция закрытия магазина
@@ -659,23 +686,15 @@ function shopClose() {
     document.getElementById('clicerMex').style.display = 'block';
     document.getElementById('leaderboard').style.display = 'block';
     
-    // Сбрасываем стили кнопки выхода
-    document.getElementById('shopExit').style.position = '';
-    document.getElementById('shopExit').style.bottom = '';
-    document.getElementById('shopExit').style.right = '';
-    document.getElementById('shopExit').style.zIndex = '';
+    // Сброс стилей кнопки выхода
+    const exitBtn = document.getElementById('shopExit');
+    exitBtn.style.position = '';
+    exitBtn.style.bottom = '';
+    exitBtn.style.right = '';
+    exitBtn.style.zIndex = '';
+    exitBtn.style.fontSize = ''; 
+    exitBtn.style.padding = '';
 }
-
-    // Сохранение счета
-    function Save() {
-        if (userId) {
-            saveScore(score);
-            saveEnergy();
-            alert("Успешное сохранение");
-        } else {
-            alert('Пожалуйста, войдите в акаунт.');
-        }
-    }
 
     // Покупка улучшения 1
     function buyUpgrade1()
