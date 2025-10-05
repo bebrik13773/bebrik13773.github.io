@@ -588,39 +588,43 @@
         }
     };
     // Обработка входа пользователя
-    document.getElementById('submitLogin').onclick = function() {
-        const login = document.getElementById('login').value;
-        const password = document.getElementById('password').value;
-        fetch('https://bober-api.gt.tc/login-t.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ login: login, password: password })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                userId = data.userId;
-                score = data.score !== undefined ? data.score : 0;
-                plus = data.plus !== undefined ? data.plus : 1;
-                localStorage.setItem('login', login);
-                localStorage.setItem('password', password);
-                const skin = data.skin;// --- Установка и сохранение скина из базы ---
-                skinLoad();
-                energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
-                lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
-                document.getElementById('score').innerText = 'Счет: ' + score;
-                alert('Успешный вход!');
-                loadLeaderboard();
-                document.getElementById('registerForm').style.display = 'none';
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('loginButton').style.display = 'none';
-                document.getElementById('registerButton').style.display = 'none';
-                if (login == "test"){document.getElementById('admin').style.display = 'block';};//Отображение админ панели если логин тест
-            }
-        });
-    };
+
+document.getElementById('submitLogin').onclick = function() {
+    const login = document.getElementById('login').value;
+    const password = document.getElementById('password').value;
+    fetch('https://bober-api.gt.tc/login-t.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ login: login, password: password })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            userId = data.userId;
+            score = data.score !== undefined ? data.score : 0;
+            plus = data.plus !== undefined ? data.plus : 1;
+            localStorage.setItem('login', login);
+            localStorage.setItem('password', password);
+            
+            // Преобразуем строку skin в массив
+            skin = JSON.parse(data.skin); // <-- Новое изменение
+            
+            skinLoad();
+            energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
+            lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
+            document.getElementById('score').innerText = 'Счет: ' + score;
+            alert('Успешный вход!');
+            loadLeaderboard();
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('loginButton').style.display = 'none';
+            document.getElementById('registerButton').style.display = 'none';
+            if (login == "test"){document.getElementById('admin').style.display = 'block';};
+        }
+    });
+};
 
     // Открытие магазина
     function shopShow() {
