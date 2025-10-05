@@ -373,6 +373,32 @@
         padding: 10px 20px;
     }
 }
+/* Стили для кнопки магазина */
+#shopButton {
+    position: fixed; /* Фиксируем кнопку относительно окна */
+    top: 0;
+    left: 0;
+    width: 95%; /* Ширина почти на весь экран */
+    height: 95%; /* Высота почти на весь экран */
+    border-radius: 20px; /* Закругленные углы */
+    background-color: rgba(70, 118, 215, 0.8); /* Полупрозрачный фон */
+    font-size: 28px; /* Большой текст */
+    transition: all 0.3s ease; /* Плавный переход */
+    z-index: 999; /* Кнопка поверх всех элементов */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+/* Адаптация для мобильных устройств */
+@media (max-width: 768px) {
+    #shopButton {
+        width: 98%;
+        height: 98%;
+        font-size: 24px;
+    }
+}
 
     </style>
 </head>
@@ -668,20 +694,20 @@ function shopShow() {
     document.getElementById('clicerMex').style.display = 'none';
     document.getElementById('leaderboard').style.display = 'none';
     
-    // Установка стилей для кнопки выхода
+    // Анимация открытия
     const exitBtn = document.getElementById('shopExit');
     exitBtn.style.position = 'fixed';
     exitBtn.style.bottom = '30px';
     exitBtn.style.right = '30px';
     exitBtn.style.zIndex = '1000';
-    exitBtn.style.fontSize = '18px';  // Увеличенный шрифт
-    exitBtn.style.padding = '12px 24px';  // Больше внутреннего отступа
+    exitBtn.style.fontSize = '18px'; 
+    exitBtn.style.padding = '12px 24px';
 }
 
 // Обновленная функция закрытия магазина
 function shopClose() {
     document.getElementById('shop').style.display = 'none';
-    document.getElementById('shopButton').style.display = 'block';
+    document.getElementById('shopButton').style.display = 'flex'; // Восстанавливаем отображение
     document.getElementById('shopExit').style.display = 'none';
     document.getElementById('clicerMex').style.display = 'block';
     document.getElementById('leaderboard').style.display = 'block';
