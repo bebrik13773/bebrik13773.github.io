@@ -702,7 +702,7 @@ document.getElementById('submitLogin').onclick = function() {
                 plus = data.plus !== undefined ? data.plus : 1;
                 localStorage.setItem('login', login);
                 localStorage.setItem('password', password);
-                
+                energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
                 // Преобразуем строку skin в массив
                 skin = JSON.parse(data.skin); // <-- Новое изменение
                 const ENERGY_MAX = data.ENERGY_MAX !== undefined ? data.ENERGY_MAX : ENERGY_MAX;
