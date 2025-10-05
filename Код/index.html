@@ -806,7 +806,7 @@ function shopClose() {
     {
         if (userId) {
             if (score > 10000) {
-                ENERGY_MAX = ENERGY_MAX + 1000;
+                window.ENERGY_MAX = ENERGY_MAX + 1000;
                 score = score - 10000;
                 saveEnergy();
                 saveScore(score);
