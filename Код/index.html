@@ -121,6 +121,13 @@
         }
     </style>
 <style>
+    @media (max-width: 768px) {
+    #shopExit {
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+}
+
         body {
             font-family: Arial, sans-serif;
             text-align: center;
@@ -627,22 +634,38 @@ document.getElementById('submitLogin').onclick = function() {
 };
 
     // Открытие магазина
-    function shopShow() {
-        document.getElementById('shop').style.display = 'block';
-        document.getElementById('shopButton').style.display = 'none';
-        document.getElementById('shopExit').style.display = 'block';
-        document.getElementById('clicerMex').style.display = 'none';
-        document.getElementById('leaderboard').style.display = 'none';
-    }
-    // Закрытие магазина
-    function shopClose()
-    {
-        document.getElementById('shop').style.display = 'none';
-        document.getElementById('shopButton').style.display = 'block';
-        document.getElementById('shopExit').style.display = 'none';
-        document.getElementById('clicerMex').style.display = 'block';
-        document.getElementById('leaderboard').style.display = 'block';
-    }
+// Добавьте эти изменения в существующий JS-код
+
+// Обновленная функция открытия магазина
+function shopShow() {
+    document.getElementById('shop').style.display = 'block';
+    document.getElementById('shopButton').style.display = 'none';
+    document.getElementById('shopExit').style.display = 'block';
+    document.getElementById('clicerMex').style.display = 'none';
+    document.getElementById('leaderboard').style.display = 'none';
+    
+    // Добавляем фиксированное позиционирование для кнопки выхода
+    document.getElementById('shopExit').style.position = 'fixed';
+    document.getElementById('shopExit').style.bottom = '20px';
+    document.getElementById('shopExit').style.right = '20px';
+    document.getElementById('shopExit').style.zIndex = '1000';
+}
+
+// Обновленная функция закрытия магазина
+function shopClose() {
+    document.getElementById('shop').style.display = 'none';
+    document.getElementById('shopButton').style.display = 'block';
+    document.getElementById('shopExit').style.display = 'none';
+    document.getElementById('clicerMex').style.display = 'block';
+    document.getElementById('leaderboard').style.display = 'block';
+    
+    // Сбрасываем стили кнопки выхода
+    document.getElementById('shopExit').style.position = '';
+    document.getElementById('shopExit').style.bottom = '';
+    document.getElementById('shopExit').style.right = '';
+    document.getElementById('shopExit').style.zIndex = '';
+}
+
     // Сохранение счета
     function Save() {
         if (userId) {
