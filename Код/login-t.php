@@ -4,7 +4,7 @@ $data = json_decode(file_get_contents("php://input"));
 $login = $data->login;
 $password = $data->password;
 
-$stmt = $conn->prepare("SELECT id, password, plus, skin, energy, ENERGY_MAX, last_energy_update, score FROM users WHERE login = ?");
+$stmt = $conn->prepare("SELECT id, password, plus, skin, energy, last_energy_update, score, ENERGY_MAX FROM users WHERE login = ?");
 $stmt->bind_param("s", $login);
 $stmt->execute();
 $stmt->store_result();
