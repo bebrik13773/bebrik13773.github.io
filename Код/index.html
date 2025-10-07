@@ -530,7 +530,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     document.getElementById('login').value = localStorage.getItem('login');
     document.getElementById('admin').style.display = 'none';
     const queryString = window.location.search;
-    const testm = false
+    const testm = true
     const urlParams = new URLSearchParams(queryString);
     const test = urlParams.get('test');
     if (test == null && testm == true) {
