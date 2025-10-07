@@ -705,7 +705,7 @@ document.getElementById('submitLogin').onclick = function() {
                 
                 // Преобразуем строку skin в массив
                 skin = JSON.parse(data.skin); // <-- Новое изменение
-                ENERGY_MAX = data.ENERGY_MAX !== undefined ? data.ENERGY_MAX : ENERGY_MAX;
+                //ENERGY_MAX = data.ENERGY_MAX !== undefined ? data.ENERGY_MAX : ENERGY_MAX;
                 skinLoad();
                 energy = data.energy !== undefined ? data.energy : ENERGY_MAX;
                 lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
