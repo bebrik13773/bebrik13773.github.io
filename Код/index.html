@@ -545,7 +545,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     let plus = 1;
     let energy = 5000;
     let lastEnergyUpdate = Date.now();
-    const ENERGY_MAX = 5000;
+    let ENERGY_MAX = 5000;
     const ENERGY_REGEN_TIME = 10 * 60 * 1000; // 10 минут в мс
     // Раньше реген был 5000 за 10 минут. Уменьшаем скорость в 2 раза: 2500 за 10 минут
     const ENERGY_REGEN_PER_MS = (window.ENERGY_MAX/2) / ENERGY_REGEN_TIME;
