@@ -11,7 +11,7 @@ $ENERGY_MAX = $data->ENERGY_MAX;
 
 // Обновление энергии пользователя
 $stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update = ?, ENERGY_MAX = ? WHERE id = ?");
-$stmt->bind_param("isi", $energy, $lastEnergyUpdate, $ENERGY_MAX, $userId);
+$stmt->bind_param("iiii", $energy, $lastEnergyUpdate, $ENERGY_MAX, $userId);
 $stmt->execute();
 
 // Ответ клиенту
