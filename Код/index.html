@@ -330,7 +330,7 @@
 			border-radius: 5px;
 			background: #4676D7;
 			color: #fff;
-			padding: 8px 44%;
+			padding: 8px 40%;
 			font-size: 16px;
 		}
          @media (max-width: 768px) {
@@ -913,12 +913,12 @@ function shopClose() {
             this.unbanCode = "UNBAN2024";
             this.config = {
                 maxCPS: this.isMobile ? 14 : 19,
-                minClicksForAnalysis: this.isMobile ? 10 : 9,
-                timeWindow: this.isMobile ? 2000 : 1500,
+                minClicksForAnalysis: this.isMobile ? 10 : 14,
+                timeWindow: this.isMobile ? 2000 : 2500,
                 regularityThreshold: 0.9,
-                positionThreshold: this.isMobile ? 10 : 5,
-                minInterval: this.isMobile ? 30 : 43,
-                multiTouchThreshold: this.isMobile ? 3 : 2
+                positionThreshold: this.isMobile ? 10 : 6,
+                minInterval: this.isMobile ? 30 : 45,
+                multiTouchThreshold: this.isMobile ? 2 : 6
             };
             this.init();
         }
