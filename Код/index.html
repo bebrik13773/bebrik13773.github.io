@@ -645,7 +645,10 @@ function showNotification(message, type = 'success', duration = 3000) {
             showNotification("Пожалуйста, войдите в акаунт.", "error");
         }
     });
-
+    if(return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent){
+        const shopbutt = document.getElementById('shopButton');
+        shopbutt.style.padding = '8px 35%'
+    }
     // Периодическое восстановление энергии (онлайн)
     const energyTimer = setInterval(() => {
         if (userId) {
