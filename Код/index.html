@@ -581,7 +581,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         let delta = now - lastEnergyUpdate;
         if (delta > 0) {
             let regen = delta * ENERGY_REGEN_PER_MS;
-            energy = Math.min(window.ENERGY_MAX, energy + regen);
+            energy = Math.min(ENERGY_MAX, energy + regen);
             lastEnergyUpdate = now;
         }
     }
