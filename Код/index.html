@@ -713,7 +713,7 @@ document.getElementById('submitLogin').onclick = function() {
                 skin = JSON.parse(data.skin); // <-- Новое изменение
                 skinLoad();
                 let eng = data.energy.slice(1)
-                energy = eng.slice(1, -1) //!== undefined ? data.energy : ENERGY_MAX;
+                energy = eng.slice(0, -1) //!== undefined ? data.energy : ENERGY_MAX;
                 lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 showNotification("Успешный вход!", "success");
