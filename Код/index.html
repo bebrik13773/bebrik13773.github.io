@@ -729,9 +729,6 @@ document.getElementById('submitLogin').onclick = function() {
     }
 };
 
-    // Открытие магазина
-// Добавьте эти изменения в существующий JS-код
-
 // Обновленная функция открытия магазина
 function shopShow() {
     document.getElementById('shop').style.display = 'block';
@@ -811,10 +808,13 @@ function shopClose() {
     {
         if (userId) {
             if (score > 10000) {
-                ENERGY_MAX = ENERGY_MAX + 1000;
+                window.ENERGY_MAX = window.ENERGY_MAX + 1000;
                 score = score - 10000;
                 saveEnergy();
                 saveScore(score);
+                showNotification("Успешная покупка улучшения!", "success");
+            } else {
+                showNotification(" Недостаточно средств!", "error");
             }
         }
         else {
