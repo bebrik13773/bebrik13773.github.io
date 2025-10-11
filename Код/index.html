@@ -712,7 +712,8 @@ document.getElementById('submitLogin').onclick = function() {
                 // Преобразуем строку skin в массив
                 skin = JSON.parse(data.skin); // <-- Новое изменение
                 skinLoad();
-                energy = data.energy //!== undefined ? data.energy : ENERGY_MAX;
+                let eng = data.energy.slice(1)
+                energy = eng.slice(1, -1) //!== undefined ? data.energy : ENERGY_MAX;
                 lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 showNotification("Успешный вход!", "success");
