@@ -503,7 +503,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
 <br>
 <br>
-<button id="ShopButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+<button id="ShopButton" onclick="showNotification('Сейчас не работает!', error);">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <div id="skins">
 	<button  id="SkinShopButton1" onclick="buySkin(1, 0, 'skins/bober.png')">Просто бобер - цена: бесплатно!</button>
@@ -531,7 +531,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     document.getElementById('login').value = localStorage.getItem('login');
     document.getElementById('admin').style.display = 'none';
     const queryString = window.location.search;
-    const testm = true
+    const testm = false
     const urlParams = new URLSearchParams(queryString);
     const test = urlParams.get('test');
     if (test == null && testm == true) {
