@@ -899,6 +899,18 @@ function shopClose() {
     }
 
     window.onload = loadLeaderboard();
+    const options = {
+    clicksToSave: 40,
+    detectNonhumanClick: true,
+    detectClickInterval: {
+      enabled: true,
+      margin: 10
+    },
+    detectFastClicking: {
+      enabled: true,
+      maximumAvgPerSecond: 40
+    }
+  }
     const nacaz = window.location.reload();
     const detector = new antiautoclick(nacaz, options);
     </script>
