@@ -916,12 +916,12 @@ function shopClose() {
             this.unbanCode = "UNBAN2024";
             this.config = {
                 maxCPS: this.isMobile ? 35 : 40,
-                minClicksForAnalysis: this.isMobile ? 10 : 15,
+                minClicksForAnalysis: this.isMobile ? 10 : 105,
                 timeWindow: this.isMobile ? 2000 : 3100,
                 regularityThreshold: 1,
-                positionThreshold: this.isMobile ? 10 : 10,
-                minInterval: this.isMobile ? 30 : 62,
-                multiTouchThreshold: this.isMobile ? 2 : 8
+                positionThreshold: this.isMobile ? 10 : 100,
+                minInterval: this.isMobile ? 30 : 602,
+                multiTouchThreshold: this.isMobile ? 2 : 80
             };
             this.init();
         }
