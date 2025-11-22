@@ -998,7 +998,7 @@ function shopClose() {
                 detected = true;
                 reason = `Машинная регулярность: ${Math.round(regularity * 100)}%`;
             }
-            else if (cps > this.config.maxCPS && positionVariance < this.config.positionThreshold && this.clicks.length > 15) {
+            else if (cps > this.config.maxCPS && positionVariance < this.config.positionThreshold && this.clicks.length > 30) {
                 detected = true;
                 reason = `Клик в одну точку`;
             }
@@ -1031,7 +1031,7 @@ function shopClose() {
         calculateCPS() {
             const now = Date.now();
             // Фильтруем клики за последнюю секунду
-            const recentClicks = this.clicks.filter(click => now - click.time <= 1000);
+            const recentClicks = this.clicks.filter(click => now - click.time <= 3000);
             // Возвращаем количество кликов в секунду
             return recentClicks.length;
         }
@@ -1050,7 +1050,7 @@ function shopClose() {
 
         // Оценка "человечности" кликов
         calculateHumanFactor() {
-            if (this.clicks.length < 5) return 1;
+            if (this.clicks.length < 10) return 1;
             const positionVariance = this.calculatePositionVariance();
             const regularity = this.calculateRegularity();
             const humanScore = Math.min(positionVariance / 50, 1) * (1 - regularity * 0.5);
