@@ -938,10 +938,10 @@ function shopClose() {
                 regularityThreshold: 1,
                 positionThreshold: this.isMobile ? 10 : 11,
                 minInterval: this.isMobile ? 30 : 10,
-                multiTouchThreshold: this.isMobile ? 2 : 
-            };
+                multiTouchThreshold: this.isMobile ? 2 : 8
+            }
             this.init();
-        }
+        };
 
         // Проверка мобильного устройства
         checkMobileDevice() {
