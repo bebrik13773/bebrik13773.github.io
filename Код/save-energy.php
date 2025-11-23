@@ -10,8 +10,8 @@ $lastEnergyUpdate = isset($data->lastEnergyUpdate) ? $data->lastEnergyUpdate : n
 $ENERGY_MAX = $data->ENERGY_MAX;
 
 // Обновление энергии пользователя
-$stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update = ?, ENERGY_MAX = ? WHERE id = ?");
-$stmt->bind_param("iii", $energy, $lastEnergyUpdate, $userId);
+$stmt = $conn->prepare("UPDATE users SET ENERGY_MAX = ?, energy = ?, last_energy_update = ?, WHERE id = ?");
+$stmt->bind_param("iiii", $ENERGY_MAX, $energy, $lastEnergyUpdate, $userId);
 $stmt->execute();
 
 // Ответ клиенту
