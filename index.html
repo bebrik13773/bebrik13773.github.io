@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<link rel="icon" href="https://bober-api.gt.tc/favicon.ico" type="image/x-icon">
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=104611709', 'ym');
+
+    ym(104611709, 'init', {ssr:true, webvisor:true, clickmap:true, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/104611709" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+
+
+
+    <meta charset="UTF-8">
+    <meta name="yandex-verification" content="19827a8b0e297689" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бобер кликер</title>
+	    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        main {
+            flex: 1;
+            padding: 2rem;
+        }
+        
+        .footer {
+            color: white;
+            padding: 2rem 1rem;
+        }
+        
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .footer-logo {
+            flex: 1;
+            min-width: 200px;
+            margin-bottom: 1rem;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: opacity 0.3s;
+        }
+        
+        .footer-link:hover {
+            opacity: 0.8;
+        }
+        
+        .footer-link svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+        
+        .footer-bottom {
+            max-width: 1200px;
+            margin: 2rem auto 0;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .footer-container {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .footer-links {
+                justify-content: center;
+                margin-top: 1rem;
+            }
+        }
+    </style>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #8b00ff;
+            @media only screen and (max-width: 768px) {
+}
+        }
+        #clicker {
+			width: 200px;
+			height: 200px;
+			background-image: url(skins/bober.png);
+            color: white;
+            font-size: 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #clicker:active {
+            transform: scale(1.11);
+        }
+        #loginForm, #registerForm {
+            display: none;
+            margin: 20px;
+        }
+        input {
+            margin: 5px;
+            padding: 10px;
+            width: 200px;
+        }
+    </style>
+<style>
+    
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+			background-color: #8b00ff;
+        }
+        
+        #clicker {
+		    touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+            width: 300px;
+			background-color: #33c5c7;
+            height: 300px;
+            background-image: url(skins/bober.png);
+            background-size: cover;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #clicker:active {
+			transform: scale(1.1);
+        }
+		#SkinShopButton1 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/bober.png');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton2 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/bumazny-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton3 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/matvey-new-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton4 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/klub-smz-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton5 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/nosok-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton6 {
+			width: 150px;
+		 height: 150px;
+			background-image: url('skins/Shok-upok-bober.jpg');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton7 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/strany-bober.jpg');
+			background-size: cover;
+			border: none;
+		 color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#SkinShopButton8 {
+			width: 150px;
+			height: 150px;
+			background-image: url('skins/dev.png');
+			background-size: cover;
+			border: none;
+			color: #fff;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: transform 0.1s;
+		}
+		#ShopButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+		 padding: 8px 17px;
+			font-size: 16px;
+		}
+		#ShopButton:active {
+		transform: scale(0.9);
+		}
+        #score {
+            font-size: 25px;
+            margin-top: 20px;
+        }
+		#submitRegister {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#submitRegister:active {
+			transform: scale(0.9);
+		}
+		#submitLogin {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#submitLogin:active {
+			transform: scale(0.9);
+		}
+		#registerButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#skinShop {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#ludButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#register:active {
+			transform: scale(0.9);
+		}
+		#loginButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#save {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+		}
+		#shopButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 47%;
+			font-size: 16px;
+		}
+         @media (max-width: 768px) {
+            #shopButton {
+		    	appearance: none;
+		    	border: 0;
+			    border-radius: 5px;
+		    	background: #4676D7;
+		    	color: #fff;
+		    	padding: 8px 48%;
+		    	font-size: 16px;
+		    }
+        }
+		#shopExit {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 15px 77px;
+			font-size: 16px;
+		}
+    </style>
+    <style>
+    .notification-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    }
+
+    .notification {
+        padding: 15px 25px;
+        border-radius: 10px;
+        color: white;
+        font-size: 16px;
+        font-weight: 500;
+        opacity: 0;
+        transform: translateX(30px);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        cursor: pointer;
+        min-width: 200px;
+    }
+
+    .notification.success {
+        background-color: rgba(75, 192, 161, 0.9);
+    }
+
+    .notification.error {
+        background-color: rgba(241, 76, 76, 0.9);
+    }
+
+    .notification.show {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    @media (max-width: 768px) {
+        .notification-container {
+            top: 15px;
+            right: 15px;
+        }
+        
+        .notification {
+            font-size: 14px;
+            padding: 12px 20px;
+            min-width: 160px;
+        }
+    }
+</style>
+</head>
+<body>
+    <!-- Контейнер уведомлений -->
+<div class="notification-container" id="notifications"></div>
+
+<!-- Функция уведомлений -->
+<script>
+function showNotification(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('notifications');
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    container.appendChild(notification);
+    notification.classList.add('show');
+    
+    setTimeout(() => {
+        notification.style.opacity = 0;
+        notification.style.transform = 'translateX(30px)';
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, duration);
+}
+</script>
+<div id="clicerMex">
+    <h1>БОБЕР 🦫 КЛИКЕР 2</h1>
+    <button id="clicker"></button>
+    <p id="score">Счет: 0</p>
+    <div id="energy-container">
+        <span id="energy-icon" style="font-size: 28px; vertical-align: middle;">⚡</span>
+        <span id="energy" style="font-size: 25px; vertical-align: middle;">5000</span>
+    </div>
+    <style>
+        #energy-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+        #energy-icon {
+            margin-right: 8px;
+            color: #ffe600;
+            text-shadow: 0 0 6px #fff700, 0 0 2px #fff;
+        }
+        #energy {
+            color: #ffe600;
+            font-weight: bold;
+            text-shadow: 0 0 6px #fff700, 0 0 2px #fff;
+        }
+    </style>
+    <button id="save" onclick="Save()">Сохранить</button>
+<br>
+<br>
+    <button id="loginButton">Войти</button>
+    <button id="registerButton">Регистрация</button>
+<br>
+    <div id="admin">
+	    <h2> Admin </h2>
+		<button onclick="score = score +1000;">+1000</button>
+	</div>
+    <div id="loginForm">
+        <h2>Форма Входа</h2>
+        <input type="text" id="login" placeholder="Логин">
+        <input type="password" id="password" placeholder="Пароль">
+        <button id="submitLogin">Войти</button>
+    </div>
+
+    <div id="registerForm">
+        <h2>Форма Регистрации</h2>
+        <input type="text" id="regLogin" placeholder="Логин">
+        <input type="password" id="regPassword" placeholder="Пароль">
+        <h2>Пожалуйста, не регистрируйтесь с логином на русском языке 🇷🇺, используйте только английский 🇬🇧. Иначе вы не сможете войти в аккаунт 🔐.</h2>
+        <br>
+        <button id="submitRegister">Зарегистрироваться</button>
+    </div>
+<br>
+<button id="shopButton"onclick="shopShow()">Магазин</button>
+<br>
+</div>
+<br>
+<button id="shopExit" onclick="shopClose()">Выход</button>
+<br>
+<div id="shop">
+<button id="ludButton">Улучшения</button> <button id="skinShop">Скины</button>
+<h1 id="lud">Магазин улучшений</h1>
+<div id="lud">
+<button  id="ShopButton" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
+<br>
+<br>
+<button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
+<br>
+<br>
+<button id="ShopButton" onclick="showNotification('Сейчас не работает!', error);">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+</div>
+<div id="skins">
+	<button  id="SkinShopButton1" onclick="buySkin(1, 0, 'skins/bober.png')">Просто бобер - цена: бесплатно!</button>
+	<br>
+	<button id="SkinShopButton2" onclick="buySkin(2, 5000, 'skins/bumazny-bober.jpg')">Бумажный бобер - цена: 5000 </button>
+	<br>
+	<button id="SkinShopButton3" onclick="buySkin(3, 0, 'skins/matvey-new-bober.jpg')">Стандартный бобер - цена: бесплатно!</button>
+	<br>
+	<button id="SkinShopButton4" onclick="buySkin(4, 15000, 'skins/klub-smz-bober.jpg')">Клубничный йогурт бобер - цена: 15000</button>
+	<br>
+	<button id="SkinShopButton5" onclick="buySkin(5, 30000, 'skins/nosok-bober.jpg')">Носок бобер - цена: 30000 </button>
+	<br>
+	<button id="SkinShopButton6" onclick="buySkin(6, 50000, 'skins/Shok-upok-bober.jpg')">Шоколад бобер - цена: 50000 </button>
+	<br>
+	<button id="SkinShopButton7" onclick="buySkin(7, 30000, 'skins/strany-bober.jpg')">Странный бобер - цена: 30000</button>
+	<br>
+	<button id="SkinShopButton8" onclick="alert(skin); alert(skin[4]); alert(skin); skinLoad(); saveScore(); alert(score);">В разработке</button>
+</div>
+</div>
+<br>
+<div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
+    <script>
+const href = window.location.host
+if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
+    // Восстановление логина и пароля из localStorage
+    document.getElementById('password').value = localStorage.getItem('password');
+    document.getElementById('login').value = localStorage.getItem('login');
+    document.getElementById('admin').style.display = 'none';
+    const queryString = window.location.search;
+    const testm = false
+    const urlParams = new URLSearchParams(queryString);
+    const test = urlParams.get('test');
+    if (test == null && testm == true) {
+        window.location.replace("tex.html");
+    };
+    // Основные переменные игры
+    let login = 0;
+    let score = 0;
+    let logreg = 0;
+    let userId = null;
+    let plus = 1;
+    let energy = 5000;
+    let lastEnergyUpdate = Date.now();
+    let energy_max = 5000;
+    const ENERGY_REGEN_TIME = 13 * 60 * 1000; // 10 минут в мс
+    const ENERGY_REGEN_PER_MS = (energy_max/2) / ENERGY_REGEN_TIME;
+    // Список скинов (не используется, для справки)
+    let skins = {
+        skin1: 'bober.png',
+        skin2: 'bumazny-bober.jpg',
+        skin3: 'matvey-new-bober.jpg',
+        skin4: 'klub-smz-bober.jpg',
+        skin5: 'nosok-bober.jpg',
+        skin6 : 'Shok-upok-bober.jpg',
+        skin7: 'strany-bober.jpg',
+    };
+    let skin = [];
+        // Функция сохранения энергии на сервере
+    function saveEnergy() {
+        if (!userId) return;
+        fetch('https://bober-api.gt.tc/save-energy.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate, ENERGY_MAX: energy_max })
+        });
+    }
+    setInterval(() => {
+    updateEnergy();
+    updateEnergyUI();
+  }, 2000)
+
+    // Восстановление энергии по времени (работает и оффлайн)
+    function updateEnergy() {
+        const now = Date.now();
+        let delta = now - lastEnergyUpdate;
+        if (delta > 0) {
+            let regen = delta * ENERGY_REGEN_PER_MS;
+            energy = Math.min(energy_max, energy + regen);
+            lastEnergyUpdate = now;
+        }
+    }
+    // Функция обновления UI энергии
+    function updateEnergyUI() {
+        document.getElementById('energy').innerText = Math.floor(energy);
+    }
+    // Покупка и установка скина
+    function buySkin(id, sum, tex) {
+        if (userId) {
+            if (skin[id] == true) {
+                let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
+                if (result1 == true) {
+                    skin[0] = tex;
+                    skinLoad();
+                    saveskin(); // сохраняем сразу после установки
+                    showNotification("Скин успешно установлен!", "success");
+                }
+            } else {
+                let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
+                if (result1a == true) {
+                    if (score > sum) {
+                        skin[id] = true;
+                        skin[0] = tex; // сразу устанавливаем купленный скин
+                        score = score - sum;
+                        skinLoad();
+                        saveskin(); // сохраняем сразу после покупки и установки
+                        saveScore(score);
+                        showNotification("Успешная покука скина!", "success");
+                    } else {
+                        showNotification("Недостаточно средств!", "error");
+                    }
+                }
+            }
+        } else {
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
+        }
+    }
+    
+    // Установка скина на кнопку
+    function skinLoad() {
+        document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
+    };
+
+ 
+    // --- Добавлено: поддержка мультитача на мобильных устройствах ---
+    document.getElementById('clicker').addEventListener('touchstart', function(e) {
+        if (userId) {
+            e.preventDefault();
+            updateEnergy();
+            let touches = e.touches.length;
+            let totalCost = plus * touches;
+            if (energy >= totalCost) {
+                score += totalCost;
+                energy -= totalCost;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+            } else {
+                showNotification("Недостаточно энергии!", "error");
+            }
+        } else {
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
+        }
+    });
+    if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        const shopbutt = document.getElementById('shopButton');
+        shopbutt.style.padding = '8px 39%'
+    }
+    // Периодическое восстановление энергии (онлайн)
+    const energyTimer = setInterval(() => {
+        if (userId) {
+            updateEnergy();
+        }
+    }, 1000);
+    document.getElementById('shopExit').style.display = 'none';
+    
+    // Открытие формы входа
+    document.getElementById('loginButton').onclick = function() {
+        document.getElementById('loginForm').style.display = 'block';
+        document.getElementById('registerForm').style.display = 'none';
+    };
+
+    // Открытие формы регистрации
+    document.getElementById('registerButton').onclick = function() {
+        document.getElementById('registerForm').style.display = 'block';
+        document.getElementById('loginForm').style.display = 'none';
+    };
+   // Клик по кнопке (ПК)
+    document.getElementById('clicker').onclick = function() {
+        if (userId) {
+            updateEnergy();
+            if (energy >= plus) {
+                score += plus;
+                energy -= plus;
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+            } else {
+                showNotification("Недостаточно энергии!", "error");
+            }
+        } else {
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
+        }
+    };
+    // Обработка входа пользователя
+
+document.getElementById('submitLogin').onclick = function() {
+    if (logreg == 0){
+        const login = document.getElementById('login').value;
+        logreg = 1
+        const password = document.getElementById('password').value;
+        fetch('https://bober-api.gt.tc/login-t.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login: login, password: password })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                userId = data.userId;
+                score = data.score !== undefined ? data.score : 0;
+                plus = data.plus !== undefined ? data.plus : 1;
+                localStorage.setItem('login', login);
+                localStorage.setItem('password', password);
+                
+                // Преобразуем строку skin в массив
+                skin = JSON.parse(data.skin); // <-- Новое изменение
+                energy_max = data.ENERGY_MAX !== undefined ? data.ENERGY_MAX : ENERGY_MAX;
+                skinLoad();
+                energy = data.energy //!== undefined ? data.energy : ENERGY_MAX;
+                lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
+                document.getElementById('score').innerText = 'Счет: ' + score;
+                showNotification("Успешный вход!", "success");
+                loadLeaderboard();
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('loginButton').style.display = 'none';
+                document.getElementById('registerButton').style.display = 'none';
+                if (login == "test"){document.getElementById('admin').style.display = 'block';};
+            } else {
+                showNotification(data.message, "error")
+            }
+        });
+    }
+    else {
+        showNotification('Пожалуйста, подожтите идёт загрузка!', "error");
+    }
+};
+
+// Обновленная функция открытия магазина
+function shopShow() {
+    document.getElementById('shop').style.display = 'block';
+    document.getElementById('shopButton').style.display = 'none';
+    document.getElementById('shopExit').style.display = 'block';
+    document.getElementById('clicerMex').style.display = 'none';
+    document.getElementById('leaderboard').style.display = 'none';
+    
+    // Добавляем фиксированное позиционирование для кнопки выхода
+    document.getElementById('shopExit').style.position = 'fixed';
+    document.getElementById('shopExit').style.bottom = '20px';
+    document.getElementById('shopExit').style.right = '20px';
+    document.getElementById('shopExit').style.zIndex = '1000';
+}
+
+// Обновленная функция закрытия магазина
+function shopClose() {
+    document.getElementById('shop').style.display = 'none';
+    document.getElementById('shopButton').style.display = 'block';
+    document.getElementById('shopExit').style.display = 'none';
+    document.getElementById('clicerMex').style.display = 'block';
+    document.getElementById('leaderboard').style.display = 'block';
+    
+    // Сбрасываем стили кнопки выхода
+    document.getElementById('shopExit').style.position = '';
+    document.getElementById('shopExit').style.bottom = '';
+    document.getElementById('shopExit').style.right = '';
+    document.getElementById('shopExit').style.zIndex = '';
+}
+
+    // Сохранение счета
+    function Save() {
+        if (userId) {
+            saveScore(score);
+            saveEnergy();
+            showNotification("Успешное сохранение", "success");
+        } else {
+            showNotification("Пожалуйста, войдите в акаунт.", "error");
+        }
+    }
+
+    // Покупка улучшения 1
+    function buyUpgrade1()
+    {
+        //Функция покупки улудшения 1
+        if (userId) {
+            if (score > 5000) {
+                plus = plus + 1
+                score = score - 5000
+                saveplus()
+                showNotification("Успешная покупка улучшения!", "success");
+            } else {
+                showNotification(" Недостаточно средств!", "error");
+            }
+        } else {
+            showNotification('Пожалуйста, войдите в систему!', "error");
+        }
+    };
+    // Покупка улучшения 2
+    function buyUpgrade2()
+    {
+        //Функция покупки улудшения 2
+        if (userId) {
+            if (score > 20000) {
+                plus = plus + 5
+                score = score - 20000
+                saveplus()
+                showNotification("Успешная покупка улучшения!", "success");
+            } else {
+                showNotification(" Недостаточно средств!", "error")
+            }
+        } else {
+            showNotification('Пожалуйста, войдите в систему!', "error");
+        }
+    };
+    function buyEnergyUpgrade()
+    {
+        if (userId) {
+            if (score > 10000) {
+                energy_max = energy_max + 1000;
+                score = score - 10000;
+                saveEnergy();
+                saveScore(score);
+                showNotification("Успешная покупка улучшения!", "success");
+            } else {
+                showNotification(" Недостаточно средств!", "error");
+            }
+        }
+        else {
+            showNotification('Пожалуйста, войдите в систему!', "error");
+        }
+    }
+    // Сохранение значения plus
+    function saveplus()
+    {
+        //Сохранение значения plus
+        saveScore(score)
+        fetch('https://bober-api.gt.tc/save-plus.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: userId, plus: plus })
+        })
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Ошибка:', error));
+    };
+    // Сохранение значения skin
+    function saveskin()
+    {
+        //Сохранение значения skin
+        saveScore(score)
+        fetch('https://bober-api.gt.tc/save-skin.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // всегда строка!
+        })
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Ошибка:', error));
+    };
+    // Обработка регистрации пользователя
+    document.getElementById('submitRegister').onclick = function() {
+        const regLogin = document.getElementById('regLogin').value;
+        const regPassword = document.getElementById('regPassword').value;
+        fetch('https://bober-api.gt.tc/register-t.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login: regLogin, password: regPassword })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showNotification(data.message, "error");
+        });
+    };
+
+    document.getElementById('shop').style.display = 'none';
+    // Сохранение счета и скина на сервер
+    function saveScore(score) {
+        fetch('https://bober-api.gt.tc/save-score.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: userId, score: score, skin: JSON.stringify(skin) }) // сериализация skin
+        })
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Ошибка:', error));
+    }
+
+    // Загрузка таблицы лидеров
+    function loadLeaderboard() {
+        fetch('https://bober-api.gt.tc/leaderboard.php')
+            .then(response => response.json())
+            .then(data => {
+                const leaderboard = document.getElementById('leaderboard');
+                leaderboard.innerHTML = '<h2>Топ игрок</h2>';
+                data.forEach(player => {
+                    leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
+                });
+            });
+    }
+
+    window.onload = loadLeaderboard();
+
+    </script>
+    <script>
+    // Класс для детектирования автокликера
+    class AutoClickerDetector {
+        constructor() {
+            // Инициализация переменных
+            this.clicks = [];
+            this.suspiciousCount = 0;
+            this.checkInterval = null;
+            this.lastClickTime = 0;
+            this.detectionCount = 0;
+            this.maxDetections = 2;
+            this.isMobile = this.checkMobileDevice();
+            this.unbanCode = "UNBAN2024";
+            this.config = {
+                maxCPS: this.isMobile ? 35 : 40,
+                minClicksForAnalysis: this.isMobile ? 10 : 8,
+                timeWindow: this.isMobile ? 2000 : 3100,
+                regularityThreshold: 1,
+                positionThreshold: this.isMobile ? 10 : 11,
+                minInterval: this.isMobile ? 30 : 10,
+                multiTouchThreshold: this.isMobile ? 2 : 8
+            }
+            this.init();
+        };
+
+        // Проверка мобильного устройства
+        checkMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                'ontouchstart' in window ||
+                navigator.maxTouchPoints > 0;
+        }
+
+        // Инициализация событий
+        init() {
+            if (this.isBanned()) {
+                this.showBanScreen();
+                return;
+            }
+            // Только на кнопке clicker!
+            const clicker = document.getElementById('clicker');
+            if (clicker) {
+                clicker.addEventListener('click', this.handleClick.bind(this), true);
+                clicker.addEventListener('mousedown', this.handleClick.bind(this), true);
+                clicker.addEventListener('touchstart', this.handleTouchStart.bind(this), {passive: false});
+            }
+            this.startContinuousCheck();
+            this.backupCheck();
+        }
+
+        // Обработка клика мыши
+        handleClick(e) {
+            const now = Date.now();
+            this.recordClicks(1, now, e);
+        }
+
+        // Обработка касания (тач)
+        handleTouchStart(e) {
+            const now = Date.now();
+            let touches = e.touches ? e.touches.length : 1;
+            this.recordClicks(touches, now, e);
+        }
+
+        // Запись кликов
+        recordClicks(count, now, e) {
+            this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
+            for (let i = 0; i < count; i++) {
+                this.clicks.push({
+                    time: now,
+                    type: e.type,
+                    x: (e.touches && e.touches[i]) ? e.touches[i].clientX : (e.clientX || 0),
+                    y: (e.touches && e.touches[i]) ? e.touches[i].clientY : (e.clientY || 0),
+                    trusted: e.isTrusted
+                });
+            }
+            if (this.clicks.length >= this.config.minClicksForAnalysis) {
+                this.checkSuspiciousPatterns();
+            }
+            this.lastClickTime = now;
+        }
+
+        // Проверка подозрительных паттернов
+        checkSuspiciousPatterns() {
+            const cps = this.calculateCPS();
+            if (cps < this.config.maxCPS) return;
+            const regularity = this.calculateRegularity();
+            const positionVariance = this.calculatePositionVariance();
+            const humanFactor = this.calculateHumanFactor();
+            let detected = false;
+            let reason = '';
+            if (cps > this.config.maxCPS * (this.isMobile ? 2 : 1.5)) {
+                detected = true;
+                reason = `Сверхвысокая скорость: ${cps.toFixed(1)} CPS`;
+            }
+            else if (cps > this.config.maxCPS && regularity > this.config.regularityThreshold && humanFactor < 0.3) {
+                detected = true;
+                reason = `Машинная регулярность: ${Math.round(regularity * 100)}%`;
+            }
+            else if (cps > this.config.maxCPS && positionVariance < this.config.positionThreshold && this.clicks.length > 30) {
+                detected = true;
+                reason = `Клик в одну точку`;
+            }
+            if (detected) {
+                this.suspiciousCount++;
+                if (this.suspiciousCount >= 3) {
+                    this.onDetection(reason, cps);
+                    this.suspiciousCount = 0;
+                }
+            }
+        }
+
+        // Расчет регулярности кликов
+        calculateRegularity() {
+            if (this.clicks.length < 3) return 0;
+            const intervals = [];
+            for (let i = 1; i < this.clicks.length; i++) {
+                intervals.push(this.clicks[i].time - this.clicks[i - 1].time);
+            }
+            const avg = intervals.reduce((a, b) => a + b) / intervals.length;
+            const variance = intervals.reduce((sum, interval) => {
+                return sum + Math.pow(interval - avg, 2);
+            }, 0) / intervals.length;
+            const stdDev = Math.sqrt(variance);
+            const coefficientOfVariation = stdDev / avg;
+            return Math.max(0, 1 - coefficientOfVariation);
+        }
+
+        // Расчет кликов в секунду (CPS)
+        calculateCPS() {
+            const now = Date.now();
+            // Фильтруем клики за последнюю секунду
+            const recentClicks = this.clicks.filter(click => now - click.time <= 3000);
+            // Возвращаем количество кликов в секунду
+            return recentClicks.length;
+        }
+
+        // Расчет разброса координат кликов
+        calculatePositionVariance() {
+            const xs = this.clicks.map(c => c.x).filter(x => x !== undefined);
+            const ys = this.clicks.map(c => c.y).filter(y => y !== undefined);
+            if (xs.length === 0) return 100;
+            const meanX = xs.reduce((a, b) => a + b) / xs.length;
+            const meanY = ys.reduce((a, b) => a + b) / ys.length;
+            const varianceX = xs.reduce((sum, x) => sum + Math.pow(x - meanX, 2), 0) / xs.length;
+            const varianceY = ys.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0) / ys.length;
+            return (varianceX + varianceY) / 2;
+        }
+
+        // Оценка "человечности" кликов
+        calculateHumanFactor() {
+            if (this.clicks.length < 10) return 1;
+            const positionVariance = this.calculatePositionVariance();
+            const regularity = this.calculateRegularity();
+            const humanScore = Math.min(positionVariance / 50, 1) * (1 - regularity * 0.5);
+            return humanScore;
+        }
+
+        // Запуск периодической проверки
+        startContinuousCheck() {
+            this.checkInterval = setInterval(() => {
+                if (this.clicks.length > 15) {
+                    const cps = this.calculateCPS();
+                    if (cps > this.config.maxCPS * (this.isMobile ? 3 : 2)) {
+                        this.onDetection(`Постоянная высокая скорость: ${cps.toFixed(1)} CPS`, cps);
+                    }
+                }
+            }, 3000);
+        }
+
+        // Резервная проверка
+        backupCheck() {
+            setInterval(() => {
+                const now = Date.now();
+                const recentClicks = this.clicks.filter(click => now - click.time < 1000);
+                if (recentClicks.length > (this.isMobile ? 25 : 20)) {
+                    this.onDetection("Слишком много кликов в секунду", recentClicks.length);
+                }
+            }, 5000);
+        }
+
+        // Действия при обнаружении автокликера
+        onDetection(reason, cps) {
+            this.detectionCount++;
+            console.warn(`Обнаружен автокликер! (${this.detectionCount}/${this.maxDetections})`, {
+                reason: reason,
+                cps: cps,
+                clicks: this.clicks.length,
+                mobile: this.isMobile,
+                time: new Date().toLocaleTimeString()
+            });
+            if (this.detectionCount === 1) {
+                this.showFirstWarning();
+            } else if (this.detectionCount === 2) {
+                this.showSecondWarning();
+            } else if (this.detectionCount >= 3) {
+                this.banUser();
+            }
+            this.clicks = [];
+            this.suspiciousCount = 0;
+        }
+
+        // Первое предупреждение
+        showFirstWarning() {
+            const warning = document.createElement('div');
+            warning.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.95);
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 20px;
+                    box-sizing: border-box;
+                ">
+                    <div style="max-width: 500px;">
+                        <h1 style="color: #ffa502; font-size: 2em; margin-bottom: 20px;">⚠ ПРЕДУПРЕЖДЕНИЕ</h1>
+                        <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 30px;">
+                            Обнаружена подозрительная активность!<br>
+                            Использование автокликеров запрещено.
+                        </p>
+                        <p style="color: #ccc; margin-bottom: 30px;">
+                            При следующем нарушении последует окончательный бан.
+                        </p>
+                        <button onclick="this.closest('div').parentElement.remove()" style="
+                            background: #ffa502;
+                            color: black;
+                            border: none;
+                            padding: 15px 30px;
+                            font-size: 1.1em;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">ПОНЯТНО</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(warning);
+        }
+
+        // Второе предупреждение
+        showSecondWarning() {
+            const warning = document.createElement('div');
+            warning.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.95);
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 20px;
+                    box-sizing: border-box;
+                ">
+                    <div style="max-width: 500px;">
+                        <h1 style="color: #ff4757; font-size: 2em; margin-bottom: 20px;">⛔ ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ</h1>
+                        <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 30px;">
+                            Подозрительная активность снова обнаружена!<br>
+                            Это ваше последнее предупреждение.
+                        </p>
+                        <p style="color: #ff6b6b; margin-bottom: 30px;">
+                            Следующее нарушение приведет к постоянному бану.
+                        </p>
+                        <button onclick="this.closest('div').parentElement.remove()" style="
+                            background: #ff4757;
+                            color: white;
+                            border: none;
+                            padding: 15px 30px;
+                            font-size: 1.1em;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: bold;
+                        ">ПОНЯТНО</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(warning);
+        }
+
+        // Бан пользователя
+        banUser() {
+            const banInfo = {
+                banned: true,
+                reason: "Использование автокликера",
+                timestamp: new Date().toISOString(),
+                ip: this.getUserIP()
+            };
+            
+            localStorage.setItem('clicker_ban_info', JSON.stringify(banInfo));
+            this.showBanScreen();
+        }
+
+        // Проверка, забанен ли пользователь
+        isBanned() {
+            const banInfo = localStorage.getItem('clicker_ban_info');
+            if (!banInfo) return false;
+            
+            try {
+                const data = JSON.parse(banInfo);
+                return data.banned === true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Экран бана
+        showBanScreen() {
+            const banScreen = document.createElement('div');
+            banScreen.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(135deg, #2d3436, #000);
+                    color: white;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 20px;
+                    box-sizing: border-box;
+                ">
+                    <div style="max-width: 500px;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🚫</div>
+                        <h1 style="color: #ff4757; font-size: 2.5em; margin-bottom: 20px;">ВЫ ЗАБАНЕНЫ</h1>
+                        <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 20px;">
+                            Ваш аккаунт был заблокирован за использование автокликеров.
+                        </p>
+                        <p style="color: #ccc; margin-bottom: 30px;">
+                            Дата блокировки: ${new Date().toLocaleDateString()}
+                        </p>
+                        <div style="
+                            background: rgba(255, 71, 87, 0.2);
+                            padding: 15px;
+                            border-radius: 8px;
+                            border-left: 4px solid #ff4757;
+                            margin-bottom: 30px;
+                        ">
+                            <strong>Причина:</strong> Нарушение правил игры - использование автоматизированных средств
+                        </div>
+                        <p style="color: #aaa; font-size: 0.9em; margin-bottom: 20px;">
+                            По вопросам разблокировки обратитесь в поддержку
+                        </p>
+                        <button id="contactSupportBtn" style="
+                            background: transparent;
+                            color: #74b9ff;
+                            border: 1px solid #74b9ff;
+                            padding: 10px 20px;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-size: 0.9em;
+                        ">Обратиться в поддержку</button>
+                    </div>
+                </div>
+            `;
+            
+            // Обработчик для кнопки обращения в поддержку
+            banScreen.querySelector('#contactSupportBtn').addEventListener('click', () => {
+                this.showUnbanModal();
+            });
+            
+            // Запрещаем любые действия на забаненной странице
+            banScreen.addEventListener('click', (e) => {
+                if (e.target.id !== 'contactSupportBtn') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
+            
+            banScreen.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            
+            document.body.innerHTML = '';
+            document.body.appendChild(banScreen);
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Модальное окно разблокировки
+        showUnbanModal() {
+            const modal = document.createElement('div');
+            modal.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.8);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10001;
+                    font-family: Arial, sans-serif;
+                ">
+                    <div style="
+                        background: linear-gradient(135deg, #1e3c73, #2a5298);
+                        color: white;
+                        padding: 30px;
+                        border-radius: 15px;
+                        max-width: 400px;
+                        width: 90%;
+                        text-align: center;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                    ">
+                        <h2 style="margin-bottom: 20px; color: #fff;">Разблокировка аккаунта</h2>
+                        <p style="margin-bottom: 20px; color: #ccc;">
+                            Для разблокировки аккаунта введите код, полученный в поддержке
+                        </p>
+                        <input type="text" id="unbanCodeInput" placeholder="Введите код разблокировки" style="
+                            width: 100%;
+                            padding: 12px;
+                            margin-bottom: 20px;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            box-sizing: border-box;
+                            background: rgba(255,255,255,0.9);
+                        ">
+                        <div style="display: flex; gap: 10px;">
+                            <button id="submitUnbanCode" style="
+                                flex: 1;
+                                background: #00b894;
+                                color: white;
+                                border: none;
+                                padding: 12px;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">Разблокировать</button>
+                            <button id="cancelUnban" style="
+                                flex: 1;
+                                background: #636e72;
+                                color: white;
+                                border: none;
+                                padding: 12px;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-size: 16px;
+                            ">Отмена</button>
+                        </div>
+                        <div id="unbanMessage" style="margin-top: 15px; min-height: 20px;"></div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Обработчики для модального окна
+            modal.querySelector('#submitUnbanCode').addEventListener('click', () => {
+                this.processUnbanCode(modal);
+            });
+            
+            modal.querySelector('#cancelUnban').addEventListener('click', () => {
+                modal.remove();
+            });
+            
+            // Разблокировка по нажатию Enter
+            modal.querySelector('#unbanCodeInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.processUnbanCode(modal);
+                }
+            });
+            
+            // Фокус на поле ввода
+            modal.querySelector('#unbanCodeInput').focus();
+        }
+
+        // Проверка кода разблокировки
+        processUnbanCode(modal) {
+            const input = modal.querySelector('#unbanCodeInput');
+            const message = modal.querySelector('#unbanMessage');
+            const code = input.value.trim();
+            
+            if (!code) {
+                message.innerHTML = '<span style="color: #ff7675;">Введите код разблокировки</span>';
+                return;
+            }
+            
+            if (code === this.unbanCode) {
+                message.innerHTML = '<span style="color: #55efc4;">Код принят! Разблокировка...</span>';
+                
+                // Удаляем информацию о бане
+                setTimeout(() => {
+                    localStorage.removeItem('clicker_ban_info');
+                    modal.remove();
+                    location.reload();
+                }, 1500);
+            } else {
+                message.innerHTML = '<span style="color: #ff7675;">Неверный код разблокировки</span>';
+                input.value = '';
+                input.focus();
+                
+                // Добавляем небольшую задержку при неправильном коде
+                input.style.background = 'rgba(255, 118, 117, 0.2)';
+                setTimeout(() => {
+                    input.style.background = 'rgba(255,255,255,0.9)';
+                }, 1000);
+            }
+        }
+
+        // Получение IP пользователя (заглушка)
+        getUserIP() {
+            return 'unknown';
+        }
+
+        // Изменение конфигурации
+        setConfig(newConfig) {
+            this.config = {...this.config, ...newConfig};
+        }
+
+        // Отключение детектора
+        destroy() {
+            const events = ['click', 'touchstart', 'mousedown'];
+            events.forEach(event => {
+                document.removeEventListener(event, this.handleClick.bind(this), true);
+            });
+            
+            if (this.checkInterval) {
+                clearInterval(this.checkInterval);
+            }
+        }
+    }
+
+    // Проверяем бан при загрузке страницы
+    function checkBanOnLoad() {
+        const banInfo = localStorage.getItem('clicker_ban_info');
+        if (banInfo) {
+            try {
+                const data = JSON.parse(banInfo);
+                if (data.banned) {
+                    const detector = new AutoClickerDetector();
+                    detector.showBanScreen();
+                    return true;
+                }
+            } catch (e) {
+                console.error('Error reading ban info:', e);
+            }
+        }
+        return false;
+    }
+
+    // Инициализация только если пользователь не забанен
+    if (!checkBanOnLoad()) {
+        const clickDetector = new AutoClickerDetector();
+        
+        // Для отладки
+        window.clickDetector = clickDetector;
+        
+        console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
+        console.log('Код разбана (только для разработки):', clickDetector.unbanCode);
+    }
+
+    // Функция для сброса бана (для тестирования)
+    function resetBan() {
+        localStorage.removeItem('clicker_ban_info');
+        location.reload();
+    }
+
+    // Добавляем кнопку сброса бана только в режиме разработки
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = 'Сбросить бан (dev)';
+    resetBtn.style.cssText = `
+        position: fixed; 
+        bottom: 10px; 
+        right: 10px; 
+        z-index: 9999; 
+        padding: 8px 12px; 
+        font-size: 12px;
+        background: #e17055;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    `;
+    resetBtn.onclick = resetBan;
+    document.body.appendChild(resetBtn);
+    
+    // Также показываем код разбана для удобства тестирования
+        const codeInfo = document.createElement('div');
+        codeInfo.textContent = 'Код разбана: UNBAN2024';
+        codeInfo.style.cssText = `
+            position: fixed; 
+            bottom: 40px; 
+            right: 10px; 
+            z-index: 9999; 
+            padding: 5px 10px; 
+            font-size: 11px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 4px;
+        `;
+        document.body.appendChild(codeInfo);
+    }
+    </script>
+	 <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-logo">
+                <h3>Бобер кликер</h3>
+            </div>
+            
+            <div class="footer-links">
+                <a href="https://t.me/Dodoloptyuoi_bot" class="footer-link" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+                    </svg>
+                   Наш бот
+                </a>
+                
+                <a href="https://github.com/bebrik13773/bebrik13773.github.io" class="footer-link" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+                
+                <a href="https://t.me/+lxcAKwXFono2ODZi" class="footer-link" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+                    </svg>
+                    Канал
+                </a>
+                                <a href="https://forms.yandex.ru/u/68e2472302848f9edc066ce2" class="footer-link" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+                    </svg>
+                    Обратиться в поддержку
+                </a>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <p>© Бобер кликер. Тапайте бобра.</p>
+        </div>
+    </footer>
+</body>
+</html>
