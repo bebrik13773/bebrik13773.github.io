@@ -510,7 +510,6 @@ function showNotification(message, type = 'success', duration = 3000) {
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
 <div id="shop">
-<button id="ludButton">Улучшения</button> <button id="skinShop">Скины</button>
 <h1 id="lud">Магазин улучшений</h1>
 <div id="lud">
 <button  id="ShopButton" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
@@ -521,22 +520,30 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <button id="ShopButton" onclick="showNotification('Сейчас не работает!', error);">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
+<br>
 <div id="skins">
 	<button  id="SkinShopButton1" onclick="buySkin(1, 0, 'skins/bober.png')">Просто бобер - цена: бесплатно!</button>
 	<br>
+<br>
 	<button id="SkinShopButton2" onclick="buySkin(2, 5000, 'skins/bumazny-bober.jpg')">Бумажный бобер - цена: 5000 </button>
 	<br>
+<br>
 	<button id="SkinShopButton3" onclick="buySkin(3, 0, 'skins/matvey-new-bober.jpg')">Стандартный бобер - цена: бесплатно!</button>
 	<br>
+<br>
 	<button id="SkinShopButton4" onclick="buySkin(4, 15000, 'skins/klub-smz-bober.jpg')">Клубничный йогурт бобер - цена: 15000</button>
 	<br>
+<br>
 	<button id="SkinShopButton5" onclick="buySkin(5, 30000, 'skins/nosok-bober.jpg')">Носок бобер - цена: 30000 </button>
 	<br>
+<br>
 	<button id="SkinShopButton6" onclick="buySkin(6, 50000, 'skins/Shok-upok-bober.jpg')">Шоколад бобер - цена: 50000 </button>
 	<br>
+<br>
 	<button id="SkinShopButton7" onclick="buySkin(7, 30000, 'skins/strany-bober.jpg')">Странный бобер - цена: 30000</button>
 	<br>
-	<button id="SkinShopButton8" onclick="alert(skin); alert(skin[4]); alert(skin); skinLoad(); saveScore(); alert(score);">В разработке</button>
+<br>
+	<button id="SkinShopButton8" onclick="showNotification("Пока не сделали. 😔 Но можешь написать в поддержку 👇, что 🤷 добавить ✍️", "success");">В разработке</button>
 </div>
 </div>
 <br>
