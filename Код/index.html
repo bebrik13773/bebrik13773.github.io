@@ -885,7 +885,7 @@ function shopClose() {
         })
         .then(response => response.json())
         .then(data => {
-            showNotification(data.message, "error");
+            showNotification(data.message, "success");
         });
     };
 
