@@ -603,68 +603,219 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
     <script>
-        // === КОНФИГУРАЦИЯ ===
+// === КОНФИГУРАЦИЯ ===
 const CONFIG = {
-    owner: 'bebrik13773',
-    repo: 'bebrik13773.github.io',
-    token: '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'
+    owner: 'bebrik13773',      // Замените на имя владельца репозитория
+    repo: 'bebrik13773.github.io',     // Замените на название репозитория
+    updateInterval: 15 * 60 * 1000, // 15 минут в миллисекундах
+    retryDelay: 30000,      // 30 секунд при ошибке
+    maxRetries: 3           // Максимум 3 попытки при ошибке
 };
 
-// === ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПОСЛЕДНЕГО КОММИТА ===
+// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+let retryCount = 0;
+let updateTimer = null;
+
+// === ОСНОВНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ КОММИТА ===
 async function getLatestCommit() {
     const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits`;
     const commitElement = document.getElementById('comit');
     
-    // Добавляем индикатор загрузки
-    commitElement.style.fontStyle = 'italic';
-    commitElement.style.opacity = '0.8';
+    // Добавляем класс загрузки
+    commitElement.classList.remove('error', 'success');
+    commitElement.classList.add('loading');
     
     try {
-        const response = await fetch(apiUrl, {
-            headers: {
-                'Authorization': `token ${CONFIG.token}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
-        });
+        const response = await fetch(apiUrl);
         
+        // Проверяем статус ответа
         if (!response.ok) {
-            throw new Error(`Ошибка HTTP: ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const commits = await response.json();
         
-        if (commits.length > 0) {
+        // Проверяем, что есть коммиты
+        if (commits && commits.length > 0) {
+            // Берем только первое сообщение коммита (до переноса строки)
             const commitMessage = commits[0].commit.message.split('\n')[0];
-            commitElement.textContent = `📌Последнее изменение: ${commitMessage}`;
+            const author = commits[0].commit.author.name;
+            const date = new Date(commits[0].commit.author.date).toLocaleDateString('ru-RU');
             
-            // Успешная загрузка - зеленый акцент
-            commitElement.style.borderLeftColor = '#10b981';
-            commitElement.style.color = '#1f2937';
+            // Форматируем вывод
+            commitElement.innerHTML = `
+                <strong>📌 Последнее изменение:</strong><br>
+                ${commitMessage}<br>
+                <small>👤 ${author} | 📅 ${date}</small>
+            `;
+            
+            // Обновляем стили для успеха
+            commitElement.classList.remove('loading');
+            commitElement.classList.add('success');
+            
+            // Сбрасываем счетчик повторных попыток
+            retryCount = 0;
+            
+            console.log(`✅ Информация обновлена: ${new Date().toLocaleTimeString()}`);
         } else {
-            commitElement.textContent = '📭 Нет коммитов в репозитории';
-            commitElement.style.borderLeftColor = '#f59e0b';
-            commitElement.style.color = '#78350f';
+            throw new Error('Репозиторий пуст или информация не найдена');
         }
-    } catch (error) {
-        console.error('Ошибка при получении коммита:', error);
-        commitElement.textContent = '❌ Ошибка загрузки коммита';
         
-        // Ошибка - красный акцент
-        commitElement.style.borderLeftColor = '#ef4444';
-        commitElement.style.color = '#7f1d1d';
-        commitElement.style.backgroundColor = '#fef2f2';
-    } finally {
-        // Убираем стили индикатора загрузки
-        commitElement.style.fontStyle = 'normal';
-        commitElement.style.opacity = '1';
+    } catch (error) {
+        handleError(error, commitElement);
     }
 }
 
-// === ЗАПУСК ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ===
-document.addEventListener('DOMContentLoaded', getLatestCommit);
+// === ОБРАБОТКА ОШИБОК ===
+function handleError(error, commitElement) {
+    console.error('❌ Ошибка при получении коммита:', error);
+    
+    // Убираем класс загрузки
+    commitElement.classList.remove('loading');
+    commitElement.classList.add('error');
+    
+    // Определяем текст ошибки
+    let errorMessage = 'Ошибка загрузки коммита';
+    
+    if (error.message.includes('403')) {
+        errorMessage = '⚠️ Лимит запросов исчерпан. Попробуйте позже.';
+    } else if (error.message.includes('404')) {
+        errorMessage = '❌ Репозиторий не найден. Проверьте настройки.';
+    } else if (error.message.includes('NetworkError')) {
+        errorMessage = '📡 Проблема с подключением к интернету';
+    }
+    
+    // Обновляем текст элемента
+    commitElement.innerHTML = `<strong>${errorMessage}</strong>`;
+    
+    // Пробуем повторить, если не превышен лимит попыток
+    retryCount++;
+    if (retryCount < CONFIG.maxRetries) {
+        console.log(`🔄 Повторная попытка ${retryCount}/${CONFIG.maxRetries} через ${CONFIG.retryDelay/1000} сек...`);
+        setTimeout(getLatestCommit, CONFIG.retryDelay);
+    } else {
+        console.log('⏸️ Достигнут лимит повторных попыток. Следующая проверка по расписанию.');
+    }
+}
 
-// === ОБНОВЛЕНИЕ КОММИТА КАЖДЫЕ 5 МИНУТ ===
-setInterval(getLatestCommit, 5 * 60 * 1000);
+// === УПРАВЛЕНИЕ АВТООБНОВЛЕНИЕМ ===
+function startAutoUpdate() {
+    // Останавливаем предыдущий таймер, если есть
+    if (updateTimer) {
+        clearInterval(updateTimer);
+    }
+    
+    // Запускаем автообновление каждые 15 минут
+    updateTimer = setInterval(getLatestCommit, CONFIG.updateInterval);
+    
+    console.log(`🔄 Автообновление запущено: каждые ${CONFIG.updateInterval/60000} минут`);
+}
+
+function stopAutoUpdate() {
+    if (updateTimer) {
+        clearInterval(updateTimer);
+        updateTimer = null;
+        console.log('⏸️ Автообновление остановлено');
+    }
+}
+
+// === ИНИЦИАЛИЗАЦИЯ ===
+document.addEventListener('DOMContentLoaded', function() {
+    // Первый запрос при загрузке страницы
+    getLatestCommit();
+    
+    // Запускаем автообновление
+    startAutoUpdate();
+    
+    // Добавляем кнопку ручного обновления (опционально)
+    addManualRefreshButton();
+    
+    // Останавливаем автообновление при скрытии вкладки для экономии запросов
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoUpdate();
+        } else {
+            // При возвращении на вкладку обновляем данные и перезапускаем автообновление
+            getLatestCommit();
+            startAutoUpdate();
+        }
+    });
+});
+
+// === ДОПОЛНИТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РУЧНОГО ОБНОВЛЕНИЯ ===
+function addManualRefreshButton() {
+    // Создаем контейнер для кнопки
+    const container = document.createElement('div');
+    container.style.marginTop = '10px';
+    
+    // Создаем кнопку
+    const refreshButton = document.createElement('button');
+    refreshButton.textContent = '🔄 Обновить';
+    refreshButton.style.cssText = `
+        background: linear-gradient(135deg, #8b5cf6, #a855f7);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-family: inherit;
+        transition: all 0.3s;
+        box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+    `;
+    
+    // Добавляем эффекты при наведении
+    refreshButton.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
+    });
+    
+    refreshButton.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
+    });
+    
+    // Добавляем обработчик клика
+    refreshButton.addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = '⏳ Загрузка...';
+        
+        getLatestCommit();
+        
+        // Восстанавливаем кнопку через 2 секунды
+        setTimeout(() => {
+            this.disabled = false;
+            this.textContent = '🔄 Обновить коммит';
+        }, 2000);
+    });
+    
+    // Добавляем кнопку после элемента с коммитом
+    const commitElement = document.getElementById('comit');
+    container.appendChild(refreshButton);
+    commitElement.parentNode.insertBefore(container, commitElement.nextSibling);
+}
+
+// === ФУНКЦИЯ ДЛЯ ИЗМЕНЕНИЯ КОНФИГУРАЦИИ "НА ЛЕТУ" ===
+function updateConfig(newConfig) {
+    Object.assign(CONFIG, newConfig);
+    console.log('Конфигурация обновлена:', CONFIG);
+    
+    // Перезапускаем автообновление с новыми настройками
+    stopAutoUpdate();
+    startAutoUpdate();
+}
+
+// === ЭКСПОРТ ФУНКЦИЙ ДЛЯ ИСПОЛЬЗОВАНИЯ В КОНСОЛИ (опционально) ===
+window.CommitWidget = {
+    refresh: getLatestCommit,
+    startAutoUpdate: startAutoUpdate,
+    stopAutoUpdate: stopAutoUpdate,
+    updateConfig: updateConfig,
+    getConfig: () => ({ ...CONFIG })
+};
+
+console.log('✅ Виджет коммитов GitHub инициализирован');
+console.log('ℹ️ Используйте CommitWidget в консоли для управления виджетом');
 const href = window.location.host
 if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
     // Восстановление логина и пароля из localStorage
