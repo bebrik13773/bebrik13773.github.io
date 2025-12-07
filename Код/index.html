@@ -422,6 +422,60 @@
             min-width: 160px;
         }
     }
+    #comit {
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 2px solid #6b21a8;
+    padding: 10px 15px;
+    margin: 10px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #1f2937; /* Темно-серый текст для контраста */
+    border-radius: 6px;
+    max-width: 300px;
+    display: inline-block;
+    box-shadow: 0 4px 12px rgba(107, 33, 168, 0.3);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    font-weight: 500;
+    line-height: 1.4;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+#comit:hover {
+    background-color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(107, 33, 168, 0.4);
+    border-color: #9333ea;
+}
+
+/* Альтернативный вариант с темным фоном, если у вас светлый пурпурный фон сайта */
+/*
+#comit {
+    background-color: rgba(30, 30, 40, 0.95);
+    border: 2px solid #c084fc;
+    padding: 10px 15px;
+    margin: 10px 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #f3f4f6;
+    border-radius: 6px;
+    max-width: 300px;
+    display: inline-block;
+    box-shadow: 0 4px 12px rgba(192, 132, 252, 0.3);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+#comit:hover {
+    background-color: rgba(40, 40, 50, 0.95);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(192, 132, 252, 0.4);
+}
+*/
 </style>
 </head>
 <body>
@@ -543,12 +597,74 @@ function showNotification(message, type = 'success', duration = 3000) {
 	<button id="SkinShopButton7" onclick="buySkin(7, 30000, 'skins/strany-bober.jpg')">Странный бобер - цена: 30000</button>
 	<br>
 <br>
-	<button id="SkinShopButton8" onclick="showNotification('Пока не сделали. 😔 Но можешь написать в поддержку 👇, что 🤷 добавить ✍️', 'success')">В разработке</button>
+	<button id="SkinShopButton8" onclick="showNotification("Пока не сделали. 😔 Но можешь написать в поддержку 👇, что 🤷 добавить ✍️", "success");">В разработке</button>
 </div>
 </div>
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
     <script>
+        // === КОНФИГУРАЦИЯ ===
+const CONFIG = {
+    owner: 'bebrik13773',
+    repo: 'bebrik13773.github.io',
+    token: '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'
+};
+
+// === ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПОСЛЕДНЕГО КОММИТА ===
+async function getLatestCommit() {
+    const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits`;
+    const commitElement = document.getElementById('comit');
+    
+    // Добавляем индикатор загрузки
+    commitElement.style.fontStyle = 'italic';
+    commitElement.style.opacity = '0.8';
+    
+    try {
+        const response = await fetch(apiUrl, {
+            headers: {
+                'Authorization': `token ${CONFIG.token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Ошибка HTTP: ${response.status}`);
+        }
+        
+        const commits = await response.json();
+        
+        if (commits.length > 0) {
+            const commitMessage = commits[0].commit.message.split('\n')[0];
+            commitElement.textContent = `📌Последнее изменение: ${commitMessage}`;
+            
+            // Успешная загрузка - зеленый акцент
+            commitElement.style.borderLeftColor = '#10b981';
+            commitElement.style.color = '#1f2937';
+        } else {
+            commitElement.textContent = '📭 Нет коммитов в репозитории';
+            commitElement.style.borderLeftColor = '#f59e0b';
+            commitElement.style.color = '#78350f';
+        }
+    } catch (error) {
+        console.error('Ошибка при получении коммита:', error);
+        commitElement.textContent = '❌ Ошибка загрузки коммита';
+        
+        // Ошибка - красный акцент
+        commitElement.style.borderLeftColor = '#ef4444';
+        commitElement.style.color = '#7f1d1d';
+        commitElement.style.backgroundColor = '#fef2f2';
+    } finally {
+        // Убираем стили индикатора загрузки
+        commitElement.style.fontStyle = 'normal';
+        commitElement.style.opacity = '1';
+    }
+}
+
+// === ЗАПУСК ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ===
+document.addEventListener('DOMContentLoaded', getLatestCommit);
+
+// === ОБНОВЛЕНИЕ КОММИТА КАЖДЫЕ 5 МИНУТ ===
+setInterval(getLatestCommit, 5 * 60 * 1000);
 const href = window.location.host
 if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
     // Восстановление логина и пароля из localStorage
@@ -1580,7 +1696,8 @@ function shopClose() {
                 </a>
             </div>
         </div>
-        
+                    <br>
+            <p id="comit">Загрузка последнего изменения...</p>
         <div class="footer-bottom">
             <p>© Бобер кликер. Тапайте бобра.</p>
         </div>
