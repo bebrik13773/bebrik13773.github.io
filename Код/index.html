@@ -675,7 +675,7 @@ function handleError(error, commitElement) {
     commitElement.classList.add('error');
     
     // Определяем текст ошибки
-    let errorMessage = 'Ошибка загрузки коммита';
+    let errorMessage = 'Ошибка загрузки';
     
     if (error.message.includes('403')) {
         errorMessage = '⚠️ Лимит запросов исчерпан. Попробуйте позже.';
@@ -785,7 +785,7 @@ function addManualRefreshButton() {
         // Восстанавливаем кнопку через 2 секунды
         setTimeout(() => {
             this.disabled = false;
-            this.textContent = '🔄 Обновить коммит';
+            this.textContent = '🔄 Обновить';
         }, 2000);
     });
     
