@@ -559,6 +559,8 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <button id="shopButton"onclick="shopShow()">Магазин</button>
 <br>
+	<button id="ShopButton" onclick="window.location.replace('/fly-beaver.html'');"Летающий бобер(скоро обновление!)<buttonn>
+
 </div>
 <br>
 <button id="shopExit" onclick="shopClose()">Выход</button>
@@ -603,6 +605,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
     <script>
+		//Последнее изменение
 // === КОНФИГУРАЦИЯ ===
 const CONFIG = {
     owner: 'bebrik13773',      // Замените на имя владельца репозитория
@@ -816,6 +819,7 @@ window.CommitWidget = {
 
 console.log('✅ Виджет коммитов GitHub инициализирован');
 console.log('ℹ️ Используйте CommitWidget в консоли для управления виджетом');
+		//Начало основного кода
 const href = window.location.host
 if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
     // Восстановление логина и пароля из localStorage
