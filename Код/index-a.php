@@ -1,8 +1,8 @@
 <?php
 // Настройки подключения к базе данных
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_HOST', 'sql305.infinityfree.com');
+define('DB_USER', 'if0_39950285');
+define('DB_PASS', 'tmzPxb2Wu5aj6Lb');
 define('DB_NAME', 'sql_panel');
 
 // Инициализация сессии
