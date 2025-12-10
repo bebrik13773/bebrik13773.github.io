@@ -3,7 +3,7 @@
 define('DB_HOST', 'sql305.infinityfree.com');
 define('DB_USER', 'if0_39950285');
 define('DB_PASS', 'tmzPxb2Wu5aj6Lb');
-define('DB_NAME', 'sql_panel');
+define('DB_NAME', 'if0_39950285_panel');
 
 // Инициализация сессии
 session_start();
