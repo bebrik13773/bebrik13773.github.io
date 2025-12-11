@@ -62,7 +62,7 @@ function initializeDatabase() {
         $stmt->close();
     }
     
-    // Создаем демонстрационные таблицы
+    // Создаем демонстрационные таблицы (только users)
     createDemoTables($conn);
     
     $conn->close();
@@ -99,35 +99,15 @@ function createDemoTables($conn) {
         }
     }
     
-    // Таблица продуктов
-    $sql = "CREATE TABLE IF NOT EXISTS products (
+    // Таблица для логов (демонстрационная)
+    $sql = "CREATE TABLE IF NOT EXISTS logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        category VARCHAR(50),
-        price DECIMAL(10,2) NOT NULL,
-        stock INT DEFAULT 0,
+        user_id INT,
+        action VARCHAR(100) NOT NULL,
+        details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )";
     $conn->query($sql);
-    
-    // Проверяем, есть ли данные в таблице products
-    $result = $conn->query("SELECT COUNT(*) as count FROM products");
-    $row = $result->fetch_assoc();
-    
-    if ($row['count'] == 0) {
-        // Добавляем демонстрационные данные
-        $demo_products = [
-            "('Ноутбук', 'Электроника', 899.99, 15)",
-            "('Смартфон', 'Электроника', 599.99, 30)",
-            "('Наушники', 'Электроника', 149.99, 50)",
-            "('Книга', 'Книги', 24.99, 100)",
-            "('Кофеварка', 'Бытовая техника', 89.99, 20)"
-        ];
-        
-        foreach ($demo_products as $product) {
-            $conn->query("INSERT INTO products (name, category, price, stock) VALUES $product");
-        }
-    }
 }
 
 // Инициализация БД при каждом запуске
@@ -350,6 +330,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     
+    if ($_POST['action'] === 'update_row') {
+        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
+            $response['message'] = 'Неавторизованный доступ';
+        } else {
+            $table = $_POST['table'] ?? '';
+            $data = json_decode($_POST['data'] ?? '{}', true);
+            $primary_key = $_POST['primary_key'] ?? 'id';
+            $primary_value = $_POST['primary_value'] ?? '';
+            
+            if (empty($table) || empty($primary_value)) {
+                $response['message'] = 'Недостаточно данных для обновления';
+            } else {
+                $conn = connectDB();
+                
+                // Строим SET часть запроса
+                $set_parts = [];
+                $types = '';
+                $values = [];
+                
+                foreach ($data as $key => $value) {
+                    if ($key !== $primary_key) {
+                        $set_parts[] = "`$key` = ?";
+                        $types .= 's';
+                        $values[] = $value;
+                    }
+                }
+                
+                if (empty($set_parts)) {
+                    $response['message'] = 'Нет данных для обновления';
+                } else {
+                    $set_clause = implode(', ', $set_parts);
+                    $types .= 's';
+                    $values[] = $primary_value;
+                    
+                    $sql = "UPDATE `$table` SET $set_clause WHERE `$primary_key` = ?";
+                    $stmt = $conn->prepare($sql);
+                    
+                    if ($stmt) {
+                        $stmt->bind_param($types, ...$values);
+                        
+                        if ($stmt->execute()) {
+                            $response['success'] = true;
+                            $response['message'] = 'Строка успешно обновлена';
+                            $response['affected_rows'] = $stmt->affected_rows;
+                        } else {
+                            $response['message'] = 'Ошибка выполнения запроса: ' . $stmt->error;
+                        }
+                        
+                        $stmt->close();
+                    } else {
+                        $response['message'] = 'Ошибка подготовки запроса: ' . $conn->error;
+                    }
+                }
+                
+                $conn->close();
+            }
+        }
+    }
+    
     // Отправляем JSON ответ
     header('Content-Type: application/json');
     echo json_encode($response);
@@ -365,48 +404,52 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Панель управления</title>
+    <title>SQL - Панель управления базой данных</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #6200ee;
-            --primary-dark: #3700b3;
-            --primary-light: #bb86fc;
-            --secondary-color: #03dac6;
-            --secondary-dark: #018786;
-            --background: #f5f5f5;
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #60a5fa;
+            --secondary-color: #0ea5e9;
+            --secondary-dark: #0284c7;
+            --background: #f8fafc;
             --surface: #ffffff;
-            --error: #cf6679;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
             --on-primary: #ffffff;
-            --on-secondary: #000000;
-            --on-background: #333333;
-            --on-surface: #333333;
-            --border: #e0e0e0;
-            --hover: rgba(0, 0, 0, 0.04);
-            --shadow: 0 2px 4px rgba(0,0,0,0.1);
-            --shadow-heavy: 0 4px 8px rgba(0,0,0,0.2);
+            --on-secondary: #ffffff;
+            --on-background: #1e293b;
+            --on-surface: #1e293b;
+            --border: #e2e8f0;
+            --hover: #f1f5f9;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-heavy: 0 4px 6px -1px rgba(0,0,0,0.1);
             --radius: 8px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .dark-theme {
-            --primary-color: #bb86fc;
-            --primary-dark: #3700b3;
-            --primary-light: #6200ee;
-            --secondary-color: #03dac6;
-            --secondary-dark: #018786;
-            --background: #121212;
-            --surface: #1e1e1e;
-            --error: #cf6679;
-            --on-primary: #000000;
-            --on-secondary: #000000;
-            --on-background: #e0e0e0;
-            --on-surface: #e0e0e0;
-            --border: #333333;
-            --hover: rgba(255, 255, 255, 0.05);
-            --shadow: 0 2px 4px rgba(0,0,0,0.3);
-            --shadow-heavy: 0 4px 8px rgba(0,0,0,0.5);
+            --primary-color: #3b82f6;
+            --primary-dark: #2563eb;
+            --primary-light: #60a5fa;
+            --secondary-color: #0ea5e9;
+            --secondary-dark: #0284c7;
+            --background: #0f172a;
+            --surface: #1e293b;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --on-primary: #ffffff;
+            --on-secondary: #ffffff;
+            --on-background: #f1f5f9;
+            --on-surface: #f1f5f9;
+            --border: #334155;
+            --hover: #2d3748;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-heavy: 0 4px 6px -1px rgba(0,0,0,0.5);
         }
         
         * {
@@ -436,15 +479,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             to { transform: translateX(0); }
         }
         
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         
         .animated {
@@ -454,14 +491,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .fadeIn { animation-name: fadeIn; }
         .slideIn { animation-name: slideIn; }
-        .slideDown { animation-name: slideDown; }
+        .slideUp { animation-name: slideUp; }
         
         /* Заголовок */
         .app-header {
-            background-color: var(--primary-color);
-            color: var(--on-primary);
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
             padding: 0 24px;
-            box-shadow: var(--shadow-heavy);
+            box-shadow: var(--shadow);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -491,11 +528,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         .menu-toggle {
             background: none;
             border: none;
-            color: var(--on-primary);
+            color: var(--on-surface);
             cursor: pointer;
             width: 40px;
             height: 40px;
-            border-radius: 50%;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -503,7 +540,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .menu-toggle:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--hover);
         }
         
         .logo {
@@ -514,36 +551,32 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .logo-icon {
             font-size: 28px;
-            color: var(--on-primary);
+            color: var(--primary-color);
         }
         
         .logo-text h1 {
             font-size: 20px;
-            font-weight: 500;
+            font-weight: 600;
+            color: var(--primary-color);
             line-height: 1.2;
-        }
-        
-        .logo-text .subtitle {
-            font-size: 12px;
-            opacity: 0.8;
         }
         
         /* Улучшенный заголовок действий */
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
             position: relative;
         }
         
         .action-button {
             background: none;
             border: none;
-            color: var(--on-primary);
+            color: var(--on-surface);
             cursor: pointer;
             width: 40px;
             height: 40px;
-            border-radius: 50%;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -552,30 +585,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .action-button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--hover);
         }
         
         .action-button.with-text {
             width: auto;
             padding: 8px 16px;
-            border-radius: 20px;
+            border-radius: 8px;
             font-size: 14px;
             gap: 8px;
-        }
-        
-        .action-button .badge {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            background-color: var(--secondary-color);
-            color: var(--on-secondary);
-            font-size: 10px;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-weight: 500;
         }
         
         .user-menu {
@@ -588,18 +607,19 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             right: 0;
             background-color: var(--surface);
             color: var(--on-surface);
-            border-radius: var(--radius);
+            border-radius: 8px;
             box-shadow: var(--shadow-heavy);
-            min-width: 200px;
+            min-width: 240px;
             overflow: hidden;
             z-index: 1001;
             margin-top: 8px;
+            border: 1px solid var(--border);
             display: none;
         }
         
         .user-dropdown.active {
             display: block;
-            animation: slideDown 0.2s;
+            animation: slideUp 0.2s;
         }
         
         .user-dropdown-item {
@@ -610,6 +630,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             cursor: pointer;
             transition: background-color 0.2s;
             border-bottom: 1px solid var(--border);
+            font-size: 14px;
         }
         
         .user-dropdown-item:last-child {
@@ -639,47 +660,51 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             transform: translateX(0);
         }
         
-        .sidebar-header {
+        .sidebar-section {
             padding: 20px;
             border-bottom: 1px solid var(--border);
+        }
+        
+        .sidebar-section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-        
-        .sidebar-title {
-            font-size: 18px;
-            font-weight: 500;
+            cursor: pointer;
+            padding: 8px 0;
+            font-weight: 600;
             color: var(--on-surface);
+            font-size: 15px;
         }
         
-        .database-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
+        .toggle-icon {
+            transition: transform 0.3s;
             color: var(--primary-color);
-            background-color: rgba(98, 0, 238, 0.1);
-            padding: 4px 8px;
-            border-radius: 4px;
         }
         
-        .dark-theme .database-info {
-            background-color: rgba(187, 134, 252, 0.1);
+        .toggle-icon.expanded {
+            transform: rotate(90deg);
         }
         
         .table-list {
             list-style: none;
+            margin-top: 8px;
+            display: none;
+        }
+        
+        .table-list.expanded {
+            display: block;
         }
         
         .table-item {
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 4px;
+            font-size: 14px;
         }
         
         .table-item:hover {
@@ -687,34 +712,33 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .table-item.active {
-            background-color: rgba(98, 0, 238, 0.1);
-            color: var(--primary-color);
-            font-weight: 500;
-            border-left: 4px solid var(--primary-color);
-        }
-        
-        .dark-theme .table-item.active {
-            background-color: rgba(187, 134, 252, 0.1);
-        }
-        
-        .table-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            background-color: var(--primary-color);
+            color: var(--on-primary);
         }
         
         .table-icon {
-            font-size: 20px;
-            color: var(--primary-color);
+            font-size: 18px;
         }
         
-        .table-name {
+        .sidebar-item {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
             font-weight: 500;
+            color: var(--on-surface);
+            border-bottom: 1px solid var(--border);
         }
         
-        .table-stats {
-            font-size: 12px;
-            opacity: 0.7;
+        .sidebar-item:hover {
+            background-color: var(--hover);
+        }
+        
+        .sidebar-item.active {
+            background-color: var(--primary-color);
+            color: var(--on-primary);
         }
         
         /* Основной контент */
@@ -756,17 +780,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .card-title {
             font-size: 20px;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--on-surface);
             display: flex;
             align-items: center;
             gap: 12px;
-        }
-        
-        .card-subtitle {
-            font-size: 14px;
-            color: var(--primary-color);
-            margin-top: 4px;
         }
         
         /* Формы */
@@ -779,14 +797,15 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             margin-bottom: 8px;
             font-weight: 500;
             color: var(--on-surface);
+            font-size: 14px;
         }
         
         .form-control {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border: 1px solid var(--border);
-            border-radius: 4px;
-            font-size: 16px;
+            border-radius: 6px;
+            font-size: 14px;
             background-color: var(--surface);
             color: var(--on-surface);
             transition: border-color 0.2s;
@@ -795,11 +814,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(98, 0, 238, 0.2);
-        }
-        
-        .dark-theme .form-control:focus {
-            box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.2);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
         
         textarea.form-control {
@@ -811,10 +826,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         /* SQL редактор */
-        .sql-editor-container {
-            position: relative;
-        }
-        
         .sql-toolbar {
             display: flex;
             gap: 8px;
@@ -823,10 +834,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .quick-sql-btn {
-            background-color: rgba(98, 0, 238, 0.1);
+            background-color: rgba(37, 99, 235, 0.1);
             color: var(--primary-color);
             border: 1px solid var(--primary-color);
-            border-radius: 4px;
+            border-radius: 6px;
             padding: 8px 16px;
             font-size: 14px;
             cursor: pointer;
@@ -834,64 +845,67 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             display: flex;
             align-items: center;
             gap: 6px;
+            font-weight: 500;
         }
         
         .quick-sql-btn:hover {
-            background-color: rgba(98, 0, 238, 0.2);
-        }
-        
-        .dark-theme .quick-sql-btn {
-            background-color: rgba(187, 134, 252, 0.1);
-            border-color: var(--primary-light);
-        }
-        
-        .sql-history-panel {
-            background-color: var(--surface);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-top: 20px;
-            border: 1px solid var(--border);
-            display: none;
-        }
-        
-        .sql-history-panel.active {
-            display: block;
+            background-color: rgba(37, 99, 235, 0.2);
         }
         
         /* Таблицы */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
+        .data-table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border);
             margin-top: 20px;
         }
         
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        
         .data-table th {
-            background-color: rgba(0, 0, 0, 0.02);
-            padding: 16px;
+            background-color: var(--hover);
+            padding: 14px 16px;
             text-align: left;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--on-surface);
             border-bottom: 2px solid var(--border);
             position: sticky;
             top: 0;
-        }
-        
-        .dark-theme .data-table th {
-            background-color: rgba(255, 255, 255, 0.02);
+            font-size: 14px;
         }
         
         .data-table td {
-            padding: 16px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--border);
             vertical-align: top;
+            font-size: 14px;
         }
         
         .data-table tr:hover {
             background-color: var(--hover);
         }
         
-        .data-table .actions-cell {
-            white-space: nowrap;
+        .data-table tr.editing {
+            background-color: rgba(37, 99, 235, 0.05);
+        }
+        
+        .edit-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            background-color: var(--surface);
+            color: var(--on-surface);
+            font-size: 14px;
+        }
+        
+        .edit-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
         }
         
         /* Кнопки */
@@ -902,7 +916,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             gap: 8px;
             padding: 10px 20px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
@@ -917,7 +931,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .btn-primary:hover {
             background-color: var(--primary-dark);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             box-shadow: var(--shadow-heavy);
         }
         
@@ -928,17 +942,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .btn-secondary:hover {
             background-color: var(--secondary-dark);
-            color: white;
         }
         
         .btn-outline {
             background-color: transparent;
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
+            border: 1px solid var(--border);
+            color: var(--on-surface);
         }
         
         .btn-outline:hover {
-            background-color: rgba(98, 0, 238, 0.1);
+            background-color: var(--hover);
         }
         
         .btn-danger {
@@ -947,7 +960,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .btn-danger:hover {
-            background-color: #b00020;
+            background-color: #dc2626;
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #059669;
         }
         
         .btn-small {
@@ -959,21 +981,21 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             width: 36px;
             height: 36px;
             padding: 0;
-            border-radius: 50%;
+            border-radius: 6px;
         }
         
         /* Статистика */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
             margin-bottom: 24px;
         }
         
         .stat-card {
             background-color: var(--surface);
             border-radius: var(--radius);
-            padding: 20px;
+            padding: 24px;
             border: 1px solid var(--border);
             transition: transform 0.2s;
         }
@@ -995,19 +1017,20 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .stat-icon.primary {
-            background-color: rgba(98, 0, 238, 0.1);
+            background-color: rgba(37, 99, 235, 0.1);
             color: var(--primary-color);
         }
         
         .stat-icon.secondary {
-            background-color: rgba(3, 218, 198, 0.1);
+            background-color: rgba(14, 165, 233, 0.1);
             color: var(--secondary-color);
         }
         
         .stat-value {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 700;
             margin-bottom: 4px;
+            color: var(--on-surface);
         }
         
         .stat-label {
@@ -1077,6 +1100,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             border-left: 4px solid;
             transform: translateX(150%);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border);
         }
         
         .notification.active {
@@ -1084,35 +1108,35 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .notification.success {
-            border-left-color: #4caf50;
+            border-left-color: var(--success);
         }
         
         .notification.success .notification-icon {
-            color: #4caf50;
+            color: var(--success);
         }
         
         .notification.error {
-            border-left-color: #f44336;
+            border-left-color: var(--error);
         }
         
         .notification.error .notification-icon {
-            color: #f44336;
+            color: var(--error);
         }
         
         .notification.info {
-            border-left-color: #2196f3;
+            border-left-color: var(--primary-color);
         }
         
         .notification.info .notification-icon {
-            color: #2196f3;
+            color: var(--primary-color);
         }
         
         .notification.warning {
-            border-left-color: #ff9800;
+            border-left-color: var(--warning);
         }
         
         .notification.warning .notification-icon {
-            color: #ff9800;
+            color: var(--warning);
         }
         
         .notification-close {
@@ -1180,7 +1204,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .auth-title {
             font-size: 24px;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--on-surface);
             margin-bottom: 8px;
         }
@@ -1189,6 +1213,73 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             font-size: 14px;
             color: var(--on-surface);
             opacity: 0.7;
+        }
+        
+        /* Переключатель темы */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .theme-toggle input {
+            display: none;
+        }
+        
+        .toggle-switch {
+            width: 50px;
+            height: 26px;
+            background-color: #ccc;
+            border-radius: 13px;
+            position: relative;
+            transition: background-color 0.3s;
+        }
+        
+        .dark-theme .toggle-switch {
+            background-color: #475569; /* Более темный цвет для темной темы */
+        }
+        
+        .toggle-switch:before {
+            content: "";
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .dark-theme .toggle-switch:before {
+            transform: translateX(24px);
+        }
+        
+        /* Поле поиска */
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 14px 10px 40px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: var(--surface);
+            color: var(--on-surface);
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--on-surface);
+            opacity: 0.5;
         }
         
         /* Адаптивность */
@@ -1231,18 +1322,8 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 padding: 16px;
             }
             
-            .sql-toolbar {
-                flex-direction: column;
-            }
-            
-            .quick-sql-btn {
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .data-table {
-                display: block;
-                overflow-x: auto;
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
             
             .notification {
@@ -1255,109 +1336,54 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .auth-card {
                 padding: 24px;
             }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
         }
         
-        /* Улучшения для таблиц */
-        .table-actions {
+        /* Профиль настроек */
+        .profile-info {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .profile-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background-color: var(--hover);
+            border-radius: 6px;
+        }
+        
+        .profile-label {
+            font-weight: 500;
+            color: var(--on-surface);
+        }
+        
+        .profile-value {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
+            color: var(--primary-color);
+            background-color: rgba(37, 99, 235, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        /* Инлайн редактирование */
+        .edit-actions {
             display: flex;
             gap: 8px;
-            margin-bottom: 16px;
-            align-items: center;
-            flex-wrap: wrap;
         }
         
-        .table-stats-info {
+        .view-mode {
             display: flex;
             align-items: center;
-            gap: 16px;
-            font-size: 14px;
-            color: var(--on-surface);
-            opacity: 0.7;
-            margin-left: auto;
+            gap: 8px;
         }
         
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--on-surface);
-            opacity: 0.7;
-        }
-        
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-        
-        /* Переключатель темы */
-        .theme-toggle {
+        .edit-mode {
             display: flex;
             align-items: center;
-            cursor: pointer;
-        }
-        
-        .theme-toggle input {
-            display: none;
-        }
-        
-        .toggle-switch {
-            width: 50px;
-            height: 26px;
-            background-color: #ccc;
-            border-radius: 13px;
-            position: relative;
-            transition: background-color 0.3s;
-            margin: 0 8px;
-        }
-        
-        .dark-theme .toggle-switch {
-            background-color: var(--primary-color);
-        }
-        
-        .toggle-switch:before {
-            content: "";
-            position: absolute;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            background-color: white;
-            top: 2px;
-            left: 2px;
-            transition: transform 0.3s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        .dark-theme .toggle-switch:before {
-            transform: translateX(24px);
-        }
-        
-        /* Поле поиска */
-        .search-box {
-            position: relative;
-            margin-bottom: 20px;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 12px 16px 12px 40px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 14px;
-            background-color: var(--surface);
-            color: var(--on-surface);
-        }
-        
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--on-surface);
-            opacity: 0.5;
+            gap: 8px;
         }
     </style>
 </head>
@@ -1368,7 +1394,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         <div class="auth-card">
             <div class="auth-header">
                 <div class="auth-logo">
-                    <span class="material-icons" style="font-size: 48px;">storage</span>
+                    <span class="material-icons" style="font-size: 48px;">database</span>
                 </div>
                 <h1 class="auth-title">SQL Панель управления</h1>
                 <p class="auth-subtitle">Войдите в систему для управления базой данных</p>
@@ -1397,10 +1423,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     <span class="material-icons">menu</span>
                 </button>
                 <div class="logo">
-                    <span class="material-icons logo-icon">storage</span>
+                    <span class="material-icons logo-icon">data_array</span>
                     <div class="logo-text">
-                        <h1>SQL Панель управления</h1>
-                        <div class="subtitle">Управление базой данных</div>
+                        <h1>SQL</h1>
                     </div>
                 </div>
             </div>
@@ -1417,20 +1442,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 <div class="user-menu">
                     <button class="action-button with-text" id="userMenuToggle">
                         <span class="material-icons">account_circle</span>
-                        <span>Аккаунт</span>
+                        <span>Профиль</span>
                     </button>
                     <div class="user-dropdown" id="userDropdown">
+                        <div class="user-dropdown-item" id="profileSettingsBtn">
+                            <span class="material-icons">settings</span>
+                            <span>Настройки профиля</span>
+                        </div>
                         <div class="user-dropdown-item" id="changePasswordBtn">
                             <span class="material-icons">password</span>
                             <span>Сменить пароль</span>
-                        </div>
-                        <div class="user-dropdown-item" id="settingsBtn">
-                            <span class="material-icons">settings</span>
-                            <span>Настройки</span>
-                        </div>
-                        <div class="user-dropdown-item" id="helpBtn">
-                            <span class="material-icons">help</span>
-                            <span>Справка</span>
                         </div>
                         <div class="user-dropdown-item" id="logoutBtn">
                             <span class="material-icons">logout</span>
@@ -1444,23 +1465,24 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     
     <!-- Боковая панель -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h3 class="sidebar-title">Таблицы базы данных</h3>
-            <div class="database-info">
-                <span class="material-icons" style="font-size: 16px;">database</span>
-                <span><?php echo DB_NAME; ?></span>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header" id="tablesHeader">
+                <span>Таблицы</span>
+                <span class="material-icons toggle-icon">chevron_right</span>
             </div>
-        </div>
-        
-        <div class="search-box" style="padding: 0 20px; margin-top: 10px;">
-            <span class="material-icons search-icon">search</span>
-            <input type="text" class="search-input" id="tableSearch" placeholder="Поиск таблиц...">
-        </div>
-        
-        <div class="sidebar-content">
             <ul class="table-list" id="tableList">
                 <!-- Список таблиц будет загружен через AJAX -->
             </ul>
+        </div>
+        
+        <div class="sidebar-item" id="statisticsBtn">
+            <span class="material-icons">analytics</span>
+            <span>Статистика</span>
+        </div>
+        
+        <div class="sidebar-item" id="sqlEditorBtn">
+            <span class="material-icons">code</span>
+            <span>SQL Редактор</span>
         </div>
     </aside>
     
@@ -1487,7 +1509,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon primary">
-                        <span class="material-icons">code</span>
+                        <span class="material-icons">data_usage</span>
                     </div>
                     <div class="stat-value" id="queryCount">0</div>
                     <div class="stat-label">Выполнено запросов</div>
@@ -1510,13 +1532,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                             <span class="material-icons">code</span>
                             SQL Редактор
                         </h2>
-                        <div class="card-subtitle">Выполняйте SQL запросы к базе данных</div>
+                        <div class="card-subtitle" style="font-size: 14px; color: var(--on-surface); opacity: 0.7; margin-top: 4px;">
+                            Выполняйте SQL запросы к базе данных
+                        </div>
                     </div>
                     <div>
-                        <button class="btn btn-outline btn-small" id="toggleHistoryBtn">
-                            <span class="material-icons">history</span>
-                            История
-                        </button>
                         <button class="btn btn-primary" id="executeSqlBtn">
                             <span class="material-icons">play_arrow</span>
                             Выполнить
@@ -1533,13 +1553,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                         <span class="material-icons">people</span>
                         Пользователи
                     </button>
-                    <button class="quick-sql-btn" data-sql="SELECT * FROM products LIMIT 10;">
-                        <span class="material-icons">shopping_cart</span>
-                        Продукты
-                    </button>
-                    <button class="quick-sql-btn" data-sql="SELECT COUNT(*) as count FROM users;">
-                        <span class="material-icons">calculate</span>
-                        Подсчет строк
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM logs LIMIT 10;">
+                        <span class="material-icons">history</span>
+                        Логи
                     </button>
                 </div>
                 
@@ -1554,11 +1570,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 <div id="sqlResults">
                     <!-- Результаты SQL запросов будут отображаться здесь -->
                 </div>
-                
-                <div class="sql-history-panel" id="sqlHistoryPanel">
-                    <h3 style="margin-bottom: 16px;">История запросов</h3>
-                    <div id="historyList"></div>
-                </div>
             </div>
             
             <!-- Карточка данных таблицы -->
@@ -1569,29 +1580,19 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                             <span class="material-icons">table_rows</span>
                             <span id="tableTitle">Данные таблицы</span>
                         </h2>
-                        <div class="card-subtitle" id="tableSubtitle"></div>
+                        <div class="card-subtitle" style="font-size: 14px; color: var(--on-surface); opacity: 0.7; margin-top: 4px;" id="tableSubtitle">
+                            Просмотр и редактирование данных
+                        </div>
                     </div>
-                    <div class="table-actions">
-                        <button class="btn btn-outline btn-small" id="showStructureBtn">
-                            <span class="material-icons">schema</span>
-                            Структура
-                        </button>
-                        <button class="btn btn-outline btn-small" id="exportTableBtn">
-                            <span class="material-icons">download</span>
-                            Экспорт
-                        </button>
-                        <button class="btn btn-secondary" id="refreshTableBtn">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline btn-small" id="refreshTableBtn">
                             <span class="material-icons">refresh</span>
                             Обновить
                         </button>
-                        <button class="btn btn-primary" id="addRowBtn">
+                        <button class="btn btn-primary btn-small" id="addRowBtn">
                             <span class="material-icons">add</span>
                             Добавить строку
                         </button>
-                        <div class="table-stats-info">
-                            <span id="tableRowCount">0 строк</span>
-                            <span id="tableTotalRows">Всего: 0</span>
-                        </div>
                     </div>
                 </div>
                 
@@ -1602,7 +1603,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         </div>
     </main>
     
-    <!-- Модальные окна -->
+    <!-- Модальное окно смены пароля -->
     <div class="modal-overlay" id="changePasswordModal">
         <div class="modal-content">
             <div class="card-header">
@@ -1649,23 +1650,81 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         </div>
     </div>
     
-    <!-- Модальное окно добавления/редактирования строки -->
-    <div class="modal-overlay" id="editRowModal">
+    <!-- Модальное окно настроек профиля -->
+    <div class="modal-overlay" id="profileSettingsModal">
         <div class="modal-content">
             <div class="card-header">
-                <h3 class="card-title" id="editModalTitle">Добавление строки</h3>
-                <button class="action-button btn-icon" id="closeEditRowModal">
+                <h3 class="card-title">
+                    <span class="material-icons">settings</span>
+                    Настройки профиля
+                </h3>
+                <button class="action-button btn-icon" id="closeProfileSettingsModal">
                     <span class="material-icons">close</span>
                 </button>
             </div>
             <div class="modal-body" style="padding: 24px;">
-                <form id="editRowForm">
+                <div class="profile-info">
+                    <div class="profile-item">
+                        <span class="profile-label">Хост базы данных:</span>
+                        <span class="profile-value"><?php echo DB_HOST; ?></span>
+                    </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Пользователь БД:</span>
+                        <span class="profile-value"><?php echo DB_USER; ?></span>
+                    </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Имя базы данных:</span>
+                        <span class="profile-value"><?php echo DB_NAME; ?></span>
+                    </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Кодировка:</span>
+                        <span class="profile-value">UTF-8</span>
+                    </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Статус пароля:</span>
+                        <span class="profile-value"><?php echo $password_changed ? 'Изменен' : 'По умолчанию'; ?></span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                    <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--on-surface);">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle; margin-right: 8px;">info</span>
+                        Информация о системе
+                    </h4>
+                    <div style="font-size: 14px; color: var(--on-surface); opacity: 0.8; line-height: 1.6;">
+                        <p>Версия PHP: <?php echo phpversion(); ?></p>
+                        <p>Тип базы данных: MySQL</p>
+                        <p>Версия SQL панели: 2.0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="closeProfileSettingsBtn">Закрыть</button>
+                <button class="btn btn-primary" onclick="showChangePasswordModal()">
+                    <span class="material-icons" style="font-size: 18px; margin-right: 6px;">password</span>
+                    Сменить пароль
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно добавления строки -->
+    <div class="modal-overlay" id="addRowModal">
+        <div class="modal-content">
+            <div class="card-header">
+                <h3 class="card-title" id="addModalTitle">Добавление строки</h3>
+                <button class="action-button btn-icon" id="closeAddRowModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="addRowForm">
                     <!-- Поля формы будут динамически добавлены -->
                 </form>
             </div>
             <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
-                <button class="btn btn-outline" id="cancelEditRow">Отмена</button>
-                <button class="btn btn-primary" id="saveRowBtn">
+                <button class="btn btn-outline" id="cancelAddRow">Отмена</button>
+                <button class="btn btn-primary" id="saveNewRowBtn">
                     <span class="btn-text">Сохранить</span>
                     <div class="loader" style="display: none; margin-left: 8px;"></div>
                 </button>
@@ -1680,11 +1739,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     <script>
         // Глобальные переменные
         let currentTable = '';
-        let sqlHistory = JSON.parse(localStorage.getItem('sqlHistory') || '[]');
-        let currentEditingRow = null;
         let queryCount = parseInt(localStorage.getItem('queryCount') || '0');
         let sessionStartTime = new Date();
         let activeTimeInterval;
+        let editingRowId = null;
+        let tableColumns = [];
         
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
@@ -1768,13 +1827,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     submitBtn.disabled = false;
                 });
             });
-            
-            // Обработка нажатия Enter в поле пароля
-            passwordInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    loginForm.dispatchEvent(new Event('submit'));
-                }
-            });
         }
         
         // Функция инициализации основной панели
@@ -1792,17 +1844,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Инициализация элементов интерфейса
             initUIElements();
             
-            // Загружаем историю запросов
-            renderSqlHistory();
-            
-            // Выполняем начальный SQL запрос
-            executeSql('SHOW TABLES;');
-            
-            // Если пароль не менялся, показываем модальное окно смены пароля
+            // Если пароль не менялся, показываем уведомление
             <?php if (!$password_changed): ?>
             setTimeout(() => {
-                showChangePasswordModal();
-            }, 1500);
+                showNotification('Рекомендуется сменить пароль по умолчанию на более сложный', 'warning', 5000);
+            }, 2000);
             <?php endif; ?>
         }
         
@@ -1870,17 +1916,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             
             // Кнопка смены пароля
             document.getElementById('changePasswordBtn').addEventListener('click', function() {
+                document.getElementById('userDropdown').classList.remove('active');
                 showChangePasswordModal();
             });
             
-            // Кнопка помощи
-            document.getElementById('helpBtn').addEventListener('click', function() {
-                showNotification('Для справки ознакомьтесь с документацией SQL', 'info');
-            });
-            
-            // Кнопка настроек
-            document.getElementById('settingsBtn').addEventListener('click', function() {
-                showNotification('Настройки будут доступны в следующей версии', 'info');
+            // Кнопка настроек профиля
+            document.getElementById('profileSettingsBtn').addEventListener('click', function() {
+                document.getElementById('userDropdown').classList.remove('active');
+                showProfileSettingsModal();
             });
             
             // Закрытие модального окна смены пароля
@@ -1964,7 +2007,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 const sqlQuery = document.getElementById('sqlQuery').value.trim();
                 if (sqlQuery) {
                     executeSql(sqlQuery);
-                    addToSqlHistory(sqlQuery);
                     queryCount++;
                     updateStats();
                 }
@@ -1977,11 +2019,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     document.getElementById('sqlQuery').value = sql;
                     document.getElementById('executeSqlBtn').click();
                 });
-            });
-            
-            // Кнопка переключения истории
-            document.getElementById('toggleHistoryBtn').addEventListener('click', function() {
-                document.getElementById('sqlHistoryPanel').classList.toggle('active');
             });
             
             // Кнопка обновления таблицы
@@ -1999,42 +2036,39 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 }
             });
             
-            // Кнопка показа структуры
-            document.getElementById('showStructureBtn').addEventListener('click', function() {
-                if (currentTable) {
-                    showTableStructure(currentTable);
-                }
+            // Закрытие модального окна добавления строки
+            document.getElementById('closeAddRowModal').addEventListener('click', function() {
+                hideAddRowModal();
             });
             
-            // Кнопка экспорта
-            document.getElementById('exportTableBtn').addEventListener('click', function() {
-                if (currentTable) {
-                    exportTable(currentTable);
-                }
+            document.getElementById('cancelAddRow').addEventListener('click', function() {
+                hideAddRowModal();
             });
             
-            // Закрытие модального окна редактирования строки
-            document.getElementById('closeEditRowModal').addEventListener('click', function() {
-                hideEditRowModal();
-            });
-            
-            document.getElementById('cancelEditRow').addEventListener('click', function() {
-                hideEditRowModal();
-            });
-            
-            // Поиск таблиц
-            document.getElementById('tableSearch').addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                const tableItems = document.querySelectorAll('.table-item');
+            // Кнопки бокового меню
+            document.getElementById('tablesHeader').addEventListener('click', function() {
+                const tableList = document.getElementById('tableList');
+                const toggleIcon = this.querySelector('.toggle-icon');
                 
-                tableItems.forEach(item => {
-                    const tableName = item.querySelector('.table-name').textContent.toLowerCase();
-                    if (tableName.includes(searchTerm)) {
-                        item.style.display = '';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
+                tableList.classList.toggle('expanded');
+                toggleIcon.classList.toggle('expanded');
+            });
+            
+            document.getElementById('statisticsBtn').addEventListener('click', function() {
+                showStatistics();
+            });
+            
+            document.getElementById('sqlEditorBtn').addEventListener('click', function() {
+                showSqlEditor();
+            });
+            
+            // Закрытие модального окна настроек профиля
+            document.getElementById('closeProfileSettingsModal').addEventListener('click', function() {
+                hideProfileSettingsModal();
+            });
+            
+            document.getElementById('closeProfileSettingsBtn').addEventListener('click', function() {
+                hideProfileSettingsModal();
             });
             
             // Обработка нажатия Ctrl+Enter в SQL редакторе
@@ -2044,9 +2078,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     document.getElementById('executeSqlBtn').click();
                 }
             });
-            
-            // Автоподсказки для SQL редактора
-            initSqlAutocomplete();
         }
         
         // Функция показа модального окна смены пароля
@@ -2059,14 +2090,67 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             document.getElementById('changePasswordModal').classList.remove('active');
         }
         
-        // Функция показа модального окна редактирования строки
-        function showEditRowModal() {
-            document.getElementById('editRowModal').classList.add('active');
+        // Функция показа модального окна настроек профиля
+        function showProfileSettingsModal() {
+            document.getElementById('profileSettingsModal').classList.add('active');
         }
         
-        // Функция скрытия модального окна редактирования строки
-        function hideEditRowModal() {
-            document.getElementById('editRowModal').classList.remove('active');
+        // Функция скрытия модального окна настроек профиля
+        function hideProfileSettingsModal() {
+            document.getElementById('profileSettingsModal').classList.remove('active');
+        }
+        
+        // Функция показа модального окна добавления строки
+        function showAddRowModal() {
+            document.getElementById('addRowModal').classList.add('active');
+        }
+        
+        // Функция скрытия модального окна добавления строки
+        function hideAddRowModal() {
+            document.getElementById('addRowModal').classList.remove('active');
+        }
+        
+        // Функция показа статистики
+        function showStatistics() {
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'block';
+            document.getElementById('statsGrid').style.display = 'grid';
+            
+            // Обновляем активный элемент меню
+            updateActiveMenuItem('statisticsBtn');
+            
+            // Закрываем боковую панель на мобильных
+            if (window.innerWidth <= 1200) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
+        
+        // Функция показа SQL редактора
+        function showSqlEditor() {
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'block';
+            document.getElementById('statsGrid').style.display = 'none';
+            
+            // Обновляем активный элемент меню
+            updateActiveMenuItem('sqlEditorBtn');
+            
+            // Закрываем боковую панель на мобильных
+            if (window.innerWidth <= 1200) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
+        
+        // Функция обновления активного элемента меню
+        function updateActiveMenuItem(activeId) {
+            // Убираем активный класс у всех элементов
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Добавляем активный класс к выбранному элементу
+            if (activeId) {
+                document.getElementById(activeId).classList.add('active');
+            }
         }
         
         // Функция загрузки списка таблиц
@@ -2142,24 +2226,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 li.dataset.table = table;
                 
                 li.innerHTML = `
-                    <div class="table-info">
-                        <span class="material-icons table-icon">table_chart</span>
-                        <div>
-                            <div class="table-name">${table}</div>
-                            <div class="table-stats">Загрузка...</div>
-                        </div>
-                    </div>
+                    <span class="material-icons table-icon">table_chart</span>
+                    <span>${table}</span>
                 `;
                 
                 li.addEventListener('click', function() {
-                    // Убираем активный класс у всех элементов
-                    document.querySelectorAll('.table-item').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    
-                    // Добавляем активный класс к выбранному элементу
-                    this.classList.add('active');
-                    
                     // Загружаем данные таблицы
                     loadTableData(table);
                     
@@ -2170,33 +2241,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 });
                 
                 tableList.appendChild(li);
-                
-                // Загружаем статистику для этой таблицы
-                loadTableStats(table, li);
-            });
-        }
-        
-        // Функция загрузки статистики таблицы
-        function loadTableStats(table, listItem) {
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    action: 'get_table_data',
-                    table: table
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const statsEl = listItem.querySelector('.table-stats');
-                    statsEl.textContent = `${data.total_rows || 0} строк`;
-                    
-                    // Сохраняем количество строк в data-атрибут
-                    listItem.dataset.rows = data.total_rows || 0;
-                }
             });
         }
         
@@ -2207,10 +2251,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Показываем карточку с данными таблицы
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'none';
             
             // Обновляем заголовок
             document.getElementById('tableTitle').textContent = table;
-            document.getElementById('tableSubtitle').textContent = `Просмотр и редактирование данных таблицы "${table}"`;
             
             // Показываем лоадер
             const container = document.getElementById('tableDataContainer');
@@ -2235,19 +2279,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    tableColumns = data.columns;
                     renderTableData(data.columns, data.rows, table, data.total_rows);
-                    document.getElementById('tableRowCount').textContent = `${data.rows.length} строк`;
-                    document.getElementById('tableTotalRows').textContent = `Всего: ${data.total_rows}`;
                 } else {
                     showNotification(data.message, 'error');
                     container.innerHTML = `
-                        <div class="empty-state">
-                            <span class="material-icons empty-state-icon">error</span>
-                            <p>Ошибка загрузки данных таблицы</p>
-                            <button class="btn btn-outline" onclick="loadTableData('${table}')" style="margin-top: 16px;">
-                                <span class="material-icons">refresh</span>
-                                Повторить попытку
-                            </button>
+                        <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                            <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">error</span>
+                            <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка загрузки данных таблицы</p>
                         </div>
                     `;
                 }
@@ -2256,27 +2295,23 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 console.error('Error:', error);
                 showNotification('Ошибка загрузки данных таблицы', 'error');
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <span class="material-icons empty-state-icon">wifi_off</span>
-                        <p>Ошибка сети при загрузке данных</p>
-                        <button class="btn btn-outline" onclick="loadTableData('${table}')" style="margin-top: 16px;">
-                            <span class="material-icons">refresh</span>
-                            Повторить попытку
-                        </button>
+                    <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                        <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">wifi_off</span>
+                        <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка сети при загрузке данных</p>
                     </div>
                 `;
             });
         }
         
-        // Функция отрисовки данных таблицы
-        function renderTableData(columns, rows, table, totalRows) {
+        // Функция отрисовки данных таблицы с inline-редактированием
+        function renderTableData(columns, rows, table) {
             const container = document.getElementById('tableDataContainer');
             
             if (rows.length === 0) {
                 container.innerHTML = `
-                    <div class="empty-state">
-                        <span class="material-icons empty-state-icon">table_rows</span>
-                        <p>Таблица "${table}" пуста</p>
+                    <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                        <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">table_rows</span>
+                        <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Таблица "${table}" пуста</p>
                         <button class="btn btn-primary" onclick="showAddRowForm('${table}')" style="margin-top: 16px;">
                             <span class="material-icons">add</span>
                             Добавить первую строку
@@ -2287,115 +2322,285 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             }
             
             // Создаем таблицу
-            let html = '<table class="data-table">';
+            let html = '<div class="data-table-container">';
+            html += '<table class="data-table">';
             
             // Заголовки таблицы
             html += '<thead><tr>';
+            html += '<th style="width: 60px;">Действия</th>';
             columns.forEach(column => {
                 html += `<th>${column.name}<br><small style="opacity: 0.7; font-weight: normal;">${column.type}</small></th>`;
             });
-            html += '<th style="width: 100px;">Действия</th>';
             html += '</tr></thead>';
             
             // Тело таблицы
             html += '<tbody>';
-            rows.forEach(row => {
-                html += '<tr>';
+            rows.forEach((row, rowIndex) => {
+                const rowId = row.id || rowIndex;
+                html += `<tr id="row-${rowId}" data-row-id="${rowId}">`;
+                
+                // Ячейка с действиями
+                html += `<td class="actions-cell">`;
+                html += `<div class="view-mode">`;
+                html += `<button class="btn btn-outline btn-icon btn-small edit-row-btn" data-row-id="${rowId}" title="Редактировать">`;
+                html += `<span class="material-icons" style="font-size: 16px;">edit</span>`;
+                html += `</button>`;
+                html += `</div>`;
+                html += `<div class="edit-mode" style="display: none;">`;
+                html += `<button class="btn btn-success btn-icon btn-small save-row-btn" data-row-id="${rowId}" title="Сохранить">`;
+                html += `<span class="material-icons" style="font-size: 16px;">save</span>`;
+                html += `</button>`;
+                html += `<button class="btn btn-outline btn-icon btn-small cancel-edit-btn" data-row-id="${rowId}" title="Отменить">`;
+                html += `<span class="material-icons" style="font-size: 16px;">close</span>`;
+                html += `</button>`;
+                html += `</div>`;
+                html += `</td>`;
+                
+                // Ячейки с данными
                 columns.forEach(column => {
                     let value = row[column.name];
+                    let displayValue = value;
+                    
                     if (value === null || value === '') {
-                        value = '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>';
-                    } else if (typeof value === 'string' && value.length > 100) {
-                        value = value.substring(0, 100) + '...';
+                        displayValue = '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>';
+                    } else if (typeof value === 'string' && value.length > 50) {
+                        displayValue = value.substring(0, 50) + '...';
                     }
-                    html += `<td>${value}</td>`;
+                    
+                    html += `<td data-column="${column.name}" data-original-value="${escapeHtml(value || '')}">`;
+                    html += `<div class="view-cell">${displayValue}</div>`;
+                    html += `<div class="edit-cell" style="display: none;">`;
+                    
+                    // Определяем тип поля для редактирования
+                    if (column.type.includes('text') || column.type.includes('varchar')) {
+                        html += `<textarea class="edit-input" data-column="${column.name}" style="width: 100%; height: 60px;">${escapeHtml(value || '')}</textarea>`;
+                    } else if (column.type.includes('int') || column.type.includes('float') || column.type.includes('decimal')) {
+                        html += `<input type="number" class="edit-input" data-column="${column.name}" value="${escapeHtml(value || '')}" step="${column.type.includes('int') ? '1' : '0.01'}">`;
+                    } else if (column.type.includes('date')) {
+                        html += `<input type="date" class="edit-input" data-column="${column.name}" value="${escapeHtml(value || '')}">`;
+                    } else if (column.type.includes('datetime') || column.type.includes('timestamp')) {
+                        let dateValue = '';
+                        if (value) {
+                            const date = new Date(value);
+                            if (!isNaN(date)) {
+                                dateValue = date.toISOString().slice(0, 16);
+                            }
+                        }
+                        html += `<input type="datetime-local" class="edit-input" data-column="${column.name}" value="${dateValue}">`;
+                    } else if (column.type.includes('tinyint(1)')) {
+                        html += `<select class="edit-input" data-column="${column.name}">`;
+                        html += `<option value="1" ${value == 1 ? 'selected' : ''}>Да</option>`;
+                        html += `<option value="0" ${value == 0 ? 'selected' : ''}>Нет</option>`;
+                        html += `</select>`;
+                    } else {
+                        html += `<input type="text" class="edit-input" data-column="${column.name}" value="${escapeHtml(value || '')}">`;
+                    }
+                    
+                    html += `</div>`;
+                    html += `</td>`;
                 });
                 
-                // Кнопки действий
-                html += `<td class="actions-cell">
-                    <button class="btn btn-outline btn-small edit-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}' title="Редактировать">
-                        <span class="material-icons" style="font-size: 16px;">edit</span>
-                    </button>
-                    <button class="btn btn-outline btn-small delete-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}' title="Удалить" style="margin-left: 4px;">
-                        <span class="material-icons" style="font-size: 16px;">delete</span>
-                    </button>
-                </td>`;
                 html += '</tr>';
             });
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             
             container.innerHTML = html;
             
-            // Добавляем обработчики событий для кнопок
+            // Добавляем обработчики событий для кнопок редактирования
             document.querySelectorAll('.edit-row-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const table = this.dataset.table;
-                    const row = JSON.parse(this.dataset.row);
-                    showEditRowForm(table, row);
+                    const rowId = this.dataset.rowId;
+                    enableRowEditing(rowId);
                 });
             });
             
-            document.querySelectorAll('.delete-row-btn').forEach(btn => {
+            // Добавляем обработчики событий для кнопок сохранения
+            document.querySelectorAll('.save-row-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const table = this.dataset.table;
-                    const row = JSON.parse(this.dataset.row);
-                    
-                    showNotification(`Удалить строку из таблицы ${table}?`, 'warning', 5000);
-                    
-                    // Создаем кнопку подтверждения
-                    setTimeout(() => {
-                        showNotification(
-                            `Подтвердите удаление строки`,
-                            'error',
-                            5000,
-                            `<button class="btn btn-danger btn-small" onclick="confirmDeleteRow('${table}', '${escapeSql(JSON.stringify(row))}')">Удалить</button>`
-                        );
-                    }, 100);
+                    const rowId = this.dataset.rowId;
+                    saveRowEditing(rowId, table);
+                });
+            });
+            
+            // Добавляем обработчики событий для кнопок отмены
+            document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const rowId = this.dataset.rowId;
+                    cancelRowEditing(rowId);
                 });
             });
         }
         
-        // Функция подтверждения удаления строки
-        function confirmDeleteRow(table, rowJson) {
-            const row = JSON.parse(rowJson);
+        // Функция включения редактирования строки
+        function enableRowEditing(rowId) {
+            const row = document.getElementById(`row-${rowId}`);
+            if (!row) return;
             
-            const whereClause = Object.keys(row)
-                .map(key => `\`${key}\` = '${escapeSql(row[key])}'`)
-                .join(' AND ');
+            // Отключаем редактирование других строк
+            if (editingRowId && editingRowId !== rowId) {
+                cancelRowEditing(editingRowId);
+            }
             
-            const sql = `DELETE FROM \`${table}\` WHERE ${whereClause};`;
+            // Активируем редактирование текущей строки
+            editingRowId = rowId;
+            row.classList.add('editing');
             
-            executeSql(sql, true).then(success => {
-                if (success && currentTable === table) {
-                    loadTableData(table);
-                    showNotification('Строка успешно удалена', 'success');
+            // Показываем режим редактирования
+            row.querySelector('.view-mode').style.display = 'none';
+            row.querySelector('.edit-mode').style.display = 'flex';
+            
+            // Показываем поля редактирования
+            row.querySelectorAll('.view-cell').forEach(cell => {
+                cell.style.display = 'none';
+            });
+            
+            row.querySelectorAll('.edit-cell').forEach(cell => {
+                cell.style.display = 'block';
+            });
+            
+            // Фокус на первое поле
+            const firstInput = row.querySelector('.edit-input');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        }
+        
+        // Функция сохранения редактирования строки
+        function saveRowEditing(rowId, table) {
+            const row = document.getElementById(`row-${rowId}`);
+            if (!row) return;
+            
+            // Собираем данные для обновления
+            const updateData = {};
+            const primaryKey = 'id'; // Предполагаем, что первичный ключ называется 'id'
+            let primaryValue = null;
+            
+            row.querySelectorAll('.edit-input').forEach(input => {
+                const column = input.dataset.column;
+                let value = input.value;
+                
+                // Обработка специальных типов
+                if (input.type === 'number') {
+                    value = parseFloat(value) || 0;
+                } else if (input.type === 'select-one' && input.classList.contains('edit-input')) {
+                    value = parseInt(value) || 0;
+                }
+                
+                if (column === primaryKey) {
+                    primaryValue = value;
+                } else {
+                    updateData[column] = value;
                 }
             });
-        }
-        
-        // Функция отображения структуры таблицы
-        function showTableStructure(table) {
-            const sql = `DESCRIBE \`${table}\``;
-            document.getElementById('sqlQuery').value = sql;
-            document.getElementById('executeSqlBtn').click();
             
-            // Переключаемся на SQL редактор
-            document.getElementById('tableDataCard').style.display = 'none';
-            document.getElementById('sqlEditorCard').style.display = 'block';
+            if (!primaryValue) {
+                // Ищем первичный ключ в другом месте
+                const primaryCell = row.querySelector(`td[data-column="${primaryKey}"]`);
+                if (primaryCell) {
+                    primaryValue = primaryCell.dataset.originalValue;
+                }
+            }
+            
+            if (!primaryValue) {
+                showNotification('Не удалось определить первичный ключ строки', 'error');
+                return;
+            }
+            
+            // Показываем лоадер
+            const saveBtn = row.querySelector('.save-row-btn');
+            const originalContent = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<div class="loader" style="width: 16px; height: 16px; border-width: 2px;"></div>';
+            saveBtn.disabled = true;
+            
+            // Отправляем запрос на обновление
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'update_row',
+                    table: table,
+                    data: JSON.stringify(updateData),
+                    primary_key: primaryKey,
+                    primary_value: primaryValue
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Строка успешно обновлена', 'success');
+                    
+                    // Обновляем отображаемые значения
+                    row.querySelectorAll('.edit-input').forEach(input => {
+                        const column = input.dataset.column;
+                        const cell = row.querySelector(`td[data-column="${column}"]`);
+                        
+                        if (cell) {
+                            // Обновляем оригинальное значение
+                            cell.dataset.originalValue = input.value;
+                            
+                            // Обновляем отображаемое значение
+                            let displayValue = input.value;
+                            if (input.value === null || input.value === '') {
+                                displayValue = '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>';
+                            } else if (typeof input.value === 'string' && input.value.length > 50) {
+                                displayValue = input.value.substring(0, 50) + '...';
+                            }
+                            
+                            const viewCell = cell.querySelector('.view-cell');
+                            if (viewCell) {
+                                viewCell.innerHTML = displayValue;
+                            }
+                        }
+                    });
+                    
+                    // Возвращаемся в режим просмотра
+                    cancelRowEditing(rowId);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Ошибка сети при обновлении строки', 'error');
+            })
+            .finally(() => {
+                // Восстанавливаем кнопку
+                saveBtn.innerHTML = originalContent;
+                saveBtn.disabled = false;
+            });
         }
         
-        // Функция экспорта таблицы
-        function exportTable(table) {
-            const sql = `SELECT * FROM \`${table}\``;
-            document.getElementById('sqlQuery').value = sql;
-            document.getElementById('executeSqlBtn').click();
-            showNotification(`Запрос для экспорта таблицы "${table}" готов к выполнению`, 'info');
+        // Функция отмены редактирования строки
+        function cancelRowEditing(rowId) {
+            const row = document.getElementById(`row-${rowId}`);
+            if (!row) return;
+            
+            // Сбрасываем ID редактируемой строки
+            if (editingRowId === rowId) {
+                editingRowId = null;
+            }
+            
+            row.classList.remove('editing');
+            
+            // Возвращаемся к режиму просмотра
+            row.querySelector('.view-mode').style.display = 'flex';
+            row.querySelector('.edit-mode').style.display = 'none';
+            
+            // Восстанавливаем исходные значения
+            row.querySelectorAll('.edit-cell').forEach(cell => {
+                cell.style.display = 'none';
+            });
+            
+            row.querySelectorAll('.view-cell').forEach(cell => {
+                cell.style.display = 'block';
+            });
         }
         
         // Функция отображения формы добавления строки
         function showAddRowForm(table) {
-            currentEditingRow = null;
-            document.getElementById('editModalTitle').textContent = `Добавление строки в таблицу "${table}"`;
+            document.getElementById('addModalTitle').textContent = `Добавление строки в таблицу "${table}"`;
             
             // Запрашиваем структуру таблицы для создания формы
             fetch('', {
@@ -2411,8 +2616,8 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    renderEditForm(data.columns, table, null);
-                    showEditRowModal();
+                    renderAddForm(data.columns, table);
+                    showAddRowModal();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2423,40 +2628,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             });
         }
         
-        // Функция отображения формы редактирования строки
-        function showEditRowForm(table, row) {
-            currentEditingRow = row;
-            document.getElementById('editModalTitle').textContent = `Редактирование строки в таблице "${table}"`;
-            
-            // Запрашиваем структуру таблицы для создания формы
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    action: 'get_table_data',
-                    table: table
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    renderEditForm(data.columns, table, row);
-                    showEditRowModal();
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('Ошибка загрузки структуры таблицы', 'error');
-            });
-        }
-        
-        // Функция отрисовки формы редактирования
-        function renderEditForm(columns, table, row) {
-            const form = document.getElementById('editRowForm');
+        // Функция отрисовки формы добавления
+        function renderAddForm(columns, table) {
+            const form = document.getElementById('addRowForm');
             form.innerHTML = '';
             
             columns.forEach(column => {
@@ -2465,15 +2639,13 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     return;
                 }
                 
-                const value = row ? (row[column.name] || '') : '';
-                
                 const div = document.createElement('div');
                 div.className = 'form-group';
                 
                 const label = document.createElement('label');
                 label.className = 'form-label';
                 label.textContent = `${column.name} (${column.type})`;
-                label.htmlFor = `field_${column.name}`;
+                label.htmlFor = `add_field_${column.name}`;
                 
                 let input;
                 
@@ -2481,69 +2653,32 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 if (column.type.includes('text') || column.type.includes('varchar')) {
                     input = document.createElement('textarea');
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
-                    input.value = value;
                     input.rows = 3;
                 } else if (column.type.includes('int') || column.type.includes('float') || column.type.includes('decimal')) {
                     input = document.createElement('input');
                     input.type = 'number';
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
-                    input.value = value;
                     input.step = column.type.includes('int') ? '1' : '0.01';
                 } else if (column.type.includes('date')) {
                     input = document.createElement('input');
                     input.type = 'date';
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
-                    input.value = value;
-                } else if (column.type.includes('time')) {
-                    input = document.createElement('input');
-                    input.type = 'time';
-                    input.className = 'form-control';
-                    input.id = `field_${column.name}`;
-                    input.name = column.name;
-                    input.value = value;
                 } else if (column.type.includes('datetime') || column.type.includes('timestamp')) {
                     input = document.createElement('input');
                     input.type = 'datetime-local';
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
-                    // Преобразуем значение в формат datetime-local
-                    if (value) {
-                        const date = new Date(value);
-                        if (!isNaN(date)) {
-                            input.value = date.toISOString().slice(0, 16);
-                        }
-                    }
-                } else if (column.type.includes('enum')) {
-                    input = document.createElement('select');
-                    input.className = 'form-control';
-                    input.id = `field_${column.name}`;
-                    input.name = column.name;
-                    
-                    // Извлекаем значения ENUM из типа
-                    const enumValues = column.type.match(/enum\(([^)]+)\)/)[1]
-                        .replace(/'/g, '')
-                        .split(',');
-                    
-                    enumValues.forEach(enumValue => {
-                        const option = document.createElement('option');
-                        option.value = enumValue;
-                        option.textContent = enumValue;
-                        if (value === enumValue) {
-                            option.selected = true;
-                        }
-                        input.appendChild(option);
-                    });
                 } else if (column.type.includes('tinyint(1)')) {
                     input = document.createElement('select');
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
                     
                     const optionTrue = document.createElement('option');
@@ -2553,28 +2688,27 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     const optionFalse = document.createElement('option');
                     optionFalse.value = '0';
                     optionFalse.textContent = 'Нет';
+                    optionFalse.selected = true;
                     
                     input.appendChild(optionTrue);
                     input.appendChild(optionFalse);
-                    
-                    if (value === '1' || value === 1) {
-                        optionTrue.selected = true;
-                    } else {
-                        optionFalse.selected = true;
-                    }
                 } else {
                     input = document.createElement('input');
                     input.type = 'text';
                     input.className = 'form-control';
-                    input.id = `field_${column.name}`;
+                    input.id = `add_field_${column.name}`;
                     input.name = column.name;
-                    input.value = value;
                 }
                 
-                // Если поле обязательное и не имеет значения по умолчанию
+                // Если поле обязательное
                 if (column.nullable === false && !column.default && column.extra !== 'auto_increment') {
                     input.required = true;
                     label.innerHTML += ' <span style="color: var(--error);">*</span>';
+                }
+                
+                // Добавляем значение по умолчанию
+                if (column.default) {
+                    input.value = column.default === 'CURRENT_TIMESTAMP' ? '' : column.default;
                 }
                 
                 div.appendChild(label);
@@ -2583,14 +2717,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             });
             
             // Обработчик сохранения
-            document.getElementById('saveRowBtn').onclick = function() {
-                saveRow(table, columns, row);
+            document.getElementById('saveNewRowBtn').onclick = function() {
+                saveNewRow(table, columns);
             };
         }
         
-        // Функция сохранения строки
-        function saveRow(table, columns, originalRow) {
-            const form = document.getElementById('editRowForm');
+        // Функция сохранения новой строки
+        function saveNewRow(table, columns) {
+            const form = document.getElementById('addRowForm');
             const formData = {};
             
             // Собираем данные формы
@@ -2599,13 +2733,15 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     return;
                 }
                 
-                const input = form.querySelector(`#field_${column.name}`);
+                const input = form.querySelector(`#add_field_${column.name}`);
                 if (input) {
                     let value = input.value;
                     
                     // Обработка специальных типов
-                    if (column.type.includes('tinyint(1)')) {
-                        value = value === '1' ? 1 : 0;
+                    if (input.type === 'number') {
+                        value = parseFloat(value) || 0;
+                    } else if (input.type === 'select-one') {
+                        value = parseInt(value) || 0;
                     }
                     
                     // Если поле пустое и nullable, устанавливаем NULL
@@ -2617,34 +2753,18 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 }
             });
             
-            // Определяем, это добавление или обновление
-            let sql;
-            if (originalRow) {
-                // Обновление существующей строки
-                const setClause = Object.keys(formData)
-                    .filter(key => formData[key] !== null)
-                    .map(key => `\`${key}\` = '${escapeSql(formData[key])}'`)
-                    .join(', ');
-                
-                const whereClause = Object.keys(originalRow)
-                    .map(key => `\`${key}\` = '${escapeSql(originalRow[key])}'`)
-                    .join(' AND ');
-                
-                sql = `UPDATE \`${table}\` SET ${setClause} WHERE ${whereClause};`;
-            } else {
-                // Добавление новой строки
-                const columnsClause = Object.keys(formData)
-                    .map(key => `\`${key}\``)
-                    .join(', ');
-                
-                const valuesClause = Object.values(formData)
-                    .map(value => value === null ? 'NULL' : `'${escapeSql(value)}'`)
-                    .join(', ');
-                
-                sql = `INSERT INTO \`${table}\` (${columnsClause}) VALUES (${valuesClause});`;
-            }
+            // Строим SQL запрос для добавления
+            const columnsClause = Object.keys(formData)
+                .map(key => `\`${key}\``)
+                .join(', ');
             
-            const saveBtn = document.getElementById('saveRowBtn');
+            const valuesClause = Object.values(formData)
+                .map(value => value === null ? 'NULL' : `'${escapeSql(value)}'`)
+                .join(', ');
+            
+            const sql = `INSERT INTO \`${table}\` (${columnsClause}) VALUES (${valuesClause});`;
+            
+            const saveBtn = document.getElementById('saveNewRowBtn');
             const btnText = saveBtn.querySelector('.btn-text');
             const loader = saveBtn.querySelector('.loader');
             
@@ -2656,14 +2776,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Выполняем SQL запрос
             executeSql(sql, true).then(success => {
                 if (success) {
-                    hideEditRowModal();
+                    hideAddRowModal();
                     
                     // Перезагружаем данные таблицы
                     if (currentTable === table) {
                         loadTableData(table);
                     }
                     
-                    showNotification(originalRow ? 'Строка обновлена' : 'Строка добавлена', 'success');
+                    showNotification('Строка успешно добавлена', 'success');
                 }
                 
                 // Скрываем лоадер
@@ -2741,10 +2861,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             queryCard.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                     <span class="material-icons" style="color: var(--primary-color);">code</span>
-                    <h3 style="font-size: 16px; font-weight: 500;">Выполненный запрос</h3>
+                    <h3 style="font-size: 16px; font-weight: 600;">Выполненный запрос</h3>
                 </div>
-                <div style="background-color: rgba(0,0,0,0.05); padding: 12px; border-radius: 4px; font-family: 'Roboto Mono', monospace; font-size: 13px; overflow-x: auto;">
-                    ${sql}
+                <div style="background-color: var(--hover); padding: 12px; border-radius: 6px; font-family: 'Roboto Mono', monospace; font-size: 13px; overflow-x: auto;">
+                    ${escapeHtml(sql)}
                 </div>
                 <div style="margin-top: 12px; font-size: 14px; color: var(--on-surface); opacity: 0.7;">
                     Затронуто строк: <strong>${affectedRows}</strong>
@@ -2753,7 +2873,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             resultsDiv.appendChild(queryCard);
             
             if (results.length === 0 && affectedRows > 0) {
-                // Запрос без результата (INSERT, UPDATE, DELETE и т.д.)
                 return;
             }
             
@@ -2772,7 +2891,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                             </h3>
                             <span style="font-size: 14px; color: var(--on-surface); opacity: 0.7;">Найдено строк: ${result.row_count}</span>
                         </div>
-                        <div class="table-container">
+                        <div class="data-table-container">
                             <table class="data-table">
                                 <thead>
                                     <tr>
@@ -2786,7 +2905,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                                                 <td>
                                                     ${row[col] !== null && row[col] !== '' ? 
                                                         (typeof row[col] === 'string' && row[col].length > 50 ? 
-                                                            row[col].substring(0, 50) + '...' : row[col]) : 
+                                                            row[col].substring(0, 50) + '...' : escapeHtml(row[col])) : 
                                                         '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>'}
                                                 </td>
                                             `).join('')}
@@ -2800,82 +2919,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     resultsDiv.appendChild(tableCard);
                 }
             });
-            
-            // Если результатов нет, показываем сообщение
-            if (results.length === 0 && affectedRows === 0) {
-                resultsDiv.innerHTML += `
-                    <div class="notification info" style="margin-top: 20px; position: relative; top: 0; right: 0; transform: none;">
-                        <span class="material-icons notification-icon">info</span>
-                        <span>Запрос выполнен успешно, но не вернул результатов</span>
-                    </div>
-                `;
-            }
-        }
-        
-        // Функция добавления запроса в историю
-        function addToSqlHistory(sql) {
-            // Добавляем запрос в начало массива
-            sqlHistory.unshift({
-                sql: sql,
-                timestamp: new Date().toLocaleTimeString(),
-                date: new Date().toLocaleDateString()
-            });
-            
-            // Ограничиваем историю 20 последними запросами
-            if (sqlHistory.length > 20) {
-                sqlHistory.pop();
-            }
-            
-            // Сохраняем в localStorage
-            localStorage.setItem('sqlHistory', JSON.stringify(sqlHistory));
-            
-            // Обновляем отображение истории
-            renderSqlHistory();
-        }
-        
-        // Функция отрисовки истории SQL запросов
-        function renderSqlHistory() {
-            const historyList = document.getElementById('historyList');
-            
-            if (sqlHistory.length === 0) {
-                historyList.innerHTML = `
-                    <div class="empty-state" style="padding: 20px 0;">
-                        <span class="material-icons empty-state-icon">history</span>
-                        <p>История запросов пуста</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
-            
-            sqlHistory.forEach((item, index) => {
-                html += `
-                    <div class="history-item" style="background-color: var(--hover); padding: 12px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;" 
-                         onclick="document.getElementById('sqlQuery').value = \`${escapeHtml(item.sql)}\`; document.getElementById('sqlHistoryPanel').classList.remove('active');">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span style="font-size: 11px; color: var(--on-surface); opacity: 0.7;">${item.date} ${item.timestamp}</span>
-                            <button class="btn-icon" onclick="deleteHistoryItem(${index}); event.stopPropagation();" style="width: 24px; height: 24px; padding: 0;">
-                                <span class="material-icons" style="font-size: 16px;">delete</span>
-                            </button>
-                        </div>
-                        <div style="font-family: 'Roboto Mono', monospace; font-size: 12px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            ${escapeHtml(item.sql.length > 100 ? item.sql.substring(0, 100) + '...' : item.sql)}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            
-            historyList.innerHTML = html;
-        }
-        
-        // Функция удаления элемента истории
-        function deleteHistoryItem(index) {
-            sqlHistory.splice(index, 1);
-            localStorage.setItem('sqlHistory', JSON.stringify(sqlHistory));
-            renderSqlHistory();
         }
         
         // Функция инициализации переключателя темы
@@ -2888,7 +2931,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     document.body.classList.toggle('dark-theme', isDarkTheme);
                     
                     // Сохраняем выбор темы в cookie
-                    document.cookie = `dark_theme=${isDarkTheme}; path=/; max-age=31536000`; // 1 год
+                    document.cookie = `dark_theme=${isDarkTheme}; path=/; max-age=31536000`;
                     
                     showNotification(isDarkTheme ? 'Темная тема включена' : 'Светлая тема включена', 'info');
                 });
@@ -2896,7 +2939,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         // Функция показа уведомления
-        function showNotification(message, type = 'info', duration = 3000, actionHtml = '') {
+        function showNotification(message, type = 'info', duration = 3000) {
             const notificationContainer = document.getElementById('notificationContainer');
             const notificationId = 'notification-' + Date.now();
             
@@ -2914,7 +2957,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             notification.innerHTML = `
                 <span class="material-icons notification-icon">${icons[type] || 'info'}</span>
                 <span style="flex: 1;">${message}</span>
-                ${actionHtml}
                 <button class="notification-close" onclick="removeNotification('${notificationId}')">
                     <span class="material-icons">close</span>
                 </button>
@@ -2950,26 +2992,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             }
         }
         
-        // Функция инициализации автодополнения SQL
-        function initSqlAutocomplete() {
-            const textarea = document.getElementById('sqlQuery');
-            const keywords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 
-                            'CREATE', 'TABLE', 'ALTER', 'DROP', 'SHOW', 'DESCRIBE', 'JOIN', 'LEFT', 'RIGHT', 
-                            'INNER', 'OUTER', 'ON', 'GROUP BY', 'ORDER BY', 'LIMIT', 'AND', 'OR', 'NOT', 'NULL'];
-            
-            textarea.addEventListener('keydown', function(e) {
-                if (e.key === 'Tab') {
-                    e.preventDefault();
-                    const start = this.selectionStart;
-                    const end = this.selectionEnd;
-                    
-                    // Вставляем отступ
-                    this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
-                    this.selectionStart = this.selectionEnd = start + 4;
-                }
-            });
-        }
-        
         // Функция экранирования SQL строк
         function escapeSql(str) {
             if (str === null || str === undefined) return '';
@@ -2978,6 +3000,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         // Функция экранирования HTML
         function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
