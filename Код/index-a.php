@@ -1860,13 +1860,19 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             const seconds = diff % 60;
             const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
             
-            document.getElementById('activeTime').textContent = timeStr;
+            const activeTimeEl = document.getElementById('activeTime');
+            if (activeTimeEl) {
+                activeTimeEl.textContent = timeStr;
+            }
         }
         
         // Функция обновления статистики
         function updateStats() {
             // Обновляем счетчик запросов
-            document.getElementById('queryCount').textContent = queryCount;
+            const queryCountEl = document.getElementById('queryCount');
+            if (queryCountEl) {
+                queryCountEl.textContent = queryCount;
+            }
             
             // Сохраняем в localStorage
             localStorage.setItem('queryCount', queryCount);
@@ -1875,268 +1881,395 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         // Функция инициализации элементов UI
         function initUIElements() {
             // Кнопка меню для мобильных устройств
-            document.getElementById('menuToggle').addEventListener('click', function() {
-                document.getElementById('sidebar').classList.toggle('active');
-            });
+            const menuToggle = document.getElementById('menuToggle');
+            if (menuToggle) {
+                menuToggle.addEventListener('click', function() {
+                    const sidebar = document.getElementById('sidebar');
+                    if (sidebar) {
+                        sidebar.classList.toggle('active');
+                    }
+                });
+            }
             
             // Меню пользователя
-            document.getElementById('userMenuToggle').addEventListener('click', function(e) {
-                e.stopPropagation();
-                document.getElementById('userDropdown').classList.toggle('active');
-            });
+            const userMenuToggle = document.getElementById('userMenuToggle');
+            if (userMenuToggle) {
+                userMenuToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const userDropdown = document.getElementById('userDropdown');
+                    if (userDropdown) {
+                        userDropdown.classList.toggle('active');
+                    }
+                });
+            }
             
             // Закрытие меню пользователя при клике вне его
             document.addEventListener('click', function(e) {
                 const userDropdown = document.getElementById('userDropdown');
                 const userMenuToggle = document.getElementById('userMenuToggle');
                 
-                if (!userMenuToggle.contains(e.target) && !userDropdown.contains(e.target)) {
-                    userDropdown.classList.remove('active');
+                if (userMenuToggle && userDropdown) {
+                    if (!userMenuToggle.contains(e.target) && !userDropdown.contains(e.target)) {
+                        userDropdown.classList.remove('active');
+                    }
                 }
             });
             
             // Кнопка выхода
-            document.getElementById('logoutBtn').addEventListener('click', function() {
-                fetch('', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'logout'
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function() {
+                    fetch('', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            action: 'logout'
+                        })
                     })
-                })
-                .then(() => {
-                    showNotification('Выход выполнен', 'success');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
+                    .then(() => {
+                        showNotification('Выход выполнен', 'success');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    });
                 });
-            });
+            }
             
             // Кнопка смены пароля
-            document.getElementById('changePasswordBtn').addEventListener('click', function() {
-                document.getElementById('userDropdown').classList.remove('active');
-                showChangePasswordModal();
-            });
+            const changePasswordBtn = document.getElementById('changePasswordBtn');
+            if (changePasswordBtn) {
+                changePasswordBtn.addEventListener('click', function() {
+                    const userDropdown = document.getElementById('userDropdown');
+                    if (userDropdown) {
+                        userDropdown.classList.remove('active');
+                    }
+                    showChangePasswordModal();
+                });
+            }
             
             // Кнопка настроек профиля
-            document.getElementById('profileSettingsBtn').addEventListener('click', function() {
-                document.getElementById('userDropdown').classList.remove('active');
-                showProfileSettingsModal();
-            });
+            const profileSettingsBtn = document.getElementById('profileSettingsBtn');
+            if (profileSettingsBtn) {
+                profileSettingsBtn.addEventListener('click', function() {
+                    const userDropdown = document.getElementById('userDropdown');
+                    if (userDropdown) {
+                        userDropdown.classList.remove('active');
+                    }
+                    showProfileSettingsModal();
+                });
+            }
             
             // Закрытие модального окна смены пароля
-            document.getElementById('closeChangePasswordModal').addEventListener('click', function() {
-                hideChangePasswordModal();
-            });
+            const closeChangePasswordModal = document.getElementById('closeChangePasswordModal');
+            if (closeChangePasswordModal) {
+                closeChangePasswordModal.addEventListener('click', function() {
+                    hideChangePasswordModal();
+                });
+            }
             
-            document.getElementById('cancelChangePassword').addEventListener('click', function() {
-                hideChangePasswordModal();
-            });
+            const cancelChangePassword = document.getElementById('cancelChangePassword');
+            if (cancelChangePassword) {
+                cancelChangePassword.addEventListener('click', function() {
+                    hideChangePasswordModal();
+                });
+            }
             
             // Форма смены пароля
-            document.getElementById('savePasswordBtn').addEventListener('click', function() {
-                const currentPassword = document.getElementById('currentPassword').value;
-                const newPassword = document.getElementById('newPassword').value;
-                const confirmPassword = document.getElementById('confirmPassword').value;
-                
-                if (!currentPassword || !newPassword || !confirmPassword) {
-                    showNotification('Заполните все поля', 'error');
-                    return;
-                }
-                
-                if (newPassword.length < 6) {
-                    showNotification('Новый пароль должен содержать минимум 6 символов', 'error');
-                    return;
-                }
-                
-                if (newPassword !== confirmPassword) {
-                    showNotification('Пароли не совпадают', 'error');
-                    return;
-                }
-                
-                const saveBtn = document.getElementById('savePasswordBtn');
-                const btnText = saveBtn.querySelector('.btn-text');
-                const loader = saveBtn.querySelector('.loader');
-                
-                // Показываем лоадер
-                btnText.style.display = 'none';
-                loader.style.display = 'inline-block';
-                saveBtn.disabled = true;
-                
-                // Отправляем запрос на смену пароля
-                fetch('', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'change_password',
-                        current_password: currentPassword,
-                        new_password: newPassword,
-                        confirm_password: confirmPassword
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification(data.message, 'success');
-                        hideChangePasswordModal();
-                        document.getElementById('currentPassword').value = '';
-                        document.getElementById('newPassword').value = '';
-                        document.getElementById('confirmPassword').value = '';
-                    } else {
-                        showNotification(data.message, 'error');
+            const savePasswordBtn = document.getElementById('savePasswordBtn');
+            if (savePasswordBtn) {
+                savePasswordBtn.addEventListener('click', function() {
+                    const currentPassword = document.getElementById('currentPassword');
+                    const newPassword = document.getElementById('newPassword');
+                    const confirmPassword = document.getElementById('confirmPassword');
+                    
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        showNotification('Заполните все поля', 'error');
+                        return;
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showNotification('Ошибка сети', 'error');
-                })
-                .finally(() => {
-                    // Скрываем лоадер
-                    btnText.style.display = 'inline';
-                    loader.style.display = 'none';
-                    saveBtn.disabled = false;
+                    
+                    const currentPasswordVal = currentPassword.value;
+                    const newPasswordVal = newPassword.value;
+                    const confirmPasswordVal = confirmPassword.value;
+                    
+                    if (!currentPasswordVal || !newPasswordVal || !confirmPasswordVal) {
+                        showNotification('Заполните все поля', 'error');
+                        return;
+                    }
+                    
+                    if (newPasswordVal.length < 6) {
+                        showNotification('Новый пароль должен содержать минимум 6 символов', 'error');
+                        return;
+                    }
+                    
+                    if (newPasswordVal !== confirmPasswordVal) {
+                        showNotification('Пароли не совпадают', 'error');
+                        return;
+                    }
+                    
+                    const btnText = savePasswordBtn.querySelector('.btn-text');
+                    const loader = savePasswordBtn.querySelector('.loader');
+                    
+                    // Показываем лоадер
+                    if (btnText) btnText.style.display = 'none';
+                    if (loader) loader.style.display = 'inline-block';
+                    savePasswordBtn.disabled = true;
+                    
+                    // Отправляем запрос на смену пароля
+                    fetch('', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            action: 'change_password',
+                            current_password: currentPasswordVal,
+                            new_password: newPasswordVal,
+                            confirm_password: confirmPasswordVal
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showNotification(data.message, 'success');
+                            hideChangePasswordModal();
+                            if (currentPassword) currentPassword.value = '';
+                            if (newPassword) newPassword.value = '';
+                            if (confirmPassword) confirmPassword.value = '';
+                        } else {
+                            showNotification(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showNotification('Ошибка сети', 'error');
+                    })
+                    .finally(() => {
+                        // Скрываем лоадер
+                        if (btnText) btnText.style.display = 'inline';
+                        if (loader) loader.style.display = 'none';
+                        savePasswordBtn.disabled = false;
+                    });
                 });
-            });
+            }
             
             // Кнопка выполнения SQL запроса
-            document.getElementById('executeSqlBtn').addEventListener('click', function() {
-                const sqlQuery = document.getElementById('sqlQuery').value.trim();
-                if (sqlQuery) {
-                    executeSql(sqlQuery);
-                    queryCount++;
-                    updateStats();
-                }
-            });
+            const executeSqlBtn = document.getElementById('executeSqlBtn');
+            if (executeSqlBtn) {
+                executeSqlBtn.addEventListener('click', function() {
+                    const sqlQueryEl = document.getElementById('sqlQuery');
+                    if (sqlQueryEl) {
+                        const sqlQuery = sqlQueryEl.value.trim();
+                        if (sqlQuery) {
+                            executeSql(sqlQuery);
+                            queryCount++;
+                            updateStats();
+                        }
+                    }
+                });
+            }
             
             // Кнопки быстрых SQL запросов
             document.querySelectorAll('.quick-sql-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const sql = this.dataset.sql;
-                    document.getElementById('sqlQuery').value = sql;
-                    document.getElementById('executeSqlBtn').click();
+                    const sqlQueryEl = document.getElementById('sqlQuery');
+                    if (sqlQueryEl) {
+                        sqlQueryEl.value = sql;
+                        const executeSqlBtnEl = document.getElementById('executeSqlBtn');
+                        if (executeSqlBtnEl) {
+                            executeSqlBtnEl.click();
+                        }
+                    }
                 });
             });
             
             // Кнопка обновления таблицы
-            document.getElementById('refreshTableBtn').addEventListener('click', function() {
-                if (currentTable) {
-                    loadTableData(currentTable);
-                    showNotification('Таблица обновлена', 'success');
-                }
-            });
+            const refreshTableBtn = document.getElementById('refreshTableBtn');
+            if (refreshTableBtn) {
+                refreshTableBtn.addEventListener('click', function() {
+                    if (currentTable) {
+                        loadTableData(currentTable);
+                        showNotification('Таблица обновлена', 'success');
+                    }
+                });
+            }
             
             // Кнопка добавления строки
-            document.getElementById('addRowBtn').addEventListener('click', function() {
-                if (currentTable) {
-                    showAddRowForm(currentTable);
-                }
-            });
+            const addRowBtn = document.getElementById('addRowBtn');
+            if (addRowBtn) {
+                addRowBtn.addEventListener('click', function() {
+                    if (currentTable) {
+                        showAddRowForm(currentTable);
+                    }
+                });
+            }
             
             // Закрытие модального окна добавления строки
-            document.getElementById('closeAddRowModal').addEventListener('click', function() {
-                hideAddRowModal();
-            });
+            const closeAddRowModal = document.getElementById('closeAddRowModal');
+            if (closeAddRowModal) {
+                closeAddRowModal.addEventListener('click', function() {
+                    hideAddRowModal();
+                });
+            }
             
-            document.getElementById('cancelAddRow').addEventListener('click', function() {
-                hideAddRowModal();
-            });
+            const cancelAddRow = document.getElementById('cancelAddRow');
+            if (cancelAddRow) {
+                cancelAddRow.addEventListener('click', function() {
+                    hideAddRowModal();
+                });
+            }
             
             // Кнопки бокового меню
-            document.getElementById('tablesHeader').addEventListener('click', function() {
-                const tableList = document.getElementById('tableList');
-                const toggleIcon = this.querySelector('.toggle-icon');
-                
-                tableList.classList.toggle('expanded');
-                toggleIcon.classList.toggle('expanded');
-            });
+            const tablesHeader = document.getElementById('tablesHeader');
+            if (tablesHeader) {
+                tablesHeader.addEventListener('click', function() {
+                    const tableList = document.getElementById('tableList');
+                    const toggleIcon = this.querySelector('.toggle-icon');
+                    
+                    if (tableList) {
+                        tableList.classList.toggle('expanded');
+                    }
+                    if (toggleIcon) {
+                        toggleIcon.classList.toggle('expanded');
+                    }
+                });
+            }
             
-            document.getElementById('statisticsBtn').addEventListener('click', function() {
-                showStatistics();
-            });
+            const statisticsBtn = document.getElementById('statisticsBtn');
+            if (statisticsBtn) {
+                statisticsBtn.addEventListener('click', function() {
+                    showStatistics();
+                });
+            }
             
-            document.getElementById('sqlEditorBtn').addEventListener('click', function() {
-                showSqlEditor();
-            });
+            const sqlEditorBtn = document.getElementById('sqlEditorBtn');
+            if (sqlEditorBtn) {
+                sqlEditorBtn.addEventListener('click', function() {
+                    showSqlEditor();
+                });
+            }
             
             // Закрытие модального окна настроек профиля
-            document.getElementById('closeProfileSettingsModal').addEventListener('click', function() {
-                hideProfileSettingsModal();
-            });
+            const closeProfileSettingsModal = document.getElementById('closeProfileSettingsModal');
+            if (closeProfileSettingsModal) {
+                closeProfileSettingsModal.addEventListener('click', function() {
+                    hideProfileSettingsModal();
+                });
+            }
             
-            document.getElementById('closeProfileSettingsBtn').addEventListener('click', function() {
-                hideProfileSettingsModal();
-            });
+            const closeProfileSettingsBtn = document.getElementById('closeProfileSettingsBtn');
+            if (closeProfileSettingsBtn) {
+                closeProfileSettingsBtn.addEventListener('click', function() {
+                    hideProfileSettingsModal();
+                });
+            }
             
             // Обработка нажатия Ctrl+Enter в SQL редакторе
-            document.getElementById('sqlQuery').addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.key === 'Enter') {
-                    e.preventDefault();
-                    document.getElementById('executeSqlBtn').click();
-                }
-            });
+            const sqlQueryEl = document.getElementById('sqlQuery');
+            if (sqlQueryEl) {
+                sqlQueryEl.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        e.preventDefault();
+                        const executeSqlBtnEl = document.getElementById('executeSqlBtn');
+                        if (executeSqlBtnEl) {
+                            executeSqlBtnEl.click();
+                        }
+                    }
+                });
+            }
         }
         
         // Функция показа модального окна смены пароля
         function showChangePasswordModal() {
-            document.getElementById('changePasswordModal').classList.add('active');
+            const modal = document.getElementById('changePasswordModal');
+            if (modal) {
+                modal.classList.add('active');
+            }
         }
         
         // Функция скрытия модального окна смены пароля
         function hideChangePasswordModal() {
-            document.getElementById('changePasswordModal').classList.remove('active');
+            const modal = document.getElementById('changePasswordModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
         }
         
         // Функция показа модального окна настроек профиля
         function showProfileSettingsModal() {
-            document.getElementById('profileSettingsModal').classList.add('active');
+            const modal = document.getElementById('profileSettingsModal');
+            if (modal) {
+                modal.classList.add('active');
+            }
         }
         
         // Функция скрытия модального окна настроек профиля
         function hideProfileSettingsModal() {
-            document.getElementById('profileSettingsModal').classList.remove('active');
+            const modal = document.getElementById('profileSettingsModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
         }
         
         // Функция показа модального окна добавления строки
         function showAddRowModal() {
-            document.getElementById('addRowModal').classList.add('active');
+            const modal = document.getElementById('addRowModal');
+            if (modal) {
+                modal.classList.add('active');
+            }
         }
         
         // Функция скрытия модального окна добавления строки
         function hideAddRowModal() {
-            document.getElementById('addRowModal').classList.remove('active');
+            const modal = document.getElementById('addRowModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
         }
         
         // Функция показа статистики
         function showStatistics() {
-            document.getElementById('tableDataCard').style.display = 'none';
-            document.getElementById('sqlEditorCard').style.display = 'block';
-            document.getElementById('statsGrid').style.display = 'grid';
+            const tableDataCard = document.getElementById('tableDataCard');
+            const sqlEditorCard = document.getElementById('sqlEditorCard');
+            const statsGrid = document.getElementById('statsGrid');
+            
+            if (tableDataCard) tableDataCard.style.display = 'none';
+            if (sqlEditorCard) sqlEditorCard.style.display = 'block';
+            if (statsGrid) statsGrid.style.display = 'grid';
             
             // Обновляем активный элемент меню
             updateActiveMenuItem('statisticsBtn');
             
             // Закрываем боковую панель на мобильных
             if (window.innerWidth <= 1200) {
-                document.getElementById('sidebar').classList.remove('active');
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('active');
+                }
             }
         }
         
         // Функция показа SQL редактора
         function showSqlEditor() {
-            document.getElementById('tableDataCard').style.display = 'none';
-            document.getElementById('sqlEditorCard').style.display = 'block';
-            document.getElementById('statsGrid').style.display = 'none';
+            const tableDataCard = document.getElementById('tableDataCard');
+            const sqlEditorCard = document.getElementById('sqlEditorCard');
+            const statsGrid = document.getElementById('statsGrid');
+            
+            if (tableDataCard) tableDataCard.style.display = 'none';
+            if (sqlEditorCard) sqlEditorCard.style.display = 'block';
+            if (statsGrid) statsGrid.style.display = 'none';
             
             // Обновляем активный элемент меню
             updateActiveMenuItem('sqlEditorBtn');
             
             // Закрываем боковую панель на мобильных
             if (window.innerWidth <= 1200) {
-                document.getElementById('sidebar').classList.remove('active');
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) {
+                    sidebar.classList.remove('active');
+                }
             }
         }
         
@@ -2168,7 +2301,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(data => {
                 if (data.success) {
                     renderTableList(data.tables);
-                    document.getElementById('tableCount').textContent = data.tables.length;
+                    const tableCountEl = document.getElementById('tableCount');
+                    if (tableCountEl) {
+                        tableCountEl.textContent = data.tables.length;
+                    }
                     
                     // Загружаем статистику по строкам
                     loadTotalRows(data.tables);
@@ -2205,7 +2341,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                         completedRequests++;
                         
                         if (completedRequests === tables.length) {
-                            document.getElementById('totalRows').textContent = totalRows.toLocaleString();
+                            const totalRowsEl = document.getElementById('totalRows');
+                            if (totalRowsEl) {
+                                totalRowsEl.textContent = totalRows.toLocaleString();
+                            }
                         }
                     }
                 })
@@ -2249,21 +2388,28 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             currentTable = table;
             
             // Показываем карточку с данными таблицы
-            document.getElementById('tableDataCard').style.display = 'block';
-            document.getElementById('sqlEditorCard').style.display = 'none';
-            document.getElementById('statsGrid').style.display = 'none';
+            const tableDataCard = document.getElementById('tableDataCard');
+            const sqlEditorCard = document.getElementById('sqlEditorCard');
+            const statsGrid = document.getElementById('statsGrid');
+            const tableTitle = document.getElementById('tableTitle');
+            const container = document.getElementById('tableDataContainer');
+            
+            if (tableDataCard) tableDataCard.style.display = 'block';
+            if (sqlEditorCard) sqlEditorCard.style.display = 'none';
+            if (statsGrid) statsGrid.style.display = 'none';
             
             // Обновляем заголовок
-            document.getElementById('tableTitle').textContent = table;
+            if (tableTitle) tableTitle.textContent = table;
             
             // Показываем лоадер
-            const container = document.getElementById('tableDataContainer');
-            container.innerHTML = `
-                <div style="text-align: center; padding: 60px 20px;">
-                    <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
-                    <p style="margin-top: 20px; color: var(--on-surface); opacity: 0.7;">Загрузка данных таблицы...</p>
-                </div>
-            `;
+            if (container) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px;">
+                        <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
+                        <p style="margin-top: 20px; color: var(--on-surface); opacity: 0.7;">Загрузка данных таблицы...</p>
+                    </div>
+                `;
+            }
             
             // Запрашиваем данные таблицы
             fetch('', {
@@ -2283,29 +2429,38 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     renderTableData(data.columns, data.rows, table, data.total_rows);
                 } else {
                     showNotification(data.message, 'error');
-                    container.innerHTML = `
-                        <div class="empty-state" style="text-align: center; padding: 40px 20px;">
-                            <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">error</span>
-                            <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка загрузки данных таблицы</p>
-                        </div>
-                    `;
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                                <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">error</span>
+                                <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка загрузки данных таблицы</p>
+                            </div>
+                        `;
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 showNotification('Ошибка загрузки данных таблицы', 'error');
-                container.innerHTML = `
-                    <div class="empty-state" style="text-align: center; padding: 40px 20px;">
-                        <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">wifi_off</span>
-                        <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка сети при загрузке данных</p>
-                    </div>
-                `;
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                            <span class="material-icons" style="font-size: 48px; color: var(--on-surface); opacity: 0.3;">wifi_off</span>
+                            <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Ошибка сети при загрузке данных</p>
+                        </div>
+                    `;
+                }
             });
         }
         
         // Функция отрисовки данных таблицы с inline-редактированием
         function renderTableData(columns, rows, table) {
             const container = document.getElementById('tableDataContainer');
+            
+            if (!container) {
+                console.warn('Table data container not found');
+                return;
+            }
             
             if (rows.length === 0) {
                 container.innerHTML = `
@@ -2600,7 +2755,13 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         // Функция отображения формы добавления строки
         function showAddRowForm(table) {
-            document.getElementById('addModalTitle').textContent = `Добавление строки в таблицу "${table}"`;
+            const addModalTitle = document.getElementById('addModalTitle');
+            if (!addModalTitle) {
+                console.warn('Add modal title element not found');
+                return;
+            }
+            
+            addModalTitle.textContent = `Добавление строки в таблицу "${table}"`;
             
             // Запрашиваем структуру таблицы для создания формы
             fetch('', {
@@ -2631,6 +2792,12 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         // Функция отрисовки формы добавления
         function renderAddForm(columns, table) {
             const form = document.getElementById('addRowForm');
+            
+            if (!form) {
+                console.warn('Add row form element not found');
+                return;
+            }
+            
             form.innerHTML = '';
             
             columns.forEach(column => {
@@ -2799,12 +2966,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 if (!silent) {
                     // Показываем лоадер в результатах
                     const resultsDiv = document.getElementById('sqlResults');
-                    resultsDiv.innerHTML = `
-                        <div style="text-align: center; padding: 40px 20px;">
-                            <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
-                            <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Выполнение SQL запроса...</p>
-                        </div>
-                    `;
+                    if (resultsDiv) {
+                        resultsDiv.innerHTML = `
+                            <div style="text-align: center; padding: 40px 20px;">
+                                <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
+                                <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Выполнение SQL запроса...</p>
+                            </div>
+                        `;
+                    }
                 }
                 
                 fetch('', {
@@ -2829,12 +2998,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                         if (!silent) {
                             showNotification(data.message, 'error');
                             const resultsDiv = document.getElementById('sqlResults');
-                            resultsDiv.innerHTML = `
-                                <div class="notification error" style="margin-top: 20px; position: relative; top: 0; right: 0; transform: none;">
-                                    <span class="material-icons notification-icon">error</span>
-                                    <span>${data.message}</span>
-                                </div>
-                            `;
+                            if (resultsDiv) {
+                                resultsDiv.innerHTML = `
+                                    <div class="notification error" style="margin-top: 20px; position: relative; top: 0; right: 0; transform: none;">
+                                        <span class="material-icons notification-icon">error</span>
+                                        <span>${data.message}</span>
+                                    </div>
+                                `;
+                            }
                         }
                         resolve(false);
                     }
@@ -2852,6 +3023,12 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         // Функция отрисовки результатов SQL запроса
         function renderSqlResults(results, affectedRows, sql) {
             const resultsDiv = document.getElementById('sqlResults');
+            
+            if (!resultsDiv) {
+                console.warn('SQL results container not found');
+                return;
+            }
+            
             resultsDiv.innerHTML = '';
             
             // Показываем выполненный запрос
@@ -2941,6 +3118,12 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         // Функция показа уведомления
         function showNotification(message, type = 'info', duration = 3000) {
             const notificationContainer = document.getElementById('notificationContainer');
+            
+            if (!notificationContainer) {
+                console.warn('Notification container not found');
+                return;
+            }
+            
             const notificationId = 'notification-' + Date.now();
             
             const notification = document.createElement('div');
