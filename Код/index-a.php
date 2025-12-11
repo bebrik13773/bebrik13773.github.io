@@ -3,7 +3,7 @@
 define('DB_HOST', 'sql305.infinityfree.com');
 define('DB_USER', 'if0_39950285');
 define('DB_PASS', 'tmzPxb2Wu5aj6Lb');
-define('DB_NAME', 'if0_39950285_panel');
+define('DB_NAME', 'if0_39950285_base');
 
 // Инициализация сессии
 session_start();
@@ -62,7 +62,72 @@ function initializeDatabase() {
         $stmt->close();
     }
     
+    // Создаем демонстрационные таблицы
+    createDemoTables($conn);
+    
     $conn->close();
+}
+
+// Создание демонстрационных таблиц
+function createDemoTables($conn) {
+    // Таблица пользователей
+    $sql = "CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        role ENUM('admin', 'user', 'moderator') DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE
+    )";
+    $conn->query($sql);
+    
+    // Проверяем, есть ли данные в таблице users
+    $result = $conn->query("SELECT COUNT(*) as count FROM users");
+    $row = $result->fetch_assoc();
+    
+    if ($row['count'] == 0) {
+        // Добавляем демонстрационные данные
+        $demo_users = [
+            "('admin', 'admin@example.com', 'admin', TRUE)",
+            "('john_doe', 'john@example.com', 'user', TRUE)",
+            "('jane_smith', 'jane@example.com', 'moderator', TRUE)",
+            "('bob_wilson', 'bob@example.com', 'user', FALSE)"
+        ];
+        
+        foreach ($demo_users as $user) {
+            $conn->query("INSERT INTO users (username, email, role, is_active) VALUES $user");
+        }
+    }
+    
+    // Таблица продуктов
+    $sql = "CREATE TABLE IF NOT EXISTS products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        category VARCHAR(50),
+        price DECIMAL(10,2) NOT NULL,
+        stock INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
+    $conn->query($sql);
+    
+    // Проверяем, есть ли данные в таблице products
+    $result = $conn->query("SELECT COUNT(*) as count FROM products");
+    $row = $result->fetch_assoc();
+    
+    if ($row['count'] == 0) {
+        // Добавляем демонстрационные данные
+        $demo_products = [
+            "('Ноутбук', 'Электроника', 899.99, 15)",
+            "('Смартфон', 'Электроника', 599.99, 30)",
+            "('Наушники', 'Электроника', 149.99, 50)",
+            "('Книга', 'Книги', 24.99, 100)",
+            "('Кофеварка', 'Бытовая техника', 89.99, 20)"
+        ];
+        
+        foreach ($demo_products as $product) {
+            $conn->query("INSERT INTO products (name, category, price, stock) VALUES $product");
+        }
+    }
 }
 
 // Инициализация БД при каждом запуске
@@ -101,6 +166,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         $stmt->close();
         $conn->close();
+    }
+    
+    if ($_POST['action'] === 'logout') {
+        session_destroy();
+        $response['success'] = true;
+        $response['message'] = 'Выход выполнен';
     }
     
     if ($_POST['action'] === 'change_password') {
@@ -264,10 +335,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $rows[] = $row;
                 }
                 
+                // Получаем количество строк в таблице
+                $count_result = $conn->query("SELECT COUNT(*) as total FROM `$table`");
+                $total_rows = $count_result->fetch_assoc()['total'];
+                
                 $response['success'] = true;
                 $response['columns'] = $columns;
                 $response['rows'] = $rows;
                 $response['row_count'] = $data_result->num_rows;
+                $response['total_rows'] = $total_rows;
                 
                 $conn->close();
             }
@@ -293,30 +369,60 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #6200ee;
+            --primary-dark: #3700b3;
+            --primary-light: #bb86fc;
+            --secondary-color: #03dac6;
+            --secondary-dark: #018786;
+            --background: #f5f5f5;
+            --surface: #ffffff;
+            --error: #cf6679;
+            --on-primary: #ffffff;
+            --on-secondary: #000000;
+            --on-background: #333333;
+            --on-surface: #333333;
+            --border: #e0e0e0;
+            --hover: rgba(0, 0, 0, 0.04);
+            --shadow: 0 2px 4px rgba(0,0,0,0.1);
+            --shadow-heavy: 0 4px 8px rgba(0,0,0,0.2);
+            --radius: 8px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .dark-theme {
+            --primary-color: #bb86fc;
+            --primary-dark: #3700b3;
+            --primary-light: #6200ee;
+            --secondary-color: #03dac6;
+            --secondary-dark: #018786;
+            --background: #121212;
+            --surface: #1e1e1e;
+            --error: #cf6679;
+            --on-primary: #000000;
+            --on-secondary: #000000;
+            --on-background: #e0e0e0;
+            --on-surface: #e0e0e0;
+            --border: #333333;
+            --hover: rgba(255, 255, 255, 0.05);
+            --shadow: 0 2px 4px rgba(0,0,0,0.3);
+            --shadow-heavy: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+            transition: var(--transition);
         }
         
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
+            background-color: var(--background);
+            color: var(--on-background);
             line-height: 1.6;
             overflow-x: hidden;
-        }
-        
-        body.dark-theme {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+            min-height: 100vh;
         }
         
         /* Анимации */
@@ -336,6 +442,11 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             100% { transform: scale(1); }
         }
         
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .animated {
             animation-duration: 0.3s;
             animation-fill-mode: both;
@@ -343,24 +454,56 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         .fadeIn { animation-name: fadeIn; }
         .slideIn { animation-name: slideIn; }
+        .slideDown { animation-name: slideDown; }
         
         /* Заголовок */
-        header {
-            background-color: #6200ee;
-            color: white;
-            padding: 16px 24px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        .app-header {
+            background-color: var(--primary-color);
+            color: var(--on-primary);
+            padding: 0 24px;
+            box-shadow: var(--shadow-heavy);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: sticky;
+            position: fixed;
             top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
             z-index: 1000;
         }
         
-        body.dark-theme header {
-            background-color: #1e1e1e;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: var(--on-primary);
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .menu-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
         }
         
         .logo {
@@ -369,19 +512,386 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             gap: 12px;
         }
         
-        .logo h1 {
-            font-size: 24px;
-            font-weight: 500;
-        }
-        
         .logo-icon {
             font-size: 28px;
+            color: var(--on-primary);
         }
         
+        .logo-text h1 {
+            font-size: 20px;
+            font-weight: 500;
+            line-height: 1.2;
+        }
+        
+        .logo-text .subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        /* Улучшенный заголовок действий */
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 8px;
+            position: relative;
+        }
+        
+        .action-button {
+            background: none;
+            border: none;
+            color: var(--on-primary);
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        
+        .action-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .action-button.with-text {
+            width: auto;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            gap: 8px;
+        }
+        
+        .action-button .badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background-color: var(--secondary-color);
+            color: var(--on-secondary);
+            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .user-menu {
+            position: relative;
+        }
+        
+        .user-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: var(--surface);
+            color: var(--on-surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-heavy);
+            min-width: 200px;
+            overflow: hidden;
+            z-index: 1001;
+            margin-top: 8px;
+            display: none;
+        }
+        
+        .user-dropdown.active {
+            display: block;
+            animation: slideDown 0.2s;
+        }
+        
+        .user-dropdown-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .user-dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .user-dropdown-item:hover {
+            background-color: var(--hover);
+        }
+        
+        /* Боковая панель */
+        .sidebar {
+            width: 280px;
+            background-color: var(--surface);
+            height: calc(100vh - 64px);
+            position: fixed;
+            left: 0;
+            top: 64px;
+            overflow-y: auto;
+            z-index: 900;
+            border-right: 1px solid var(--border);
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .sidebar.active {
+            transform: translateX(0);
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--on-surface);
+        }
+        
+        .database-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--primary-color);
+            background-color: rgba(98, 0, 238, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .dark-theme .database-info {
+            background-color: rgba(187, 134, 252, 0.1);
+        }
+        
+        .table-list {
+            list-style: none;
+        }
+        
+        .table-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .table-item:hover {
+            background-color: var(--hover);
+        }
+        
+        .table-item.active {
+            background-color: rgba(98, 0, 238, 0.1);
+            color: var(--primary-color);
+            font-weight: 500;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .dark-theme .table-item.active {
+            background-color: rgba(187, 134, 252, 0.1);
+        }
+        
+        .table-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .table-icon {
+            font-size: 20px;
+            color: var(--primary-color);
+        }
+        
+        .table-name {
+            font-weight: 500;
+        }
+        
+        .table-stats {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        /* Основной контент */
+        .main-content {
+            margin-left: 0;
+            margin-top: 64px;
+            padding: 24px;
+            min-height: calc(100vh - 64px);
+            transition: margin-left 0.3s;
+        }
+        
+        .main-content.with-sidebar {
+            margin-left: 280px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Карточки */
+        .card {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .card-title {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--on-surface);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .card-subtitle {
+            font-size: 14px;
+            color: var(--primary-color);
+            margin-top: 4px;
+        }
+        
+        /* Формы */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--on-surface);
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 16px;
+            background-color: var(--surface);
+            color: var(--on-surface);
+            transition: border-color 0.2s;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(98, 0, 238, 0.2);
+        }
+        
+        .dark-theme .form-control:focus {
+            box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.2);
+        }
+        
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        /* SQL редактор */
+        .sql-editor-container {
+            position: relative;
+        }
+        
+        .sql-toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-sql-btn {
+            background-color: rgba(98, 0, 238, 0.1);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .quick-sql-btn:hover {
+            background-color: rgba(98, 0, 238, 0.2);
+        }
+        
+        .dark-theme .quick-sql-btn {
+            background-color: rgba(187, 134, 252, 0.1);
+            border-color: var(--primary-light);
+        }
+        
+        .sql-history-panel {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+        
+        .sql-history-panel.active {
+            display: block;
+        }
+        
+        /* Таблицы */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .data-table th {
+            background-color: rgba(0, 0, 0, 0.02);
+            padding: 16px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--on-surface);
+            border-bottom: 2px solid var(--border);
+            position: sticky;
+            top: 0;
+        }
+        
+        .dark-theme .data-table th {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+        
+        .data-table td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        
+        .data-table tr:hover {
+            background-color: var(--hover);
+        }
+        
+        .data-table .actions-cell {
+            white-space: nowrap;
         }
         
         /* Кнопки */
@@ -401,46 +911,38 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         }
         
         .btn-primary {
-            background-color: #6200ee;
-            color: white;
+            background-color: var(--primary-color);
+            color: var(--on-primary);
         }
         
         .btn-primary:hover {
-            background-color: #3700b3;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-heavy);
         }
         
         .btn-secondary {
-            background-color: #03dac6;
-            color: #000;
+            background-color: var(--secondary-color);
+            color: var(--on-secondary);
         }
         
         .btn-secondary:hover {
-            background-color: #018786;
+            background-color: var(--secondary-dark);
             color: white;
         }
         
         .btn-outline {
             background-color: transparent;
-            border: 1px solid #6200ee;
-            color: #6200ee;
-        }
-        
-        body.dark-theme .btn-outline {
-            border-color: #bb86fc;
-            color: #bb86fc;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
         }
         
         .btn-outline:hover {
             background-color: rgba(98, 0, 238, 0.1);
         }
         
-        body.dark-theme .btn-outline:hover {
-            background-color: rgba(187, 134, 252, 0.1);
-        }
-        
         .btn-danger {
-            background-color: #cf6679;
+            background-color: var(--error);
             color: white;
         }
         
@@ -453,219 +955,342 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             font-size: 13px;
         }
         
-        /* Карточки */
-        .card {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 24px;
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: 50%;
+        }
+        
+        /* Статистика */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
             margin-bottom: 24px;
         }
         
-        body.dark-theme .card {
-            background-color: #1e1e1e;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        .stat-card {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            border: 1px solid var(--border);
+            transition: transform 0.2s;
         }
         
-        .card-header {
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-heavy);
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e0e0e0;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 24px;
         }
         
-        body.dark-theme .card-header {
-            border-bottom-color: #333;
+        .stat-icon.primary {
+            background-color: rgba(98, 0, 238, 0.1);
+            color: var(--primary-color);
         }
         
-        .card-title {
-            font-size: 20px;
-            font-weight: 500;
+        .stat-icon.secondary {
+            background-color: rgba(3, 218, 198, 0.1);
+            color: var(--secondary-color);
         }
         
-        /* Формы */
-        .form-group {
-            margin-bottom: 20px;
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
         }
         
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-            background-color: white;
-            color: #333;
-        }
-        
-        body.dark-theme .form-control {
-            background-color: #2c2c2c;
-            border-color: #444;
-            color: #e0e0e0;
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #6200ee;
-            box-shadow: 0 0 0 2px rgba(98, 0, 238, 0.2);
-        }
-        
-        body.dark-theme .form-control:focus {
-            border-color: #bb86fc;
-            box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.2);
-        }
-        
-        textarea.form-control {
-            min-height: 120px;
-            resize: vertical;
-            font-family: monospace;
+        .stat-label {
             font-size: 14px;
+            color: var(--on-surface);
+            opacity: 0.7;
         }
         
-        /* Сетка */
-        .row {
-            display: flex;
-            flex-wrap: wrap;
-            margin: 0 -12px;
-        }
-        
-        .col {
-            flex: 1;
-            padding: 0 12px;
-        }
-        
-        .col-6 {
-            width: 50%;
-            flex: 0 0 50%;
-            padding: 0 12px;
-        }
-        
-        /* Таблицы */
-        .table-container {
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th, td {
-            padding: 12px 16px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        body.dark-theme th, body.dark-theme td {
-            border-bottom-color: #333;
-        }
-        
-        th {
-            background-color: #f5f5f5;
-            font-weight: 500;
-        }
-        
-        body.dark-theme th {
-            background-color: #2c2c2c;
-        }
-        
-        tr:hover {
-            background-color: rgba(0,0,0,0.04);
-        }
-        
-        body.dark-theme tr:hover {
-            background-color: rgba(255,255,255,0.05);
-        }
-        
-        /* Боковая панель */
-        .sidebar {
-            width: 280px;
-            background-color: white;
-            box-shadow: 2px 0 4px rgba(0,0,0,0.1);
-            height: calc(100vh - 68px);
+        /* Модальные окна */
+        .modal-overlay {
             position: fixed;
+            top: 0;
             left: 0;
-            top: 68px;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
             overflow-y: auto;
-            z-index: 900;
-            transform: translateX(-100%);
+            box-shadow: var(--shadow-heavy);
+            transform: translateY(20px);
             transition: transform 0.3s;
         }
         
-        body.dark-theme .sidebar {
-            background-color: #1e1e1e;
-            box-shadow: 2px 0 4px rgba(0,0,0,0.3);
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
         }
         
-        .sidebar.active {
+        /* Уведомления */
+        .notification-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1200;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .notification {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            border-left: 4px solid;
+            transform: translateX(150%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .notification.active {
             transform: translateX(0);
         }
         
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #e0e0e0;
+        .notification.success {
+            border-left-color: #4caf50;
         }
         
-        body.dark-theme .sidebar-header {
-            border-bottom-color: #333;
+        .notification.success .notification-icon {
+            color: #4caf50;
         }
         
-        .sidebar-title {
-            font-size: 18px;
-            font-weight: 500;
+        .notification.error {
+            border-left-color: #f44336;
         }
         
-        .table-list {
-            list-style: none;
+        .notification.error .notification-icon {
+            color: #f44336;
         }
         
-        .table-item {
-            padding: 12px 20px;
-            border-bottom: 1px solid #f5f5f5;
+        .notification.info {
+            border-left-color: #2196f3;
+        }
+        
+        .notification.info .notification-icon {
+            color: #2196f3;
+        }
+        
+        .notification.warning {
+            border-left-color: #ff9800;
+        }
+        
+        .notification.warning .notification-icon {
+            color: #ff9800;
+        }
+        
+        .notification-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--on-surface);
             cursor: pointer;
-            transition: background-color 0.2s;
+            opacity: 0.7;
+            transition: opacity 0.2s;
         }
         
-        body.dark-theme .table-item {
-            border-bottom-color: #2c2c2c;
+        .notification-close:hover {
+            opacity: 1;
         }
         
-        .table-item:hover {
-            background-color: rgba(98, 0, 238, 0.08);
+        /* Загрузчик */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
         
-        body.dark-theme .table-item:hover {
-            background-color: rgba(187, 134, 252, 0.1);
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
-        .table-item.active {
-            background-color: rgba(98, 0, 238, 0.12);
-            color: #6200ee;
+        /* Авторизация */
+        .auth-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            padding: 20px;
+        }
+        
+        .auth-card {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: var(--shadow-heavy);
+            animation: fadeIn 0.5s;
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        
+        .auth-title {
+            font-size: 24px;
             font-weight: 500;
+            color: var(--on-surface);
+            margin-bottom: 8px;
         }
         
-        body.dark-theme .table-item.active {
-            background-color: rgba(187, 134, 252, 0.2);
-            color: #bb86fc;
+        .auth-subtitle {
+            font-size: 14px;
+            color: var(--on-surface);
+            opacity: 0.7;
         }
         
-        /* Основной контент */
-        .main-content {
-            margin-left: 0;
-            transition: margin-left 0.3s;
+        /* Адаптивность */
+        @media (max-width: 1200px) {
+            .main-content.with-sidebar {
+                margin-left: 0;
+            }
+            
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
         }
         
-        .main-content.with-sidebar {
-            margin-left: 280px;
+        @media (max-width: 768px) {
+            .app-header {
+                padding: 0 16px;
+            }
+            
+            .logo-text h1 {
+                font-size: 18px;
+            }
+            
+            .action-button.with-text span:not(.material-icons) {
+                display: none;
+            }
+            
+            .action-button.with-text {
+                padding: 8px;
+            }
+            
+            .main-content {
+                padding: 16px;
+            }
+            
+            .card {
+                padding: 16px;
+            }
+            
+            .sql-toolbar {
+                flex-direction: column;
+            }
+            
+            .quick-sql-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .data-table {
+                display: block;
+                overflow-x: auto;
+            }
+            
+            .notification {
+                min-width: auto;
+                width: calc(100vw - 40px);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .auth-card {
+                padding: 24px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Улучшения для таблиц */
+        .table-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .table-stats-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 14px;
+            color: var(--on-surface);
+            opacity: 0.7;
+            margin-left: auto;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--on-surface);
+            opacity: 0.7;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
         }
         
         /* Переключатель темы */
@@ -679,21 +1304,21 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             display: none;
         }
         
-        .toggle-slider {
+        .toggle-switch {
             width: 50px;
             height: 26px;
             background-color: #ccc;
             border-radius: 13px;
             position: relative;
             transition: background-color 0.3s;
-            margin-right: 10px;
+            margin: 0 8px;
         }
         
-        body.dark-theme .toggle-slider {
-            background-color: #6200ee;
+        .dark-theme .toggle-switch {
+            background-color: var(--primary-color);
         }
         
-        .toggle-slider:before {
+        .toggle-switch:before {
             content: "";
             position: absolute;
             width: 22px;
@@ -703,329 +1328,36 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             top: 2px;
             left: 2px;
             transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
-        body.dark-theme .toggle-slider:before {
+        .dark-theme .toggle-switch:before {
             transform: translateX(24px);
         }
         
-        /* Модальные окна */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1100;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal.active {
-            display: flex;
-            animation: fadeIn 0.3s;
-        }
-        
-        .modal-content {
-            background-color: white;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        
-        body.dark-theme .modal-content {
-            background-color: #1e1e1e;
-        }
-        
-        .modal-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        body.dark-theme .modal-header {
-            border-bottom-color: #333;
-        }
-        
-        .modal-title {
-            font-size: 20px;
-            font-weight: 500;
-        }
-        
-        .modal-body {
-            padding: 24px;
-        }
-        
-        .modal-footer {
-            padding: 20px 24px;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-        
-        body.dark-theme .modal-footer {
-            border-top-color: #333;
-        }
-        
-        /* Уведомления */
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 16px 24px;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1200;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transform: translateX(150%);
-            transition: transform 0.3s;
-        }
-        
-        .notification.active {
-            transform: translateX(0);
-        }
-        
-        .notification.success {
-            background-color: #4caf50;
-            color: white;
-        }
-        
-        .notification.error {
-            background-color: #f44336;
-            color: white;
-        }
-        
-        .notification.info {
-            background-color: #2196f3;
-            color: white;
-        }
-        
-        /* Адаптивность */
-        @media (max-width: 992px) {
-            .col-6 {
-                width: 100%;
-                flex: 0 0 100%;
-            }
-            
-            .sidebar {
-                width: 100%;
-                transform: translateX(-100%);
-            }
-            
-            .main-content.with-sidebar {
-                margin-left: 0;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            header {
-                padding: 12px 16px;
-            }
-            
-            .logo h1 {
-                font-size: 20px;
-            }
-            
-            .card {
-                padding: 16px;
-            }
-        }
-        
-        /* Лоадер */
-        .loader {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #6200ee;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Экран авторизации */
-        .auth-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f5f5f5;
-        }
-        
-        body.dark-theme .auth-container {
-            background-color: #121212;
-        }
-        
-        .auth-card {
-            width: 100%;
-            max-width: 400px;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-        }
-        
-        body.dark-theme .auth-card {
-            background-color: #1e1e1e;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        
-        .auth-title {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 24px;
-            font-weight: 500;
-        }
-        
-        /* Хлебные крошки */
-        .breadcrumb {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .breadcrumb-item {
-            display: flex;
-            align-items: center;
-            font-size: 14px;
-        }
-        
-        .breadcrumb-item:not(:last-child):after {
-            content: "chevron_right";
-            font-family: 'Material Icons';
-            font-size: 18px;
-            margin: 0 8px;
-            color: #757575;
-        }
-        
-        .breadcrumb-item a {
-            color: #6200ee;
-            text-decoration: none;
-        }
-        
-        body.dark-theme .breadcrumb-item a {
-            color: #bb86fc;
-        }
-        
-        .breadcrumb-item a:hover {
-            text-decoration: underline;
-        }
-        
-        .breadcrumb-item.active {
-            color: #757575;
-        }
-        
-        /* Пагинация */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            margin-top: 20px;
-        }
-        
-        .pagination-btn {
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background-color: transparent;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .pagination-btn:hover {
-            background-color: rgba(0,0,0,0.1);
-        }
-        
-        body.dark-theme .pagination-btn:hover {
-            background-color: rgba(255,255,255,0.1);
-        }
-        
-        .pagination-btn.active {
-            background-color: #6200ee;
-            color: white;
-        }
-        
-        body.dark-theme .pagination-btn.active {
-            background-color: #bb86fc;
-            color: #000;
-        }
-        
-        /* Кнопка меню */
-        .menu-toggle {
-            display: none;
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            font-size: 24px;
-        }
-        
-        @media (max-width: 992px) {
-            .menu-toggle {
-                display: block;
-            }
-        }
-        
-        /* SQL редактор */
-        .sql-editor {
+        /* Поле поиска */
+        .search-box {
             position: relative;
+            margin-bottom: 20px;
         }
         
-        .sql-editor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 14px;
+            background-color: var(--surface);
+            color: var(--on-surface);
         }
         
-        .sql-history {
-            margin-top: 20px;
-        }
-        
-        .history-item {
-            padding: 8px 12px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            font-family: monospace;
-            font-size: 13px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        body.dark-theme .history-item {
-            background-color: #2c2c2c;
-        }
-        
-        .history-item:hover {
-            background-color: #e0e0e0;
-        }
-        
-        body.dark-theme .history-item:hover {
-            background-color: #3c3c3c;
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--on-surface);
+            opacity: 0.5;
         }
     </style>
 </head>
@@ -1033,55 +1365,98 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     <?php if (!$authenticated): ?>
     <!-- Экран авторизации -->
     <div class="auth-container">
-        <div class="auth-card card animated fadeIn">
-            <h2 class="auth-title">SQL Панель управления</h2>
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">
+                    <span class="material-icons" style="font-size: 48px;">storage</span>
+                </div>
+                <h1 class="auth-title">SQL Панель управления</h1>
+                <p class="auth-subtitle">Войдите в систему для управления базой данных</p>
+            </div>
             <form id="loginForm">
                 <div class="form-group">
-                    <label for="password">Пароль</label>
+                    <label class="form-label" for="password">Пароль</label>
                     <input type="password" id="password" class="form-control" placeholder="Введите пароль" required>
-                    <div class="form-text">Пароль по умолчанию: Gosha123</div>
+                    <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 8px;">
+                        Пароль по умолчанию: <strong>Gosha123</strong>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                    <span class="btn-text">Войти</span>
-                    <div class="loader" style="display: none;"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                    <span class="btn-text">Войти в систему</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
                 </button>
             </form>
         </div>
     </div>
     <?php else: ?>
     <!-- Основной интерфейс -->
-    <header>
-        <div class="logo">
-            <button class="menu-toggle" id="menuToggle">
-                <span class="material-icons">menu</span>
-            </button>
-            <span class="material-icons logo-icon">storage</span>
-            <h1>SQL Панель управления</h1>
-        </div>
-        <div class="header-actions">
-            <div class="theme-toggle">
-                <span class="material-icons">light_mode</span>
-                <label class="toggle-slider">
-                    <input type="checkbox" id="themeToggle" <?php echo isset($_COOKIE['dark_theme']) && $_COOKIE['dark_theme'] === 'true' ? 'checked' : ''; ?>>
-                </label>
-                <span class="material-icons">dark_mode</span>
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo-area">
+                <button class="menu-toggle" id="menuToggle">
+                    <span class="material-icons">menu</span>
+                </button>
+                <div class="logo">
+                    <span class="material-icons logo-icon">storage</span>
+                    <div class="logo-text">
+                        <h1>SQL Панель управления</h1>
+                        <div class="subtitle">Управление базой данных</div>
+                    </div>
+                </div>
             </div>
-            <button class="btn btn-outline btn-small" id="changePasswordBtn">
-                <span class="material-icons">password</span>
-                Сменить пароль
-            </button>
-            <button class="btn btn-outline btn-small" id="logoutBtn">
-                <span class="material-icons">logout</span>
-                Выйти
-            </button>
+            
+            <div class="header-actions">
+                <div class="theme-toggle">
+                    <span class="material-icons">light_mode</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="themeToggle" <?php echo isset($_COOKIE['dark_theme']) && $_COOKIE['dark_theme'] === 'true' ? 'checked' : ''; ?>>
+                    </label>
+                    <span class="material-icons">dark_mode</span>
+                </div>
+                
+                <div class="user-menu">
+                    <button class="action-button with-text" id="userMenuToggle">
+                        <span class="material-icons">account_circle</span>
+                        <span>Аккаунт</span>
+                    </button>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="user-dropdown-item" id="changePasswordBtn">
+                            <span class="material-icons">password</span>
+                            <span>Сменить пароль</span>
+                        </div>
+                        <div class="user-dropdown-item" id="settingsBtn">
+                            <span class="material-icons">settings</span>
+                            <span>Настройки</span>
+                        </div>
+                        <div class="user-dropdown-item" id="helpBtn">
+                            <span class="material-icons">help</span>
+                            <span>Справка</span>
+                        </div>
+                        <div class="user-dropdown-item" id="logoutBtn">
+                            <span class="material-icons">logout</span>
+                            <span>Выйти</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
     
     <!-- Боковая панель -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3 class="sidebar-title">База данных</h3>
+            <h3 class="sidebar-title">Таблицы базы данных</h3>
+            <div class="database-info">
+                <span class="material-icons" style="font-size: 16px;">database</span>
+                <span><?php echo DB_NAME; ?></span>
+            </div>
         </div>
+        
+        <div class="search-box" style="padding: 0 20px; margin-top: 10px;">
+            <span class="material-icons search-icon">search</span>
+            <input type="text" class="search-input" id="tableSearch" placeholder="Поиск таблиц...">
+        </div>
+        
         <div class="sidebar-content">
             <ul class="table-list" id="tableList">
                 <!-- Список таблиц будет загружен через AJAX -->
@@ -1092,43 +1467,134 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     <!-- Основной контент -->
     <main class="main-content" id="mainContent">
         <div class="container">
-            <div class="breadcrumb" id="breadcrumb">
-                <div class="breadcrumb-item"><a href="#" id="homeLink">Главная</a></div>
+            <!-- Панель статистики -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card animated fadeIn">
+                    <div class="stat-icon primary">
+                        <span class="material-icons">table_chart</span>
+                    </div>
+                    <div class="stat-value" id="tableCount">0</div>
+                    <div class="stat-label">Таблиц в базе</div>
+                </div>
+                
+                <div class="stat-card animated fadeIn">
+                    <div class="stat-icon secondary">
+                        <span class="material-icons">storage</span>
+                    </div>
+                    <div class="stat-value" id="totalRows">0</div>
+                    <div class="stat-label">Всего строк</div>
+                </div>
+                
+                <div class="stat-card animated fadeIn">
+                    <div class="stat-icon primary">
+                        <span class="material-icons">code</span>
+                    </div>
+                    <div class="stat-value" id="queryCount">0</div>
+                    <div class="stat-label">Выполнено запросов</div>
+                </div>
+                
+                <div class="stat-card animated fadeIn">
+                    <div class="stat-icon secondary">
+                        <span class="material-icons">schedule</span>
+                    </div>
+                    <div class="stat-value" id="activeTime">0:00</div>
+                    <div class="stat-label">Активное время</div>
+                </div>
             </div>
             
             <!-- Карточка SQL редактора -->
             <div class="card animated fadeIn" id="sqlEditorCard">
                 <div class="card-header">
-                    <h2 class="card-title">SQL Редактор</h2>
-                    <button class="btn btn-primary" id="executeSqlBtn">
-                        <span class="material-icons">play_arrow</span>
-                        Выполнить
+                    <div>
+                        <h2 class="card-title">
+                            <span class="material-icons">code</span>
+                            SQL Редактор
+                        </h2>
+                        <div class="card-subtitle">Выполняйте SQL запросы к базе данных</div>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline btn-small" id="toggleHistoryBtn">
+                            <span class="material-icons">history</span>
+                            История
+                        </button>
+                        <button class="btn btn-primary" id="executeSqlBtn">
+                            <span class="material-icons">play_arrow</span>
+                            Выполнить
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sql-toolbar">
+                    <button class="quick-sql-btn" data-sql="SHOW TABLES;">
+                        <span class="material-icons">list</span>
+                        Показать таблицы
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM users LIMIT 10;">
+                        <span class="material-icons">people</span>
+                        Пользователи
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM products LIMIT 10;">
+                        <span class="material-icons">shopping_cart</span>
+                        Продукты
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT COUNT(*) as count FROM users;">
+                        <span class="material-icons">calculate</span>
+                        Подсчет строк
                     </button>
                 </div>
+                
                 <div class="form-group">
-                    <label for="sqlQuery">SQL запрос</label>
+                    <label class="form-label" for="sqlQuery">SQL запрос</label>
                     <textarea id="sqlQuery" class="form-control" placeholder="Введите SQL запрос...">SHOW TABLES;</textarea>
+                    <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 8px;">
+                        Используйте Ctrl+Enter для быстрого выполнения
+                    </div>
                 </div>
+                
                 <div id="sqlResults">
                     <!-- Результаты SQL запросов будут отображаться здесь -->
+                </div>
+                
+                <div class="sql-history-panel" id="sqlHistoryPanel">
+                    <h3 style="margin-bottom: 16px;">История запросов</h3>
+                    <div id="historyList"></div>
                 </div>
             </div>
             
             <!-- Карточка данных таблицы -->
             <div class="card animated fadeIn" id="tableDataCard" style="display: none;">
                 <div class="card-header">
-                    <h2 class="card-title" id="tableTitle">Данные таблицы</h2>
                     <div>
+                        <h2 class="card-title">
+                            <span class="material-icons">table_rows</span>
+                            <span id="tableTitle">Данные таблицы</span>
+                        </h2>
+                        <div class="card-subtitle" id="tableSubtitle"></div>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn btn-outline btn-small" id="showStructureBtn">
+                            <span class="material-icons">schema</span>
+                            Структура
+                        </button>
+                        <button class="btn btn-outline btn-small" id="exportTableBtn">
+                            <span class="material-icons">download</span>
+                            Экспорт
+                        </button>
                         <button class="btn btn-secondary" id="refreshTableBtn">
                             <span class="material-icons">refresh</span>
                             Обновить
                         </button>
-                        <button class="btn btn-primary" id="addRowBtn" style="margin-left: 8px;">
+                        <button class="btn btn-primary" id="addRowBtn">
                             <span class="material-icons">add</span>
-                            Добавить
+                            Добавить строку
                         </button>
+                        <div class="table-stats-info">
+                            <span id="tableRowCount">0 строк</span>
+                            <span id="tableTotalRows">Всего: 0</span>
+                        </div>
                     </div>
                 </div>
+                
                 <div class="table-container" id="tableDataContainer">
                     <!-- Данные таблицы будут отображаться здесь -->
                 </div>
@@ -1136,66 +1602,72 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         </div>
     </main>
     
-    <!-- Модальное окно смены пароля -->
-    <div class="modal" id="changePasswordModal">
+    <!-- Модальные окна -->
+    <div class="modal-overlay" id="changePasswordModal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Смена пароля</h3>
-                <button class="btn btn-small" id="closeChangePasswordModal">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <span class="material-icons">password</span>
+                    Смена пароля
+                </h3>
+                <button class="action-button btn-icon" id="closeChangePasswordModal">
                     <span class="material-icons">close</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 24px;">
                 <?php if (!$password_changed): ?>
-                <div class="notification info" style="position: relative; top: 0; right: 0; transform: none; margin-bottom: 20px;">
-                    <span class="material-icons">info</span>
+                <div class="notification info" style="margin-bottom: 20px; position: relative; top: 0; right: 0; transform: none;">
+                    <span class="material-icons notification-icon">info</span>
                     <span>Рекомендуется сменить пароль по умолчанию на более сложный</span>
                 </div>
                 <?php endif; ?>
                 <form id="changePasswordForm">
                     <div class="form-group">
-                        <label for="currentPassword">Текущий пароль</label>
+                        <label class="form-label" for="currentPassword">Текущий пароль</label>
                         <input type="password" id="currentPassword" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label for="newPassword">Новый пароль</label>
+                        <label class="form-label" for="newPassword">Новый пароль</label>
                         <input type="password" id="newPassword" class="form-control" required minlength="6">
+                        <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 4px;">
+                            Минимум 6 символов
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="confirmPassword">Подтверждение пароля</label>
+                        <label class="form-label" for="confirmPassword">Подтверждение пароля</label>
                         <input type="password" id="confirmPassword" class="form-control" required minlength="6">
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
                 <button class="btn btn-outline" id="cancelChangePassword">Отмена</button>
                 <button class="btn btn-primary" id="savePasswordBtn">
                     <span class="btn-text">Сохранить</span>
-                    <div class="loader" style="display: none;"></div>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
                 </button>
             </div>
         </div>
     </div>
     
     <!-- Модальное окно добавления/редактирования строки -->
-    <div class="modal" id="editRowModal">
+    <div class="modal-overlay" id="editRowModal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="editModalTitle">Добавление строки</h3>
-                <button class="btn btn-small" id="closeEditRowModal">
+            <div class="card-header">
+                <h3 class="card-title" id="editModalTitle">Добавление строки</h3>
+                <button class="action-button btn-icon" id="closeEditRowModal">
                     <span class="material-icons">close</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 24px;">
                 <form id="editRowForm">
                     <!-- Поля формы будут динамически добавлены -->
                 </form>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
                 <button class="btn btn-outline" id="cancelEditRow">Отмена</button>
                 <button class="btn btn-primary" id="saveRowBtn">
                     <span class="btn-text">Сохранить</span>
-                    <div class="loader" style="display: none;"></div>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
                 </button>
             </div>
         </div>
@@ -1203,13 +1675,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
     <?php endif; ?>
     
     <!-- Уведомления -->
-    <div class="notification" id="notification"></div>
+    <div class="notification-container" id="notificationContainer"></div>
     
     <script>
         // Глобальные переменные
         let currentTable = '';
-        let sqlHistory = [];
+        let sqlHistory = JSON.parse(localStorage.getItem('sqlHistory') || '[]');
         let currentEditingRow = null;
+        let queryCount = parseInt(localStorage.getItem('queryCount') || '0');
+        let sessionStartTime = new Date();
+        let activeTimeInterval;
         
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
@@ -1232,6 +1707,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             const submitBtn = loginForm.querySelector('button[type="submit"]');
             const btnText = submitBtn.querySelector('.btn-text');
             const loader = submitBtn.querySelector('.loader');
+            
+            // Фокус на поле пароля
+            passwordInput.focus();
             
             loginForm.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -1262,12 +1740,12 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showNotification(data.message, 'success');
+                        showNotification('Авторизация успешна', 'success');
                         
                         // Если пароль не менялся, показываем уведомление
                         if (!data.password_changed) {
                             setTimeout(() => {
-                                showNotification('Рекомендуется сменить пароль по умолчанию', 'info', 5000);
+                                showNotification('Рекомендуется сменить пароль по умолчанию', 'warning', 5000);
                             }, 1000);
                         }
                         
@@ -1291,17 +1769,31 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 });
             });
             
-            // Фокус на поле пароля
-            passwordInput.focus();
+            // Обработка нажатия Enter в поле пароля
+            passwordInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    loginForm.dispatchEvent(new Event('submit'));
+                }
+            });
         }
         
         // Функция инициализации основной панели
         function initMainPanel() {
+            // Инициализация таймера активного времени
+            updateActiveTime();
+            activeTimeInterval = setInterval(updateActiveTime, 60000);
+            
+            // Обновляем статистику
+            updateStats();
+            
             // Загружаем список таблиц
             loadTables();
             
             // Инициализация элементов интерфейса
             initUIElements();
+            
+            // Загружаем историю запросов
+            renderSqlHistory();
             
             // Выполняем начальный SQL запрос
             executeSql('SHOW TABLES;');
@@ -1309,9 +1801,29 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Если пароль не менялся, показываем модальное окно смены пароля
             <?php if (!$password_changed): ?>
             setTimeout(() => {
-                document.getElementById('changePasswordModal').classList.add('active');
-            }, 1000);
+                showChangePasswordModal();
+            }, 1500);
             <?php endif; ?>
+        }
+        
+        // Функция обновления активного времени
+        function updateActiveTime() {
+            const now = new Date();
+            const diff = Math.floor((now - sessionStartTime) / 1000);
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            document.getElementById('activeTime').textContent = timeStr;
+        }
+        
+        // Функция обновления статистики
+        function updateStats() {
+            // Обновляем счетчик запросов
+            document.getElementById('queryCount').textContent = queryCount;
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('queryCount', queryCount);
         }
         
         // Функция инициализации элементов UI
@@ -1319,6 +1831,22 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Кнопка меню для мобильных устройств
             document.getElementById('menuToggle').addEventListener('click', function() {
                 document.getElementById('sidebar').classList.toggle('active');
+            });
+            
+            // Меню пользователя
+            document.getElementById('userMenuToggle').addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('userDropdown').classList.toggle('active');
+            });
+            
+            // Закрытие меню пользователя при клике вне его
+            document.addEventListener('click', function(e) {
+                const userDropdown = document.getElementById('userDropdown');
+                const userMenuToggle = document.getElementById('userMenuToggle');
+                
+                if (!userMenuToggle.contains(e.target) && !userDropdown.contains(e.target)) {
+                    userDropdown.classList.remove('active');
+                }
             });
             
             // Кнопка выхода
@@ -1333,22 +1861,35 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     })
                 })
                 .then(() => {
-                    location.reload();
+                    showNotification('Выход выполнен', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
                 });
             });
             
             // Кнопка смены пароля
             document.getElementById('changePasswordBtn').addEventListener('click', function() {
-                document.getElementById('changePasswordModal').classList.add('active');
+                showChangePasswordModal();
+            });
+            
+            // Кнопка помощи
+            document.getElementById('helpBtn').addEventListener('click', function() {
+                showNotification('Для справки ознакомьтесь с документацией SQL', 'info');
+            });
+            
+            // Кнопка настроек
+            document.getElementById('settingsBtn').addEventListener('click', function() {
+                showNotification('Настройки будут доступны в следующей версии', 'info');
             });
             
             // Закрытие модального окна смены пароля
             document.getElementById('closeChangePasswordModal').addEventListener('click', function() {
-                document.getElementById('changePasswordModal').classList.remove('active');
+                hideChangePasswordModal();
             });
             
             document.getElementById('cancelChangePassword').addEventListener('click', function() {
-                document.getElementById('changePasswordModal').classList.remove('active');
+                hideChangePasswordModal();
             });
             
             // Форма смены пароля
@@ -1398,7 +1939,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 .then(data => {
                     if (data.success) {
                         showNotification(data.message, 'success');
-                        document.getElementById('changePasswordModal').classList.remove('active');
+                        hideChangePasswordModal();
                         document.getElementById('currentPassword').value = '';
                         document.getElementById('newPassword').value = '';
                         document.getElementById('confirmPassword').value = '';
@@ -1424,19 +1965,30 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 if (sqlQuery) {
                     executeSql(sqlQuery);
                     addToSqlHistory(sqlQuery);
+                    queryCount++;
+                    updateStats();
                 }
             });
             
-            // Ссылка "Главная" в хлебных крошках
-            document.getElementById('homeLink').addEventListener('click', function(e) {
-                e.preventDefault();
-                showSqlEditor();
+            // Кнопки быстрых SQL запросов
+            document.querySelectorAll('.quick-sql-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const sql = this.dataset.sql;
+                    document.getElementById('sqlQuery').value = sql;
+                    document.getElementById('executeSqlBtn').click();
+                });
+            });
+            
+            // Кнопка переключения истории
+            document.getElementById('toggleHistoryBtn').addEventListener('click', function() {
+                document.getElementById('sqlHistoryPanel').classList.toggle('active');
             });
             
             // Кнопка обновления таблицы
             document.getElementById('refreshTableBtn').addEventListener('click', function() {
                 if (currentTable) {
                     loadTableData(currentTable);
+                    showNotification('Таблица обновлена', 'success');
                 }
             });
             
@@ -1447,21 +1999,74 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 }
             });
             
+            // Кнопка показа структуры
+            document.getElementById('showStructureBtn').addEventListener('click', function() {
+                if (currentTable) {
+                    showTableStructure(currentTable);
+                }
+            });
+            
+            // Кнопка экспорта
+            document.getElementById('exportTableBtn').addEventListener('click', function() {
+                if (currentTable) {
+                    exportTable(currentTable);
+                }
+            });
+            
             // Закрытие модального окна редактирования строки
             document.getElementById('closeEditRowModal').addEventListener('click', function() {
-                document.getElementById('editRowModal').classList.remove('active');
+                hideEditRowModal();
             });
             
             document.getElementById('cancelEditRow').addEventListener('click', function() {
-                document.getElementById('editRowModal').classList.remove('active');
+                hideEditRowModal();
+            });
+            
+            // Поиск таблиц
+            document.getElementById('tableSearch').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const tableItems = document.querySelectorAll('.table-item');
+                
+                tableItems.forEach(item => {
+                    const tableName = item.querySelector('.table-name').textContent.toLowerCase();
+                    if (tableName.includes(searchTerm)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
             });
             
             // Обработка нажатия Ctrl+Enter в SQL редакторе
             document.getElementById('sqlQuery').addEventListener('keydown', function(e) {
                 if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
                     document.getElementById('executeSqlBtn').click();
                 }
             });
+            
+            // Автоподсказки для SQL редактора
+            initSqlAutocomplete();
+        }
+        
+        // Функция показа модального окна смены пароля
+        function showChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.add('active');
+        }
+        
+        // Функция скрытия модального окна смены пароля
+        function hideChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.remove('active');
+        }
+        
+        // Функция показа модального окна редактирования строки
+        function showEditRowModal() {
+            document.getElementById('editRowModal').classList.add('active');
+        }
+        
+        // Функция скрытия модального окна редактирования строки
+        function hideEditRowModal() {
+            document.getElementById('editRowModal').classList.remove('active');
         }
         
         // Функция загрузки списка таблиц
@@ -1479,6 +2084,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(data => {
                 if (data.success) {
                     renderTableList(data.tables);
+                    document.getElementById('tableCount').textContent = data.tables.length;
+                    
+                    // Загружаем статистику по строкам
+                    loadTotalRows(data.tables);
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -1486,6 +2095,39 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .catch(error => {
                 console.error('Error:', error);
                 showNotification('Ошибка загрузки списка таблиц', 'error');
+            });
+        }
+        
+        // Функция загрузки общего количества строк
+        function loadTotalRows(tables) {
+            let totalRows = 0;
+            let completedRequests = 0;
+            
+            tables.forEach(table => {
+                fetch('', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        action: 'get_table_data',
+                        table: table
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        totalRows += data.total_rows || 0;
+                        completedRequests++;
+                        
+                        if (completedRequests === tables.length) {
+                            document.getElementById('totalRows').textContent = totalRows.toLocaleString();
+                        }
+                    }
+                })
+                .catch(() => {
+                    completedRequests++;
+                });
             });
         }
         
@@ -1497,8 +2139,17 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             tables.forEach(table => {
                 const li = document.createElement('li');
                 li.className = 'table-item';
-                li.textContent = table;
                 li.dataset.table = table;
+                
+                li.innerHTML = `
+                    <div class="table-info">
+                        <span class="material-icons table-icon">table_chart</span>
+                        <div>
+                            <div class="table-name">${table}</div>
+                            <div class="table-stats">Загрузка...</div>
+                        </div>
+                    </div>
+                `;
                 
                 li.addEventListener('click', function() {
                     // Убираем активный класс у всех элементов
@@ -1513,12 +2164,39 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     loadTableData(table);
                     
                     // Закрываем боковую панель на мобильных устройствах
-                    if (window.innerWidth <= 992) {
+                    if (window.innerWidth <= 1200) {
                         document.getElementById('sidebar').classList.remove('active');
                     }
                 });
                 
                 tableList.appendChild(li);
+                
+                // Загружаем статистику для этой таблицы
+                loadTableStats(table, li);
+            });
+        }
+        
+        // Функция загрузки статистики таблицы
+        function loadTableStats(table, listItem) {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'get_table_data',
+                    table: table
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const statsEl = listItem.querySelector('.table-stats');
+                    statsEl.textContent = `${data.total_rows || 0} строк`;
+                    
+                    // Сохраняем количество строк в data-атрибут
+                    listItem.dataset.rows = data.total_rows || 0;
+                }
             });
         }
         
@@ -1526,19 +2204,22 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         function loadTableData(table) {
             currentTable = table;
             
-            // Обновляем хлебные крошки
-            updateBreadcrumb(table);
-            
             // Показываем карточку с данными таблицы
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
             
             // Обновляем заголовок
-            document.getElementById('tableTitle').textContent = `Таблица: ${table}`;
+            document.getElementById('tableTitle').textContent = table;
+            document.getElementById('tableSubtitle').textContent = `Просмотр и редактирование данных таблицы "${table}"`;
             
             // Показываем лоадер
             const container = document.getElementById('tableDataContainer');
-            container.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="loader" style="width: 40px; height: 40px; margin: 0 auto;"></div><p style="margin-top: 16px;">Загрузка данных...</p></div>';
+            container.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px;">
+                    <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
+                    <p style="margin-top: 20px; color: var(--on-surface); opacity: 0.7;">Загрузка данных таблицы...</p>
+                </div>
+            `;
             
             // Запрашиваем данные таблицы
             fetch('', {
@@ -1554,37 +2235,66 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    renderTableData(data.columns, data.rows, table);
+                    renderTableData(data.columns, data.rows, table, data.total_rows);
+                    document.getElementById('tableRowCount').textContent = `${data.rows.length} строк`;
+                    document.getElementById('tableTotalRows').textContent = `Всего: ${data.total_rows}`;
                 } else {
                     showNotification(data.message, 'error');
-                    container.innerHTML = '<div class="notification error" style="position: relative; top: 0; right: 0; transform: none;"><span class="material-icons">error</span><span>Ошибка загрузки данных</span></div>';
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <span class="material-icons empty-state-icon">error</span>
+                            <p>Ошибка загрузки данных таблицы</p>
+                            <button class="btn btn-outline" onclick="loadTableData('${table}')" style="margin-top: 16px;">
+                                <span class="material-icons">refresh</span>
+                                Повторить попытку
+                            </button>
+                        </div>
+                    `;
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 showNotification('Ошибка загрузки данных таблицы', 'error');
-                container.innerHTML = '<div class="notification error" style="position: relative; top: 0; right: 0; transform: none;"><span class="material-icons">error</span><span>Ошибка сети</span></div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-icons empty-state-icon">wifi_off</span>
+                        <p>Ошибка сети при загрузке данных</p>
+                        <button class="btn btn-outline" onclick="loadTableData('${table}')" style="margin-top: 16px;">
+                            <span class="material-icons">refresh</span>
+                            Повторить попытку
+                        </button>
+                    </div>
+                `;
             });
         }
         
         // Функция отрисовки данных таблицы
-        function renderTableData(columns, rows, table) {
+        function renderTableData(columns, rows, table, totalRows) {
             const container = document.getElementById('tableDataContainer');
             
             if (rows.length === 0) {
-                container.innerHTML = '<div class="notification info" style="position: relative; top: 0; right: 0; transform: none;"><span class="material-icons">info</span><span>Таблица пуста</span></div>';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-icons empty-state-icon">table_rows</span>
+                        <p>Таблица "${table}" пуста</p>
+                        <button class="btn btn-primary" onclick="showAddRowForm('${table}')" style="margin-top: 16px;">
+                            <span class="material-icons">add</span>
+                            Добавить первую строку
+                        </button>
+                    </div>
+                `;
                 return;
             }
             
             // Создаем таблицу
-            let html = '<table>';
+            let html = '<table class="data-table">';
             
             // Заголовки таблицы
             html += '<thead><tr>';
             columns.forEach(column => {
-                html += `<th>${column.name}<br><small>${column.type}</small></th>`;
+                html += `<th>${column.name}<br><small style="opacity: 0.7; font-weight: normal;">${column.type}</small></th>`;
             });
-            html += '<th>Действия</th>';
+            html += '<th style="width: 100px;">Действия</th>';
             html += '</tr></thead>';
             
             // Тело таблицы
@@ -1592,17 +2302,22 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             rows.forEach(row => {
                 html += '<tr>';
                 columns.forEach(column => {
-                    const value = row[column.name] !== null ? row[column.name] : '<span style="color: #999; font-style: italic;">NULL</span>';
+                    let value = row[column.name];
+                    if (value === null || value === '') {
+                        value = '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>';
+                    } else if (typeof value === 'string' && value.length > 100) {
+                        value = value.substring(0, 100) + '...';
+                    }
                     html += `<td>${value}</td>`;
                 });
                 
                 // Кнопки действий
-                html += `<td>
-                    <button class="btn btn-outline btn-small edit-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}'>
-                        <span class="material-icons">edit</span>
+                html += `<td class="actions-cell">
+                    <button class="btn btn-outline btn-small edit-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}' title="Редактировать">
+                        <span class="material-icons" style="font-size: 16px;">edit</span>
                     </button>
-                    <button class="btn btn-outline btn-small delete-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}' style="margin-left: 4px;">
-                        <span class="material-icons">delete</span>
+                    <button class="btn btn-outline btn-small delete-row-btn" data-table="${table}" data-row='${JSON.stringify(row)}' title="Удалить" style="margin-left: 4px;">
+                        <span class="material-icons" style="font-size: 16px;">delete</span>
                     </button>
                 </td>`;
                 html += '</tr>';
@@ -1625,11 +2340,56 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     const table = this.dataset.table;
                     const row = JSON.parse(this.dataset.row);
                     
-                    if (confirm('Вы уверены, что хотите удалить эту строку?')) {
-                        deleteRow(table, row);
-                    }
+                    showNotification(`Удалить строку из таблицы ${table}?`, 'warning', 5000);
+                    
+                    // Создаем кнопку подтверждения
+                    setTimeout(() => {
+                        showNotification(
+                            `Подтвердите удаление строки`,
+                            'error',
+                            5000,
+                            `<button class="btn btn-danger btn-small" onclick="confirmDeleteRow('${table}', '${escapeSql(JSON.stringify(row))}')">Удалить</button>`
+                        );
+                    }, 100);
                 });
             });
+        }
+        
+        // Функция подтверждения удаления строки
+        function confirmDeleteRow(table, rowJson) {
+            const row = JSON.parse(rowJson);
+            
+            const whereClause = Object.keys(row)
+                .map(key => `\`${key}\` = '${escapeSql(row[key])}'`)
+                .join(' AND ');
+            
+            const sql = `DELETE FROM \`${table}\` WHERE ${whereClause};`;
+            
+            executeSql(sql, true).then(success => {
+                if (success && currentTable === table) {
+                    loadTableData(table);
+                    showNotification('Строка успешно удалена', 'success');
+                }
+            });
+        }
+        
+        // Функция отображения структуры таблицы
+        function showTableStructure(table) {
+            const sql = `DESCRIBE \`${table}\``;
+            document.getElementById('sqlQuery').value = sql;
+            document.getElementById('executeSqlBtn').click();
+            
+            // Переключаемся на SQL редактор
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'block';
+        }
+        
+        // Функция экспорта таблицы
+        function exportTable(table) {
+            const sql = `SELECT * FROM \`${table}\``;
+            document.getElementById('sqlQuery').value = sql;
+            document.getElementById('executeSqlBtn').click();
+            showNotification(`Запрос для экспорта таблицы "${table}" готов к выполнению`, 'info');
         }
         
         // Функция отображения формы добавления строки
@@ -1652,7 +2412,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(data => {
                 if (data.success) {
                     renderEditForm(data.columns, table, null);
-                    document.getElementById('editRowModal').classList.add('active');
+                    showEditRowModal();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -1683,7 +2443,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             .then(data => {
                 if (data.success) {
                     renderEditForm(data.columns, table, row);
-                    document.getElementById('editRowModal').classList.add('active');
+                    showEditRowModal();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -1711,6 +2471,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 div.className = 'form-group';
                 
                 const label = document.createElement('label');
+                label.className = 'form-label';
                 label.textContent = `${column.name} (${column.type})`;
                 label.htmlFor = `field_${column.name}`;
                 
@@ -1731,13 +2492,76 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     input.id = `field_${column.name}`;
                     input.name = column.name;
                     input.value = value;
-                } else if (column.type.includes('date') || column.type.includes('time')) {
+                    input.step = column.type.includes('int') ? '1' : '0.01';
+                } else if (column.type.includes('date')) {
                     input = document.createElement('input');
-                    input.type = column.type.includes('date') ? 'date' : 'time';
+                    input.type = 'date';
                     input.className = 'form-control';
                     input.id = `field_${column.name}`;
                     input.name = column.name;
                     input.value = value;
+                } else if (column.type.includes('time')) {
+                    input = document.createElement('input');
+                    input.type = 'time';
+                    input.className = 'form-control';
+                    input.id = `field_${column.name}`;
+                    input.name = column.name;
+                    input.value = value;
+                } else if (column.type.includes('datetime') || column.type.includes('timestamp')) {
+                    input = document.createElement('input');
+                    input.type = 'datetime-local';
+                    input.className = 'form-control';
+                    input.id = `field_${column.name}`;
+                    input.name = column.name;
+                    // Преобразуем значение в формат datetime-local
+                    if (value) {
+                        const date = new Date(value);
+                        if (!isNaN(date)) {
+                            input.value = date.toISOString().slice(0, 16);
+                        }
+                    }
+                } else if (column.type.includes('enum')) {
+                    input = document.createElement('select');
+                    input.className = 'form-control';
+                    input.id = `field_${column.name}`;
+                    input.name = column.name;
+                    
+                    // Извлекаем значения ENUM из типа
+                    const enumValues = column.type.match(/enum\(([^)]+)\)/)[1]
+                        .replace(/'/g, '')
+                        .split(',');
+                    
+                    enumValues.forEach(enumValue => {
+                        const option = document.createElement('option');
+                        option.value = enumValue;
+                        option.textContent = enumValue;
+                        if (value === enumValue) {
+                            option.selected = true;
+                        }
+                        input.appendChild(option);
+                    });
+                } else if (column.type.includes('tinyint(1)')) {
+                    input = document.createElement('select');
+                    input.className = 'form-control';
+                    input.id = `field_${column.name}`;
+                    input.name = column.name;
+                    
+                    const optionTrue = document.createElement('option');
+                    optionTrue.value = '1';
+                    optionTrue.textContent = 'Да';
+                    
+                    const optionFalse = document.createElement('option');
+                    optionFalse.value = '0';
+                    optionFalse.textContent = 'Нет';
+                    
+                    input.appendChild(optionTrue);
+                    input.appendChild(optionFalse);
+                    
+                    if (value === '1' || value === 1) {
+                        optionTrue.selected = true;
+                    } else {
+                        optionFalse.selected = true;
+                    }
                 } else {
                     input = document.createElement('input');
                     input.type = 'text';
@@ -1748,9 +2572,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 }
                 
                 // Если поле обязательное и не имеет значения по умолчанию
-                if (column.nullable === false && !column.default) {
+                if (column.nullable === false && !column.default && column.extra !== 'auto_increment') {
                     input.required = true;
-                    label.innerHTML += ' <span style="color: #f44336;">*</span>';
+                    label.innerHTML += ' <span style="color: var(--error);">*</span>';
                 }
                 
                 div.appendChild(label);
@@ -1777,11 +2601,18 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 
                 const input = form.querySelector(`#field_${column.name}`);
                 if (input) {
-                    formData[column.name] = input.value;
+                    let value = input.value;
+                    
+                    // Обработка специальных типов
+                    if (column.type.includes('tinyint(1)')) {
+                        value = value === '1' ? 1 : 0;
+                    }
                     
                     // Если поле пустое и nullable, устанавливаем NULL
-                    if (input.value === '' && column.nullable) {
+                    if (value === '' && column.nullable) {
                         formData[column.name] = null;
+                    } else {
+                        formData[column.name] = value;
                     }
                 }
             });
@@ -1825,12 +2656,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Выполняем SQL запрос
             executeSql(sql, true).then(success => {
                 if (success) {
-                    document.getElementById('editRowModal').classList.remove('active');
+                    hideEditRowModal();
                     
                     // Перезагружаем данные таблицы
                     if (currentTable === table) {
                         loadTableData(table);
                     }
+                    
+                    showNotification(originalRow ? 'Строка обновлена' : 'Строка добавлена', 'success');
                 }
                 
                 // Скрываем лоадер
@@ -1840,28 +2673,18 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             });
         }
         
-        // Функция удаления строки
-        function deleteRow(table, row) {
-            const whereClause = Object.keys(row)
-                .map(key => `\`${key}\` = '${escapeSql(row[key])}'`)
-                .join(' AND ');
-            
-            const sql = `DELETE FROM \`${table}\` WHERE ${whereClause};`;
-            
-            executeSql(sql, true).then(success => {
-                if (success && currentTable === table) {
-                    loadTableData(table);
-                }
-            });
-        }
-        
         // Функция выполнения SQL запроса
         function executeSql(sql, silent = false) {
             return new Promise((resolve) => {
                 if (!silent) {
                     // Показываем лоадер в результатах
                     const resultsDiv = document.getElementById('sqlResults');
-                    resultsDiv.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loader" style="width: 30px; height: 30px; margin: 0 auto;"></div><p style="margin-top: 12px;">Выполнение запроса...</p></div>';
+                    resultsDiv.innerHTML = `
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <div class="loader" style="width: 40px; height: 40px; margin: 0 auto; border-width: 3px;"></div>
+                            <p style="margin-top: 16px; color: var(--on-surface); opacity: 0.7;">Выполнение SQL запроса...</p>
+                        </div>
+                    `;
                 }
                 
                 fetch('', {
@@ -1879,16 +2702,19 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     if (data.success) {
                         if (!silent) {
                             renderSqlResults(data.results, data.affected_rows, sql);
+                            showNotification(`Запрос выполнен успешно. Затронуто строк: ${data.affected_rows}`, 'success');
                         }
                         resolve(true);
                     } else {
                         if (!silent) {
                             showNotification(data.message, 'error');
                             const resultsDiv = document.getElementById('sqlResults');
-                            resultsDiv.innerHTML = `<div class="notification error" style="position: relative; top: 0; right: 0; transform: none; margin-top: 20px;">
-                                <span class="material-icons">error</span>
-                                <span>${data.message}</span>
-                            </div>`;
+                            resultsDiv.innerHTML = `
+                                <div class="notification error" style="margin-top: 20px; position: relative; top: 0; right: 0; transform: none;">
+                                    <span class="material-icons notification-icon">error</span>
+                                    <span>${data.message}</span>
+                                </div>
+                            `;
                         }
                         resolve(false);
                     }
@@ -1896,7 +2722,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 .catch(error => {
                     console.error('Error:', error);
                     if (!silent) {
-                        showNotification('Ошибка сети', 'error');
+                        showNotification('Ошибка сети при выполнении запроса', 'error');
                     }
                     resolve(false);
                 });
@@ -1908,31 +2734,46 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             const resultsDiv = document.getElementById('sqlResults');
             resultsDiv.innerHTML = '';
             
+            // Показываем выполненный запрос
+            const queryCard = document.createElement('div');
+            queryCard.className = 'card';
+            queryCard.style.marginBottom = '16px';
+            queryCard.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <span class="material-icons" style="color: var(--primary-color);">code</span>
+                    <h3 style="font-size: 16px; font-weight: 500;">Выполненный запрос</h3>
+                </div>
+                <div style="background-color: rgba(0,0,0,0.05); padding: 12px; border-radius: 4px; font-family: 'Roboto Mono', monospace; font-size: 13px; overflow-x: auto;">
+                    ${sql}
+                </div>
+                <div style="margin-top: 12px; font-size: 14px; color: var(--on-surface); opacity: 0.7;">
+                    Затронуто строк: <strong>${affectedRows}</strong>
+                </div>
+            `;
+            resultsDiv.appendChild(queryCard);
+            
             if (results.length === 0 && affectedRows > 0) {
                 // Запрос без результата (INSERT, UPDATE, DELETE и т.д.)
-                resultsDiv.innerHTML = `
-                    <div class="notification success" style="position: relative; top: 0; right: 0; transform: none; margin-top: 20px;">
-                        <span class="material-icons">check_circle</span>
-                        <span>Запрос выполнен успешно. Затронуто строк: ${affectedRows}</span>
-                    </div>
-                `;
                 return;
             }
             
             // Отображаем результаты каждого запроса
             results.forEach((result, index) => {
                 if (result.columns && result.rows) {
-                    const tableDiv = document.createElement('div');
-                    tableDiv.className = 'card';
-                    tableDiv.style.marginTop = index > 0 ? '20px' : '0';
+                    const tableCard = document.createElement('div');
+                    tableCard.className = 'card';
+                    tableCard.style.marginTop = index > 0 ? '16px' : '0';
                     
-                    tableDiv.innerHTML = `
-                        <div class="card-header">
-                            <h3 class="card-title">Результат ${index + 1}</h3>
-                            <span>Найдено строк: ${result.row_count}</span>
+                    tableCard.innerHTML = `
+                        <div class="card-header" style="padding: 16px; margin-bottom: 16px;">
+                            <h3 class="card-title" style="font-size: 16px;">
+                                <span class="material-icons">table_chart</span>
+                                Результат ${index + 1}
+                            </h3>
+                            <span style="font-size: 14px; color: var(--on-surface); opacity: 0.7;">Найдено строк: ${result.row_count}</span>
                         </div>
                         <div class="table-container">
-                            <table>
+                            <table class="data-table">
                                 <thead>
                                     <tr>
                                         ${result.columns.map(col => `<th>${col}</th>`).join('')}
@@ -1941,7 +2782,14 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                                 <tbody>
                                     ${result.rows.map(row => `
                                         <tr>
-                                            ${result.columns.map(col => `<td>${row[col] !== null ? row[col] : '<span style="color: #999; font-style: italic;">NULL</span>'}</td>`).join('')}
+                                            ${result.columns.map(col => `
+                                                <td>
+                                                    ${row[col] !== null && row[col] !== '' ? 
+                                                        (typeof row[col] === 'string' && row[col].length > 50 ? 
+                                                            row[col].substring(0, 50) + '...' : row[col]) : 
+                                                        '<span style="color: var(--on-surface); opacity: 0.3; font-style: italic;">NULL</span>'}
+                                                </td>
+                                            `).join('')}
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -1949,16 +2797,16 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                         </div>
                     `;
                     
-                    resultsDiv.appendChild(tableDiv);
+                    resultsDiv.appendChild(tableCard);
                 }
             });
             
             // Если результатов нет, показываем сообщение
-            if (results.length === 0) {
-                resultsDiv.innerHTML = `
-                    <div class="notification info" style="position: relative; top: 0; right: 0; transform: none; margin-top: 20px;">
-                        <span class="material-icons">info</span>
-                        <span>Запрос выполнен успешно</span>
+            if (results.length === 0 && affectedRows === 0) {
+                resultsDiv.innerHTML += `
+                    <div class="notification info" style="margin-top: 20px; position: relative; top: 0; right: 0; transform: none;">
+                        <span class="material-icons notification-icon">info</span>
+                        <span>Запрос выполнен успешно, но не вернул результатов</span>
                     </div>
                 `;
             }
@@ -1969,13 +2817,17 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             // Добавляем запрос в начало массива
             sqlHistory.unshift({
                 sql: sql,
-                timestamp: new Date().toLocaleTimeString()
+                timestamp: new Date().toLocaleTimeString(),
+                date: new Date().toLocaleDateString()
             });
             
-            // Ограничиваем историю 10 последними запросами
-            if (sqlHistory.length > 10) {
+            // Ограничиваем историю 20 последними запросами
+            if (sqlHistory.length > 20) {
                 sqlHistory.pop();
             }
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('sqlHistory', JSON.stringify(sqlHistory));
             
             // Обновляем отображение истории
             renderSqlHistory();
@@ -1983,77 +2835,47 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         // Функция отрисовки истории SQL запросов
         function renderSqlHistory() {
-            const sqlEditorCard = document.getElementById('sqlEditorCard');
-            let historySection = sqlEditorCard.querySelector('.sql-history');
-            
-            // Если раздела истории нет, создаем его
-            if (!historySection) {
-                historySection = document.createElement('div');
-                historySection.className = 'sql-history';
-                sqlEditorCard.appendChild(historySection);
-            }
+            const historyList = document.getElementById('historyList');
             
             if (sqlHistory.length === 0) {
-                historySection.innerHTML = '<p>История запросов пуста</p>';
+                historyList.innerHTML = `
+                    <div class="empty-state" style="padding: 20px 0;">
+                        <span class="material-icons empty-state-icon">history</span>
+                        <p>История запросов пуста</p>
+                    </div>
+                `;
                 return;
             }
             
-            let html = '<h3 style="margin-top: 20px; margin-bottom: 12px;">История запросов</h3>';
+            let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
             
             sqlHistory.forEach((item, index) => {
                 html += `
-                    <div class="history-item" data-index="${index}">
-                        <div style="font-size: 11px; color: #757575; margin-bottom: 4px;">${item.timestamp}</div>
-                        <div style="font-family: monospace; font-size: 13px;">${item.sql.length > 100 ? item.sql.substring(0, 100) + '...' : item.sql}</div>
+                    <div class="history-item" style="background-color: var(--hover); padding: 12px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;" 
+                         onclick="document.getElementById('sqlQuery').value = \`${escapeHtml(item.sql)}\`; document.getElementById('sqlHistoryPanel').classList.remove('active');">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="font-size: 11px; color: var(--on-surface); opacity: 0.7;">${item.date} ${item.timestamp}</span>
+                            <button class="btn-icon" onclick="deleteHistoryItem(${index}); event.stopPropagation();" style="width: 24px; height: 24px; padding: 0;">
+                                <span class="material-icons" style="font-size: 16px;">delete</span>
+                            </button>
+                        </div>
+                        <div style="font-family: 'Roboto Mono', monospace; font-size: 12px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${escapeHtml(item.sql.length > 100 ? item.sql.substring(0, 100) + '...' : item.sql)}
+                        </div>
                     </div>
                 `;
             });
             
-            historySection.innerHTML = html;
+            html += '</div>';
             
-            // Добавляем обработчики кликов на элементы истории
-            document.querySelectorAll('.history-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    const index = this.dataset.index;
-                    document.getElementById('sqlQuery').value = sqlHistory[index].sql;
-                });
-            });
+            historyList.innerHTML = html;
         }
         
-        // Функция показа SQL редактора
-        function showSqlEditor() {
-            document.getElementById('tableDataCard').style.display = 'none';
-            document.getElementById('sqlEditorCard').style.display = 'block';
-            
-            // Обновляем хлебные крошки
-            updateBreadcrumb();
-            
-            // Снимаем выделение с таблиц в боковой панели
-            document.querySelectorAll('.table-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            currentTable = '';
-        }
-        
-        // Функция обновления хлебных крошек
-        function updateBreadcrumb(table = null) {
-            const breadcrumb = document.getElementById('breadcrumb');
-            
-            if (!table) {
-                breadcrumb.innerHTML = '<div class="breadcrumb-item"><a href="#" id="homeLink">Главная</a></div>';
-            } else {
-                breadcrumb.innerHTML = `
-                    <div class="breadcrumb-item"><a href="#" id="homeLink">Главная</a></div>
-                    <div class="breadcrumb-item active">${table}</div>
-                `;
-                
-                // Обновляем обработчик для ссылки "Главная"
-                document.getElementById('homeLink').addEventListener('click', function(e) {
-                    e.preventDefault();
-                    showSqlEditor();
-                });
-            }
+        // Функция удаления элемента истории
+        function deleteHistoryItem(index) {
+            sqlHistory.splice(index, 1);
+            localStorage.setItem('sqlHistory', JSON.stringify(sqlHistory));
+            renderSqlHistory();
         }
         
         // Функция инициализации переключателя темы
@@ -2067,34 +2889,98 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     
                     // Сохраняем выбор темы в cookie
                     document.cookie = `dark_theme=${isDarkTheme}; path=/; max-age=31536000`; // 1 год
+                    
+                    showNotification(isDarkTheme ? 'Темная тема включена' : 'Светлая тема включена', 'info');
                 });
             }
         }
         
         // Функция показа уведомления
-        function showNotification(message, type = 'info', duration = 3000) {
-            const notification = document.getElementById('notification');
+        function showNotification(message, type = 'info', duration = 3000, actionHtml = '') {
+            const notificationContainer = document.getElementById('notificationContainer');
+            const notificationId = 'notification-' + Date.now();
             
-            // Устанавливаем тип и сообщение
+            const notification = document.createElement('div');
             notification.className = `notification ${type}`;
+            notification.id = notificationId;
+            
+            const icons = {
+                'success': 'check_circle',
+                'error': 'error',
+                'info': 'info',
+                'warning': 'warning'
+            };
+            
             notification.innerHTML = `
-                <span class="material-icons">${type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'info'}</span>
-                <span>${message}</span>
+                <span class="material-icons notification-icon">${icons[type] || 'info'}</span>
+                <span style="flex: 1;">${message}</span>
+                ${actionHtml}
+                <button class="notification-close" onclick="removeNotification('${notificationId}')">
+                    <span class="material-icons">close</span>
+                </button>
             `;
             
-            // Показываем уведомление
-            notification.classList.add('active');
+            notificationContainer.appendChild(notification);
             
-            // Скрываем через указанное время
+            // Анимация появления
             setTimeout(() => {
+                notification.classList.add('active');
+            }, 10);
+            
+            // Автоматическое удаление
+            if (duration > 0) {
+                setTimeout(() => {
+                    removeNotification(notificationId);
+                }, duration);
+            }
+            
+            return notificationId;
+        }
+        
+        // Функция удаления уведомления
+        function removeNotification(notificationId) {
+            const notification = document.getElementById(notificationId);
+            if (notification) {
                 notification.classList.remove('active');
-            }, duration);
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }
+        }
+        
+        // Функция инициализации автодополнения SQL
+        function initSqlAutocomplete() {
+            const textarea = document.getElementById('sqlQuery');
+            const keywords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 
+                            'CREATE', 'TABLE', 'ALTER', 'DROP', 'SHOW', 'DESCRIBE', 'JOIN', 'LEFT', 'RIGHT', 
+                            'INNER', 'OUTER', 'ON', 'GROUP BY', 'ORDER BY', 'LIMIT', 'AND', 'OR', 'NOT', 'NULL'];
+            
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    
+                    // Вставляем отступ
+                    this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 4;
+                }
+            });
         }
         
         // Функция экранирования SQL строк
         function escapeSql(str) {
-            if (str === null) return '';
-            return String(str).replace(/'/g, "''");
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/'/g, "''").replace(/\\/g, '\\\\');
+        }
+        
+        // Функция экранирования HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
