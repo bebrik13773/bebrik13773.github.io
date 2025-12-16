@@ -788,6 +788,7 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
     let plus = 1;
     let energy = 5000;
     let lastEnergyUpdate = Date.now();
+    let energyLoaded = false;  // ИСПРАВЛЕНИЕ: Флаг для отслеживания, загружена ли энергия
     
     // ИСПРАВЛЕНИЕ: Правильная инициализация energy_max
     let energy_max = 5000; // Начальное значение по умолчанию
@@ -1013,17 +1014,23 @@ document.getElementById('submitLogin').onclick = function() {
                 
                 skinLoad();
                 
-                // ИСПРАВЛЕНИЕ: Правильная загрузка энергии
-                if (data.energy !== undefined && data.energy > 0) {
-                    energy = data.energy;
-                    console.log('💡 Энергия загружена с сервера:', energy);
-                } else {
-                    energy = energy_max; // Полная энергия по умолчанию
-                    console.log('💡 Энергия не найдена на сервере, установлена максимальная:', energy_max);
+                // ИСПРАВЛЕНИЕ: Правильная загрузка энергии - ТОЛЬКО ОДИН РАЗ
+                if (!energyLoaded) {
+                    if (data.energy !== undefined && data.energy > 0) {
+                        energy = data.energy;
+                        console.log('🔋 Энергия загружена с сервера:', energy);
+                    } else {
+                        energy = energy_max;
+                        console.log('🔋 Энергия не найдена на сервере, установлена максимальная:', energy_max);
+                    }
+                    
+                    // Восстанавливаем метку времени
+                    lastEnergyUpdate = (data.lastEnergyUpdate !== undefined && data.lastEnergyUpdate > 0) 
+                        ? data.lastEnergyUpdate 
+                        : Date.now();
+                    
+                    energyLoaded = true;  // ИСПРАВЛЕНИЕ: Устанавливаем флаг, энергия загружена
                 }
-                
-                // Восстанавливаем метку времени
-                lastEnergyUpdate = (data.lastEnergyUpdate !== undefined && data.lastEnergyUpdate > 0) ? data.lastEnergyUpdate : Date.now();
                 
                 // Обновляем UI
                 document.getElementById('score').innerText = 'Счет: ' + score;
@@ -1217,7 +1224,7 @@ function shopClose() {
             .then(response => response.json())
             .then(data => {
                 const leaderboard = document.getElementById('leaderboard');
-                leaderboard.innerHTML = '<h2>Топ игрок</h2>';
+                leaderboard.innerHTML = '<h2>Топ игроков</h2>';
                 data.forEach(player => {
                     leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
                 });
