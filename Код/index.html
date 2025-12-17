@@ -809,7 +809,7 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
     };
     let skin = [];
     
-    // ИСПРАВЛЕНИЕ 1: Улучшенная функция сохранения энергии с логированием
+    // ИСПРАВЛЕНИЕ 1: Улучшенная функция сохранения энергии с правильной обработкой ошибок
     function saveEnergy() {
         if (!userId) return;
         
@@ -831,15 +831,38 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
                 ENERGY_MAX: energy_max 
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            // Сначала проверяем статус ответа
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            // Затем пытаемся спарсить JSON
+            return response.text().then(text => {
+                if (!text) {
+                    throw new Error('Пустой ответ от сервера');
+                }
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('❌ Ошибка парсинга JSON:', text);
+                    throw new Error(`Неверный формат JSON: ${text.substring(0, 100)}`);
+                }
+            });
+        })
         .then(data => {
-            if (data.success) {
+            if (data && data.success) {
                 console.log('✅ Энергия успешно сохранена');
             } else {
-                console.error('❌ Ошибка сохранения энергии:', data);
+                console.error('❌ Ошибка сохранения энергии (success=false):', data);
             }
         })
-        .catch(error => console.error('❌ Ошибка при сохранении энергии:', error));
+        .catch(error => {
+            console.error('❌ Ошибка при сохранении энергии:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack
+            });
+        });
     }
     
     // ИСПРАВЛЕНИЕ 2: Дебаунсинг для предотвращения спама запросов - 90 секунд
