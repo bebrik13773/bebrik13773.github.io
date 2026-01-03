@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заказ напитков</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0d1117;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #30363d;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: #58a6ff;
+            margin-bottom: 10px;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        .header p {
+            color: #8b949e;
+            font-size: 1.1rem;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .drinks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 100px;
+        }
+
+        .drink-card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            animation: fadeIn 0.6s ease-out forwards;
+            opacity: 0;
+        }
+
+        .drink-card:nth-child(1) { animation-delay: 0.1s; }
+        .drink-card:nth-child(2) { animation-delay: 0.2s; }
+        .drink-card:nth-child(3) { animation-delay: 0.3s; }
+        .drink-card:nth-child(n+4) { animation-delay: 0.4s; }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .drink-card:hover {
+            background-color: #0d1117;
+            border-color: #58a6ff;
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.3);
+            transform: translateY(-4px);
+        }
+
+        .drink-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #58a6ff;
+            margin-bottom: 10px;
+        }
+
+        .drink-description {
+            color: #8b949e;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .addons-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #30363d;
+        }
+
+        .addons-title {
+            color: #58a6ff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .addon-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .addon-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+
+        .addon-option:hover {
+            background-color: #0d1117;
+        }
+
+        .addon-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #58a6ff;
+        }
+
+        .addon-option label {
+            cursor: pointer;
+            flex: 1;
+            color: #8b949e;
+            font-size: 0.95rem;
+        }
+
+        .addon-option input[type="checkbox"]:checked + label {
+            color: #58a6ff;
+            font-weight: 500;
+        }
+
+        .add-to-cart-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background-color: #58a6ff;
+            color: #0d1117;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .add-to-cart-btn:hover {
+            background-color: #79c0ff;
+            transform: scale(1.02);
+        }
+
+        .add-to-cart-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Плавающая корзина */
+        .cart-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            background-color: #58a6ff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .cart-button:hover {
+            background-color: #79c0ff;
+            transform: scale(1.1);
+            box-shadow: 0 6px 30px rgba(88, 166, 255, 0.5);
+        }
+
+        .cart-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #ff6b6b;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border: 2px solid #0d1117;
+            animation: pulse 0.4s ease-out;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1.3);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Модальное окно корзины */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 200;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #161b22;
+            border: 2px solid #58a6ff;
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 40px rgba(88, 166, 255, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #30363d;
+        }
+
+        .modal-header h2 {
+            color: #58a6ff;
+            font-size: 1.8rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.2s;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #58a6ff;
+        }
+
+        .cart-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8b949e;
+        }
+
+        .cart-items {
+            margin-bottom: 20px;
+        }
+
+        .cart-item {
+            background-color: #0d1117;
+            border-left: 3px solid #58a6ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+        }
+
+        .cart-item-info {
+            flex: 1;
+        }
+
+        .cart-item-name {
+            color: #58a6ff;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .cart-item-addons {
+            color: #8b949e;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .cart-item-remove {
+            background: none;
+            border: none;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: color 0.2s;
+            padding: 0;
+            margin-left: 10px;
+        }
+
+        .cart-item-remove:hover {
+            color: #ff6b6b;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: #58a6ff;
+            color: #0d1117;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            background-color: #79c0ff;
+            transform: scale(1.02);
+        }
+
+        .submit-btn:disabled {
+            background-color: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #58a6ff;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #30363d;
+            border-top: 3px solid #58a6ff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #58a6ff;
+            color: #0d1117;
+            padding: 15px 20px;
+            border-radius: 6px;
+            z-index: 300;
+            animation: slideInRight 0.3s ease;
+            max-width: 300px;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .drinks-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+            }
+
+            .cart-button {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+                bottom: 20px;
+                right: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥤 Заказ напитков</h1>
+            <p>Выберите напиток и добавки</p>
+        </div>
+
+        <div class="drinks-grid" id="drinksGrid">
+            <!-- Напитки загружаются из JSON -->
+        </div>
+    </div>
+
+    <!-- Плавающая кнопка корзины -->
+    <button class="cart-button" id="cartBtn">
+        🛒
+        <span class="cart-count" id="cartCount" style="display: none;">0</span>
+    </button>
+
+    <!-- Модальное окно корзины -->
+    <div class="modal" id="cartModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Ваш заказ</h2>
+                <button class="close-btn" id="closeCartBtn">&times;</button>
+            </div>
+
+            <div id="cartItems"></div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Отправка заказа...</p>
+            </div>
+
+            <button class="submit-btn" id="submitBtn">Отправить заказ</button>
+        </div>
+    </div>
+
+    <script>
+        // Состояние приложения
+        const state = {
+            drinks: [],
+            cart: []
+        };
+
+        // Загрузка данных из JSON
+        async function loadDrinks() {
+            try {
+                // Замените URL на адрес вашего сервера и JSON файла
+                const response = await fetch('/drinks.json');
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка загрузки: ${response.status}`);
+                }
+                
+                state.drinks = await response.json();
+                renderDrinks();
+            } catch (error) {
+                console.error('Ошибка при загрузке напитков:', error);
+                document.getElementById('drinksGrid').innerHTML = 
+                    '<p style="color: #ff6b6b; grid-column: 1/-1; text-align: center; padding: 40px;">❌ Ошибка загрузки данных. Проверьте подключение к серверу.</p>';
+            }
+        }
+
+        // Рендеринг списка напитков
+        function renderDrinks() {
+            const grid = document.getElementById('drinksGrid');
+            grid.innerHTML = '';
+
+            state.drinks.forEach((drink, index) => {
+                const card = document.createElement('div');
+                card.className = 'drink-card';
+
+                let addonsHTML = '';
+                if (drink.addons && drink.addons.length > 0) {
+                    addonsHTML = `
+                        <div class="addons-section">
+                            <div class="addons-title">Добавки:</div>
+                            <div class="addon-group" id="addons-${index}">
+                                ${drink.addons.map((addon, addonIndex) => `
+                                    <div class="addon-option">
+                                        <input 
+                                            type="checkbox" 
+                                            id="addon-${index}-${addonIndex}"
+                                            value="${addon}"
+                                            class="addon-checkbox"
+                                        >
+                                        <label for="addon-${index}-${addonIndex}">${addon}</label>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="drink-name">${drink.name}</div>
+                    <div class="drink-description">${drink.description}</div>
+                    ${addonsHTML}
+                    <button class="add-to-cart-btn" onclick="addToCart(${index})">
+                        Добавить в корзину
+                    </button>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        // Добавление товара в корзину
+        function addToCart(drinkIndex) {
+            const drink = state.drinks[drinkIndex];
+            const addonsElements = document.querySelectorAll(`#addons-${drinkIndex} input[type="checkbox"]:checked`);
+            const selectedAddons = Array.from(addonsElements).map(el => el.value);
+
+            state.cart.push({
+                drinkName: drink.name,
+                drinkDescription: drink.description,
+                addons: selectedAddons
+            });
+
+            updateCartCount();
+            showNotification(`"${drink.name}" добавлен в корзину`);
+        }
+
+        // Обновление счетчика корзины
+        function updateCartCount() {
+            const countElement = document.getElementById('cartCount');
+            countElement.textContent = state.cart.length;
+            countElement.style.display = state.cart.length > 0 ? 'flex' : 'none';
+        }
+
+        // Отображение уведомления
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Открытие корзины
+        document.getElementById('cartBtn').addEventListener('click', () => {
+            renderCart();
+            document.getElementById('cartModal').classList.add('show');
+        });
+
+        // Закрытие корзины
+        document.getElementById('closeCartBtn').addEventListener('click', () => {
+            document.getElementById('cartModal').classList.remove('show');
+        });
+
+        // Закрытие при клике на фон
+        document.getElementById('cartModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('cartModal')) {
+                document.getElementById('cartModal').classList.remove('show');
+            }
+        });
+
+        // Рендеринг содержимого корзины
+        function renderCart() {
+            const cartItemsDiv = document.getElementById('cartItems');
+
+            if (state.cart.length === 0) {
+                cartItemsDiv.innerHTML = '<div class="cart-empty">Корзина пуста 😕</div>';
+                document.getElementById('submitBtn').disabled = true;
+                return;
+            }
+
+            document.getElementById('submitBtn').disabled = false;
+            cartItemsDiv.innerHTML = `
+                <div class="cart-items">
+                    ${state.cart.map((item, index) => `
+                        <div class="cart-item">
+                            <div class="cart-item-info">
+                                <div class="cart-item-name">${item.drinkName}</div>
+                                ${item.addons.length > 0 ? `
+                                    <div class="cart-item-addons">
+                                        Добавки: ${item.addons.join(', ')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <button class="cart-item-remove" onclick="removeFromCart(${index})">
+                                ✕
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Удаление товара из корзины
+        function removeFromCart(index) {
+            state.cart.splice(index, 1);
+            updateCartCount();
+            renderCart();
+            showNotification('Товар удален из корзины');
+        }
+
+        // Отправка заказа
+        document.getElementById('submitBtn').addEventListener('click', async () => {
+            const loadingDiv = document.getElementById('loading');
+            const submitBtn = document.getElementById('submitBtn');
+
+            loadingDiv.classList.add('show');
+            submitBtn.disabled = true;
+
+            try {
+                // Подготовка данных заказа
+                const orderData = {
+                    timestamp: new Date().toISOString(),
+                    items: state.cart.map(item => ({
+                        drink: item.drinkName,
+                        description: item.drinkDescription,
+                        addons: item.addons
+                    }))
+                };
+
+                // Отправка на сервер
+                const response = await fetch('http://192.168.0.18:8031/order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (response.ok) {
+                    showNotification('✓ Заказ успешно отправлен на кухню!');
+                    state.cart = [];
+                    updateCartCount();
+                    setTimeout(() => {
+                        document.getElementById('cartModal').classList.remove('show');
+                    }, 1500);
+                } else {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+            } catch (error) {
+                console.error('Ошибка при отправке:', error);
+                showNotification(`❌ Ошибка: ${error.message}`);
+            } finally {
+                loadingDiv.classList.remove('show');
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadDrinks);
+    </script>
+</body>
+</html>
