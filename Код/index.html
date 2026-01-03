@@ -429,7 +429,7 @@
     margin: 10px 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
-    color: #1f2937; /* Темно-серый текст для контраста */
+    color: #1f2937;
     border-radius: 6px;
     max-width: 300px;
     display: inline-block;
@@ -448,34 +448,6 @@
     box-shadow: 0 6px 16px rgba(107, 33, 168, 0.4);
     border-color: #9333ea;
 }
-
-/* Альтернативный вариант с темным фоном, если у вас светлый пурпурный фон сайта */
-/*
-#comit {
-    background-color: rgba(30, 30, 40, 0.95);
-    border: 2px solid #c084fc;
-    padding: 10px 15px;
-    margin: 10px 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 14px;
-    color: #f3f4f6;
-    border-radius: 6px;
-    max-width: 300px;
-    display: inline-block;
-    box-shadow: 0 4px 12px rgba(192, 132, 252, 0.3);
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    font-weight: 500;
-    line-height: 1.4;
-}
-
-#comit:hover {
-    background-color: rgba(40, 40, 50, 0.95);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(192, 132, 252, 0.4);
-}
-*/
 </style>
 </head>
 <body>
@@ -561,7 +533,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <br>
 <br>
-<button id="ShopButton" onclick="window.location.replace('/fly-beaver.html');"> Летающий бобер(скоро обновление!) </button> <!-- ID Shop button используется только для стилей, кнопка ведёт на игру летающий бобёр -->
+<button id="ShopButton" onclick="window.location.replace('/fly-beaver.html');"> Летающий бобер(скоро обновление!) </button>
 <br>
 </div>
 <br>
@@ -576,7 +548,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
 <br>
 <br>
-<button id="ShopButton" onclick="showNotification('Сейчас не работает!', error);">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+<button id="ShopButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <br>
 <div id="skins">
@@ -607,14 +579,14 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
     <script>
-		//Последнее изменение
+//Последнее изменение
 // === КОНФИГУРАЦИЯ ===
 const CONFIG = {
-    owner: 'bebrik13773',      // Замените на имя владельца репозитория
-    repo: 'bebrik13773.github.io',     // Замените на название репозитория
-    updateInterval: 10 * 60 * 1000, // 15 минут в миллисекундах
-    retryDelay: 30000,      // 30 секунд при ошибке
-    maxRetries: 3           // Максимум 3 попытки при ошибке
+    owner: 'bebrik13773',
+    repo: 'bebrik13773.github.io',
+    updateInterval: 10 * 60 * 1000,
+    retryDelay: 30000,
+    maxRetries: 3
 };
 
 // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
@@ -626,39 +598,32 @@ async function getLatestCommit() {
     const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits`;
     const commitElement = document.getElementById('comit');
     
-    // Добавляем класс загрузки
     commitElement.classList.remove('error', 'success');
     commitElement.classList.add('loading');
     
     try {
         const response = await fetch(apiUrl);
         
-        // Проверяем статус ответа
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const commits = await response.json();
         
-        // Проверяем, что есть коммиты
         if (commits && commits.length > 0) {
-            // Берем только первое сообщение коммита (до переноса строки)
             const commitMessage = commits[0].commit.message.split('\n')[0];
             const author = commits[0].commit.author.name;
             const date = new Date(commits[0].commit.author.date).toLocaleDateString('ru-RU');
             
-            // Форматируем вывод
             commitElement.innerHTML = `
                 <strong>📌 Последнее изменение:</strong><br>
                 ${commitMessage}<br>
                 <small>👤 ${author} | 📅 ${date}</small>
             `;
             
-            // Обновляем стили для успеха
             commitElement.classList.remove('loading');
             commitElement.classList.add('success');
             
-            // Сбрасываем счетчик повторных попыток
             retryCount = 0;
             
             console.log(`✅ Информация обновлена: ${new Date().toLocaleTimeString()}`);
@@ -675,11 +640,9 @@ async function getLatestCommit() {
 function handleError(error, commitElement) {
     console.error('❌ Ошибка при получении коммита:', error);
     
-    // Убираем класс загрузки
     commitElement.classList.remove('loading');
     commitElement.classList.add('error');
     
-    // Определяем текст ошибки
     let errorMessage = 'Ошибка загрузки';
     
     if (error.message.includes('403')) {
@@ -690,10 +653,8 @@ function handleError(error, commitElement) {
         errorMessage = '📡 Проблема с подключением к интернету';
     }
     
-    // Обновляем текст элемента
     commitElement.innerHTML = `<strong>${errorMessage}</strong>`;
     
-    // Пробуем повторить, если не превышен лимит попыток
     retryCount++;
     if (retryCount < CONFIG.maxRetries) {
         console.log(`🔄 Повторная попытка ${retryCount}/${CONFIG.maxRetries} через ${CONFIG.retryDelay/1000} сек...`);
@@ -705,12 +666,10 @@ function handleError(error, commitElement) {
 
 // === УПРАВЛЕНИЕ АВТООБНОВЛЕНИЕМ ===
 function startAutoUpdate() {
-    // Останавливаем предыдущий таймер, если есть
     if (updateTimer) {
         clearInterval(updateTimer);
     }
     
-    // Запускаем автообновление каждые 15 минут
     updateTimer = setInterval(getLatestCommit, CONFIG.updateInterval);
     
     console.log(`🔄 Автообновление запущено: каждые ${CONFIG.updateInterval/60000} минут`);
@@ -726,21 +685,14 @@ function stopAutoUpdate() {
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 document.addEventListener('DOMContentLoaded', function() {
-    // Первый запрос при загрузке страницы
     getLatestCommit();
-    
-    // Запускаем автообновление
     startAutoUpdate();
-    
-    // Добавляем кнопку ручного обновления (опционально)
     addManualRefreshButton();
     
-    // Останавливаем автообновление при скрытии вкладки для экономии запросов
     document.addEventListener('visibilitychange', function() {
         if (document.hidden) {
             stopAutoUpdate();
         } else {
-            // При возвращении на вкладку обновляем данные и перезапускаем автообновление
             getLatestCommit();
             startAutoUpdate();
         }
@@ -749,11 +701,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // === ДОПОЛНИТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РУЧНОГО ОБНОВЛЕНИЯ ===
 function addManualRefreshButton() {
-    // Создаем контейнер для кнопки
     const container = document.createElement('div');
     container.style.marginTop = '10px';
     
-    // Создаем кнопку
     const refreshButton = document.createElement('button');
     refreshButton.textContent = '🔄 Обновить';
     refreshButton.style.cssText = `
@@ -769,7 +719,6 @@ function addManualRefreshButton() {
         box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
     `;
     
-    // Добавляем эффекты при наведении
     refreshButton.addEventListener('mouseenter', function() {
         this.style.transform = 'translateY(-2px)';
         this.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
@@ -780,21 +729,18 @@ function addManualRefreshButton() {
         this.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
     });
     
-    // Добавляем обработчик клика
     refreshButton.addEventListener('click', function() {
         this.disabled = true;
         this.textContent = '⏳ Загрузка...';
         
         getLatestCommit();
         
-        // Восстанавливаем кнопку через 2 секунды
         setTimeout(() => {
             this.disabled = false;
             this.textContent = '🔄 Обновить';
         }, 2000);
     });
     
-    // Добавляем кнопку после элемента с коммитом
     const commitElement = document.getElementById('comit');
     container.appendChild(refreshButton);
     commitElement.parentNode.insertBefore(container, commitElement.nextSibling);
@@ -805,12 +751,11 @@ function updateConfig(newConfig) {
     Object.assign(CONFIG, newConfig);
     console.log('Конфигурация обновлена:', CONFIG);
     
-    // Перезапускаем автообновление с новыми настройками
     stopAutoUpdate();
     startAutoUpdate();
 }
 
-// === ЭКСПОРТ ФУНКЦИЙ ДЛЯ ИСПОЛЬЗОВАНИЯ В КОНСОЛИ (опционально) ===
+// === ЭКСПОРТ ФУНКЦИЙ ДЛЯ ИСПОЛЬЗОВАНИЯ В КОНСОЛИ ===
 window.CommitWidget = {
     refresh: getLatestCommit,
     startAutoUpdate: startAutoUpdate,
@@ -821,7 +766,7 @@ window.CommitWidget = {
 
 console.log('✅ Виджет коммитов GitHub инициализирован');
 console.log('ℹ️ Используйте CommitWidget в консоли для управления виджетом');
-		//Начало основного кода
+//Начало основного кода
 const href = window.location.host
 if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
     // Восстановление логина и пароля из localStorage
@@ -843,9 +788,15 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
     let plus = 1;
     let energy = 5000;
     let lastEnergyUpdate = Date.now();
-    let energy_max = localStorage.getItem('max') !== undefined ? 10000 : 0;
-    const ENERGY_REGEN_TIME = 13 * 60 * 1000; // 10 минут в мс
-    const ENERGY_REGEN_PER_MS = (energy_max !== undefined ?10000 :0 /2) / ENERGY_REGEN_TIME;
+    let energyLoaded = false;  // ИСПРАВЛЕНИЕ: Флаг для отслеживания, загружена ли энергия
+    
+    // ИСПРАВЛЕНИЕ: Правильная инициализация energy_max
+    let energy_max = 5000; // Начальное значение по умолчанию
+    const ENERGY_REGEN_TIME = 15 * 60 * 1000; // 15 минут на полное восстановление
+    
+    // ИСПРАВЛЕНИЕ: Правильный расчет регенерации энергии
+    let ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME; // Половина максимума за 15 минут
+    
     // Список скинов (не используется, для справки)
     let skins = {
         skin1: 'bober.png',
@@ -857,15 +808,78 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
         skin7: 'strany-bober.jpg',
     };
     let skin = [];
-        // Функция сохранения энергии на сервере
+    
+    // ИСПРАВЛЕНИЕ 1: Улучшенная функция сохранения энергии с правильной обработкой ошибок
     function saveEnergy() {
         if (!userId) return;
+        
+        // Логируем для отладки
+        console.log('💾 Сохранение энергии:', {
+            userId: userId,
+            energy: Math.floor(energy),
+            energy_max: energy_max,
+            timestamp: new Date().toLocaleTimeString()
+        });
+        
         fetch('https://bober-api.gt.tc/save-energy.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userId, energy: Math.floor(energy), lastEnergyUpdate: lastEnergyUpdate, ENERGY_MAX: energy_max })
+            body: JSON.stringify({ 
+                userId: userId, 
+                energy: Math.floor(energy), 
+                lastEnergyUpdate: lastEnergyUpdate, 
+                ENERGY_MAX: energy_max 
+            })
+        })
+        .then(response => {
+            // Сначала проверяем статус ответа
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            // Затем пытаемся спарсить JSON
+            return response.text().then(text => {
+                if (!text) {
+                    throw new Error('Пустой ответ от сервера');
+                }
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error('❌ Ошибка парсинга JSON:', text);
+                    throw new Error(`Неверный формат JSON: ${text.substring(0, 100)}`);
+                }
+            });
+        })
+        .then(data => {
+            if (data && data.success) {
+                console.log('✅ Энергия успешно сохранена');
+            } else {
+                console.error('❌ Ошибка сохранения энергии (success=false):', data);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Ошибка при сохранении энергии:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack
+            });
         });
     }
+    
+    // ИСПРАВЛЕНИЕ 2: Дебаунсинг для предотвращения спама запросов - 90 секунд
+    let saveEnergyTimeout = null;
+    
+    // Функция с дебаунсингом - не сохраняет чаще чем раз в 90 секунд (1 мин 30 сек)
+    // Сохранение происходит только при клике, а не по таймеру
+    function saveEnergyDebounced() {
+        if (saveEnergyTimeout) {
+            clearTimeout(saveEnergyTimeout);
+        }
+        
+        saveEnergyTimeout = setTimeout(() => {
+            saveEnergy();
+        }, 90000); // Задержка 90 секунд (1 минута 30 секунд)
+    }
+    
     setInterval(() => {
     updateEnergy();
     updateEnergyUI();
@@ -923,7 +937,7 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
     };
 
  
-    // --- Добавлено: поддержка мультитача на мобильных устройствах ---
+    // ИСПРАВЛЕНИЕ 3: Сохранение энергии при тач-событиях (мобильные)
     document.getElementById('clicker').addEventListener('touchstart', function(e) {
         if (userId) {
             e.preventDefault();
@@ -935,6 +949,9 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
                 energy -= totalCost;
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 updateEnergyUI();
+                
+                // Сохраняем энергию с дебаунсингом 90 сек после тапа
+                saveEnergyDebounced();
             } else {
                 showNotification("Недостаточно энергии!", "error");
             }
@@ -965,7 +982,8 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
         document.getElementById('registerForm').style.display = 'block';
         document.getElementById('loginForm').style.display = 'none';
     };
-   // Клик по кнопке (ПК)
+    
+    // ИСПРАВЛЕНИЕ 4: Сохранение энергии при каждом клике (ПК)
     document.getElementById('clicker').onclick = function() {
         if (userId) {
             updateEnergy();
@@ -974,6 +992,9 @@ if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.
                 energy -= plus;
                 document.getElementById('score').innerText = 'Счет: ' + score;
                 updateEnergyUI();
+                
+                // Сохраняем энергию с дебаунсингом 90 сек после клика
+                saveEnergyDebounced();
             } else {
                 showNotification("Недостаточно энергии!", "error");
             }
@@ -997,6 +1018,7 @@ document.getElementById('submitLogin').onclick = function() {
         })
         .then(response => response.json())
         .then(data => {
+            console.log('Данные от сервера при логине:', data);
             if (data.success) {
                 userId = data.userId;
                 score = data.score !== undefined ? data.score : 0;
@@ -1005,21 +1027,45 @@ document.getElementById('submitLogin').onclick = function() {
                 localStorage.setItem('password', password);
                 
                 // Преобразуем строку skin в массив
-                skin = JSON.parse(data.skin); // <-- Новое изменение
-                let energy_max = data.ENERGY_MAX !== undefined ? 10000 : 0;
-                const ENERGY_REGEN_TIME = 13 * 60 * 1000; // 10 минут в мс
-                const ENERGY_REGEN_PER_MS = (energy_max/2) / ENERGY_REGEN_TIME;
+                skin = JSON.parse(data.skin);
+                
+                // ИСПРАВЛЕНИЕ: Правильная загрузка energy_max с сервера
+                energy_max = (data.ENERGY_MAX !== undefined && data.ENERGY_MAX > 0) ? data.ENERGY_MAX : 5000;
+                
+                // ИСПРАВЛЕНИЕ: Пересчитываем регенерацию с новым energy_max
+                ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
+                
                 skinLoad();
-                energy = data.energy //!== undefined ? data.energy : ENERGY_MAX;
-                lastEnergyUpdate = data.lastEnergyUpdate !== undefined ? data.lastEnergyUpdate : Date.now();
+                
+                // ИСПРАВЛЕНИЕ: Правильная загрузка энергии - ТОЛЬКО ОДИН РАЗ
+                if (!energyLoaded) {
+                    if (data.energy !== undefined && data.energy > 0) {
+                        energy = data.energy;
+                        console.log('🔋 Энергия загружена с сервера:', energy);
+                    } else {
+                        energy = energy_max;
+                        console.log('🔋 Энергия не найдена на сервере, установлена максимальная:', energy_max);
+                    }
+                    
+                    // Восстанавливаем метку времени
+                    lastEnergyUpdate = (data.lastEnergyUpdate !== undefined && data.lastEnergyUpdate > 0) 
+                        ? data.lastEnergyUpdate 
+                        : Date.now();
+                    
+                    energyLoaded = true;  // ИСПРАВЛЕНИЕ: Устанавливаем флаг, энергия загружена
+                }
+                
+                // Обновляем UI
                 document.getElementById('score').innerText = 'Счет: ' + score;
+                updateEnergyUI();
+                
                 showNotification("Успешный вход!", "success");
                 loadLeaderboard();
                 document.getElementById('registerForm').style.display = 'none';
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('loginButton').style.display = 'none';
                 document.getElementById('registerButton').style.display = 'none';
-                if (login == "test"){document.getElementById('admin').style.display = 'block';};
+                if (login == "test"){document.getElementById('admin').style.display = 'block';};  
             } else {
                 showNotification(data.message, "error")
             }
@@ -1060,10 +1106,11 @@ function shopClose() {
     document.getElementById('shopExit').style.zIndex = '';
 }
 
-    // Сохранение счета
+    // ИСПРАВЛЕНИЕ 5: Обновление функции Save() для явного сохранения
     function Save() {
         if (userId) {
             saveScore(score);
+            // Принудительное сохранение энергии без дебаунса
             saveEnergy();
             showNotification("Успешное сохранение", "success");
         } else {
@@ -1105,23 +1152,31 @@ function shopClose() {
             showNotification('Пожалуйста, войдите в систему!', "error");
         }
     };
+    
+    // ИСПРАВЛЕНИЕ: Рабочая функция покупки улучшения энергии
     function buyEnergyUpgrade()
     {
         if (userId) {
-            if (score > 10000) {
-                energy_max = energy_max + 1000;
+            if (score >= 10000) {
+                energy_max = energy_max + 1000; // Увеличиваем максимум
                 score = score - 10000;
+                
+                // Пересчитываем скорость регенерации с новым максимумом
+                ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
+                
+                // Сохраняем новые значения
                 saveEnergy();
                 saveScore(score);
-                showNotification("Успешная покупка улучшения!", "success");
+                showNotification("Успешная покупка улучшения! Новый максимум: " + energy_max, "success");
             } else {
-                showNotification(" Недостаточно средств!", "error");
+                showNotification("Недостаточно средств!", "error");
             }
         }
         else {
             showNotification('Пожалуйста, войдите в систему!', "error");
         }
     }
+    
     // Сохранение значения plus
     function saveplus()
     {
@@ -1192,7 +1247,7 @@ function shopClose() {
             .then(response => response.json())
             .then(data => {
                 const leaderboard = document.getElementById('leaderboard');
-                leaderboard.innerHTML = '<h2>Топ игрок</h2>';
+                leaderboard.innerHTML = '<h2>Топ игроков</h2>';
                 data.forEach(player => {
                     leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
                 });
@@ -1200,6 +1255,22 @@ function shopClose() {
     }
 
     window.onload = loadLeaderboard();
+    
+    // ИСПРАВЛЕНИЕ 6: Сохранение энергии при закрытии страницы
+    // Сохраняем энергию при закрытии страницы или переходе
+    window.addEventListener('beforeunload', function(e) {
+        if (userId) {
+            // Принудительное сохранение без дебаунса при закрытии
+            saveEnergy();
+        }
+    });
+    
+    // Дополнительное сохранение при потере фокуса страницы
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden && userId) {
+            saveEnergy();
+        }
+    });
 
     </script>
 
@@ -1212,20 +1283,19 @@ class AutoClickerDetector {
         this.checkInterval = null;
         this.lastClickTime = 0;
         this.detectionCount = 0;
-        this.maxDetections = 3; // Увеличил с 2 до 3 предупреждений
+        this.maxDetections = 3;
         this.isMobile = this.checkMobileDevice();
         this.unbanCode = "UNBAN2024";
         
-        // СНИЖЕННЫЕ ПОРОГИ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
         this.config = {
-            maxCPS: this.isMobile ? 30 : 12,           // Увеличено для мобильных (было 15)
-            minClicksForAnalysis: this.isMobile ? 20 : 10, // Увеличено (было 10)
-            timeWindow: this.isMobile ? 2500 : 1500,   // Увеличено окно анализа
-            regularityThreshold: 0.95,                 // Увеличено (было 0.9) - ТОЛЬКО МАШИННАЯ РЕГУЛЯРНОСТЬ
-            positionThreshold: this.isMobile ? 5 : 3,  // Уменьшено (было 10) - менее чувствительно к позициям
-            minInterval: this.isMobile ? 20 : 35,      // Уменьшено для мобильных
-            multiTouchThreshold: this.isMobile ? 10 : 3, // УВЕЛИЧЕНО ДО 10 для мультитача
-            humanFactorThreshold: 0.1                  // Добавлен порог человеческого фактора
+            maxCPS: this.isMobile ? 30 : 12,
+            minClicksForAnalysis: this.isMobile ? 20 : 10,
+            timeWindow: this.isMobile ? 2500 : 1500,
+            regularityThreshold: 0.95,
+            positionThreshold: this.isMobile ? 5 : 3,
+            minInterval: this.isMobile ? 20 : 35,
+            multiTouchThreshold: this.isMobile ? 10 : 3,
+            humanFactorThreshold: 0.1
         };
         
         this.init();
@@ -1258,10 +1328,9 @@ class AutoClickerDetector {
         
         this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
         
-        // СНИЖЕННАЯ ЧУВСТВИТЕЛЬНОСТЬ К МУЛЬТИТАЧУ
         const simultaneousClicks = this.clicks.filter(click => Math.abs(click.time - now) < 15);
         if (simultaneousClicks.length >= this.config.multiTouchThreshold) {
-            this.suspiciousCount += 0.2; // Уменьшено с 0.5 до 0.2
+            this.suspiciousCount += 0.2;
         }
         
         this.clicks.push({
@@ -1282,7 +1351,6 @@ class AutoClickerDetector {
     checkSuspiciousPatterns(timeSinceLastClick) {
         const cps = this.calculateCPS();
         
-        // ТОЛЬКО ПРИ ОЧЕНЬ ВЫСОКОЙ СКОРОСТИ
         if (cps < this.config.maxCPS * 1.5) return;
 
         const regularity = this.calculateRegularity();
@@ -1292,19 +1360,16 @@ class AutoClickerDetector {
         let detected = false;
         let reason = '';
 
-        // ОЧЕНЬ СТРОГИЕ ПРОВЕРКИ - ТОЛЬКО ЯВНЫЕ АВТОКЛИКЕРЫ
         if (cps > this.config.maxCPS * (this.isMobile ? 4 : 3)) {
             detected = true;
             reason = `Экстремальная скорость: ${cps.toFixed(1)} CPS`;
         }
-        // ТОЛЬКО СОВЕРШЕННО МАШИННАЯ РЕГУЛЯРНОСТЬ + ОЧЕНЬ ВЫСОКАЯ СКОРОСТЬ
         else if (cps > this.config.maxCPS * 2.5 && 
                  regularity > this.config.regularityThreshold && 
                  humanFactor < this.config.humanFactorThreshold) {
             detected = true;
             reason = `Идеальная регулярность: ${Math.round(regularity * 100)}%`;
         }
-        // ТОЛЬКО СОВЕРШЕННО ТОЧЕЧНЫЕ КЛИКИ + ОЧЕНЬ ВЫСОКАЯ СКОРОСТЬ
         else if (cps > this.config.maxCPS * 2.5 && 
                  positionVariance < 1 && 
                  this.clicks.length > 30) {
@@ -1314,13 +1379,11 @@ class AutoClickerDetector {
 
         if (detected) {
             this.suspiciousCount++;
-            // ТРЕБУЕТСЯ БОЛЬШЕ ПОДОЗРЕНИЙ ДЛЯ СРАБАТЫВАНИЯ
             if (this.suspiciousCount >= (this.isMobile ? 5 : 4)) {
                 this.onDetection(reason, cps);
                 this.suspiciousCount = 0;
             }
         } else {
-            // БЫСТРЕЕ СБРАСЫВАЕМ СЧЕТЧИК
             this.suspiciousCount = Math.max(0, this.suspiciousCount - (this.isMobile ? 0.3 : 0.4));
         }
     }
@@ -1372,9 +1435,8 @@ class AutoClickerDetector {
         const positionVariance = this.calculatePositionVariance();
         const regularity = this.calculateRegularity();
         
-        // Человеческие клики имеют среднюю регулярность
         const positionScore = Math.min(1, positionVariance / 20);
-        const regularityScore = 1 - (regularity * 0.7); // Меньший вес регулярности
+        const regularityScore = 1 - (regularity * 0.7);
         
         return (positionScore + regularityScore) / 2;
     }
@@ -1383,23 +1445,20 @@ class AutoClickerDetector {
         this.checkInterval = setInterval(() => {
             if (this.clicks.length > 25) {
                 const cps = this.calculateCPS();
-                // ОЧЕНЬ ВЫСОКИЙ ПОРОГ ДЛЯ ПОСТОЯННОЙ СКОРОСТИ
                 if (cps > this.config.maxCPS * (this.isMobile ? 5 : 4)) {
                     this.onDetection(`Постоянная экстремальная скорость: ${cps.toFixed(1)} CPS`, cps);
                 }
             }
             
-            // Автоочистка старых кликов
             const now = Date.now();
             this.clicks = this.clicks.filter(click => now - click.time < 10000);
-        }, 4000); // Увеличена периодичность проверки
+        }, 4000);
     }
 
     backupCheck() {
         setInterval(() => {
             const now = Date.now();
             const recentClicks = this.clicks.filter(click => now - click.time < 1000);
-            // ОЧЕНЬ ВЫСОКИЙ ПОРОГ ДЛЯ КРАТКОВРЕМЕННОЙ АКТИВНОСТИ
             if (recentClicks.length > (this.isMobile ? 35 : 25)) {
                 this.onDetection("Кратковременная экстремальная активность", recentClicks.length);
             }
@@ -1808,7 +1867,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     document.body.appendChild(resetBtn);
     
     const codeInfo = document.createElement('div');
-    codeInfo.textContent = 'Код разбана: UNBAN2026';
+    codeInfo.textContent = 'Код разбана: UNBAN2024';
     codeInfo.style.cssText = `
         position: fixed; 
         bottom: 40px; 
@@ -1822,7 +1881,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     `;
     document.body.appendChild(codeInfo);
 }
-				</script>
+</script>
 	
 	 <footer class="footer">
         <div class="footer-container">
