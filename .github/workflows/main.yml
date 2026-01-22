@@ -1,18 +1,45 @@
 on: push
 name: 🚀 Deploy website on push
+
 jobs:
   web-deploy:
     name: 🎉 Deploy
     runs-on: ubuntu-latest
     steps:
-    - name: 🚚 Get latest code
-      uses: actions/checkout@v2
+    - name: 🚨 Get latest code
+      uses: actions/checkout@v3
       
-    - name: 📂 Sync files
-      uses: webitsbr/github-to-ftp@1.0.1
+    - name: 🔍 Determine deployment directory
+      id: deployment
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
+          echo "env_name=Production" >> $GITHUB_OUTPUT
+        else
+          echo "target_dir=htdocs/test/" >> $GITHUB_OUTPUT
+          echo "env_name=Test" >> $GITHUB_OUTPUT
+        fi
+        echo "branch_name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+      
+    - name: 📦 Deploy to ${{ steps.deployment.outputs.env_name }}
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
-        local-dir: ./Код/
         server: ${{ secrets.server }}
-        server-dir: htdocs/
         username: ${{ secrets.username }}
         password: ${{ secrets.password }}
+        local-dir: ./Код/
+        server-dir: ${{ steps.deployment.outputs.target_dir }}
+        
+    - name: ✅ Deployment Summary
+      run: |
+        echo "### 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch:** ${{ steps.deployment.outputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment:** ${{ steps.deployment.outputs.env_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target Directory:** ${{ steps.deployment.outputs.target_dir }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "🧪 **Test URL:** https://bober-api.gt.tc/test/" >> $GITHUB_STEP_SUMMARY
+        fi
