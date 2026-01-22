@@ -1,23 +1,49 @@
-on: push
-name: 🚀 Deploy website on push
+on:
+  push:
+    branches:
+      - '**'  # Деплой при push в любую ветку
+  workflow_dispatch:  # Ручной запуск
+    inputs:
+      target_environment:
+        description: 'Target environment'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - production
+
+name: 🚀 Deploy website
 
 jobs:
   web-deploy:
     name: 🎉 Deploy
     runs-on: ubuntu-latest
     steps:
-    - name: 🚨 Get latest code
+    - name: 🚚 Get latest code
       uses: actions/checkout@v3
       
     - name: 🔍 Determine deployment directory
       id: deployment
       run: |
-        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-          echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
-          echo "env_name=Production" >> $GITHUB_OUTPUT
+        # Для ручного запуска используем выбранное окружение
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "${{ inputs.target_environment }}" == "production" ]; then
+            echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
+            echo "env_name=Production" >> $GITHUB_OUTPUT
+          else
+            echo "target_dir=htdocs/test/" >> $GITHUB_OUTPUT
+            echo "env_name=Test" >> $GITHUB_OUTPUT
+          fi
+        # Для автоматического push проверяем ветку
         else
-          echo "target_dir=htdocs/test/" >> $GITHUB_OUTPUT
-          echo "env_name=Test" >> $GITHUB_OUTPUT
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
+            echo "env_name=Production" >> $GITHUB_OUTPUT
+          else
+            echo "target_dir=htdocs/test/" >> $GITHUB_OUTPUT
+            echo "env_name=Test" >> $GITHUB_OUTPUT
+          fi
         fi
         echo "branch_name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
       
@@ -37,8 +63,9 @@ jobs:
         echo "- **Branch:** ${{ steps.deployment.outputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Environment:** ${{ steps.deployment.outputs.env_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Target Directory:** ${{ steps.deployment.outputs.target_dir }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+        if [ "${{ steps.deployment.outputs.env_name }}" == "Production" ]; then
           echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY
         else
           echo "🧪 **Test URL:** https://bober-api.gt.tc/test/" >> $GITHUB_STEP_SUMMARY
