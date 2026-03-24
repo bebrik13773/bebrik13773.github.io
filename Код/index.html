@@ -640,6 +640,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
+    <button id="logoutButton">Выйти</button>
 <br>
     <div id="admin">
 	    <h2> Admin </h2>
@@ -910,6 +911,7 @@ localStorage.removeItem('password');
 document.getElementById('admin').style.display = 'none';
 document.getElementById('shop').style.display = 'none';
 document.getElementById('shopExit').style.display = 'none';
+document.getElementById('logoutButton').style.display = 'none';
 
 const queryString = window.location.search;
 const testm = false;
@@ -930,6 +932,7 @@ let ENERGY_REGEN_PER_MS = 0;
 let skin = getDefaultSkinState();
 let energyTimer = null;
 let saveEnergyTimeout = null;
+let currentLogin = localStorage.getItem('login') || '';
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
 
@@ -988,6 +991,81 @@ function validateRegisterLogin(loginValue) {
     return REGISTER_LOGIN_PATTERN.test(loginValue);
 }
 
+function setAuthenticatedUI(isAuthenticated) {
+    document.getElementById('loginButton').style.display = isAuthenticated ? 'none' : 'inline-block';
+    document.getElementById('registerButton').style.display = isAuthenticated ? 'none' : 'inline-block';
+    document.getElementById('logoutButton').style.display = isAuthenticated ? 'inline-block' : 'none';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'none';
+}
+
+function updateAdminVisibility(loginValue) {
+    document.getElementById('admin').style.display = loginValue === 'test' ? 'block' : 'none';
+}
+
+function resetUserState() {
+    userId = null;
+    score = 0;
+    plus = 1;
+    energy = 5000;
+    lastEnergyUpdate = Date.now();
+    energy_max = 5000;
+    skin = getDefaultSkinState();
+
+    if (saveEnergyTimeout) {
+        clearTimeout(saveEnergyTimeout);
+        saveEnergyTimeout = null;
+    }
+
+    updateRegenRate();
+    skinLoad();
+    updateScoreUI();
+    updateEnergyUI();
+    updateAdminVisibility('');
+    setAuthenticatedUI(false);
+    document.getElementById('password').value = '';
+    document.getElementById('login').value = currentLogin || localStorage.getItem('login') || '';
+}
+
+function applyAuthenticatedState(data) {
+    const resolvedLogin = typeof data.login === 'string' && data.login.trim() !== ''
+        ? data.login.trim()
+        : (currentLogin || localStorage.getItem('login') || '');
+
+    userId = Number(data.userId) || null;
+    if (!userId) {
+        throw new Error('Сервер вернул некорректные данные сессии.');
+    }
+
+    currentLogin = resolvedLogin;
+    if (resolvedLogin) {
+        localStorage.setItem('login', resolvedLogin);
+        document.getElementById('login').value = resolvedLogin;
+    }
+
+    score = Number.isFinite(Number(data.score)) ? Number(data.score) : 0;
+    plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
+    energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : 5000;
+    updateRegenRate();
+
+    skin = normalizeSkinState(data.skin);
+    skinLoad();
+
+    const serverEnergy = Number(data.energy);
+    energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy_max;
+
+    const serverUpdateTime = Number(data.lastEnergyUpdate);
+    lastEnergyUpdate = Number.isFinite(serverUpdateTime) && serverUpdateTime > 0 ? serverUpdateTime : Date.now();
+
+    updateEnergy();
+    updateScoreUI();
+    updateEnergyUI();
+    startEnergyTimer();
+    updateAdminVisibility(resolvedLogin);
+    setAuthenticatedUI(true);
+    document.getElementById('password').value = '';
+}
+
 function escapeHtmlText(value) {
     return String(value).replace(/[&<>"']/g, function(char) {
         const entities = {
@@ -1034,7 +1112,10 @@ function renderLeaderboard(players) {
 }
 
 async function requestJson(url, options = {}) {
-    const response = await fetch(url, options);
+    const response = await fetch(url, {
+        credentials: 'include',
+        ...options,
+    });
     let data;
 
     try {
@@ -1048,6 +1129,24 @@ async function requestJson(url, options = {}) {
     }
 
     return data;
+}
+
+async function restoreSession() {
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/session-t.php', {
+            cache: 'no-store'
+        });
+
+        if (data && data.success) {
+            applyAuthenticatedState(data);
+            return true;
+        }
+    } catch (error) {
+        console.warn('Сессия не восстановлена:', error);
+    }
+
+    resetUserState();
+    return false;
 }
 
 function updateEnergy() {
@@ -1245,37 +1344,11 @@ document.getElementById('submitLogin').onclick = async function() {
             return;
         }
 
-        userId = Number(data.userId) || null;
-        score = Number.isFinite(Number(data.score)) ? Number(data.score) : 0;
-        plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
-        energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : 5000;
-        updateRegenRate();
-
-        skin = normalizeSkinState(data.skin);
-        skinLoad();
-
-        const serverEnergy = Number(data.energy);
-        energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy_max;
-
-        const serverUpdateTime = Number(data.lastEnergyUpdate);
-        lastEnergyUpdate = Number.isFinite(serverUpdateTime) && serverUpdateTime > 0 ? serverUpdateTime : Date.now();
-
-        localStorage.setItem('login', loginValue);
-        updateEnergy();
-        updateScoreUI();
-        updateEnergyUI();
-        startEnergyTimer();
+        currentLogin = loginValue;
+        applyAuthenticatedState(data);
 
         showNotification('Успешный вход!', 'success');
         loadLeaderboard();
-        document.getElementById('registerForm').style.display = 'none';
-        document.getElementById('loginForm').style.display = 'none';
-        document.getElementById('loginButton').style.display = 'none';
-        document.getElementById('registerButton').style.display = 'none';
-
-        if (loginValue === 'test') {
-            document.getElementById('admin').style.display = 'block';
-        }
     } catch (error) {
         console.error('Ошибка входа:', error);
         showNotification(error.message || 'Ошибка сети при входе.', 'error');
@@ -1441,6 +1514,35 @@ document.getElementById('submitRegister').onclick = async function() {
     }
 };
 
+document.getElementById('logoutButton').onclick = async function() {
+    const logoutBtn = document.getElementById('logoutButton');
+
+    if (logoutBtn.disabled) {
+        return;
+    }
+
+    logoutBtn.disabled = true;
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/logout-t.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: '{}'
+        });
+
+        resetUserState();
+        showNotification(data.message || 'Вы вышли из аккаунта.', 'success');
+        loadLeaderboard();
+    } catch (error) {
+        console.error('Ошибка выхода:', error);
+        showNotification(error.message || 'Ошибка сети при выходе.', 'error');
+    } finally {
+        logoutBtn.disabled = false;
+    }
+};
+
 function saveScore(scoreValue) {
     if (!userId) {
         return;
@@ -1475,7 +1577,10 @@ skinLoad();
 updateScoreUI();
 updateEnergyUI();
 startEnergyTimer();
-window.addEventListener('load', loadLeaderboard);
+window.addEventListener('load', async function() {
+    await restoreSession();
+    loadLeaderboard();
+});
 
 window.addEventListener('beforeunload', function() {
     if (userId) {

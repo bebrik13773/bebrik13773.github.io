@@ -82,6 +82,82 @@ function bober_read_json_request()
     return is_array($data) ? $data : null;
 }
 
+function bober_start_session()
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $lifetime = 30 * 24 * 60 * 60;
+    $isSecure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+
+    ini_set('session.gc_maxlifetime', (string) $lifetime);
+
+    if (!headers_sent()) {
+        session_name('BOBERSESSID');
+        session_set_cookie_params([
+            'lifetime' => $lifetime,
+            'path' => '/',
+            'secure' => $isSecure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    session_start();
+}
+
+function bober_login_user($userId, $login = '')
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    bober_start_session();
+    session_regenerate_id(true);
+
+    $_SESSION['game_user_id'] = $userId;
+    $_SESSION['game_login'] = trim((string) $login);
+    $_SESSION['game_last_seen_at'] = time();
+}
+
+function bober_get_logged_in_user_id()
+{
+    bober_start_session();
+
+    $userId = max(0, (int) ($_SESSION['game_user_id'] ?? 0));
+    if ($userId < 1) {
+        return null;
+    }
+
+    $_SESSION['game_last_seen_at'] = time();
+
+    return $userId;
+}
+
+function bober_logout_user()
+{
+    bober_start_session();
+
+    $_SESSION = [];
+
+    if (ini_get('session.use_cookies')) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $params['path'] ?? '/',
+            $params['domain'] ?? '',
+            !empty($params['secure']),
+            !empty($params['httponly'])
+        );
+    }
+
+    session_destroy();
+}
+
 function bober_db_connect($withDatabase = true)
 {
     $config = bober_load_config();

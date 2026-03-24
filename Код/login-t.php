@@ -46,6 +46,8 @@ try {
         bober_json_response(['success' => false, 'message' => 'Неверный логин или пароль.']);
     }
 
+    bober_login_user($id, $login);
+
     $normalizedSkin = bober_normalize_skin_json($skin);
     if ($normalizedSkin !== $skin) {
         $updateStmt = $conn->prepare('UPDATE users SET skin = ? WHERE id = ?');
@@ -63,6 +65,7 @@ try {
     $response = [
         'success' => true,
         'userId' => (int) $id,
+        'login' => $login,
         'plus' => max(1, (int) $plus),
         'skin' => $normalizedSkin,
         'energy' => $energy,
