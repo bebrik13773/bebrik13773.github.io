@@ -1,17 +1,40 @@
 <?php
-// Подключение к базе данных
-$conn = new mysqli('sql305.infinityfree.com','if0_39950285', 'tmzPxb2Wu5aj6Lb', 'if0_39950285_base');
 
-// Получение данных из запроса
-$data = json_decode(file_get_contents("php://input"));
-$userId = $data->userId;
-$plus = $data->plus;
+require_once __DIR__ . '/db.php';
 
-// Обновление значения plus для пользователя
-$stmt = $conn->prepare("UPDATE users SET plus = ? WHERE id = ?");
-$stmt->bind_param("ii", $plus, $userId);
-$stmt->execute();
+try {
+    $data = bober_read_json_request();
 
-// Ответ клиенту
-echo json_encode(['message' => 'Счет сохранен.']);
-?>
+    if (!is_array($data)) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный JSON.'], 400);
+    }
+
+    $userId = max(0, (int) ($data['userId'] ?? 0));
+    $plus = max(1, (int) ($data['plus'] ?? 1));
+
+    if ($userId < 1) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный идентификатор пользователя.'], 400);
+    }
+
+    $conn = bober_db_connect();
+    bober_ensure_game_schema($conn);
+
+    $stmt = $conn->prepare('UPDATE users SET plus = ? WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Ошибка подготовки запроса.');
+    }
+
+    $stmt->bind_param('ii', $plus, $userId);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Ошибка выполнения запроса.');
+    }
+
+    $stmt->close();
+    $conn->close();
+
+    bober_json_response(['success' => true, 'message' => 'Улучшение сохранено.']);
+} catch (Throwable $error) {
+    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
+}

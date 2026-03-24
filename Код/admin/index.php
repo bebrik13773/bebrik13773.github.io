@@ -1,403 +1,406 @@
 <?php
-// Настройки подключения к базе данных
-define('DB_HOST', 'sql305.infinityfree.com');
-define('DB_USER', 'if0_39950285');
-define('DB_PASS', 'tmzPxb2Wu5aj6Lb');
-define('DB_NAME', 'if0_39950285_base');
-
-// Инициализация сессии
 session_start();
 
-// Обработка ошибок
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
-// Функция для подключения к БД
-function connectDB() {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    
-    if ($conn->connect_error) {
-        die("Ошибка подключения: " . $conn->connect_error);
-    }
-    
-    $conn->set_charset("utf8mb4");
+require_once dirname(__DIR__) . '/db.php';
+
+$bootstrapError = null;
+
+function connectDB()
+{
+    $conn = bober_db_connect();
+    bober_ensure_game_schema($conn);
     return $conn;
 }
 
-// Создание необходимых таблиц при первом запуске
-function initializeDatabase() {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS);
-    
-    if ($conn->connect_error) {
-        die("Ошибка подключения к серверу БД: " . $conn->connect_error);
+function initializeAdmin()
+{
+    global $bootstrapError;
+
+    try {
+        $conn = connectDB();
+        bober_ensure_admin_schema($conn);
+        $conn->close();
+    } catch (Throwable $error) {
+        $bootstrapError = 'Панель не настроена. Создайте `Код/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
     }
-    
-    // Создание базы данных если не существует
-    $sql = "CREATE DATABASE IF NOT EXISTS " . DB_NAME . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-    $conn->query($sql);
-    
-    $conn->select_db(DB_NAME);
-    
-    // Создание таблицы для паролей
-    $sql = "CREATE TABLE IF NOT EXISTS pass (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )";
-    $conn->query($sql);
-    
-    // Проверяем, есть ли пароль в таблице
-    $result = $conn->query("SELECT COUNT(*) as count FROM pass");
-    $row = $result->fetch_assoc();
-    
-    // Если таблица пуста, добавляем дефолтный пароль
-    if ($row['count'] == 0) {
-        $default_password = 'Gosha123';
-        $hashed_password = password_hash($default_password, PASSWORD_DEFAULT);
-        $stmt = $conn->prepare("INSERT INTO pass (password_hash) VALUES (?)");
-        $stmt->bind_param("s", $hashed_password);
-        $stmt->execute();
-        $stmt->close();
-    }
-    
-    // Создаем демонстрационные таблицы (только users)
-    createDemoTables($conn);
-    
-    $conn->close();
 }
 
-// Создание демонстрационных таблиц
-function createDemoTables($conn) {
-    // Таблица пользователей
-    $sql = "CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL,
-        email VARCHAR(100) NOT NULL,
-        role ENUM('admin', 'user', 'moderator') DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_active BOOLEAN DEFAULT TRUE
-    )";
-    $conn->query($sql);
-    
-    // Проверяем, есть ли данные в таблице users
-    $result = $conn->query("SELECT COUNT(*) as count FROM users");
-    $row = $result->fetch_assoc();
-    
-    if ($row['count'] == 0) {
-        // Добавляем демонстрационные данные
-        $demo_users = [
-            "('admin', 'admin@example.com', 'admin', TRUE)",
-            "('john_doe', 'john@example.com', 'user', TRUE)",
-            "('jane_smith', 'jane@example.com', 'moderator', TRUE)",
-            "('bob_wilson', 'bob@example.com', 'user', FALSE)"
-        ];
-        
-        foreach ($demo_users as $user) {
-            $conn->query("INSERT INTO users (username, email, role, is_active) VALUES $user");
-        }
-    }
-    
-    // Таблица для логов (демонстрационная)
-    $sql = "CREATE TABLE IF NOT EXISTS logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT,
-        action VARCHAR(100) NOT NULL,
-        details TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )";
-    $conn->query($sql);
+function adminIsAuthenticated()
+{
+    return isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true;
 }
 
-// Инициализация БД при каждом запуске
-initializeDatabase();
+function requireAdminAuth(&$response)
+{
+    if (!adminIsAuthenticated()) {
+        $response['message'] = 'Неавторизованный доступ';
+        return false;
+    }
 
-// Обработка авторизации
+    return true;
+}
+
+function normalizeTableName($table)
+{
+    $table = trim((string) $table);
+    if ($table === '') {
+        return '';
+    }
+
+    return bober_require_identifier($table, 'Имя таблицы');
+}
+
+function normalizeColumnName($column)
+{
+    $column = trim((string) $column);
+    if ($column === '') {
+        return '';
+    }
+
+    return bober_require_identifier($column, 'Имя колонки');
+}
+
+function sqlValueForQuery($conn, $value)
+{
+    if ($value === null) {
+        return 'NULL';
+    }
+
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+
+    return "'" . $conn->real_escape_string((string) $value) . "'";
+}
+
+function isReadOnlySql($sql)
+{
+    $sql = trim((string) $sql);
+
+    if ($sql === '') {
+        return false;
+    }
+
+    $sql = rtrim($sql, "; \t\n\r\0\x0B");
+
+    if ($sql === '' || strpos($sql, ';') !== false) {
+        return false;
+    }
+
+    return preg_match('/^(SELECT|SHOW|DESCRIBE|EXPLAIN)\b/i', $sql) === 1;
+}
+
+initializeAdmin();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $response = ['success' => false, 'message' => ''];
-    
-    if ($_POST['action'] === 'login') {
-        $password = $_POST['password'] ?? '';
-        
-        $conn = connectDB();
-        $stmt = $conn->prepare("SELECT password_hash FROM pass LIMIT 1");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            
-            // Проверяем, нужно ли сменить пароль (если используется дефолтный)
-            $is_default_password = password_verify('Gosha123', $row['password_hash']);
-            
-            if (password_verify($password, $row['password_hash'])) {
-                $_SESSION['authenticated'] = true;
-                $_SESSION['password_changed'] = !$is_default_password;
-                $response['success'] = true;
-                $response['password_changed'] = $_SESSION['password_changed'];
-                $response['message'] = 'Авторизация успешна';
-            } else {
-                $response['message'] = 'Неверный пароль';
-            }
-        } else {
-            $response['message'] = 'Ошибка базы данных';
-        }
-        
-        $stmt->close();
-        $conn->close();
+
+    if ($bootstrapError !== null) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(
+            ['success' => false, 'message' => $bootstrapError],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        exit;
     }
-    
-    if ($_POST['action'] === 'logout') {
-        session_destroy();
-        $response['success'] = true;
-        $response['message'] = 'Выход выполнен';
-    }
-    
-    if ($_POST['action'] === 'change_password') {
-        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
-            $response['message'] = 'Неавторизованный доступ';
-        } else {
-            $current_password = $_POST['current_password'] ?? '';
-            $new_password = $_POST['new_password'] ?? '';
-            $confirm_password = $_POST['confirm_password'] ?? '';
-            
-            if (empty($new_password) || strlen($new_password) < 6) {
-                $response['message'] = 'Новый пароль должен содержать минимум 6 символов';
-            } elseif ($new_password !== $confirm_password) {
-                $response['message'] = 'Пароли не совпадают';
+
+    try {
+        $action = (string) $_POST['action'];
+
+        if ($action === 'login') {
+            $password = trim((string) ($_POST['password'] ?? ''));
+
+            if ($password === '') {
+                $response['message'] = 'Введите пароль';
             } else {
                 $conn = connectDB();
-                $stmt = $conn->prepare("SELECT password_hash FROM pass LIMIT 1");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                
-                if ($result->num_rows > 0) {
-                    $row = $result->fetch_assoc();
-                    
-                    if (password_verify($current_password, $row['password_hash'])) {
-                        $new_hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
-                        $update_stmt = $conn->prepare("UPDATE pass SET password_hash = ?");
-                        $update_stmt->bind_param("s", $new_hashed_password);
-                        
-                        if ($update_stmt->execute()) {
-                            $_SESSION['password_changed'] = true;
-                            $response['success'] = true;
-                            $response['message'] = 'Пароль успешно изменен';
-                        } else {
-                            $response['message'] = 'Ошибка при обновлении пароля';
-                        }
-                        
-                        $update_stmt->close();
-                    } else {
-                        $response['message'] = 'Текущий пароль неверен';
-                    }
+                $passwordHash = bober_fetch_admin_password_hash($conn);
+
+                if ($passwordHash === null) {
+                    $response['message'] = 'Пароль администратора не настроен. Задайте `BOBER_ADMIN_PASSWORD_HASH` или `BOBER_ADMIN_INITIAL_PASSWORD`.';
+                } elseif (bober_admin_is_default_password_hash($passwordHash)) {
+                    $response['message'] = 'Пароль по умолчанию отключен. Укажите новый пароль в конфиге окружения.';
+                } elseif (password_verify($password, $passwordHash)) {
+                    $_SESSION['authenticated'] = true;
+                    $_SESSION['password_changed'] = true;
+                    $response['success'] = true;
+                    $response['password_changed'] = true;
+                    $response['message'] = 'Авторизация успешна';
+                } else {
+                    $response['message'] = 'Неверный пароль';
                 }
-                
-                $stmt->close();
+
                 $conn->close();
             }
         }
-    }
-    
-    if ($_POST['action'] === 'execute_sql') {
-        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
-            $response['message'] = 'Неавторизованный доступ';
-        } else {
-            $sql = $_POST['sql'] ?? '';
-            
-            if (empty(trim($sql))) {
-                $response['message'] = 'SQL запрос не может быть пустым';
-            } else {
-                $conn = connectDB();
-                
-                // Выполняем SQL запрос
-                if ($conn->multi_query($sql)) {
-                    $results = [];
-                    $affected_rows = 0;
-                    
-                    do {
-                        if ($result = $conn->store_result()) {
-                            // Запрос вернул результат (SELECT, SHOW, DESCRIBE, etc.)
-                            $rows = [];
-                            $columns = [];
-                            
-                            // Получаем названия колонок
-                            while ($field = $result->fetch_field()) {
-                                $columns[] = $field->name;
+
+        if ($action === 'logout') {
+            session_destroy();
+            $response['success'] = true;
+            $response['message'] = 'Выход выполнен';
+        }
+
+        if ($action === 'change_password') {
+            if (requireAdminAuth($response)) {
+                $currentPassword = (string) ($_POST['current_password'] ?? '');
+                $newPassword = (string) ($_POST['new_password'] ?? '');
+                $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+
+                if ($newPassword === '' || strlen($newPassword) < 6) {
+                    $response['message'] = 'Новый пароль должен содержать минимум 6 символов';
+                } elseif ($newPassword !== $confirmPassword) {
+                    $response['message'] = 'Пароли не совпадают';
+                } else {
+                    $conn = connectDB();
+                    $result = $conn->query('SELECT id, password_hash FROM pass ORDER BY id ASC LIMIT 1');
+
+                    if ($result === false || $result->num_rows === 0) {
+                        $response['message'] = 'Пароль администратора не настроен';
+                    } else {
+                        $row = $result->fetch_assoc();
+                        $result->free();
+
+                        if (!password_verify($currentPassword, $row['password_hash'])) {
+                            $response['message'] = 'Текущий пароль неверен';
+                        } else {
+                            $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+                            $adminId = (int) $row['id'];
+                            $updateStmt = $conn->prepare('UPDATE pass SET password_hash = ? WHERE id = ?');
+
+                            if (!$updateStmt) {
+                                throw new RuntimeException('Ошибка подготовки запроса.');
                             }
-                            
-                            // Получаем данные
-                            while ($row = $result->fetch_assoc()) {
+
+                            $updateStmt->bind_param('si', $newPasswordHash, $adminId);
+
+                            if ($updateStmt->execute()) {
+                                $_SESSION['password_changed'] = true;
+                                $response['success'] = true;
+                                $response['message'] = 'Пароль успешно изменен';
+                            } else {
+                                $response['message'] = 'Ошибка при обновлении пароля';
+                            }
+
+                            $updateStmt->close();
+                        }
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'execute_sql') {
+            if (requireAdminAuth($response)) {
+                $sql = trim((string) ($_POST['sql'] ?? ''));
+
+                if ($sql === '') {
+                    $response['message'] = 'SQL запрос не может быть пустым';
+                } elseif (!isReadOnlySql($sql)) {
+                    $response['message'] = 'Разрешены только SELECT, SHOW, DESCRIBE и EXPLAIN.';
+                } else {
+                    $conn = connectDB();
+                    $result = $conn->query($sql);
+
+                    if ($result === false) {
+                        $response['message'] = 'Ошибка SQL: ' . $conn->error;
+                    } else {
+                        $rows = [];
+                        $columns = [];
+
+                        while ($field = $result->fetch_field()) {
+                            $columns[] = $field->name;
+                        }
+
+                        while ($row = $result->fetch_assoc()) {
+                            $rows[] = $row;
+                        }
+
+                        $result->free();
+
+                        $response['success'] = true;
+                        $response['results'] = [[
+                            'columns' => $columns,
+                            'rows' => $rows,
+                            'row_count' => count($rows),
+                        ]];
+                        $response['affected_rows'] = 0;
+                        $response['message'] = 'Запрос выполнен успешно';
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'get_tables') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                $result = $conn->query('SHOW TABLES');
+
+                if ($result === false) {
+                    $response['message'] = 'Не удалось получить список таблиц';
+                } else {
+                    $tables = [];
+                    while ($row = $result->fetch_array()) {
+                        $tables[] = $row[0];
+                    }
+
+                    $result->free();
+                    $response['success'] = true;
+                    $response['tables'] = $tables;
+                }
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_table_data') {
+            if (requireAdminAuth($response)) {
+                $table = normalizeTableName($_POST['table'] ?? '');
+
+                if ($table === '') {
+                    $response['message'] = 'Имя таблицы не указано';
+                } else {
+                    $conn = connectDB();
+                    $result = $conn->query("DESCRIBE `{$table}`");
+
+                    if ($result === false) {
+                        $response['message'] = 'Таблица не найдена';
+                    } else {
+                        $columns = [];
+                        while ($row = $result->fetch_assoc()) {
+                            $columns[] = [
+                                'name' => $row['Field'],
+                                'type' => $row['Type'],
+                                'nullable' => $row['Null'] === 'YES',
+                                'key' => $row['Key'],
+                                'default' => $row['Default'],
+                                'extra' => $row['Extra'],
+                            ];
+                        }
+                        $result->free();
+
+                        $dataResult = $conn->query("SELECT * FROM `{$table}` LIMIT 100");
+                        $countResult = $conn->query("SELECT COUNT(*) AS total FROM `{$table}`");
+
+                        if ($dataResult === false || $countResult === false) {
+                            $response['message'] = 'Не удалось получить данные таблицы';
+                        } else {
+                            $rows = [];
+                            while ($row = $dataResult->fetch_assoc()) {
                                 $rows[] = $row;
                             }
-                            
-                            $results[] = [
-                                'columns' => $columns,
-                                'rows' => $rows,
-                                'row_count' => $result->num_rows
-                            ];
-                            
-                            $result->free();
-                        } else {
-                            // Запрос не вернул результат (INSERT, UPDATE, DELETE, etc.)
-                            if ($conn->affected_rows > 0) {
-                                $affected_rows += $conn->affected_rows;
-                            }
+
+                            $totalRows = (int) $countResult->fetch_assoc()['total'];
+
+                            $dataResult->free();
+                            $countResult->free();
+
+                            $response['success'] = true;
+                            $response['columns'] = $columns;
+                            $response['rows'] = $rows;
+                            $response['row_count'] = count($rows);
+                            $response['total_rows'] = $totalRows;
                         }
-                    } while ($conn->more_results() && $conn->next_result());
-                    
-                    $response['success'] = true;
-                    $response['results'] = $results;
-                    $response['affected_rows'] = $affected_rows;
-                    $response['message'] = 'Запрос выполнен успешно';
-                } else {
-                    $response['message'] = 'Ошибка SQL: ' . $conn->error;
-                }
-                
-                $conn->close();
-            }
-        }
-    }
-    
-    if ($_POST['action'] === 'get_tables') {
-        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
-            $response['message'] = 'Неавторизованный доступ';
-        } else {
-            $conn = connectDB();
-            
-            // Получаем список таблиц
-            $result = $conn->query("SHOW TABLES");
-            $tables = [];
-            
-            while ($row = $result->fetch_array()) {
-                $tables[] = $row[0];
-            }
-            
-            $response['success'] = true;
-            $response['tables'] = $tables;
-            
-            $conn->close();
-        }
-    }
-    
-    if ($_POST['action'] === 'get_table_data') {
-        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
-            $response['message'] = 'Неавторизованный доступ';
-        } else {
-            $table = $_POST['table'] ?? '';
-            
-            if (empty($table)) {
-                $response['message'] = 'Имя таблицы не указано';
-            } else {
-                $conn = connectDB();
-                
-                // Получаем структуру таблицы
-                $result = $conn->query("DESCRIBE `$table`");
-                $columns = [];
-                
-                while ($row = $result->fetch_assoc()) {
-                    $columns[] = [
-                        'name' => $row['Field'],
-                        'type' => $row['Type'],
-                        'nullable' => $row['Null'] === 'YES',
-                        'key' => $row['Key'],
-                        'default' => $row['Default'],
-                        'extra' => $row['Extra']
-                    ];
-                }
-                
-                // Получаем данные таблицы (ограничиваем 100 строк для производительности)
-                $data_result = $conn->query("SELECT * FROM `$table` LIMIT 100");
-                $rows = [];
-                
-                while ($row = $data_result->fetch_assoc()) {
-                    $rows[] = $row;
-                }
-                
-                // Получаем количество строк в таблице
-                $count_result = $conn->query("SELECT COUNT(*) as total FROM `$table`");
-                $total_rows = $count_result->fetch_assoc()['total'];
-                
-                $response['success'] = true;
-                $response['columns'] = $columns;
-                $response['rows'] = $rows;
-                $response['row_count'] = $data_result->num_rows;
-                $response['total_rows'] = $total_rows;
-                
-                $conn->close();
-            }
-        }
-    }
-    
-    if ($_POST['action'] === 'update_row') {
-        if (!isset($_SESSION['authenticated']) || !$_SESSION['authenticated']) {
-            $response['message'] = 'Неавторизованный доступ';
-        } else {
-            $table = $_POST['table'] ?? '';
-            $data = json_decode($_POST['data'] ?? '{}', true);
-            $primary_key = $_POST['primary_key'] ?? 'id';
-            $primary_value = $_POST['primary_value'] ?? '';
-            
-            if (empty($table) || empty($primary_value)) {
-                $response['message'] = 'Недостаточно данных для обновления';
-            } else {
-                $conn = connectDB();
-                
-                // Строим SET часть запроса
-                $set_parts = [];
-                $types = '';
-                $values = [];
-                
-                foreach ($data as $key => $value) {
-                    if ($key !== $primary_key) {
-                        $set_parts[] = "`$key` = ?";
-                        $types .= 's';
-                        $values[] = $value;
                     }
+
+                    $conn->close();
                 }
-                
-                if (empty($set_parts)) {
-                    $response['message'] = 'Нет данных для обновления';
+            }
+        }
+
+        if ($action === 'update_row') {
+            if (requireAdminAuth($response)) {
+                $table = normalizeTableName($_POST['table'] ?? '');
+                $data = json_decode($_POST['data'] ?? '{}', true);
+                $primaryKey = normalizeColumnName($_POST['primary_key'] ?? 'id');
+                $primaryValue = $_POST['primary_value'] ?? '';
+
+                if ($table === '' || $primaryValue === '' || !is_array($data)) {
+                    $response['message'] = 'Недостаточно данных для обновления';
                 } else {
-                    $set_clause = implode(', ', $set_parts);
-                    $types .= 's';
-                    $values[] = $primary_value;
-                    
-                    $sql = "UPDATE `$table` SET $set_clause WHERE `$primary_key` = ?";
-                    $stmt = $conn->prepare($sql);
-                    
-                    if ($stmt) {
-                        $stmt->bind_param($types, ...$values);
-                        
-                        if ($stmt->execute()) {
+                    $conn = connectDB();
+                    $setParts = [];
+
+                    foreach ($data as $key => $value) {
+                        $column = normalizeColumnName($key);
+                        if ($column === $primaryKey) {
+                            continue;
+                        }
+
+                        $setParts[] = "`{$column}` = " . sqlValueForQuery($conn, $value);
+                    }
+
+                    if (!$setParts) {
+                        $response['message'] = 'Нет данных для обновления';
+                    } else {
+                        $primaryValueSql = sqlValueForQuery($conn, $primaryValue);
+                        $sql = "UPDATE `{$table}` SET " . implode(', ', $setParts) . " WHERE `{$primaryKey}` = {$primaryValueSql}";
+
+                        if ($conn->query($sql)) {
                             $response['success'] = true;
                             $response['message'] = 'Строка успешно обновлена';
-                            $response['affected_rows'] = $stmt->affected_rows;
+                            $response['affected_rows'] = $conn->affected_rows;
                         } else {
-                            $response['message'] = 'Ошибка выполнения запроса: ' . $stmt->error;
+                            $response['message'] = 'Ошибка выполнения запроса: ' . $conn->error;
                         }
-                        
-                        $stmt->close();
-                    } else {
-                        $response['message'] = 'Ошибка подготовки запроса: ' . $conn->error;
                     }
+
+                    $conn->close();
                 }
-                
-                $conn->close();
             }
         }
+
+        if ($action === 'insert_row') {
+            if (requireAdminAuth($response)) {
+                $table = normalizeTableName($_POST['table'] ?? '');
+                $data = json_decode($_POST['data'] ?? '{}', true);
+
+                if ($table === '' || !is_array($data) || !$data) {
+                    $response['message'] = 'Недостаточно данных для добавления строки';
+                } else {
+                    $conn = connectDB();
+                    $columns = [];
+                    $values = [];
+
+                    foreach ($data as $key => $value) {
+                        $column = normalizeColumnName($key);
+                        $columns[] = "`{$column}`";
+                        $values[] = sqlValueForQuery($conn, $value);
+                    }
+
+                    $sql = "INSERT INTO `{$table}` (" . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')';
+
+                    if ($conn->query($sql)) {
+                        $response['success'] = true;
+                        $response['message'] = 'Строка успешно добавлена';
+                        $response['affected_rows'] = $conn->affected_rows;
+                    } else {
+                        $response['message'] = 'Ошибка выполнения запроса: ' . $conn->error;
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+    } catch (InvalidArgumentException $error) {
+        $response['message'] = $error->getMessage();
+    } catch (Throwable $error) {
+        $response['message'] = 'Внутренняя ошибка сервера';
     }
-    
-    // Отправляем JSON ответ
-    header('Content-Type: application/json');
-    echo json_encode($response);
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-// Проверяем авторизацию для доступа к интерфейсу
-$authenticated = isset($_SESSION['authenticated']) && $_SESSION['authenticated'];
-$password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_changed'];
+$authenticated = adminIsAuthenticated() && $bootstrapError === null;
+$password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['password_changed'] : true;
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -1399,12 +1402,18 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 <h1 class="auth-title">SQL Панель управления</h1>
                 <p class="auth-subtitle">Войдите в систему для управления базой данных</p>
             </div>
+            <?php if ($bootstrapError): ?>
+            <div class="notification error" style="margin-bottom: 20px; position: relative; top: 0; right: 0; transform: none;">
+                <span class="material-icons notification-icon">error</span>
+                <span><?php echo htmlspecialchars($bootstrapError, ENT_QUOTES, 'UTF-8'); ?></span>
+            </div>
+            <?php endif; ?>
             <form id="loginForm">
                 <div class="form-group">
                     <label class="form-label" for="password">Пароль</label>
                     <input type="password" id="password" class="form-control" placeholder="Введите пароль" required>
                     <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 8px;">
-                        Пароль по умолчанию: <strong>Gosha123</strong>
+                        Пароль хранится вне репозитория. Используйте `BOBER_ADMIN_PASSWORD_HASH` или `BOBER_ADMIN_INITIAL_PASSWORD`.
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
@@ -1482,7 +1491,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
         
         <div class="sidebar-item" id="sqlEditorBtn">
             <span class="material-icons">code</span>
-            <span>SQL Редактор</span>
+            <span>SQL Просмотр</span>
         </div>
     </aside>
     
@@ -1530,10 +1539,10 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     <div>
                         <h2 class="card-title">
                             <span class="material-icons">code</span>
-                            SQL Редактор
+                            SQL Просмотр
                         </h2>
                         <div class="card-subtitle" style="font-size: 14px; color: var(--on-surface); opacity: 0.7; margin-top: 4px;">
-                            Выполняйте SQL запросы к базе данных
+                            Разрешены только SELECT, SHOW, DESCRIBE и EXPLAIN
                         </div>
                     </div>
                     <div>
@@ -1553,9 +1562,9 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                         <span class="material-icons">people</span>
                         Пользователи
                     </button>
-                    <button class="quick-sql-btn" data-sql="SELECT * FROM logs LIMIT 10;">
-                        <span class="material-icons">history</span>
-                        Логи
+                    <button class="quick-sql-btn" data-sql="DESCRIBE users;">
+                        <span class="material-icons">schema</span>
+                        Структура users
                     </button>
                 </div>
                 
@@ -1563,7 +1572,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     <label class="form-label" for="sqlQuery">SQL запрос</label>
                     <textarea id="sqlQuery" class="form-control" placeholder="Введите SQL запрос...">SHOW TABLES;</textarea>
                     <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 8px;">
-                        Используйте Ctrl+Enter для быстрого выполнения
+                        Используйте Ctrl+Enter для быстрого выполнения запроса только на чтение
                     </div>
                 </div>
                 
@@ -2753,17 +2762,6 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                 }
             });
             
-            // Строим SQL запрос для добавления
-            const columnsClause = Object.keys(formData)
-                .map(key => `\`${key}\``)
-                .join(', ');
-            
-            const valuesClause = Object.values(formData)
-                .map(value => value === null ? 'NULL' : `'${escapeSql(value)}'`)
-                .join(', ');
-            
-            const sql = `INSERT INTO \`${table}\` (${columnsClause}) VALUES (${valuesClause});`;
-            
             const saveBtn = document.getElementById('saveNewRowBtn');
             const btnText = saveBtn.querySelector('.btn-text');
             const loader = saveBtn.querySelector('.loader');
@@ -2773,20 +2771,36 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
             loader.style.display = 'inline-block';
             saveBtn.disabled = true;
             
-            // Выполняем SQL запрос
-            executeSql(sql, true).then(success => {
-                if (success) {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'insert_row',
+                    table: table,
+                    data: JSON.stringify(formData)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
                     hideAddRowModal();
                     
-                    // Перезагружаем данные таблицы
                     if (currentTable === table) {
                         loadTableData(table);
                     }
                     
                     showNotification('Строка успешно добавлена', 'success');
+                } else {
+                    showNotification(data.message, 'error');
                 }
-                
-                // Скрываем лоадер
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Ошибка сети при добавлении строки', 'error');
+            })
+            .finally(() => {
                 btnText.style.display = 'inline';
                 loader.style.display = 'none';
                 saveBtn.disabled = false;
@@ -2822,7 +2836,7 @@ $password_changed = isset($_SESSION['password_changed']) && $_SESSION['password_
                     if (data.success) {
                         if (!silent) {
                             renderSqlResults(data.results, data.affected_rows, sql);
-                            showNotification(`Запрос выполнен успешно. Затронуто строк: ${data.affected_rows}`, 'success');
+                            showNotification('Запрос выполнен успешно', 'success');
                         }
                         resolve(true);
                     } else {

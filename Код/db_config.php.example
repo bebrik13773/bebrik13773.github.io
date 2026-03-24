@@ -1,0 +1,13 @@
+<?php
+
+return [
+    'db_host' => '127.0.0.1',
+    'db_user' => 'your_db_user',
+    'db_pass' => 'your_db_password',
+    'db_name' => 'your_db_name',
+
+    // Один из двух параметров ниже нужен только для админки.
+    // Лучше хранить уже готовый hash, а не пароль в открытом виде.
+    'admin_password_hash' => '',
+    'admin_initial_password' => '',
+];

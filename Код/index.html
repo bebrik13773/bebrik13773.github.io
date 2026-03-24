@@ -110,8 +110,6 @@
             font-family: Arial, sans-serif;
             text-align: center;
             background-color: #8b00ff;
-            @media only screen and (max-width: 768px) {
-}
         }
         #clicker {
 			width: 200px;
@@ -252,7 +250,8 @@
 			cursor: pointer;
 			transition: transform 0.1s;
 		}
-		#ShopButton {
+		#ShopButton,
+		.shop-action-btn {
 			appearance: none;
 			border: 0;
 			border-radius: 5px;
@@ -261,7 +260,8 @@
 		 padding: 8px 17px;
 			font-size: 16px;
 		}
-		#ShopButton:active {
+		#ShopButton:active,
+		.shop-action-btn:active {
 		transform: scale(0.9);
 		}
         #score {
@@ -529,26 +529,26 @@ function showNotification(message, type = 'success', duration = 3000) {
         <button id="submitRegister">Зарегистрироваться</button>
     </div>
 <br>
-<button id="shopButton"onclick="shopShow()">Магазин</button>
+<button id="shopButton" onclick="shopShow()">Магазин</button>
 <br>
 <br>
 <br>
-<button id="ShopButton" onclick="window.location.replace('/fly-beaver.html');"> Летающий бобер(скоро обновление!) </button>
+<button class="shop-action-btn" onclick="window.location.replace('fly-beaver.html');"> Летающий бобер(скоро обновление!) </button>
 <br>
 </div>
 <br>
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
 <div id="shop">
-<h1 id="lud">Магазин улучшений и скинов</h1>
-<div id="lud">
-<button  id="ShopButton" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
+<h1 id="shopTitle">Магазин улучшений и скинов</h1>
+<div id="upgradeSection">
+<button class="shop-action-btn" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
 <br>
 <br>
-<button id="ShopButton" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
+<button class="shop-action-btn" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
 <br>
 <br>
-<button id="ShopButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+<button class="shop-action-btn" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <br>
 <div id="skins">
@@ -767,510 +767,546 @@ window.CommitWidget = {
 console.log('✅ Виджет коммитов GitHub инициализирован');
 console.log('ℹ️ Используйте CommitWidget в консоли для управления виджетом');
 //Начало основного кода
-const href = window.location.host
-if (href == 'bebrik13773.github.io') window.location.replace("https://bober-api.gt.tc")
-    // Восстановление логина и пароля из localStorage
-    document.getElementById('password').value = localStorage.getItem('password');
-    document.getElementById('login').value = localStorage.getItem('login');
-    document.getElementById('admin').style.display = 'none';
-    const queryString = window.location.search;
-    const testm = false
-    const urlParams = new URLSearchParams(queryString);
-    const test = urlParams.get('test');
-    if (test == null && testm == true) {
-        window.location.replace("tex.html");
-    };
-    // Основные переменные игры
-    let login = 0;
-    let score = 0;
-    let logreg = 0;
-    let userId = null;
-    let plus = 1;
-    let energy = 5000;
-    let lastEnergyUpdate = Date.now();
-    let energyLoaded = false;  // ИСПРАВЛЕНИЕ: Флаг для отслеживания, загружена ли энергия
-    
-    // ИСПРАВЛЕНИЕ: Правильная инициализация energy_max
-    let energy_max = 5000; // Начальное значение по умолчанию
-    const ENERGY_REGEN_TIME = 15 * 60 * 1000; // 15 минут на полное восстановление
-    
-    // ИСПРАВЛЕНИЕ: Правильный расчет регенерации энергии
-    let ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME; // Половина максимума за 15 минут
-    
-    // Список скинов (не используется, для справки)
-    let skins = {
-        skin1: 'bober.png',
-        skin2: 'bumazny-bober.jpg',
-        skin3: 'matvey-new-bober.jpg',
-        skin4: 'klub-smz-bober.jpg',
-        skin5: 'nosok-bober.jpg',
-        skin6 : 'Shok-upok-bober.jpg',
-        skin7: 'strany-bober.jpg',
-    };
-    let skin = [];
-    
-    // ИСПРАВЛЕНИЕ 1: Улучшенная функция сохранения энергии с правильной обработкой ошибок
-    function saveEnergy() {
-        if (!userId) return;
-        
-        // Логируем для отладки
-        console.log('💾 Сохранение энергии:', {
-            userId: userId,
-            energy: Math.floor(energy),
-            energy_max: energy_max,
-            timestamp: new Date().toLocaleTimeString()
-        });
-        
-        fetch('https://bober-api.gt.tc/save-energy.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                userId: userId, 
-                energy: Math.floor(energy), 
-                lastEnergyUpdate: lastEnergyUpdate, 
-                ENERGY_MAX: energy_max 
-            })
-        })
-        .then(response => {
-            // Сначала проверяем статус ответа
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            // Затем пытаемся спарсить JSON
-            return response.text().then(text => {
-                if (!text) {
-                    throw new Error('Пустой ответ от сервера');
-                }
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    console.error('❌ Ошибка парсинга JSON:', text);
-                    throw new Error(`Неверный формат JSON: ${text.substring(0, 100)}`);
-                }
-            });
-        })
-        .then(data => {
-            if (data && data.success) {
-                console.log('✅ Энергия успешно сохранена');
-            } else {
-                console.error('❌ Ошибка сохранения энергии (success=false):', data);
-            }
-        })
-        .catch(error => {
-            console.error('❌ Ошибка при сохранении энергии:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-            });
-        });
-    }
-    
-    // ИСПРАВЛЕНИЕ 2: Дебаунсинг для предотвращения спама запросов - 90 секунд
-    let saveEnergyTimeout = null;
-    
-    // Функция с дебаунсингом - не сохраняет чаще чем раз в 90 секунд (1 мин 30 сек)
-    // Сохранение происходит только при клике, а не по таймеру
-    function saveEnergyDebounced() {
-        if (saveEnergyTimeout) {
-            clearTimeout(saveEnergyTimeout);
-        }
-        
-        saveEnergyTimeout = setTimeout(() => {
-            saveEnergy();
-        }, 90000); // Задержка 90 секунд (1 минута 30 секунд)
-    }
-    
-    setInterval(() => {
-    updateEnergy();
-    updateEnergyUI();
-  }, 2000)
+const href = window.location.host;
+if (href === 'bebrik13773.github.io') {
+    window.location.replace('https://bober-api.gt.tc');
+}
 
-    // Восстановление энергии по времени (работает и оффлайн)
-    function updateEnergy() {
-        const now = Date.now();
-        let delta = now - lastEnergyUpdate;
-        if (delta > 0) {
-            let regen = delta * ENERGY_REGEN_PER_MS;
-            energy = Math.min(energy_max, energy + regen);
-            lastEnergyUpdate = now;
-        }
-    }
-    // Функция обновления UI энергии
-    function updateEnergyUI() {
-        document.getElementById('energy').innerText = Math.floor(energy);
-    }
-    // Покупка и установка скина
-    function buySkin(id, sum, tex) {
-        if (userId) {
-            if (skin[id] == true) {
-                let result1 = confirm("Этот скин уже куплен. Хотите установить его?");
-                if (result1 == true) {
-                    skin[0] = tex;
-                    skinLoad();
-                    saveskin(); // сохраняем сразу после установки
-                    showNotification("Скин успешно установлен!", "success");
-                }
-            } else {
-                let result1a = confirm("Этот скин ёще не куплен. Хотите купить его?");
-                if (result1a == true) {
-                    if (score > sum) {
-                        skin[id] = true;
-                        skin[0] = tex; // сразу устанавливаем купленный скин
-                        score = score - sum;
-                        skinLoad();
-                        saveskin(); // сохраняем сразу после покупки и установки
-                        saveScore(score);
-                        showNotification("Успешная покука скина!", "success");
-                    } else {
-                        showNotification("Недостаточно средств!", "error");
-                    }
-                }
-            }
-        } else {
-            showNotification("Пожалуйста, войдите в акаунт.", "error");
-        }
-    }
-    
-    // Установка скина на кнопку
-    function skinLoad() {
-        document.getElementById('clicker').style.backgroundImage = 'url('+skin[0]+')'
-    };
+document.getElementById('password').value = '';
+document.getElementById('login').value = localStorage.getItem('login') || '';
+localStorage.removeItem('password');
+document.getElementById('admin').style.display = 'none';
+document.getElementById('shop').style.display = 'none';
+document.getElementById('shopExit').style.display = 'none';
 
- 
-    // ИСПРАВЛЕНИЕ 3: Сохранение энергии при тач-событиях (мобильные)
-    document.getElementById('clicker').addEventListener('touchstart', function(e) {
-        if (userId) {
-            e.preventDefault();
-            updateEnergy();
-            let touches = e.touches.length;
-            let totalCost = plus * touches;
-            if (energy >= totalCost) {
-                score += totalCost;
-                energy -= totalCost;
-                document.getElementById('score').innerText = 'Счет: ' + score;
-                updateEnergyUI();
-                
-                // Сохраняем энергию с дебаунсингом 90 сек после тапа
-                saveEnergyDebounced();
-            } else {
-                showNotification("Недостаточно энергии!", "error");
+const queryString = window.location.search;
+const testm = false;
+const urlParams = new URLSearchParams(queryString);
+const test = urlParams.get('test');
+if (test == null && testm === true) {
+    window.location.replace('tex.html');
+}
+
+let score = 0;
+let userId = null;
+let plus = 1;
+let energy = 5000;
+let lastEnergyUpdate = Date.now();
+let energy_max = 5000;
+const ENERGY_REGEN_TIME = 15 * 60 * 1000;
+let ENERGY_REGEN_PER_MS = 0;
+let skin = getDefaultSkinState();
+let energyTimer = null;
+let saveEnergyTimeout = null;
+
+function getDefaultSkinState() {
+    return ['skins/bober.png', true, false, true, false, false, false, false, false];
+}
+
+function normalizeSkinState(rawSkin) {
+    const defaults = getDefaultSkinState();
+    let parsedSkin = defaults;
+
+    if (Array.isArray(rawSkin)) {
+        parsedSkin = rawSkin;
+    } else if (typeof rawSkin === 'string' && rawSkin.trim() !== '') {
+        try {
+            const candidate = JSON.parse(rawSkin);
+            if (Array.isArray(candidate)) {
+                parsedSkin = candidate;
             }
-        } else {
-            showNotification("Пожалуйста, войдите в акаунт.", "error");
+        } catch (error) {
+            console.warn('Не удалось распарсить скин, используем значения по умолчанию.', error);
         }
+    }
+
+    const normalized = [...defaults];
+    parsedSkin.forEach((value, index) => {
+        if (index === 0) {
+            normalized[0] = typeof value === 'string' && value.trim() !== '' ? value : defaults[0];
+            return;
+        }
+
+        normalized[index] = Boolean(value);
     });
-    if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-        const shopbutt = document.getElementById('shopButton');
-        shopbutt.style.padding = '8px 39%'
+
+    return normalized;
+}
+
+function updateRegenRate() {
+    ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
+}
+
+function updateScoreUI() {
+    document.getElementById('score').innerText = 'Счет: ' + score;
+}
+
+function updateEnergyUI() {
+    document.getElementById('energy').innerText = Math.floor(energy);
+}
+
+function skinLoad() {
+    const currentSkin = typeof skin[0] === 'string' && skin[0] ? skin[0] : getDefaultSkinState()[0];
+    document.getElementById('clicker').style.backgroundImage = `url(${currentSkin})`;
+}
+
+async function requestJson(url, options = {}) {
+    const response = await fetch(url, options);
+    let data;
+
+    try {
+        data = await response.json();
+    } catch (error) {
+        throw new Error('Сервер вернул некорректный ответ.');
     }
-    // Периодическое восстановление энергии (онлайн)
-    const energyTimer = setInterval(() => {
-        if (userId) {
-            updateEnergy();
-        }
-    }, 1000);
-    document.getElementById('shopExit').style.display = 'none';
-    
-    // Открытие формы входа
-    document.getElementById('loginButton').onclick = function() {
-        document.getElementById('loginForm').style.display = 'block';
-        document.getElementById('registerForm').style.display = 'none';
-    };
 
-    // Открытие формы регистрации
-    document.getElementById('registerButton').onclick = function() {
-        document.getElementById('registerForm').style.display = 'block';
-        document.getElementById('loginForm').style.display = 'none';
-    };
-    
-    // ИСПРАВЛЕНИЕ 4: Сохранение энергии при каждом клике (ПК)
-    document.getElementById('clicker').onclick = function() {
-        if (userId) {
-            updateEnergy();
-            if (energy >= plus) {
-                score += plus;
-                energy -= plus;
-                document.getElementById('score').innerText = 'Счет: ' + score;
-                updateEnergyUI();
-                
-                // Сохраняем энергию с дебаунсингом 90 сек после клика
-                saveEnergyDebounced();
-            } else {
-                showNotification("Недостаточно энергии!", "error");
-            }
-        } else {
-            showNotification("Пожалуйста, войдите в акаунт.", "error");
-        }
-    };
-    // Обработка входа пользователя
+    if (!response.ok) {
+        throw new Error(data && data.message ? data.message : `HTTP ${response.status}`);
+    }
 
-document.getElementById('submitLogin').onclick = function() {
-    if (logreg == 0){
-        const login = document.getElementById('login').value;
-        logreg = 1
-        const password = document.getElementById('password').value;
-        fetch('https://bober-api.gt.tc/login-t.php', {
+    return data;
+}
+
+function updateEnergy() {
+    if (!userId) {
+        return;
+    }
+
+    const now = Date.now();
+    const delta = now - lastEnergyUpdate;
+
+    if (delta > 0) {
+        const regen = delta * ENERGY_REGEN_PER_MS;
+        energy = Math.min(energy_max, energy + regen);
+        lastEnergyUpdate = now;
+    }
+}
+
+function startEnergyTimer() {
+    if (energyTimer) {
+        clearInterval(energyTimer);
+    }
+
+    energyTimer = setInterval(() => {
+        if (!userId) {
+            return;
+        }
+
+        updateEnergy();
+        updateEnergyUI();
+    }, 2000);
+}
+
+async function saveEnergy() {
+    if (!userId) {
+        return false;
+    }
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/save-energy.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ login: login, password: password })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Данные от сервера при логине:', data);
-            if (data.success) {
-                userId = data.userId;
-                score = data.score !== undefined ? data.score : 0;
-                plus = data.plus !== undefined ? data.plus : 1;
-                localStorage.setItem('login', login);
-                localStorage.setItem('password', password);
-                
-                // Преобразуем строку skin в массив
-                skin = JSON.parse(data.skin);
-                
-                // ИСПРАВЛЕНИЕ: Правильная загрузка energy_max с сервера
-                energy_max = (data.ENERGY_MAX !== undefined && data.ENERGY_MAX > 0) ? data.ENERGY_MAX : 5000;
-                
-                // ИСПРАВЛЕНИЕ: Пересчитываем регенерацию с новым energy_max
-                ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
-                
-                skinLoad();
-                
-                // ИСПРАВЛЕНИЕ: Правильная загрузка энергии - ТОЛЬКО ОДИН РАЗ
-                if (!energyLoaded) {
-                    if (data.energy !== undefined && data.energy > 0) {
-                        energy = data.energy;
-                        console.log('🔋 Энергия загружена с сервера:', energy);
-                    } else {
-                        energy = energy_max;
-                        console.log('🔋 Энергия не найдена на сервере, установлена максимальная:', energy_max);
-                    }
-                    
-                    // Восстанавливаем метку времени
-                    lastEnergyUpdate = (data.lastEnergyUpdate !== undefined && data.lastEnergyUpdate > 0) 
-                        ? data.lastEnergyUpdate 
-                        : Date.now();
-                    
-                    energyLoaded = true;  // ИСПРАВЛЕНИЕ: Устанавливаем флаг, энергия загружена
-                }
-                
-                // Обновляем UI
-                document.getElementById('score').innerText = 'Счет: ' + score;
-                updateEnergyUI();
-                
-                showNotification("Успешный вход!", "success");
-                loadLeaderboard();
-                document.getElementById('registerForm').style.display = 'none';
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('loginButton').style.display = 'none';
-                document.getElementById('registerButton').style.display = 'none';
-                if (login == "test"){document.getElementById('admin').style.display = 'block';};  
-            } else {
-                showNotification(data.message, "error")
-            }
+            body: JSON.stringify({
+                userId: userId,
+                energy: Math.floor(energy),
+                lastEnergyUpdate: lastEnergyUpdate,
+                ENERGY_MAX: energy_max
+            })
         });
+
+        if (data && data.success) {
+            console.log('✅ Энергия успешно сохранена');
+            return true;
+        }
+
+        throw new Error(data && data.message ? data.message : 'Не удалось сохранить энергию.');
+    } catch (error) {
+        console.error('❌ Ошибка при сохранении энергии:', error);
+        return false;
     }
-    else {
-        showNotification('Пожалуйста, подожтите идёт загрузка!', "error");
+}
+
+function saveEnergyDebounced() {
+    if (saveEnergyTimeout) {
+        clearTimeout(saveEnergyTimeout);
+    }
+
+    saveEnergyTimeout = setTimeout(() => {
+        saveEnergy();
+    }, 90000);
+}
+
+function buySkin(id, sum, tex) {
+    if (!userId) {
+        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+        return;
+    }
+
+    if (skin[id] === true) {
+        const shouldApply = confirm('Этот скин уже куплен. Хотите установить его?');
+        if (shouldApply) {
+            skin[0] = tex;
+            skinLoad();
+            saveskin();
+            showNotification('Скин успешно установлен!', 'success');
+        }
+        return;
+    }
+
+    const shouldBuy = confirm('Этот скин еще не куплен. Хотите купить его?');
+    if (!shouldBuy) {
+        return;
+    }
+
+    if (score >= sum) {
+        skin[id] = true;
+        skin[0] = tex;
+        score -= sum;
+        skinLoad();
+        updateScoreUI();
+        saveskin();
+        saveScore(score);
+        showNotification('Успешная покупка скина!', 'success');
+    } else {
+        showNotification('Недостаточно средств!', 'error');
+    }
+}
+
+document.getElementById('clicker').addEventListener('touchstart', function(e) {
+    if (!userId) {
+        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+        return;
+    }
+
+    e.preventDefault();
+    updateEnergy();
+
+    const touches = e.touches.length;
+    const totalCost = plus * touches;
+
+    if (energy >= totalCost) {
+        score += totalCost;
+        energy -= totalCost;
+        updateScoreUI();
+        updateEnergyUI();
+        saveEnergyDebounced();
+    } else {
+        showNotification('Недостаточно энергии!', 'error');
+    }
+}, { passive: false });
+
+if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+    const shopbutt = document.getElementById('shopButton');
+    shopbutt.style.padding = '8px 39%';
+}
+
+document.getElementById('loginButton').onclick = function() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').style.display = 'none';
+};
+
+document.getElementById('registerButton').onclick = function() {
+    document.getElementById('registerForm').style.display = 'block';
+    document.getElementById('loginForm').style.display = 'none';
+};
+
+document.getElementById('clicker').onclick = function() {
+    if (!userId) {
+        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+        return;
+    }
+
+    updateEnergy();
+    if (energy >= plus) {
+        score += plus;
+        energy -= plus;
+        updateScoreUI();
+        updateEnergyUI();
+        saveEnergyDebounced();
+    } else {
+        showNotification('Недостаточно энергии!', 'error');
     }
 };
 
-// Обновленная функция открытия магазина
+document.getElementById('submitLogin').onclick = async function() {
+    const loginBtn = document.getElementById('submitLogin');
+
+    if (loginBtn.disabled) {
+        showNotification('Пожалуйста, подождите, идет загрузка!', 'error');
+        return;
+    }
+
+    const loginValue = document.getElementById('login').value.trim();
+    const passwordValue = document.getElementById('password').value;
+
+    if (!loginValue || !passwordValue) {
+        showNotification('Введите логин и пароль.', 'error');
+        return;
+    }
+
+    loginBtn.disabled = true;
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/login-t.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login: loginValue, password: passwordValue })
+        });
+
+        if (!data.success) {
+            showNotification(data.message || 'Ошибка входа.', 'error');
+            return;
+        }
+
+        userId = Number(data.userId) || null;
+        score = Number.isFinite(Number(data.score)) ? Number(data.score) : 0;
+        plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
+        energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : 5000;
+        updateRegenRate();
+
+        skin = normalizeSkinState(data.skin);
+        skinLoad();
+
+        const serverEnergy = Number(data.energy);
+        energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy_max;
+
+        const serverUpdateTime = Number(data.lastEnergyUpdate);
+        lastEnergyUpdate = Number.isFinite(serverUpdateTime) && serverUpdateTime > 0 ? serverUpdateTime : Date.now();
+
+        localStorage.setItem('login', loginValue);
+        updateEnergy();
+        updateScoreUI();
+        updateEnergyUI();
+        startEnergyTimer();
+
+        showNotification('Успешный вход!', 'success');
+        loadLeaderboard();
+        document.getElementById('registerForm').style.display = 'none';
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('loginButton').style.display = 'none';
+        document.getElementById('registerButton').style.display = 'none';
+
+        if (loginValue === 'test') {
+            document.getElementById('admin').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Ошибка входа:', error);
+        showNotification(error.message || 'Ошибка сети при входе.', 'error');
+    } finally {
+        loginBtn.disabled = false;
+    }
+};
+
 function shopShow() {
     document.getElementById('shop').style.display = 'block';
     document.getElementById('shopButton').style.display = 'none';
     document.getElementById('shopExit').style.display = 'block';
     document.getElementById('clicerMex').style.display = 'none';
     document.getElementById('leaderboard').style.display = 'none';
-    
-    // Добавляем фиксированное позиционирование для кнопки выхода
     document.getElementById('shopExit').style.position = 'fixed';
     document.getElementById('shopExit').style.bottom = '20px';
     document.getElementById('shopExit').style.right = '20px';
     document.getElementById('shopExit').style.zIndex = '1000';
 }
 
-// Обновленная функция закрытия магазина
 function shopClose() {
     document.getElementById('shop').style.display = 'none';
     document.getElementById('shopButton').style.display = 'block';
     document.getElementById('shopExit').style.display = 'none';
     document.getElementById('clicerMex').style.display = 'block';
     document.getElementById('leaderboard').style.display = 'block';
-    
-    // Сбрасываем стили кнопки выхода
     document.getElementById('shopExit').style.position = '';
     document.getElementById('shopExit').style.bottom = '';
     document.getElementById('shopExit').style.right = '';
     document.getElementById('shopExit').style.zIndex = '';
 }
 
-    // ИСПРАВЛЕНИЕ 5: Обновление функции Save() для явного сохранения
-    function Save() {
-        if (userId) {
-            saveScore(score);
-            // Принудительное сохранение энергии без дебаунса
-            saveEnergy();
-            showNotification("Успешное сохранение", "success");
+function Save() {
+    if (userId) {
+        saveScore(score);
+        saveEnergy();
+        showNotification('Успешное сохранение', 'success');
+    } else {
+        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+    }
+}
+
+function buyUpgrade1() {
+    if (userId) {
+        if (score >= 5000) {
+            plus += 1;
+            score -= 5000;
+            updateScoreUI();
+            saveplus();
+            showNotification('Успешная покупка улучшения!', 'success');
         } else {
-            showNotification("Пожалуйста, войдите в акаунт.", "error");
+            showNotification('Недостаточно средств!', 'error');
         }
+    } else {
+        showNotification('Пожалуйста, войдите в систему!', 'error');
+    }
+}
+
+function buyUpgrade2() {
+    if (userId) {
+        if (score >= 20000) {
+            plus += 5;
+            score -= 20000;
+            updateScoreUI();
+            saveplus();
+            showNotification('Успешная покупка улучшения!', 'success');
+        } else {
+            showNotification('Недостаточно средств!', 'error');
+        }
+    } else {
+        showNotification('Пожалуйста, войдите в систему!', 'error');
+    }
+}
+
+function buyEnergyUpgrade() {
+    if (userId) {
+        if (score >= 10000) {
+            energy_max += 1000;
+            score -= 10000;
+            updateRegenRate();
+            updateScoreUI();
+            saveEnergy();
+            saveScore(score);
+            showNotification('Успешная покупка улучшения! Новый максимум: ' + energy_max, 'success');
+        } else {
+            showNotification('Недостаточно средств!', 'error');
+        }
+    } else {
+        showNotification('Пожалуйста, войдите в систему!', 'error');
+    }
+}
+
+function saveplus() {
+    if (!userId) {
+        return;
     }
 
-    // Покупка улучшения 1
-    function buyUpgrade1()
-    {
-        //Функция покупки улудшения 1
-        if (userId) {
-            if (score > 5000) {
-                plus = plus + 1
-                score = score - 5000
-                saveplus()
-                showNotification("Успешная покупка улучшения!", "success");
-            } else {
-                showNotification(" Недостаточно средств!", "error");
-            }
-        } else {
-            showNotification('Пожалуйста, войдите в систему!', "error");
-        }
-    };
-    // Покупка улучшения 2
-    function buyUpgrade2()
-    {
-        //Функция покупки улудшения 2
-        if (userId) {
-            if (score > 20000) {
-                plus = plus + 5
-                score = score - 20000
-                saveplus()
-                showNotification("Успешная покупка улучшения!", "success");
-            } else {
-                showNotification(" Недостаточно средств!", "error")
-            }
-        } else {
-            showNotification('Пожалуйста, войдите в систему!', "error");
-        }
-    };
-    
-    // ИСПРАВЛЕНИЕ: Рабочая функция покупки улучшения энергии
-    function buyEnergyUpgrade()
-    {
-        if (userId) {
-            if (score >= 10000) {
-                energy_max = energy_max + 1000; // Увеличиваем максимум
-                score = score - 10000;
-                
-                // Пересчитываем скорость регенерации с новым максимумом
-                ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
-                
-                // Сохраняем новые значения
-                saveEnergy();
-                saveScore(score);
-                showNotification("Успешная покупка улучшения! Новый максимум: " + energy_max, "success");
-            } else {
-                showNotification("Недостаточно средств!", "error");
-            }
-        }
-        else {
-            showNotification('Пожалуйста, войдите в систему!', "error");
-        }
+    saveScore(score);
+    requestJson('https://bober-api.gt.tc/save-plus.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, plus: plus })
+    })
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+}
+
+function saveskin() {
+    if (!userId) {
+        return;
     }
-    
-    // Сохранение значения plus
-    function saveplus()
-    {
-        //Сохранение значения plus
-        saveScore(score)
-        fetch('https://bober-api.gt.tc/save-plus.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userId: userId, plus: plus })
-        })
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error('Ошибка:', error));
-    };
-    // Сохранение значения skin
-    function saveskin()
-    {
-        //Сохранение значения skin
-        saveScore(score)
-        fetch('https://bober-api.gt.tc/save-skin.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) }) // всегда строка!
-        })
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error('Ошибка:', error));
-    };
-    // Обработка регистрации пользователя
-    document.getElementById('submitRegister').onclick = function() {
-        const regLogin = document.getElementById('regLogin').value;
-        const regPassword = document.getElementById('regPassword').value;
-        fetch('https://bober-api.gt.tc/register-t.php', {
+
+    saveScore(score);
+    requestJson('https://bober-api.gt.tc/save-skin.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) })
+    })
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+}
+
+document.getElementById('submitRegister').onclick = async function() {
+    const registerBtn = document.getElementById('submitRegister');
+    const regLogin = document.getElementById('regLogin').value.trim();
+    const regPassword = document.getElementById('regPassword').value;
+
+    if (registerBtn.disabled) {
+        return;
+    }
+
+    if (!regLogin || !regPassword) {
+        showNotification('Введите логин и пароль для регистрации.', 'error');
+        return;
+    }
+
+    registerBtn.disabled = true;
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/register-t.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ login: regLogin, password: regPassword })
-        })
-        .then(response => response.json())
-        .then(data => {
-            showNotification(data.message, "success");
         });
-    };
 
-    document.getElementById('shop').style.display = 'none';
-    // Сохранение счета и скина на сервер
-    function saveScore(score) {
-        fetch('https://bober-api.gt.tc/save-score.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userId: userId, score: score, skin: JSON.stringify(skin) }) // сериализация skin
-        })
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error('Ошибка:', error));
+        showNotification(data.message || 'Регистрация завершена.', data.success ? 'success' : 'error');
+    } catch (error) {
+        console.error('Ошибка регистрации:', error);
+        showNotification(error.message || 'Ошибка сети при регистрации.', 'error');
+    } finally {
+        registerBtn.disabled = false;
+    }
+};
+
+function saveScore(scoreValue) {
+    if (!userId) {
+        return;
     }
 
-    // Загрузка таблицы лидеров
-    function loadLeaderboard() {
-        fetch('https://bober-api.gt.tc/leaderboard.php')
-            .then(response => response.json())
-            .then(data => {
-                const leaderboard = document.getElementById('leaderboard');
-                leaderboard.innerHTML = '<h2>Топ игроков</h2>';
-                data.forEach(player => {
-                    leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
-                });
-            });
-    }
+    requestJson('https://bober-api.gt.tc/save-score.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: userId, score: scoreValue, skin: JSON.stringify(skin) })
+    })
+    .then(data => console.log(data))
+    .catch(error => console.error('Ошибка:', error));
+}
 
-    window.onload = loadLeaderboard();
-    
-    // ИСПРАВЛЕНИЕ 6: Сохранение энергии при закрытии страницы
-    // Сохраняем энергию при закрытии страницы или переходе
-    window.addEventListener('beforeunload', function(e) {
-        if (userId) {
-            // Принудительное сохранение без дебаунса при закрытии
-            saveEnergy();
+async function loadLeaderboard() {
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/leaderboard.php');
+        const leaderboard = document.getElementById('leaderboard');
+
+        if (!Array.isArray(data) || data.length === 0) {
+            leaderboard.innerHTML = '<h2>Топ игроков</h2><p>Пока нет сохраненных результатов.</p>';
+            return;
         }
-    });
-    
-    // Дополнительное сохранение при потере фокуса страницы
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden && userId) {
-            saveEnergy();
-        }
-    });
+
+        leaderboard.innerHTML = '<h2>Топ игроков</h2>';
+        data.forEach(player => {
+            leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
+        });
+    } catch (error) {
+        console.error('Ошибка загрузки таблицы лидеров:', error);
+        document.getElementById('leaderboard').innerHTML = 'Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!';
+    }
+}
+
+updateRegenRate();
+skinLoad();
+updateScoreUI();
+updateEnergyUI();
+startEnergyTimer();
+window.addEventListener('load', loadLeaderboard);
+
+window.addEventListener('beforeunload', function() {
+    if (userId) {
+        saveEnergy();
+    }
+});
+
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && userId) {
+        saveEnergy();
+    }
+});
 
     </script>
 

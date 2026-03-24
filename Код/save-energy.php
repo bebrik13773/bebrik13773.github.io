@@ -1,58 +1,44 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
 
-// Подключение к базе данных
-$conn = new mysqli('sql305.infinityfree.com','if0_39950285', 'tmzPxb2Wu5aj6Lb', 'if0_39950285_base');
-if ($conn->connect_error) {
-	http_response_code(500);
-	echo json_encode(['error' => 'DB connection failed', 'details' => $conn->connect_error]);
-	exit;
+require_once __DIR__ . '/db.php';
+
+try {
+    $data = bober_read_json_request();
+
+    if (!is_array($data)) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный JSON.'], 400);
+    }
+
+    $userId = max(0, (int) ($data['userId'] ?? 0));
+    $energy = max(0, (int) ($data['energy'] ?? 0));
+    $energyMax = max(1, (int) ($data['ENERGY_MAX'] ?? 5000));
+    $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
+
+    if ($userId < 1) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный идентификатор пользователя.'], 400);
+    }
+
+    $energy = min($energy, $energyMax);
+
+    $conn = bober_db_connect();
+    bober_ensure_game_schema($conn);
+
+    $stmt = $conn->prepare('UPDATE users SET ENERGY_MAX = ?, energy = ?, last_energy_update = ? WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Ошибка подготовки запроса.');
+    }
+
+    $stmt->bind_param('iisi', $energyMax, $energy, $lastEnergyUpdate, $userId);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Ошибка выполнения запроса.');
+    }
+
+    $stmt->close();
+    $conn->close();
+
+    bober_json_response(['success' => true, 'message' => 'Энергия сохранена.']);
+} catch (Throwable $error) {
+    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
 }
-
-// Получение данных из запроса
-$raw = file_get_contents("php://input");
-$data = json_decode($raw);
-if (!$data) {
-	http_response_code(400);
-	echo json_encode(['error' => 'Invalid JSON']);
-	$conn->close();
-	exit;
-}
-
-$userId = isset($data->userId) ? (int)$data->userId : null;
-$energy = isset($data->energy) ? (int)$data->energy : null;
-$lastEnergyUpdate = isset($data->lastEnergyUpdate) ? $data->lastEnergyUpdate : null; // expected string or null
-$ENERGY_MAX = isset($data->ENERGY_MAX) ? (int)$data->ENERGY_MAX : null;
-
-if ($userId === null) {
-	http_response_code(400);
-	echo json_encode(['error' => 'Missing userId']);
-	$conn->close();
-	exit;
-}
-
-// Подготовка запроса — убрана лишняя запятая до WHERE
-$stmt = $conn->prepare("UPDATE users SET ENERGY_MAX = ?, energy = ?, last_energy_update = ? WHERE id = ?");
-if (!$stmt) {
-	http_response_code(500);
-	echo json_encode(['error' => 'Prepare failed', 'details' => $conn->error]);
-	$conn->close();
-	exit;
-}
-
-// Типы параметров: i (int), i (int), s (string/null), i (int)
-$stmt->bind_param("iisi", $ENERGY_MAX, $energy, $lastEnergyUpdate, $userId);
-$ok = $stmt->execute();
-if (!$ok) {
-	http_response_code(500);
-	echo json_encode(['error' => 'Execute failed', 'details' => $stmt->error]);
-	$stmt->close();
-	$conn->close();
-	exit;
-}
-
-$stmt->close();
-$conn->close();
-
-echo json_encode(['message' => 'Энергия сохранена.']);
-?>

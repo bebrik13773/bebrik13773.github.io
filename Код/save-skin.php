@@ -1,22 +1,40 @@
 <?php
-// Подключение к базе данных
-$conn = new mysqli('sql305.infinityfree.com','if0_39950285', 'tmzPxb2Wu5aj6Lb', 'if0_39950285_base');
 
-// Получение данных из запроса
-$data = json_decode(file_get_contents("php://input"));
-$userId = $data->userId;
-$skin = isset($data->skin) ? $data->skin : null;
+require_once __DIR__ . '/db.php';
 
-// Приведение к строке для гарантии
-if (!is_string($skin)) {
-    $skin = json_encode($skin);
+try {
+    $data = bober_read_json_request();
+
+    if (!is_array($data)) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный JSON.'], 400);
+    }
+
+    $userId = max(0, (int) ($data['userId'] ?? 0));
+    $skin = bober_normalize_skin_json($data['skin'] ?? null);
+
+    if ($userId < 1) {
+        bober_json_response(['success' => false, 'message' => 'Некорректный идентификатор пользователя.'], 400);
+    }
+
+    $conn = bober_db_connect();
+    bober_ensure_game_schema($conn);
+
+    $stmt = $conn->prepare('UPDATE users SET skin = ? WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Ошибка подготовки запроса.');
+    }
+
+    $stmt->bind_param('si', $skin, $userId);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Ошибка выполнения запроса.');
+    }
+
+    $stmt->close();
+    $conn->close();
+
+    bober_json_response(['success' => true, 'message' => 'Скин сохранен.']);
+} catch (Throwable $error) {
+    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
 }
-
-// Обновление скина пользователя
-$stmt = $conn->prepare("UPDATE users SET skin = ? WHERE id = ?");
-$stmt->bind_param("si", $skin, $userId);
-$stmt->execute();
-
-// Ответ клиенту
-echo json_encode(['message' => 'Скин сохранён.']);
-?>
