@@ -4,9 +4,8 @@ require_once __DIR__ . '/db.php';
 
 try {
     $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
 
-    $result = $conn->query("SELECT login, MAX(score) AS score FROM users WHERE login IS NOT NULL AND login <> '' GROUP BY login ORDER BY score DESC LIMIT 10");
+    $result = $conn->query("SELECT login, MAX(score) AS score FROM users WHERE login IS NOT NULL AND login <> '' GROUP BY login ORDER BY score DESC LIMIT 3");
     if ($result === false) {
         throw new RuntimeException('Ошибка выполнения запроса.');
     }

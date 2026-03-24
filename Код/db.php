@@ -182,6 +182,27 @@ function bober_normalize_skin_json($skin)
     return json_encode(array_values($normalized), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
+function bober_game_login_pattern()
+{
+    return '/^[A-Za-z0-9_-]{3,10}$/';
+}
+
+function bober_is_valid_game_login($login)
+{
+    return is_string($login) && preg_match(bober_game_login_pattern(), $login) === 1;
+}
+
+function bober_require_game_login($login)
+{
+    $login = trim((string) $login);
+
+    if (!bober_is_valid_game_login($login)) {
+        throw new InvalidArgumentException('Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".');
+    }
+
+    return $login;
+}
+
 function bober_column_exists($conn, $table, $column)
 {
     bober_require_identifier($table, 'Имя таблицы');
@@ -323,6 +344,21 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу админ-доступа.');
     }
 
+    $createAuditSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `admin_audit_log` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `admin_name` VARCHAR(100) NOT NULL DEFAULT 'admin',
+    `action_type` VARCHAR(100) NOT NULL,
+    `target_table` VARCHAR(100) NULL,
+    `query_text` LONGTEXT NULL,
+    `affected_rows` INT NOT NULL DEFAULT 0,
+    `meta_json` LONGTEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    $conn->query($createAuditSql);
+
     $configuredHash = bober_configured_admin_password_hash();
     $result = $conn->query("SELECT `id`, `password_hash` FROM `pass` ORDER BY `id` ASC LIMIT 1");
 
@@ -383,4 +419,39 @@ function bober_fetch_admin_password_hash($conn)
     $result->free();
 
     return $row ? $row['password_hash'] : null;
+}
+
+function bober_admin_log_action($conn, $actionType, $details = [])
+{
+    if (!($conn instanceof mysqli)) {
+        return;
+    }
+
+    $actionType = trim((string) $actionType);
+    if ($actionType === '') {
+        return;
+    }
+
+    $adminName = trim((string) ($details['admin_name'] ?? 'admin'));
+    if ($adminName === '') {
+        $adminName = 'admin';
+    }
+
+    $targetTable = isset($details['target_table']) ? trim((string) $details['target_table']) : null;
+    $queryText = isset($details['query_text']) ? trim((string) $details['query_text']) : null;
+    $affectedRows = max(0, (int) ($details['affected_rows'] ?? 0));
+    $meta = is_array($details['meta'] ?? null) ? $details['meta'] : [];
+
+    $meta['ip'] = $meta['ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
+    $meta['user_agent'] = $meta['user_agent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? null);
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $stmt = $conn->prepare('INSERT INTO `admin_audit_log` (`admin_name`, `action_type`, `target_table`, `query_text`, `affected_rows`, `meta_json`) VALUES (?, ?, ?, ?, ?, ?)');
+    if (!$stmt) {
+        return;
+    }
+
+    $stmt->bind_param('ssssis', $adminName, $actionType, $targetTable, $queryText, $affectedRows, $metaJson);
+    $stmt->execute();
+    $stmt->close();
 }

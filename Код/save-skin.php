@@ -17,7 +17,6 @@ try {
     }
 
     $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
 
     $stmt = $conn->prepare('UPDATE users SET skin = ? WHERE id = ?');
     if (!$stmt) {

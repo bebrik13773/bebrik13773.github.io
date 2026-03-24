@@ -17,7 +17,6 @@ try {
     }
 
     $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
 
     $stmt = $conn->prepare('SELECT id, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score FROM users WHERE login = ? LIMIT 1');
     if (!$stmt) {

@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+<!--
+Owner decisions:
+1. Корневой `index.html` остается редиректом для поисковой системы; основной рабочий адрес — `https://bober-api.gt.tc/`.
+2. Энергия должна восстанавливаться до полного максимума за 15 минут.
+3. Таблица лидеров должна быть топ-3.
+4. Логин при регистрации: от 3 до 10 символов, только английские буквы, цифры, `-` и `_`.
+5. `fly-beaver.html` — отдельная мини-игра без общей энергии; сохранения облачные, но отдельные. В future plan: синхронизация аккаунта и перевод счета из мини-игры в основную.
+6. Нужен серверный античит-бан: первый бан на 5 дней, повторный на 30 дней.
+7. При миграции схемы `users` нужно сохранить все старые данные.
+8. Test и production используют одну базу данных.
+-->
 <link rel="icon" href="https://bober-api.gt.tc/favicon.ico" type="image/x-icon">
 <script type="text/javascript">
     (function(m,e,t,r,i,k,a){
@@ -515,16 +526,16 @@ function showNotification(message, type = 'success', duration = 3000) {
 	</div>
     <div id="loginForm">
         <h2>Форма Входа</h2>
-        <input type="text" id="login" placeholder="Логин">
+        <input type="text" id="login" placeholder="Логин" autocomplete="username">
         <input type="password" id="password" placeholder="Пароль">
         <button id="submitLogin">Войти</button>
     </div>
 
     <div id="registerForm">
         <h2>Форма Регистрации</h2>
-        <input type="text" id="regLogin" placeholder="Логин">
-        <input type="password" id="regPassword" placeholder="Пароль">
-        <h2>Пожалуйста, не регистрируйтесь с логином на русском языке 🇷🇺, используйте только английский 🇬🇧. Иначе вы не сможете войти в аккаунт 🔐.</h2>
+        <input type="text" id="regLogin" placeholder="Логин" maxlength="10" pattern="[A-Za-z0-9_-]{3,10}" title="3-10 символов: английские буквы, цифры, - и _" autocomplete="username">
+        <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
+        <h2>Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</h2>
         <br>
         <button id="submitRegister">Зарегистрироваться</button>
     </div>
@@ -798,6 +809,8 @@ let ENERGY_REGEN_PER_MS = 0;
 let skin = getDefaultSkinState();
 let energyTimer = null;
 let saveEnergyTimeout = null;
+const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
+const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
 
 function getDefaultSkinState() {
     return ['skins/bober.png', true, false, true, false, false, false, false, false];
@@ -834,7 +847,7 @@ function normalizeSkinState(rawSkin) {
 }
 
 function updateRegenRate() {
-    ENERGY_REGEN_PER_MS = (energy_max / 2) / ENERGY_REGEN_TIME;
+    ENERGY_REGEN_PER_MS = energy_max / ENERGY_REGEN_TIME;
 }
 
 function updateScoreUI() {
@@ -848,6 +861,10 @@ function updateEnergyUI() {
 function skinLoad() {
     const currentSkin = typeof skin[0] === 'string' && skin[0] ? skin[0] : getDefaultSkinState()[0];
     document.getElementById('clicker').style.backgroundImage = `url(${currentSkin})`;
+}
+
+function validateRegisterLogin(loginValue) {
+    return REGISTER_LOGIN_PATTERN.test(loginValue);
 }
 
 async function requestJson(url, options = {}) {
@@ -1233,6 +1250,11 @@ document.getElementById('submitRegister').onclick = async function() {
         return;
     }
 
+    if (!validateRegisterLogin(regLogin)) {
+        showNotification(REGISTER_LOGIN_RULES, 'error');
+        return;
+    }
+
     registerBtn.disabled = true;
 
     try {
@@ -1275,11 +1297,11 @@ async function loadLeaderboard() {
         const leaderboard = document.getElementById('leaderboard');
 
         if (!Array.isArray(data) || data.length === 0) {
-            leaderboard.innerHTML = '<h2>Топ игроков</h2><p>Пока нет сохраненных результатов.</p>';
+            leaderboard.innerHTML = '<h2>Топ-3 игроков</h2><p>Пока нет сохраненных результатов.</p>';
             return;
         }
 
-        leaderboard.innerHTML = '<h2>Топ игроков</h2>';
+        leaderboard.innerHTML = '<h2>Топ-3 игроков</h2>';
         data.forEach(player => {
             leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
         });
@@ -1616,6 +1638,8 @@ class AutoClickerDetector {
     }
 
     banUser() {
+        // TODO: по решению владельца это нужно перевести на серверный бан:
+        // первый бан на 5 дней, повторный на 30 дней. Пока остается локальный fallback.
         const banInfo = {
             banned: true,
             reason: "Использование автокликера",

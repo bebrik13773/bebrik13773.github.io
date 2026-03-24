@@ -16,8 +16,9 @@ try {
         bober_json_response(['success' => false, 'message' => 'Введите логин и пароль.'], 400);
     }
 
+    $login = bober_require_game_login($login);
+
     $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
 
     $checkStmt = $conn->prepare('SELECT id FROM users WHERE login = ? LIMIT 1');
     if (!$checkStmt) {
@@ -63,5 +64,6 @@ try {
 
     bober_json_response(['success' => true, 'message' => 'Регистрация успешна!']);
 } catch (Throwable $error) {
-    bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
+    $statusCode = $error instanceof InvalidArgumentException ? 400 : 500;
+    bober_json_response(['success' => false, 'message' => bober_exception_message($error)], $statusCode);
 }

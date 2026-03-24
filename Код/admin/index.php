@@ -1,4 +1,12 @@
 <?php
+/*
+Owner decisions:
+1. Админке нужен полный SQL-доступ с удобным доступом и нормальным дизайном.
+2. Test и production используют одну базу данных.
+3. Админ-пароль хранить только как hash в secrets.
+4. Проект живет на бесплатном сервере с ограниченным доступом и автодеплоем.
+5. Нужен audit trail: кто, когда и что изменил в админке.
+*/
 session_start();
 
 ini_set('display_errors', '0');
@@ -11,9 +19,7 @@ $bootstrapError = null;
 
 function connectDB()
 {
-    $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
-    return $conn;
+    return bober_db_connect();
 }
 
 function initializeAdmin()
@@ -77,21 +83,26 @@ function sqlValueForQuery($conn, $value)
     return "'" . $conn->real_escape_string((string) $value) . "'";
 }
 
-function isReadOnlySql($sql)
+function normalizeSingleSqlStatement($sql)
 {
     $sql = trim((string) $sql);
 
     if ($sql === '') {
-        return false;
+        return '';
     }
 
-    $sql = rtrim($sql, "; \t\n\r\0\x0B");
+    $sql = preg_replace('/;+\s*$/u', '', $sql);
+    $sql = trim((string) $sql);
 
-    if ($sql === '' || strpos($sql, ';') !== false) {
-        return false;
+    if ($sql === '') {
+        return '';
     }
 
-    return preg_match('/^(SELECT|SHOW|DESCRIBE|EXPLAIN)\b/i', $sql) === 1;
+    if (preg_match('/;\s*\S/u', $sql) === 1) {
+        throw new InvalidArgumentException('Разрешен только один SQL-запрос за один запуск.');
+    }
+
+    return $sql;
 }
 
 initializeAdmin();
@@ -130,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $response['success'] = true;
                     $response['password_changed'] = true;
                     $response['message'] = 'Авторизация успешна';
+                    bober_admin_log_action($conn, 'login_success');
                 } else {
                     $response['message'] = 'Неверный пароль';
                 }
@@ -139,6 +151,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         if ($action === 'logout') {
+            $conn = connectDB();
+            bober_admin_log_action($conn, 'logout');
+            $conn->close();
             session_destroy();
             $response['success'] = true;
             $response['message'] = 'Выход выполнен';
@@ -181,6 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 $_SESSION['password_changed'] = true;
                                 $response['success'] = true;
                                 $response['message'] = 'Пароль успешно изменен';
+                                bober_admin_log_action($conn, 'change_password');
                             } else {
                                 $response['message'] = 'Ошибка при обновлении пароля';
                             }
@@ -200,39 +216,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 if ($sql === '') {
                     $response['message'] = 'SQL запрос не может быть пустым';
-                } elseif (!isReadOnlySql($sql)) {
-                    $response['message'] = 'Разрешены только SELECT, SHOW, DESCRIBE и EXPLAIN.';
                 } else {
-                    $conn = connectDB();
-                    $result = $conn->query($sql);
-
-                    if ($result === false) {
-                        $response['message'] = 'Ошибка SQL: ' . $conn->error;
+                    $sql = normalizeSingleSqlStatement($sql);
+                    if ($sql === '') {
+                        $response['message'] = 'SQL запрос не может быть пустым';
                     } else {
-                        $rows = [];
-                        $columns = [];
+                        $conn = connectDB();
+                        $result = $conn->query($sql);
 
-                        while ($field = $result->fetch_field()) {
-                            $columns[] = $field->name;
+                        if ($result === false) {
+                            $response['message'] = 'Ошибка SQL: ' . $conn->error;
+                        } else {
+                            $rows = [];
+                            $columns = [];
+                            $affectedRows = max(0, (int) $conn->affected_rows);
+
+                            if ($result instanceof mysqli_result) {
+                                while ($field = $result->fetch_field()) {
+                                    $columns[] = $field->name;
+                                }
+
+                                while ($row = $result->fetch_assoc()) {
+                                    $rows[] = $row;
+                                }
+
+                                $result->free();
+
+                                $response['results'] = [[
+                                    'columns' => $columns,
+                                    'rows' => $rows,
+                                    'row_count' => count($rows),
+                                ]];
+                            } else {
+                                $response['results'] = [];
+                            }
+
+                            $response['success'] = true;
+                            $response['affected_rows'] = $affectedRows;
+                            $response['message'] = 'Запрос выполнен успешно';
+                            bober_admin_log_action($conn, 'execute_sql', [
+                                'query_text' => $sql,
+                                'affected_rows' => $affectedRows,
+                            ]);
                         }
 
-                        while ($row = $result->fetch_assoc()) {
-                            $rows[] = $row;
-                        }
-
-                        $result->free();
-
-                        $response['success'] = true;
-                        $response['results'] = [[
-                            'columns' => $columns,
-                            'rows' => $rows,
-                            'row_count' => count($rows),
-                        ]];
-                        $response['affected_rows'] = 0;
-                        $response['message'] = 'Запрос выполнен успешно';
+                        $conn->close();
                     }
-
-                    $conn->close();
                 }
             }
         }
@@ -346,6 +375,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $response['success'] = true;
                             $response['message'] = 'Строка успешно обновлена';
                             $response['affected_rows'] = $conn->affected_rows;
+                            bober_admin_log_action($conn, 'update_row', [
+                                'target_table' => $table,
+                                'query_text' => $sql,
+                                'affected_rows' => (int) $conn->affected_rows,
+                            ]);
                         } else {
                             $response['message'] = 'Ошибка выполнения запроса: ' . $conn->error;
                         }
@@ -380,6 +414,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $response['success'] = true;
                         $response['message'] = 'Строка успешно добавлена';
                         $response['affected_rows'] = $conn->affected_rows;
+                        bober_admin_log_action($conn, 'insert_row', [
+                            'target_table' => $table,
+                            'query_text' => $sql,
+                            'affected_rows' => (int) $conn->affected_rows,
+                        ]);
                     } else {
                         $response['message'] = 'Ошибка выполнения запроса: ' . $conn->error;
                     }
@@ -1491,7 +1530,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         
         <div class="sidebar-item" id="sqlEditorBtn">
             <span class="material-icons">code</span>
-            <span>SQL Просмотр</span>
+            <span>SQL Редактор</span>
         </div>
     </aside>
     
@@ -1539,10 +1578,10 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                     <div>
                         <h2 class="card-title">
                             <span class="material-icons">code</span>
-                            SQL Просмотр
+                            SQL Редактор
                         </h2>
                         <div class="card-subtitle" style="font-size: 14px; color: var(--on-surface); opacity: 0.7; margin-top: 4px;">
-                            Разрешены только SELECT, SHOW, DESCRIBE и EXPLAIN
+                            Разрешен один SQL-запрос за запуск. Изменения применяются сразу.
                         </div>
                     </div>
                     <div>
@@ -1566,13 +1605,17 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                         <span class="material-icons">schema</span>
                         Структура users
                     </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM admin_audit_log ORDER BY id DESC LIMIT 50;">
+                        <span class="material-icons">history</span>
+                        Аудит админки
+                    </button>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label" for="sqlQuery">SQL запрос</label>
                     <textarea id="sqlQuery" class="form-control" placeholder="Введите SQL запрос...">SHOW TABLES;</textarea>
                     <div style="font-size: 12px; color: var(--on-surface); opacity: 0.7; margin-top: 8px;">
-                        Используйте Ctrl+Enter для быстрого выполнения запроса только на чтение
+                        Используйте Ctrl+Enter для быстрого выполнения одного SQL-запроса
                     </div>
                 </div>
                 

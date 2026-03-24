@@ -21,7 +21,6 @@ try {
     $energy = min($energy, $energyMax);
 
     $conn = bober_db_connect();
-    bober_ensure_game_schema($conn);
 
     $stmt = $conn->prepare('UPDATE users SET ENERGY_MAX = ?, energy = ?, last_energy_update = ? WHERE id = ?');
     if (!$stmt) {
