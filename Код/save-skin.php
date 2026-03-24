@@ -36,5 +36,5 @@ try {
 
     bober_json_response(['success' => true, 'message' => 'Скин сохранен.']);
 } catch (Throwable $error) {
-    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
+    bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
 }

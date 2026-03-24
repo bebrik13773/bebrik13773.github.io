@@ -58,6 +58,18 @@ function bober_json_response($payload, $statusCode = 200)
     exit;
 }
 
+function bober_exception_message($error, $fallback = 'Ошибка сервера.')
+{
+    if ($error instanceof InvalidArgumentException || $error instanceof RuntimeException) {
+        $message = trim((string) $error->getMessage());
+        if ($message !== '') {
+            return $message;
+        }
+    }
+
+    return $fallback;
+}
+
 function bober_read_json_request()
 {
     $raw = file_get_contents('php://input');

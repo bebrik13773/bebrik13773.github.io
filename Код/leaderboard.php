@@ -25,5 +25,5 @@ try {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($leaders, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
-    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
+    bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
 }

@@ -63,5 +63,5 @@ try {
 
     bober_json_response(['success' => true, 'message' => 'Регистрация успешна!']);
 } catch (Throwable $error) {
-    bober_json_response(['success' => false, 'message' => 'Ошибка сервера.'], 500);
+    bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
 }

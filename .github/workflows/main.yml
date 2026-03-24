@@ -22,6 +22,52 @@ jobs:
     steps:
     - name: 🚚 Get latest code
       uses: actions/checkout@v3
+
+    - name: 🔐 Build runtime DB config
+      shell: bash
+      env:
+        DB_HOST: ${{ secrets.BOBER_DB_HOST }}
+        DB_USER: ${{ secrets.BOBER_DB_USER }}
+        DB_PASS: ${{ secrets.BOBER_DB_PASS }}
+        DB_NAME: ${{ secrets.BOBER_DB_NAME }}
+        ADMIN_PASSWORD_HASH: ${{ secrets.BOBER_ADMIN_PASSWORD_HASH }}
+        ADMIN_INITIAL_PASSWORD: ${{ secrets.BOBER_ADMIN_INITIAL_PASSWORD }}
+      run: |
+        missing=0
+        for var in DB_HOST DB_USER DB_NAME; do
+          if [ -z "${!var}" ]; then
+            echo "::error ::Missing required secret: ${var/DB_/BOBER_DB_}"
+            missing=1
+          fi
+        done
+
+        if [ "$missing" -ne 0 ]; then
+          exit 1
+        fi
+
+        php_escape() {
+          python3 -c "import sys; value = sys.stdin.read(); print(value.replace('\\\\', '\\\\\\\\').replace(\"'\", \"\\\\'\").replace('\\r', '').replace('\\n', '\\\\n'), end='')"
+        }
+
+        DB_HOST_ESCAPED="$(printf '%s' "$DB_HOST" | php_escape)"
+        DB_USER_ESCAPED="$(printf '%s' "$DB_USER" | php_escape)"
+        DB_PASS_ESCAPED="$(printf '%s' "$DB_PASS" | php_escape)"
+        DB_NAME_ESCAPED="$(printf '%s' "$DB_NAME" | php_escape)"
+        ADMIN_PASSWORD_HASH_ESCAPED="$(printf '%s' "$ADMIN_PASSWORD_HASH" | php_escape)"
+        ADMIN_INITIAL_PASSWORD_ESCAPED="$(printf '%s' "$ADMIN_INITIAL_PASSWORD" | php_escape)"
+
+        cat > ./Код/db_config.php <<EOF
+        <?php
+
+        return [
+            'db_host' => '${DB_HOST_ESCAPED}',
+            'db_user' => '${DB_USER_ESCAPED}',
+            'db_pass' => '${DB_PASS_ESCAPED}',
+            'db_name' => '${DB_NAME_ESCAPED}',
+            'admin_password_hash' => '${ADMIN_PASSWORD_HASH_ESCAPED}',
+            'admin_initial_password' => '${ADMIN_INITIAL_PASSWORD_ESCAPED}',
+        ];
+        EOF
       
     - name: 🔍 Determine deployment directory
       id: deployment
@@ -64,6 +110,7 @@ jobs:
         echo "- **Environment:** ${{ steps.deployment.outputs.env_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Target Directory:** ${{ steps.deployment.outputs.target_dir }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runtime Config:** \`Код/db_config.php\` generated from GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ steps.deployment.outputs.env_name }}" == "Production" ]; then
           echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY
