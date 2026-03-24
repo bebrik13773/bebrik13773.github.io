@@ -433,6 +433,127 @@ Owner decisions:
             min-width: 160px;
         }
     }
+    #leaderboard {
+        width: min(92vw, 520px);
+        margin: 28px auto 20px;
+        padding: 20px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(44, 10, 86, 0.92), rgba(20, 7, 46, 0.95));
+        border: 2px solid rgba(255, 230, 0, 0.28);
+        box-shadow: 0 18px 38px rgba(31, 9, 58, 0.38);
+        color: #fff;
+        text-align: left;
+    }
+
+    .leaderboard-title {
+        margin: 0 0 14px;
+        text-align: center;
+        font-size: 28px;
+        color: #ffe769;
+        text-shadow: 0 2px 10px rgba(255, 231, 105, 0.35);
+    }
+
+    .leaderboard-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .leaderboard-item {
+        display: grid;
+        grid-template-columns: 56px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+
+    .leaderboard-rank {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-weight: 700;
+        font-size: 18px;
+        color: #2c0a56;
+        background: #fff;
+        box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.5);
+    }
+
+    .leaderboard-rank.gold {
+        background: linear-gradient(180deg, #ffe987, #f7b500);
+    }
+
+    .leaderboard-rank.silver {
+        background: linear-gradient(180deg, #f4f7fb, #b9c6d8);
+    }
+
+    .leaderboard-rank.bronze {
+        background: linear-gradient(180deg, #f1c18c, #c97a2b);
+    }
+
+    .leaderboard-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+        overflow-wrap: anywhere;
+    }
+
+    .leaderboard-score {
+        font-size: 18px;
+        font-weight: 700;
+        color: #ffe769;
+        text-shadow: 0 0 10px rgba(255, 231, 105, 0.18);
+    }
+
+    .leaderboard-empty,
+    .leaderboard-error {
+        margin: 0;
+        padding: 14px 16px;
+        border-radius: 16px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .leaderboard-error {
+        color: #ffd0d0;
+        border: 1px solid rgba(255, 97, 97, 0.35);
+    }
+
+    @media (max-width: 768px) {
+        #leaderboard {
+            width: min(94vw, 420px);
+            padding: 16px;
+            border-radius: 20px;
+        }
+
+        .leaderboard-title {
+            font-size: 24px;
+        }
+
+        .leaderboard-item {
+            grid-template-columns: 46px 1fr;
+            gap: 10px;
+        }
+
+        .leaderboard-score {
+            grid-column: 2;
+            font-size: 16px;
+        }
+
+        .leaderboard-name {
+            font-size: 16px;
+        }
+    }
     #comit {
     background-color: rgba(255, 255, 255, 0.95);
     border: 2px solid #6b21a8;
@@ -867,6 +988,51 @@ function validateRegisterLogin(loginValue) {
     return REGISTER_LOGIN_PATTERN.test(loginValue);
 }
 
+function escapeHtmlText(value) {
+    return String(value).replace(/[&<>"']/g, function(char) {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+
+        return entities[char] || char;
+    });
+}
+
+function formatLeaderboardScore(scoreValue) {
+    const scoreNumber = Number(scoreValue);
+    return Number.isFinite(scoreNumber) ? Math.max(0, scoreNumber).toLocaleString('ru-RU') : '0';
+}
+
+function renderLeaderboard(players) {
+    const leaderboard = document.getElementById('leaderboard');
+    const rankClasses = ['gold', 'silver', 'bronze'];
+
+    if (!Array.isArray(players) || players.length === 0) {
+        leaderboard.innerHTML = `
+            <h2 class="leaderboard-title">Топ-3 игроков</h2>
+            <p class="leaderboard-empty">Пока нет сохраненных результатов.</p>
+        `;
+        return;
+    }
+
+    const rowsHtml = players.slice(0, 3).map((player, index) => `
+        <li class="leaderboard-item">
+            <span class="leaderboard-rank ${rankClasses[index] || ''}">${index + 1}</span>
+            <span class="leaderboard-name">${escapeHtmlText(player.login || 'Без имени')}</span>
+            <span class="leaderboard-score">${formatLeaderboardScore(player.score)}</span>
+        </li>
+    `).join('');
+
+    leaderboard.innerHTML = `
+        <h2 class="leaderboard-title">Топ-3 игроков</h2>
+        <ol class="leaderboard-list">${rowsHtml}</ol>
+    `;
+}
+
 async function requestJson(url, options = {}) {
     const response = await fetch(url, options);
     let data;
@@ -1294,20 +1460,13 @@ function saveScore(scoreValue) {
 async function loadLeaderboard() {
     try {
         const data = await requestJson('https://bober-api.gt.tc/leaderboard.php');
-        const leaderboard = document.getElementById('leaderboard');
-
-        if (!Array.isArray(data) || data.length === 0) {
-            leaderboard.innerHTML = '<h2>Топ-3 игроков</h2><p>Пока нет сохраненных результатов.</p>';
-            return;
-        }
-
-        leaderboard.innerHTML = '<h2>Топ-3 игроков</h2>';
-        data.forEach(player => {
-            leaderboard.innerHTML += `<p>Игрок с именем ${player.login} набрал ${player.score} в бобре,<br>а ты бы смог?</p>`;
-        });
+        renderLeaderboard(data);
     } catch (error) {
         console.error('Ошибка загрузки таблицы лидеров:', error);
-        document.getElementById('leaderboard').innerHTML = 'Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!';
+        document.getElementById('leaderboard').innerHTML = `
+            <h2 class="leaderboard-title">Топ-3 игроков</h2>
+            <p class="leaderboard-error">Ошибка получения таблицы лидеров. Обратитесь в поддержку.</p>
+        `;
     }
 }
 
