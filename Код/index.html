@@ -1011,12 +1011,6 @@ let lastEnergyUpdate = Date.now();
 let energy_max = 5000;
 const ENERGY_REGEN_TIME = 15 * 60 * 1000;
 let ENERGY_REGEN_PER_MS = 0;
-let skin = getDefaultSkinState();
-let energyTimer = null;
-let currentLogin = localStorage.getItem('login') || '';
-let flyBeaverState = getDefaultFlyBeaverState();
-let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
-window.__boberBanInfo = null;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
 const DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
@@ -1042,6 +1036,12 @@ const SKIN_BY_ID = Object.freeze(SKIN_CATALOG.reduce((accumulator, item) => {
 }, {}));
 const DEFAULT_SKIN_ID = (SKIN_CATALOG.find((item) => item.defaultOwned) || SKIN_CATALOG[0]).id;
 const DEFAULT_OWNED_SKIN_IDS = Object.freeze(SKIN_CATALOG.filter((item) => item.defaultOwned).map((item) => item.id));
+let skin = getDefaultSkinState();
+let energyTimer = null;
+let currentLogin = localStorage.getItem('login') || '';
+let flyBeaverState = getDefaultFlyBeaverState();
+let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
+window.__boberBanInfo = null;
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
