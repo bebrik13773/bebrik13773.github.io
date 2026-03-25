@@ -618,6 +618,137 @@ Owner decisions:
         border: 1px solid rgba(255, 97, 97, 0.35);
     }
 
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(7, 8, 18, 0.68);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 10020;
+    }
+
+    .modal-backdrop.show {
+        display: flex;
+    }
+
+    .skin-action-modal {
+        width: min(100%, 420px);
+        border-radius: 24px;
+        padding: 22px 20px 18px;
+        background: linear-gradient(180deg, rgba(36, 13, 70, 0.96), rgba(16, 10, 34, 0.98));
+        border: 2px solid rgba(51, 197, 199, 0.45);
+        box-shadow: 0 24px 44px rgba(0, 0, 0, 0.42);
+        color: #fff;
+        text-align: left;
+        animation: skinModalIn 0.18s ease;
+    }
+
+    @keyframes skinModalIn {
+        from {
+            opacity: 0;
+            transform: translateY(14px) scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .skin-action-modal-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #c9ffff;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+
+    .skin-action-modal-text {
+        font-size: 15px;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.92);
+        text-align: center;
+        margin-bottom: 16px;
+    }
+
+    .skin-action-modal-preview {
+        width: 100%;
+        min-height: 180px;
+        border-radius: 18px;
+        background:
+            linear-gradient(180deg, rgba(8, 8, 22, 0.06), rgba(8, 8, 22, 0.5)),
+            var(--skin-action-preview, linear-gradient(135deg, #5f38d4, #33c5c7));
+        background-size: cover;
+        background-position: center;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        margin-bottom: 16px;
+    }
+
+    .skin-action-modal-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 14px;
+    }
+
+    .skin-action-modal-buttons {
+        display: flex;
+        gap: 12px;
+    }
+
+    .skin-action-modal-buttons button {
+        flex: 1;
+        min-width: 0;
+        margin-top: 0;
+    }
+
+    .skin-modal-cancel {
+        background: linear-gradient(180deg, #6c7aa9 0%, #445072 100%);
+        color: #fff;
+        box-shadow: 0 8px 0 #313a54, 0 14px 20px rgba(0,0,0,0.28);
+    }
+
+    .skin-modal-cancel:hover {
+        box-shadow: 0 6px 0 #313a54, 0 10px 12px rgba(0,0,0,0.28);
+    }
+
+    .skin-modal-confirm.install {
+        background: linear-gradient(180deg, #5df0d9 0%, #22a8b7 100%);
+        color: #102027;
+        box-shadow: 0 8px 0 #0f717e, 0 14px 20px rgba(0,0,0,0.28);
+    }
+
+    .skin-modal-confirm.install:hover {
+        box-shadow: 0 6px 0 #0f717e, 0 10px 12px rgba(0,0,0,0.28);
+    }
+
+    @media (max-width: 768px) {
+        .skin-action-modal {
+            width: min(100%, 360px);
+            padding: 18px 16px 16px;
+            border-radius: 20px;
+        }
+
+        .skin-action-modal-title {
+            font-size: 21px;
+        }
+
+        .skin-action-modal-preview {
+            min-height: 150px;
+        }
+
+        .skin-action-modal-buttons {
+            flex-direction: column;
+        }
+    }
+
     @media (max-width: 768px) {
         #leaderboard {
             width: min(calc(100vw - 24px), 380px);
@@ -787,11 +918,26 @@ function showNotification(message, type = 'success', duration = 3000) {
 <button class="shop-action-btn" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <br>
-<p class="skin-shop-hint">Новые скины теперь добавляются одной записью в каталог, а не отдельной кнопкой и набором индексов.</p>
 <div id="skins"></div>
 </div>
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
+
+<div class="modal-backdrop" id="skinActionModal" aria-hidden="true">
+    <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="skinActionModalTitle">
+        <div class="skin-action-modal-title" id="skinActionModalTitle">Подтверждение</div>
+        <div class="skin-action-modal-text" id="skinActionModalText">Вы действительно хотите продолжить?</div>
+        <div class="skin-action-modal-preview" id="skinActionModalPreview"></div>
+        <div class="skin-action-modal-meta">
+            <span id="skinActionModalPrice">Цена: 0 коинов</span>
+            <span id="skinActionModalBalance">Ваш счет: 0</span>
+        </div>
+        <div class="skin-action-modal-buttons">
+            <button type="button" class="skin-modal-cancel" id="skinActionModalCancel">Отмена</button>
+            <button type="button" class="skin-modal-confirm" id="skinActionModalConfirm">Подтвердить</button>
+        </div>
+    </div>
+</div>
     <script>
 //Последнее изменение
 // === КОНФИГУРАЦИЯ ===
@@ -1061,6 +1207,10 @@ const autosaveState = {
     lastBeaconRevision: -1,
     lastError: ''
 };
+const skinActionState = {
+    skinId: '',
+    mode: ''
+};
 
 function getDefaultSkinState() {
     return {
@@ -1301,6 +1451,101 @@ function renderSkinShop() {
     });
 
     updateSkinShopUI();
+}
+
+function hideSkinActionModal() {
+    const modal = document.getElementById('skinActionModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    skinActionState.skinId = '';
+    skinActionState.mode = '';
+}
+
+function showSkinActionModal(skinConfig, mode) {
+    const modal = document.getElementById('skinActionModal');
+    const titleNode = document.getElementById('skinActionModalTitle');
+    const textNode = document.getElementById('skinActionModalText');
+    const previewNode = document.getElementById('skinActionModalPreview');
+    const priceNode = document.getElementById('skinActionModalPrice');
+    const balanceNode = document.getElementById('skinActionModalBalance');
+    const confirmNode = document.getElementById('skinActionModalConfirm');
+
+    if (!modal || !skinConfig || !confirmNode) {
+        return;
+    }
+
+    skinActionState.skinId = skinConfig.id;
+    skinActionState.mode = mode;
+
+    if (titleNode) {
+        titleNode.textContent = mode === 'install' ? 'Установить скин?' : 'Купить скин?';
+    }
+
+    if (textNode) {
+        textNode.textContent = mode === 'install'
+            ? `Установить скин "${skinConfig.name}" как активный?`
+            : `Купить скин "${skinConfig.name}" за ${formatCompactNumber(skinConfig.price)} коинов и сразу установить его?`;
+    }
+
+    if (previewNode) {
+        previewNode.style.setProperty('--skin-action-preview', `url('${skinConfig.image}')`);
+    }
+
+    if (priceNode) {
+        priceNode.textContent = skinConfig.price > 0
+            ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов`
+            : 'Цена: бесплатно';
+    }
+
+    if (balanceNode) {
+        balanceNode.textContent = `Ваш счет: ${formatCompactNumber(score)}`;
+    }
+
+    confirmNode.textContent = mode === 'install'
+        ? 'Установить'
+        : (skinConfig.price > 0 ? `Купить за ${formatCompactNumber(skinConfig.price)}` : 'Получить');
+    confirmNode.classList.toggle('install', mode === 'install');
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function confirmSkinAction() {
+    const skinConfig = getSkinConfigById(skinActionState.skinId);
+    if (!skinConfig) {
+        hideSkinActionModal();
+        showNotification('Такой скин не найден.', 'error');
+        return;
+    }
+
+    if (skinActionState.mode === 'install') {
+        skin.equippedSkinId = skinConfig.id;
+        skinLoad();
+        updateSkinShopUI();
+        saveskin();
+        hideSkinActionModal();
+        showNotification('Скин успешно установлен!', 'success');
+        return;
+    }
+
+    if (score >= skinConfig.price) {
+        skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
+        skin.equippedSkinId = skinConfig.id;
+        score -= skinConfig.price;
+        skinLoad();
+        updateScoreUI();
+        updateSkinShopUI();
+        saveskin();
+        hideSkinActionModal();
+        showNotification('Успешная покупка скина!', 'success');
+    } else {
+        hideSkinActionModal();
+        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
+    }
 }
 
 function validateRegisterLogin(loginValue) {
