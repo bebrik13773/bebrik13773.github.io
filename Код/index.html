@@ -173,93 +173,124 @@ Owner decisions:
         #clicker:active {
 			transform: scale(1.1);
         }
-		#SkinShopButton1 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/bober.png');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		#skins {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+			gap: 16px;
+			width: min(100%, 960px);
+			margin: 0 auto;
 		}
-		#SkinShopButton2 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/bumazny-bober.jpg');
+		.skin-shop-card {
+			appearance: none;
+			border: 2px solid rgba(255, 255, 255, 0.2);
+			border-radius: 18px;
+			background:
+				linear-gradient(180deg, rgba(10, 10, 25, 0.08), rgba(10, 10, 25, 0.42)),
+				var(--skin-card-image, linear-gradient(135deg, #5f38d4, #33c5c7));
 			background-size: cover;
-			border: none;
+			background-position: center;
 			color: #fff;
-			border-radius: 10px;
 			cursor: pointer;
-			transition: transform 0.1s;
+			min-height: 210px;
+			padding: 14px;
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-end;
+			gap: 8px;
+			box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22);
+			text-align: left;
+			transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+			position: relative;
+			overflow: hidden;
 		}
-		#SkinShopButton3 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/matvey-new-bober.jpg');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
 		}
-		#SkinShopButton4 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/klub-smz-bober.jpg');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card:active {
+			transform: scale(0.98);
 		}
-		#SkinShopButton5 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/nosok-bober.jpg');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(180deg, rgba(12, 10, 24, 0.05), rgba(12, 10, 24, 0.72));
+			pointer-events: none;
 		}
-		#SkinShopButton6 {
-			width: 150px;
-		 height: 150px;
-			background-image: url('skins/Shok-upok-bober.jpg');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card > * {
+			position: relative;
+			z-index: 1;
 		}
-		#SkinShopButton7 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/strany-bober.jpg');
-			background-size: cover;
-			border: none;
-		 color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card.owned {
+			border-color: rgba(111, 241, 227, 0.55);
 		}
-		#SkinShopButton8 {
-			width: 150px;
-			height: 150px;
-			background-image: url('skins/dev.png');
-			background-size: cover;
-			border: none;
-			color: #fff;
-			border-radius: 10px;
-			cursor: pointer;
-			transition: transform 0.1s;
+		.skin-shop-card.equipped {
+			border-color: #7ef1ff;
+			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.25), 0 18px 34px rgba(0, 0, 0, 0.3);
+		}
+		.skin-shop-card.locked {
+			border-color: rgba(255, 255, 255, 0.14);
+			filter: saturate(0.92);
+		}
+		.skin-shop-card.coming-soon {
+			filter: grayscale(0.18) saturate(0.84);
+		}
+		.skin-shop-card-name {
+			font-size: 18px;
+			font-weight: 700;
+			text-shadow: 0 2px 10px rgba(0, 0, 0, 0.38);
+		}
+		.skin-shop-card-price,
+		.skin-shop-card-status {
+			font-size: 13px;
+			font-weight: 600;
+			text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+		}
+		.skin-shop-card-status {
+			opacity: 0.92;
+		}
+		.skin-shop-badge {
+			position: absolute;
+			top: 12px;
+			right: 12px;
+			z-index: 2;
+			padding: 6px 10px;
+			border-radius: 999px;
+			font-size: 12px;
+			font-weight: 700;
+			background: rgba(10, 10, 25, 0.55);
+			backdrop-filter: blur(8px);
+			-webkit-backdrop-filter: blur(8px);
+		}
+		.skin-shop-badge.equipped {
+			background: rgba(111, 241, 227, 0.24);
+			color: #dfffff;
+		}
+		.skin-shop-badge.owned {
+			background: rgba(87, 176, 255, 0.24);
+		}
+		.skin-shop-badge.coming-soon {
+			background: rgba(255, 196, 87, 0.24);
+			color: #fff1cb;
+		}
+		.skin-shop-hint {
+			width: min(100%, 960px);
+			margin: 0 auto 16px;
+			color: rgba(255, 255, 255, 0.86);
+			font-size: 14px;
+		}
+		@media (max-width: 768px) {
+			#skins {
+				grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+				gap: 12px;
+			}
+			.skin-shop-card {
+				min-height: 170px;
+				padding: 12px;
+			}
+			.skin-shop-card-name {
+				font-size: 16px;
+			}
 		}
 		#ShopButton,
 		.shop-action-btn {
@@ -756,30 +787,8 @@ function showNotification(message, type = 'success', duration = 3000) {
 <button class="shop-action-btn" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <br>
-<div id="skins">
-	<button  id="SkinShopButton1" onclick="buySkin(1, 0, 'skins/bober.png')">Просто бобер - цена: бесплатно!</button>
-	<br>
-<br>
-	<button id="SkinShopButton2" onclick="buySkin(2, 5000, 'skins/bumazny-bober.jpg')">Бумажный бобер - цена: 5000 </button>
-	<br>
-<br>
-	<button id="SkinShopButton3" onclick="buySkin(3, 0, 'skins/matvey-new-bober.jpg')">Стандартный бобер - цена: бесплатно!</button>
-	<br>
-<br>
-	<button id="SkinShopButton4" onclick="buySkin(4, 15000, 'skins/klub-smz-bober.jpg')">Клубничный йогурт бобер - цена: 15000</button>
-	<br>
-<br>
-	<button id="SkinShopButton5" onclick="buySkin(5, 30000, 'skins/nosok-bober.jpg')">Носок бобер - цена: 30000 </button>
-	<br>
-<br>
-	<button id="SkinShopButton6" onclick="buySkin(6, 50000, 'skins/Shok-upok-bober.jpg')">Шоколад бобер - цена: 50000 </button>
-	<br>
-<br>
-	<button id="SkinShopButton7" onclick="buySkin(7, 30000, 'skins/strany-bober.jpg')">Странный бобер - цена: 30000</button>
-	<br>
-<br>
-	<button id="SkinShopButton8" onclick="showNotification('Пока не сделали. 😔 Но можешь написать в поддержку 👇, что 🤷 добавить ✍️', 'success');">В разработке</button>
-</div>
+<p class="skin-shop-hint">Новые скины теперь добавляются одной записью в каталог, а не отдельной кнопкой и набором индексов.</p>
+<div id="skins"></div>
 </div>
 <br>
 <div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
@@ -1016,6 +1025,23 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     tapBig: 20000,
     energy: 10000
 });
+// Чтобы добавить новый скин, достаточно дописать один объект в каталог ниже.
+const SKIN_CATALOG = Object.freeze([
+    { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true },
+    { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true },
+    { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true },
+    { id: 'strawberry', name: 'Клубничный йогурт бобер', price: 15000, image: 'skins/klub-smz-bober.jpg', defaultOwned: false, available: true },
+    { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true },
+    { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true },
+    { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true },
+    { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true }
+]);
+const SKIN_BY_ID = Object.freeze(SKIN_CATALOG.reduce((accumulator, item) => {
+    accumulator[item.id] = item;
+    return accumulator;
+}, {}));
+const DEFAULT_SKIN_ID = (SKIN_CATALOG.find((item) => item.defaultOwned) || SKIN_CATALOG[0]).id;
+const DEFAULT_OWNED_SKIN_IDS = Object.freeze(SKIN_CATALOG.filter((item) => item.defaultOwned).map((item) => item.id));
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
@@ -1037,7 +1063,40 @@ const autosaveState = {
 };
 
 function getDefaultSkinState() {
-    return ['skins/bober.png', true, false, true, false, false, false, false, false];
+    return {
+        version: 2,
+        equippedSkinId: DEFAULT_SKIN_ID,
+        ownedSkinIds: [...DEFAULT_OWNED_SKIN_IDS]
+    };
+}
+
+function getSkinConfigById(skinId) {
+    return SKIN_BY_ID[skinId] || null;
+}
+
+function getSkinConfigByImage(imagePath) {
+    return SKIN_CATALOG.find((item) => item.image === imagePath) || null;
+}
+
+function getOwnedSkinIdSet(rawOwnedSkinIds) {
+    const ownedSkinIdSet = new Set(DEFAULT_OWNED_SKIN_IDS);
+
+    if (!Array.isArray(rawOwnedSkinIds)) {
+        return ownedSkinIdSet;
+    }
+
+    rawOwnedSkinIds.forEach((skinId) => {
+        if (typeof skinId !== 'string') {
+            return;
+        }
+
+        const normalizedId = skinId.trim();
+        if (getSkinConfigById(normalizedId)) {
+            ownedSkinIdSet.add(normalizedId);
+        }
+    });
+
+    return ownedSkinIdSet;
 }
 
 function getDefaultFlyBeaverState() {
@@ -1065,30 +1124,66 @@ function normalizeSkinState(rawSkin) {
     const defaults = getDefaultSkinState();
     let parsedSkin = defaults;
 
-    if (Array.isArray(rawSkin)) {
-        parsedSkin = rawSkin;
-    } else if (typeof rawSkin === 'string' && rawSkin.trim() !== '') {
+    if (typeof rawSkin === 'string' && rawSkin.trim() !== '') {
         try {
-            const candidate = JSON.parse(rawSkin);
-            if (Array.isArray(candidate)) {
-                parsedSkin = candidate;
-            }
+            parsedSkin = JSON.parse(rawSkin);
         } catch (error) {
             console.warn('Не удалось распарсить скин, используем значения по умолчанию.', error);
+            parsedSkin = defaults;
         }
+    } else if (rawSkin && typeof rawSkin === 'object') {
+        parsedSkin = rawSkin;
     }
 
-    const normalized = [...defaults];
-    parsedSkin.forEach((value, index) => {
-        if (index === 0) {
-            normalized[0] = typeof value === 'string' && value.trim() !== '' ? value : defaults[0];
-            return;
-        }
+    if (Array.isArray(parsedSkin)) {
+        const ownedSkinIdSet = new Set(DEFAULT_OWNED_SKIN_IDS);
+        SKIN_CATALOG.forEach((skinConfig, index) => {
+            if (Boolean(parsedSkin[index + 1])) {
+                ownedSkinIdSet.add(skinConfig.id);
+            }
+        });
 
-        normalized[index] = Boolean(value);
-    });
+        const equippedFromLegacy = typeof parsedSkin[0] === 'string' ? parsedSkin[0].trim() : '';
+        const equippedSkin = getSkinConfigByImage(equippedFromLegacy);
+        const equippedSkinId = equippedSkin && ownedSkinIdSet.has(equippedSkin.id)
+            ? equippedSkin.id
+            : defaults.equippedSkinId;
 
-    return normalized;
+        return {
+            version: 2,
+            equippedSkinId,
+            ownedSkinIds: Array.from(ownedSkinIdSet)
+        };
+    }
+
+    if (!parsedSkin || typeof parsedSkin !== 'object') {
+        return defaults;
+    }
+
+    const ownedSkinIdSet = getOwnedSkinIdSet(
+        Array.isArray(parsedSkin.ownedSkinIds)
+            ? parsedSkin.ownedSkinIds
+            : (Array.isArray(parsedSkin.owned) ? parsedSkin.owned : [])
+    );
+
+    let equippedSkinId = typeof parsedSkin.equippedSkinId === 'string' ? parsedSkin.equippedSkinId.trim() : '';
+
+    if (!equippedSkinId && typeof parsedSkin.equipped === 'string') {
+        const equippedValue = parsedSkin.equipped.trim();
+        equippedSkinId = getSkinConfigById(equippedValue)
+            ? equippedValue
+            : ((getSkinConfigByImage(equippedValue) || {}).id || '');
+    }
+
+    if (!getSkinConfigById(equippedSkinId) || !ownedSkinIdSet.has(equippedSkinId)) {
+        equippedSkinId = defaults.equippedSkinId;
+    }
+
+    return {
+        version: 2,
+        equippedSkinId,
+        ownedSkinIds: Array.from(ownedSkinIdSet)
+    };
 }
 
 function updateRegenRate() {
@@ -1097,6 +1192,9 @@ function updateRegenRate() {
 
 function updateScoreUI() {
     document.getElementById('score').innerText = 'Счет: ' + score;
+    if (document.getElementById('shop').style.display === 'block') {
+        updateSkinShopUI();
+    }
 }
 
 function updateEnergyUI() {
@@ -1104,8 +1202,105 @@ function updateEnergyUI() {
 }
 
 function skinLoad() {
-    const currentSkin = typeof skin[0] === 'string' && skin[0] ? skin[0] : getDefaultSkinState()[0];
-    document.getElementById('clicker').style.backgroundImage = `url(${currentSkin})`;
+    const equippedSkin = getSkinConfigById((skin && skin.equippedSkinId) || '') || getSkinConfigById(DEFAULT_SKIN_ID);
+    document.getElementById('clicker').style.backgroundImage = equippedSkin ? `url(${equippedSkin.image})` : `url(${getSkinConfigById(DEFAULT_SKIN_ID).image})`;
+}
+
+function isSkinOwned(skinId) {
+    return Boolean(skin && Array.isArray(skin.ownedSkinIds) && skin.ownedSkinIds.includes(skinId));
+}
+
+function updateSkinShopUI() {
+    const skinCards = document.querySelectorAll('.skin-shop-card');
+    if (skinCards.length === 0) {
+        return;
+    }
+
+    skinCards.forEach((skinCard) => {
+        const skinId = skinCard.dataset.skinId;
+        const skinConfig = getSkinConfigById(skinId);
+        if (!skinConfig) {
+            return;
+        }
+
+        const isOwned = isSkinOwned(skinId);
+        const isEquipped = isOwned && skin.equippedSkinId === skinId;
+        const priceNode = skinCard.querySelector('.skin-shop-card-price');
+        const statusNode = skinCard.querySelector('.skin-shop-card-status');
+        const badgeNode = skinCard.querySelector('.skin-shop-badge');
+
+        skinCard.classList.toggle('owned', isOwned);
+        skinCard.classList.toggle('equipped', isEquipped);
+        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false);
+        skinCard.classList.toggle('coming-soon', skinConfig.available === false);
+
+        if (priceNode) {
+            priceNode.textContent = skinConfig.available === false
+                ? 'Пока недоступен'
+                : (skinConfig.price > 0 ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов` : 'Цена: бесплатно');
+        }
+
+        if (statusNode) {
+            if (skinConfig.available === false) {
+                statusNode.textContent = 'В разработке';
+            } else if (!userId) {
+                statusNode.textContent = 'Войдите, чтобы выбрать или купить';
+            } else if (isEquipped) {
+                statusNode.textContent = 'Скин уже установлен';
+            } else if (isOwned) {
+                statusNode.textContent = 'Нажмите, чтобы установить';
+            } else if (score >= skinConfig.price) {
+                statusNode.textContent = 'Нажмите, чтобы купить';
+            } else {
+                statusNode.textContent = `Не хватает ${formatCompactNumber(Math.max(0, skinConfig.price - score))} коинов`;
+            }
+        }
+
+        if (badgeNode) {
+            badgeNode.className = 'skin-shop-badge';
+            if (skinConfig.available === false) {
+                badgeNode.classList.add('coming-soon');
+                badgeNode.textContent = 'Скоро';
+            } else if (isEquipped) {
+                badgeNode.classList.add('equipped');
+                badgeNode.textContent = 'Надет';
+            } else if (isOwned) {
+                badgeNode.classList.add('owned');
+                badgeNode.textContent = 'Куплен';
+            } else {
+                badgeNode.textContent = skinConfig.price > 0 ? `${formatCompactNumber(skinConfig.price)}` : 'Free';
+            }
+        }
+    });
+}
+
+function renderSkinShop() {
+    const skinsContainer = document.getElementById('skins');
+    if (!skinsContainer) {
+        return;
+    }
+
+    skinsContainer.innerHTML = SKIN_CATALOG.map((skinConfig) => `
+        <button
+            type="button"
+            class="skin-shop-card"
+            data-skin-id="${escapeHtmlText(skinConfig.id)}"
+            style="--skin-card-image: url('${escapeHtmlText(skinConfig.image)}');"
+        >
+            <span class="skin-shop-badge"></span>
+            <span class="skin-shop-card-name">${escapeHtmlText(skinConfig.name)}</span>
+            <span class="skin-shop-card-price"></span>
+            <span class="skin-shop-card-status"></span>
+        </button>
+    `).join('');
+
+    skinsContainer.querySelectorAll('.skin-shop-card').forEach((skinCard) => {
+        skinCard.addEventListener('click', () => {
+            buySkin(skinCard.dataset.skinId || '');
+        });
+    });
+
+    updateSkinShopUI();
 }
 
 function validateRegisterLogin(loginValue) {
@@ -1541,6 +1736,7 @@ function restoreLocalDraftIfAvailable() {
     if (JSON.stringify(draftSkin) !== JSON.stringify(skin)) {
         skin = draftSkin;
         skinLoad();
+        updateSkinShopUI();
         restored = true;
     }
 
@@ -1570,6 +1766,7 @@ function resetUserState() {
 
     updateRegenRate();
     skinLoad();
+    updateSkinShopUI();
     updateScoreUI();
     updateEnergyUI();
     updateUpgradeShopUI();
@@ -1612,6 +1809,7 @@ function applyAuthenticatedState(data) {
 
     skin = normalizeSkinState(data.skin);
     skinLoad();
+    updateSkinShopUI();
 
     const serverEnergy = Number(data.energy);
     energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy_max;
@@ -1974,38 +2172,48 @@ function saveEnergyDebounced() {
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.idleDelayMs });
 }
 
-function buySkin(id, sum, tex) {
+function buySkin(skinId) {
+    const skinConfig = getSkinConfigById(String(skinId || '').trim());
+    if (!skinConfig) {
+        showNotification('Такой скин не найден.', 'error');
+        return;
+    }
+
+    if (skinConfig.available === false) {
+        showNotification('Этот скин пока в разработке. Если хотите, напишите в поддержку и добавим его быстрее.', 'success');
+        return;
+    }
+
     if (!userId) {
         showNotification('Пожалуйста, войдите в аккаунт.', 'error');
         return;
     }
 
-    if (skin[id] === true) {
-        const shouldApply = confirm('Этот скин уже куплен. Хотите установить его?');
-        if (shouldApply) {
-            skin[0] = tex;
-            skinLoad();
-            saveskin();
-            showNotification('Скин успешно установлен!', 'success');
+    if (isSkinOwned(skinConfig.id)) {
+        if (skin.equippedSkinId === skinConfig.id) {
+            showNotification('Этот скин уже установлен.', 'success');
+            return;
         }
+
+        skin.equippedSkinId = skinConfig.id;
+        skinLoad();
+        updateSkinShopUI();
+        saveskin();
+        showNotification('Скин успешно установлен!', 'success');
         return;
     }
 
-    const shouldBuy = confirm('Этот скин еще не куплен. Хотите купить его?');
-    if (!shouldBuy) {
-        return;
-    }
-
-    if (score >= sum) {
-        skin[id] = true;
-        skin[0] = tex;
-        score -= sum;
+    if (score >= skinConfig.price) {
+        skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
+        skin.equippedSkinId = skinConfig.id;
+        score -= skinConfig.price;
         skinLoad();
         updateScoreUI();
+        updateSkinShopUI();
         saveskin();
         showNotification('Успешная покупка скина!', 'success');
     } else {
-        showNotification('Недостаточно средств!', 'error');
+        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
     }
 }
 
@@ -2134,6 +2342,7 @@ document.getElementById('submitLogin').onclick = async function() {
 };
 
 function shopShow() {
+    updateSkinShopUI();
     document.getElementById('shop').style.display = 'block';
     document.getElementById('shopButton').style.display = 'none';
     document.getElementById('shopExit').style.display = 'block';
@@ -2404,6 +2613,7 @@ async function loadLeaderboard() {
 }
 
 updateRegenRate();
+renderSkinShop();
 skinLoad();
 updateScoreUI();
 updateEnergyUI();

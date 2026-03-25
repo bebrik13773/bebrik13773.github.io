@@ -34,17 +34,7 @@ try {
     $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
 
     $conn = bober_db_connect();
-    $activeBan = bober_fetch_active_user_ban($conn, $userId);
-
-    if ($activeBan !== null) {
-        $conn->close();
-        bober_logout_user();
-        bober_json_response([
-            'success' => false,
-            'message' => $activeBan['message'],
-            'ban' => $activeBan,
-        ], 403);
-    }
+    bober_enforce_runtime_access_rules($conn, $userId);
 
     $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ? WHERE id = ?');
     if (!$stmt) {

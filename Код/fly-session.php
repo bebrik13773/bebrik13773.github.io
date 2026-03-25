@@ -11,17 +11,7 @@ try {
 
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
-
-    $activeBan = bober_fetch_active_user_ban($conn, $userId);
-    if ($activeBan !== null) {
-        $conn->close();
-        bober_logout_user();
-        bober_json_response([
-            'success' => false,
-            'message' => $activeBan['message'],
-            'ban' => $activeBan,
-        ], 403);
-    }
+    bober_enforce_runtime_access_rules($conn, $userId);
 
     $stmt = $conn->prepare('SELECT id, login, score FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {

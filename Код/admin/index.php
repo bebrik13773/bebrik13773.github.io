@@ -353,7 +353,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($action === 'get_users_overview') {
             if (requireAdminAuth($response)) {
                 $search = trim((string) ($_POST['search'] ?? ''));
+                $sort = trim((string) ($_POST['sort'] ?? 'activity_desc'));
                 $searchLike = '%' . $search . '%';
+                $sortMap = [
+                    'activity_desc' => '`is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC',
+                    'score_desc' => '`is_banned` DESC, `u`.`score` DESC, `last_activity_at` DESC, `u`.`id` DESC',
+                    'score_asc' => '`is_banned` DESC, `u`.`score` ASC, `last_activity_at` DESC, `u`.`id` DESC',
+                    'created_desc' => '`is_banned` DESC, `u`.`created_at` DESC, `u`.`id` DESC',
+                    'created_asc' => '`is_banned` DESC, `u`.`created_at` ASC, `u`.`id` ASC',
+                    'login_asc' => '`is_banned` DESC, `u`.`login` ASC, `u`.`id` ASC',
+                ];
+                $orderBySql = $sortMap[$sort] ?? $sortMap['activity_desc'];
+                $sort = isset($sortMap[$sort]) ? $sort : 'activity_desc';
 
                 $conn = connectDB();
                 bober_ensure_project_schema($conn);
@@ -366,6 +377,7 @@ SELECT
     `u`.`plus`,
     `u`.`energy`,
     `u`.`ENERGY_MAX`,
+    `u`.`created_at`,
     `u`.`updated_at`,
     GREATEST(
         COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
@@ -398,7 +410,7 @@ SELECT
 FROM `users` `u`
 LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
 WHERE `u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?
-ORDER BY `is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC
+ORDER BY {$orderBySql}
 LIMIT 200
 SQL;
 
@@ -424,6 +436,7 @@ SQL;
                         'plus' => max(1, (int) ($row['plus'] ?? 1)),
                         'energy' => max(0, (int) ($row['energy'] ?? 0)),
                         'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
+                        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : null,
                         'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
                         'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
                         'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
@@ -462,6 +475,7 @@ SQL;
                 $response['returned'] = count($users);
                 $response['total'] = $total;
                 $response['search'] = $search;
+                $response['sort'] = $sort;
 
                 $conn->close();
             }
@@ -604,7 +618,7 @@ SQL;
                         }
 
                         $ipBans = [];
-                        $ipBanStmt = $conn->prepare('SELECT `ip_address`, `ban_until`, `lifted_at`, `created_at` FROM `ip_bans` WHERE `source_user_id` = ? ORDER BY `created_at` DESC LIMIT 20');
+                        $ipBanStmt = $conn->prepare('SELECT `id`, `ip_address`, `reason`, `ban_until`, `lifted_at`, `created_at` FROM `ip_bans` WHERE `source_user_id` = ? ORDER BY `created_at` DESC LIMIT 20');
                         if ($ipBanStmt) {
                             $ipBanStmt->bind_param('i', $userId);
                             if ($ipBanStmt->execute()) {
@@ -612,7 +626,9 @@ SQL;
                                 if ($ipBanResult instanceof mysqli_result) {
                                     while ($ipBanRow = $ipBanResult->fetch_assoc()) {
                                         $ipBans[] = [
+                                            'id' => (int) ($ipBanRow['id'] ?? 0),
                                             'ipAddress' => (string) ($ipBanRow['ip_address'] ?? ''),
+                                            'reason' => (string) ($ipBanRow['reason'] ?? ''),
                                             'banUntil' => isset($ipBanRow['ban_until']) ? (string) $ipBanRow['ban_until'] : null,
                                             'liftedAt' => isset($ipBanRow['lifted_at']) ? (string) $ipBanRow['lifted_at'] : null,
                                             'createdAt' => isset($ipBanRow['created_at']) ? (string) $ipBanRow['created_at'] : null,
@@ -1123,6 +1139,80 @@ SQL;
                                 'login' => $userRow['login'] ?? '',
                                 'lifted_user_bans' => $liftedUserBans,
                                 'lifted_ip_bans' => $liftedIpBans,
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'lift_single_ip_ban') {
+            if (requireAdminAuth($response)) {
+                $ipBanId = max(0, (int) ($_POST['ip_ban_id'] ?? 0));
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($ipBanId < 1) {
+                    $response['message'] = 'Некорректный идентификатор IP-бана';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $ipBanStmt = $conn->prepare('SELECT `id`, `source_user_id`, `ip_address`, `reason`, `lifted_at` FROM `ip_bans` WHERE `id` = ? LIMIT 1');
+                    if (!$ipBanStmt) {
+                        throw new RuntimeException('Не удалось подготовить получение IP-бана.');
+                    }
+
+                    $ipBanStmt->bind_param('i', $ipBanId);
+                    if (!$ipBanStmt->execute()) {
+                        $ipBanStmt->close();
+                        throw new RuntimeException('Не удалось получить IP-бан.');
+                    }
+
+                    $ipBanResult = $ipBanStmt->get_result();
+                    $ipBanRow = $ipBanResult ? $ipBanResult->fetch_assoc() : null;
+                    if ($ipBanResult instanceof mysqli_result) {
+                        $ipBanResult->free();
+                    }
+                    $ipBanStmt->close();
+
+                    if (!$ipBanRow) {
+                        $response['message'] = 'IP-бан не найден';
+                    } elseif ($userId > 0 && (int) ($ipBanRow['source_user_id'] ?? 0) !== $userId) {
+                        $response['message'] = 'Этот IP-бан не относится к выбранному пользователю';
+                    } elseif (!empty($ipBanRow['lifted_at'])) {
+                        $response['success'] = true;
+                        $response['message'] = 'Этот IP-бан уже снят';
+                    } else {
+                        $liftStmt = $conn->prepare('UPDATE `ip_bans` SET `lifted_at` = CURRENT_TIMESTAMP WHERE `id` = ? LIMIT 1');
+                        if (!$liftStmt) {
+                            throw new RuntimeException('Не удалось подготовить снятие IP-бана.');
+                        }
+
+                        $liftStmt->bind_param('i', $ipBanId);
+                        if (!$liftStmt->execute()) {
+                            $liftStmt->close();
+                            throw new RuntimeException('Не удалось снять IP-бан.');
+                        }
+
+                        $affectedRows = max(0, (int) $liftStmt->affected_rows);
+                        $liftStmt->close();
+
+                        $response['success'] = true;
+                        $response['message'] = $affectedRows > 0
+                            ? 'IP-бан снят точечно'
+                            : 'IP-бан уже был снят';
+
+                        bober_admin_log_action($conn, 'lift_single_ip_ban', [
+                            'target_table' => 'ip_bans',
+                            'query_text' => 'LIFT IP BAN #' . $ipBanId,
+                            'affected_rows' => $affectedRows,
+                            'meta' => [
+                                'ip_ban_id' => $ipBanId,
+                                'user_id' => (int) ($ipBanRow['source_user_id'] ?? 0),
+                                'ip_address' => (string) ($ipBanRow['ip_address'] ?? ''),
+                                'reason' => (string) ($ipBanRow['reason'] ?? ''),
                             ],
                         ]);
                     }
@@ -1988,15 +2078,247 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             max-height: 90vh;
             overflow-y: auto;
             box-shadow: var(--shadow-heavy);
-            transform: translateY(20px);
-            transition: transform 0.3s;
+            transform: translateY(20px) scale(0.97);
+            transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
             border: 1px solid var(--border);
             backdrop-filter: blur(22px);
             -webkit-backdrop-filter: blur(22px);
         }
         
         .modal-overlay.active .modal-content {
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-content.modal-content-wide {
+            max-width: 560px;
+        }
+
+        .modal-content.modal-content-danger {
+            max-width: 540px;
+        }
+
+        .modal-hero {
+            display: flex;
+            gap: 16px;
+            padding: 18px;
+            border-radius: 18px;
+            background:
+                radial-gradient(circle at top right, rgba(111, 241, 227, 0.18), transparent 42%),
+                linear-gradient(135deg, rgba(39, 26, 72, 0.92), rgba(16, 14, 31, 0.96));
+            border: 1px solid rgba(111, 241, 227, 0.16);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-hero.danger {
+            background:
+                radial-gradient(circle at top right, rgba(255, 138, 101, 0.2), transparent 45%),
+                linear-gradient(135deg, rgba(64, 22, 33, 0.94), rgba(20, 12, 18, 0.98));
+            border-color: rgba(255, 138, 101, 0.2);
+        }
+
+        .modal-hero-icon {
+            width: 52px;
+            height: 52px;
+            flex-shrink: 0;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            background: rgba(111, 241, 227, 0.12);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .modal-hero.danger .modal-hero-icon {
+            color: #ffb4a2;
+            background: rgba(255, 138, 101, 0.14);
+        }
+
+        .modal-hero-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--on-surface);
+            margin-bottom: 4px;
+        }
+
+        .modal-hero-text {
+            font-size: 14px;
+            line-height: 1.55;
+            color: var(--on-surface);
+            opacity: 0.8;
+        }
+
+        .modal-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .preset-duration-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .preset-duration-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+                var(--field-bg);
+            color: var(--on-surface);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .preset-duration-btn:hover {
+            transform: translateY(-2px);
+            border-color: rgba(111, 241, 227, 0.35);
+        }
+
+        .preset-duration-btn.active {
+            border-color: rgba(111, 241, 227, 0.55);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(111, 241, 227, 0.18);
+            background:
+                linear-gradient(180deg, rgba(111, 241, 227, 0.12), rgba(111, 241, 227, 0.05)),
+                var(--field-bg);
+        }
+
+        .preset-duration-btn.permanent.active {
+            border-color: rgba(255, 138, 101, 0.45);
+            background:
+                linear-gradient(180deg, rgba(255, 138, 101, 0.14), rgba(255, 138, 101, 0.06)),
+                var(--field-bg);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 138, 101, 0.16);
+        }
+
+        .preset-duration-title {
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .preset-duration-meta {
+            font-size: 13px;
+            opacity: 0.72;
+            line-height: 1.4;
+        }
+
+        .duration-custom-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .duration-custom-row .form-control {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .duration-addon {
+            flex-shrink: 0;
+            min-width: 92px;
+            text-align: center;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background-color: var(--chip-bg);
+            border: 1px solid var(--chip-border);
+            color: var(--on-surface);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .duration-summary {
+            padding: 16px 18px;
+            border-radius: 16px;
+            background-color: rgba(111, 241, 227, 0.08);
+            border: 1px solid rgba(111, 241, 227, 0.15);
+            color: var(--on-surface);
+            line-height: 1.55;
+        }
+
+        .duration-summary strong {
+            color: var(--primary-color);
+        }
+
+        .modal-helper-text {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--on-surface);
+            opacity: 0.72;
+        }
+
+        .danger-phrase-box {
+            padding: 16px 18px;
+            border-radius: 16px;
+            border: 1px dashed rgba(255, 138, 101, 0.45);
+            background: rgba(255, 138, 101, 0.08);
+        }
+
+        .danger-phrase-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--on-surface);
+            opacity: 0.7;
+            margin-bottom: 8px;
+        }
+
+        .danger-phrase-code {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffccbc;
+            word-break: break-word;
+        }
+
+        .danger-confirm-status {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--on-surface);
+            opacity: 0.8;
+        }
+
+        .danger-confirm-status.ready {
+            color: var(--success);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .modal-content.modal-content-wide,
+            .modal-content.modal-content-danger {
+                width: calc(100% - 24px);
+                max-width: none;
+            }
+
+            .modal-hero {
+                padding: 16px;
+                gap: 12px;
+            }
+
+            .modal-hero-icon {
+                width: 46px;
+                height: 46px;
+                border-radius: 14px;
+            }
+
+            .preset-duration-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .duration-custom-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .duration-addon {
+                width: 100%;
+            }
         }
         
         /* Уведомления */
@@ -2356,7 +2678,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-wrap: wrap;
             margin-bottom: 16px;
+        }
+
+        .account-sort-select {
+            min-width: 220px;
         }
 
         .account-list-meta {
@@ -2618,6 +2945,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             font-size: 13px;
         }
 
+        .stack-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
         .inline-actions {
             display: flex;
             gap: 10px;
@@ -2664,6 +2998,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 width: 50px;
                 height: 50px;
                 border-radius: 16px;
+            }
+
+            .account-sort-select {
+                min-width: 0;
+                width: 100%;
             }
         }
     </style>
@@ -2845,6 +3184,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                     <span class="material-icons search-icon">search</span>
                                     <input type="text" id="accountSearchInput" class="search-input" placeholder="Найти аккаунт по логину или ID">
                                 </div>
+                                <select class="form-control account-sort-select" id="accountSortSelect" aria-label="Сортировка аккаунтов">
+                                    <option value="activity_desc">Сначала по активности</option>
+                                    <option value="score_desc">Сначала по счету</option>
+                                    <option value="score_asc">Сначала по меньшему счету</option>
+                                    <option value="created_desc">Сначала новые</option>
+                                    <option value="created_asc">Сначала старые</option>
+                                    <option value="login_asc">По логину A-Z</option>
+                                </select>
                                 <button class="btn btn-outline" id="refreshAccountsBtn">
                                     <span class="material-icons">refresh</span>
                                     Обновить
@@ -3095,6 +3442,136 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             </div>
         </div>
     </div>
+
+    <div class="modal-overlay" id="banDurationModal">
+        <div class="modal-content modal-content-wide">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">gpp_bad</span>
+                        Ручной бан
+                    </h3>
+                    <div class="card-subtitle" id="banDurationModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Выберите срок бана для пользователя
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeBanDurationModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="modal-stack">
+                    <div class="modal-hero">
+                        <div class="modal-hero-icon">
+                            <span class="material-icons">shield</span>
+                        </div>
+                        <div>
+                            <div class="modal-hero-title">Блокировка аккаунта и связанных адресов</div>
+                            <div class="modal-hero-text" id="banDurationReasonPreview">Причина будет взята из поля ручного бана и сразу распространится на связанные IP-адреса.</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label">Шаблоны срока</label>
+                        <div class="preset-duration-grid">
+                            <button class="preset-duration-btn active" type="button" data-ban-duration="5">
+                                <span class="preset-duration-title">5 дней</span>
+                                <span class="preset-duration-meta">Быстрый ручной бан</span>
+                            </button>
+                            <button class="preset-duration-btn" type="button" data-ban-duration="30">
+                                <span class="preset-duration-title">30 дней</span>
+                                <span class="preset-duration-meta">Повторное серьезное нарушение</span>
+                            </button>
+                            <button class="preset-duration-btn" type="button" data-ban-duration="90">
+                                <span class="preset-duration-title">90 дней</span>
+                                <span class="preset-duration-meta">Долгое ограничение</span>
+                            </button>
+                            <button class="preset-duration-btn" type="button" data-ban-duration="365">
+                                <span class="preset-duration-title">365 дней</span>
+                                <span class="preset-duration-meta">Максимальный срочный бан</span>
+                            </button>
+                            <button class="preset-duration-btn permanent" type="button" data-ban-permanent="1" style="grid-column: 1 / -1;">
+                                <span class="preset-duration-title">Бессрочно</span>
+                                <span class="preset-duration-meta">Полная блокировка без даты окончания</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="banDurationDaysInput">Свой срок</label>
+                        <div class="duration-custom-row">
+                            <input type="number" id="banDurationDaysInput" class="form-control" min="1" step="1" value="5" placeholder="Введите число дней">
+                            <div class="duration-addon">дней</div>
+                        </div>
+                        <div class="modal-helper-text" style="margin-top: 8px;">
+                            Можно выбрать готовый шаблон или вручную указать свой срок.
+                        </div>
+                    </div>
+
+                    <div class="duration-summary" id="banDurationSummary"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelBanDurationModal">Отмена</button>
+                <button class="btn btn-danger" id="confirmBanDurationBtn">
+                    <span class="btn-text">Забанить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteAccountModal">
+        <div class="modal-content modal-content-danger">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">delete_forever</span>
+                        Удаление аккаунта
+                    </h3>
+                    <div class="card-subtitle" id="deleteAccountModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Это действие нельзя отменить
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeDeleteAccountModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="modal-stack">
+                    <div class="modal-hero danger">
+                        <div class="modal-hero-icon">
+                            <span class="material-icons">warning</span>
+                        </div>
+                        <div>
+                            <div class="modal-hero-title">Будут удалены все связанные данные</div>
+                            <div class="modal-hero-text" id="deleteAccountDangerText">Основная игра, fly-beaver, история IP и все баны будут стерты без возможности восстановления.</div>
+                        </div>
+                    </div>
+
+                    <div class="danger-phrase-box">
+                        <div class="danger-phrase-label">Введите фразу точно как ниже</div>
+                        <div class="danger-phrase-code">Я ПОДТВЕРЖДАЮ УДАЛЕНИЕ</div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="deleteAccountConfirmInput">Подтверждение удаления</label>
+                        <input type="text" id="deleteAccountConfirmInput" class="form-control" autocomplete="off" placeholder="Введите: Я ПОДТВЕРЖДАЮ УДАЛЕНИЕ">
+                        <div class="danger-confirm-status" id="deleteAccountConfirmStatus" style="margin-top: 8px;">
+                            Пока фраза не совпала, удаление заблокировано.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelDeleteAccountModal">Отмена</button>
+                <button class="btn btn-danger" id="confirmDeleteAccountBtn" disabled>
+                    <span class="btn-text">Удалить аккаунт</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
     
     <!-- Уведомления -->
@@ -3114,6 +3591,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let currentAdminView = 'accounts';
         let accountSearchDebounce = null;
         let lastAccountSearch = '';
+        let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
+        let pendingBanDurationSelection = {
+            isPermanent: false,
+            durationDays: 5
+        };
+        const deleteAccountConfirmationPhrase = 'Я ПОДТВЕРЖДАЮ УДАЛЕНИЕ';
         
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
@@ -3444,7 +3927,82 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('cancelAddRow').addEventListener('click', function() {
                 hideAddRowModal();
             });
-            
+
+            document.getElementById('closeBanDurationModal').addEventListener('click', function() {
+                hideBanDurationModal();
+            });
+
+            document.getElementById('cancelBanDurationModal').addEventListener('click', function() {
+                hideBanDurationModal();
+            });
+
+            document.getElementById('banDurationModal').addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideBanDurationModal();
+                }
+            });
+
+            document.querySelectorAll('[data-ban-duration]').forEach(button => {
+                button.addEventListener('click', function() {
+                    setBanDurationSelection({
+                        isPermanent: false,
+                        durationDays: Number(this.dataset.banDuration || 5)
+                    });
+                });
+            });
+
+            document.querySelectorAll('[data-ban-permanent]').forEach(button => {
+                button.addEventListener('click', function() {
+                    setBanDurationSelection({
+                        isPermanent: true,
+                        durationDays: 0
+                    });
+                });
+            });
+
+            document.getElementById('banDurationDaysInput').addEventListener('input', function() {
+                const nextValue = Math.max(1, Math.floor(Number(this.value || 0)));
+                if (Number.isFinite(nextValue) && nextValue > 0) {
+                    setBanDurationSelection({
+                        isPermanent: false,
+                        durationDays: nextValue
+                    });
+                }
+            });
+
+            document.getElementById('confirmBanDurationBtn').addEventListener('click', function() {
+                submitBanDurationModal();
+            });
+
+            document.getElementById('closeDeleteAccountModal').addEventListener('click', function() {
+                hideDeleteAccountModal();
+            });
+
+            document.getElementById('cancelDeleteAccountModal').addEventListener('click', function() {
+                hideDeleteAccountModal();
+            });
+
+            document.getElementById('deleteAccountModal').addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideDeleteAccountModal();
+                }
+            });
+
+            document.getElementById('deleteAccountConfirmInput').addEventListener('input', function() {
+                updateDeleteAccountConfirmState();
+            });
+
+            document.getElementById('deleteAccountConfirmInput').addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' && !document.getElementById('confirmDeleteAccountBtn').disabled) {
+                    event.preventDefault();
+                    submitDeleteSelectedAccount();
+                }
+            });
+
+            document.getElementById('confirmDeleteAccountBtn').addEventListener('click', function() {
+                submitDeleteSelectedAccount();
+            });
+
             // Кнопки бокового меню
             document.getElementById('tablesHeader').addEventListener('click', function() {
                 const tableList = document.getElementById('tableList');
@@ -3489,15 +4047,25 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     const value = this.value.trim();
                     clearTimeout(accountSearchDebounce);
                     accountSearchDebounce = setTimeout(() => {
-                        loadAccounts(value);
+                        loadAccounts(value, currentAccountSort);
                     }, 220);
+                });
+            }
+
+            const accountSortSelect = document.getElementById('accountSortSelect');
+            if (accountSortSelect) {
+                accountSortSelect.value = currentAccountSort;
+                accountSortSelect.addEventListener('change', function() {
+                    currentAccountSort = this.value;
+                    localStorage.setItem('admin_account_sort', currentAccountSort);
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
                 });
             }
 
             const refreshAccountsBtn = document.getElementById('refreshAccountsBtn');
             if (refreshAccountsBtn) {
                 refreshAccountsBtn.addEventListener('click', function() {
-                    loadAccounts(document.getElementById('accountSearchInput').value.trim());
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
                 });
             }
         }
@@ -3532,6 +4100,191 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('addRowModal').classList.remove('active');
         }
 
+        function showBanDurationModal() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const login = document.getElementById('adminUserLogin') ? document.getElementById('adminUserLogin').value.trim() : '';
+            const subtitle = document.getElementById('banDurationModalSubtitle');
+            const reasonPreview = document.getElementById('banDurationReasonPreview');
+
+            if (subtitle) {
+                subtitle.textContent = `Выберите срок бана для ${login || `ID ${selectedAccountId}`}`;
+            }
+
+            if (reasonPreview) {
+                const reasonValue = document.getElementById('banReasonInput') ? document.getElementById('banReasonInput').value.trim() : '';
+                reasonPreview.textContent = `Причина: ${reasonValue || 'Ручной бан администрацией'}. Бан сразу ограничит аккаунт и связанные IP-адреса.`;
+            }
+
+            setBanDurationSelection({
+                isPermanent: false,
+                durationDays: 5
+            });
+
+            document.getElementById('banDurationModal').classList.add('active');
+        }
+
+        function hideBanDurationModal() {
+            document.getElementById('banDurationModal').classList.remove('active');
+        }
+
+        function setBanDurationSelection(selection) {
+            const normalized = {
+                isPermanent: Boolean(selection && selection.isPermanent),
+                durationDays: Math.max(1, Math.floor(Number(selection && selection.durationDays ? selection.durationDays : 5)))
+            };
+
+            if (normalized.isPermanent) {
+                normalized.durationDays = 0;
+            }
+
+            pendingBanDurationSelection = normalized;
+            updateBanDurationModalUI();
+        }
+
+        function updateBanDurationModalUI() {
+            const input = document.getElementById('banDurationDaysInput');
+            const summary = document.getElementById('banDurationSummary');
+
+            document.querySelectorAll('[data-ban-duration], [data-ban-permanent]').forEach(button => {
+                const isPermanentButton = button.dataset.banPermanent === '1';
+                const isActive = pendingBanDurationSelection.isPermanent
+                    ? isPermanentButton
+                    : (!isPermanentButton && Number(button.dataset.banDuration || 0) === Number(pendingBanDurationSelection.durationDays || 0));
+                button.classList.toggle('active', isActive);
+            });
+
+            if (input) {
+                input.disabled = pendingBanDurationSelection.isPermanent;
+                input.value = pendingBanDurationSelection.isPermanent
+                    ? ''
+                    : String(Math.max(1, Number(pendingBanDurationSelection.durationDays || 5)));
+            }
+
+            if (summary) {
+                summary.innerHTML = pendingBanDurationSelection.isPermanent
+                    ? '<strong>Выбран срок:</strong> бессрочный бан. Аккаунт и связанные адреса будут заблокированы без даты окончания.'
+                    : `<strong>Выбран срок:</strong> ${escapeHtml(String(pendingBanDurationSelection.durationDays))} дн. Бан закроет доступ ко всем игровым системам с аккаунта и связанных адресов.`;
+            }
+        }
+
+        function submitBanDurationModal() {
+            if (!selectedAccountId) {
+                hideBanDurationModal();
+                return;
+            }
+
+            const reasonInput = document.getElementById('banReasonInput');
+            const reason = reasonInput ? reasonInput.value.trim() : '';
+            const actionButton = document.getElementById('toggleBanAccountBtn');
+            const confirmButton = document.getElementById('confirmBanDurationBtn');
+            const confirmText = confirmButton ? confirmButton.querySelector('.btn-text') : null;
+            const confirmLoader = confirmButton ? confirmButton.querySelector('.loader') : null;
+            const originalActionButtonContent = actionButton ? actionButton.innerHTML : '';
+
+            if (confirmButton) {
+                confirmButton.disabled = true;
+            }
+            if (confirmText) {
+                confirmText.style.display = 'none';
+            }
+            if (confirmLoader) {
+                confirmLoader.style.display = 'inline-block';
+            }
+            if (actionButton) {
+                actionButton.disabled = true;
+                actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'ban_user_account',
+                user_id: String(selectedAccountId),
+                reason: reason || 'Ручной бан администрацией',
+                duration_days: String(pendingBanDurationSelection.isPermanent ? 0 : pendingBanDurationSelection.durationDays),
+                is_permanent: pendingBanDurationSelection.isPermanent ? '1' : '0'
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось забанить пользователя');
+                }
+
+                hideBanDurationModal();
+                showNotification(data.message || 'Пользователь забанен', 'warning');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch, currentAccountSort);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка бана пользователя', 'error');
+            })
+            .finally(() => {
+                if (confirmButton) {
+                    confirmButton.disabled = false;
+                }
+                if (confirmText) {
+                    confirmText.style.display = 'inline';
+                }
+                if (confirmLoader) {
+                    confirmLoader.style.display = 'none';
+                }
+                if (actionButton) {
+                    actionButton.disabled = false;
+                    actionButton.innerHTML = originalActionButtonContent;
+                }
+            });
+        }
+
+        function showDeleteAccountModal() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const login = document.getElementById('adminUserLogin') ? document.getElementById('adminUserLogin').value.trim() : '';
+            const subtitle = document.getElementById('deleteAccountModalSubtitle');
+            const dangerText = document.getElementById('deleteAccountDangerText');
+            const input = document.getElementById('deleteAccountConfirmInput');
+
+            if (subtitle) {
+                subtitle.textContent = `Удаление ${login || `аккаунта ID ${selectedAccountId}`}`;
+            }
+
+            if (dangerText) {
+                dangerText.textContent = `Будут удалены ${login || `аккаунт ID ${selectedAccountId}`}, основная игра, fly-beaver, история IP и все связанные баны.`;
+            }
+
+            if (input) {
+                input.value = '';
+            }
+
+            updateDeleteAccountConfirmState();
+            document.getElementById('deleteAccountModal').classList.add('active');
+        }
+
+        function hideDeleteAccountModal() {
+            document.getElementById('deleteAccountModal').classList.remove('active');
+        }
+
+        function updateDeleteAccountConfirmState() {
+            const input = document.getElementById('deleteAccountConfirmInput');
+            const status = document.getElementById('deleteAccountConfirmStatus');
+            const confirmButton = document.getElementById('confirmDeleteAccountBtn');
+            const currentValue = input ? input.value.trim() : '';
+            const isReady = currentValue === deleteAccountConfirmationPhrase;
+
+            if (confirmButton) {
+                confirmButton.disabled = !isReady;
+            }
+
+            if (status) {
+                status.classList.toggle('ready', isReady);
+                status.textContent = isReady
+                    ? 'Фраза совпала. Теперь удаление можно подтвердить.'
+                    : 'Пока фраза не совпала, удаление заблокировано.';
+            }
+        }
+
         function showAccountsView() {
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
@@ -3540,7 +4293,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('accountsBtn');
             loadDashboardStats();
-            loadAccounts(document.getElementById('accountSearchInput').value.trim());
+            loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
         }
         
         // Функция показа статистики
@@ -3601,14 +4354,28 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             return Number(value || 0).toLocaleString('ru-RU');
         }
 
+        function getAccountSortLabel(sortKey) {
+            const labels = {
+                activity_desc: 'сначала по активности',
+                score_desc: 'сначала по счету',
+                score_asc: 'сначала по меньшему счету',
+                created_desc: 'сначала новые',
+                created_asc: 'сначала старые',
+                login_asc: 'по логину A-Z'
+            };
+
+            return labels[sortKey] || labels.activity_desc;
+        }
+
         function markActiveAccountInList() {
             document.querySelectorAll('.account-list-item').forEach(item => {
                 item.classList.toggle('active', Number(item.dataset.userId) === Number(selectedAccountId));
             });
         }
 
-        function loadAccounts(search = '') {
+        function loadAccounts(search = '', sort = currentAccountSort) {
             lastAccountSearch = search;
+            currentAccountSort = sort || currentAccountSort;
 
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
@@ -3627,14 +4394,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             postAction({
                 action: 'get_users_overview',
-                search: search
+                search: search,
+                sort: currentAccountSort
             })
             .then(data => {
                 if (!data.success) {
                     throw new Error(data.message || 'Не удалось загрузить список аккаунтов');
                 }
 
-                renderAccountsList(data.users || [], Number(data.total || 0), search);
+                currentAccountSort = data.sort || currentAccountSort;
+                const sortSelect = document.getElementById('accountSortSelect');
+                if (sortSelect && sortSelect.value !== currentAccountSort) {
+                    sortSelect.value = currentAccountSort;
+                }
+
+                renderAccountsList(data.users || [], Number(data.total || 0), search, currentAccountSort);
 
                 if (Array.isArray(data.users) && data.users.length > 0) {
                     const hasSelected = data.users.some(user => Number(user.id) === Number(selectedAccountId));
@@ -3662,7 +4436,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
-        function renderAccountsList(users, total, search) {
+        function renderAccountsList(users, total, search, sort) {
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
 
@@ -3682,8 +4456,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             if (meta) {
                 meta.textContent = search
-                    ? `Найдено ${formatAdminNumber(total)} аккаунтов по запросу "${search}", показаны первые ${formatAdminNumber(users.length)}`
-                    : `Всего аккаунтов: ${formatAdminNumber(total)}. Показаны первые ${formatAdminNumber(users.length)} по активности.`;
+                    ? `Найдено ${formatAdminNumber(total)} аккаунтов по запросу "${search}", показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}).`
+                    : `Всего аккаунтов: ${formatAdminNumber(total)}. Показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}).`;
             }
 
             list.innerHTML = users.map(user => `
@@ -4076,8 +4850,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <div class="stack-item-meta">
                                     Создан: ${escapeHtml(formatAdminDateTime(item.createdAt))}<br>
                                     До: ${escapeHtml(formatAdminDateTime(item.banUntil))}<br>
+                                    Причина: ${escapeHtml(item.reason || 'не указана')}<br>
                                     ${item.liftedAt ? `Снят: ${escapeHtml(formatAdminDateTime(item.liftedAt))}` : 'Сейчас ограничивает вход и регистрацию с этих IP'}
                                 </div>
+                                ${item.liftedAt ? '' : `
+                                    <div class="stack-item-actions">
+                                        <button class="btn btn-outline btn-small lift-ip-ban-btn" type="button" data-ip-ban-id="${Number(item.id)}">
+                                            <span class="material-icons">shield_unlock</span>
+                                            Снять IP-бан
+                                        </button>
+                                    </div>
+                                `}
                             </div>
                         `)}
                     </section>
@@ -4095,6 +4878,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 } else {
                     banSelectedAccount();
                 }
+            });
+            detailContainer.querySelectorAll('.lift-ip-ban-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    liftSingleIpBan(Number(this.dataset.ipBanId || 0));
+                });
             });
         }
 
@@ -4169,7 +4957,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 setSelectedAccountDirty(false);
                 showNotification(data.message || 'Пользователь сохранен', 'success');
                 loadDashboardStats();
-                loadAccounts(lastAccountSearch);
+                loadAccounts(lastAccountSearch, currentAccountSort);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -4181,32 +4969,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
-        function parseAdminBanDurationInput(rawValue) {
-            const value = String(rawValue || '').trim().toLowerCase();
-            if (value === '') {
-                return null;
+        function liftSingleIpBan(ipBanId) {
+            if (!selectedAccountId || ipBanId < 1) {
+                return;
             }
 
-            if (['inf', 'infinite', 'forever', 'navsegda', 'навсегда', 'бессрочно', 'permanent', '∞'].includes(value)) {
-                return {
-                    isPermanent: true,
-                    durationDays: 0
-                };
-            }
+            postAction({
+                action: 'lift_single_ip_ban',
+                user_id: String(selectedAccountId),
+                ip_ban_id: String(ipBanId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось снять IP-бан');
+                }
 
-            if (!/^\d+$/.test(value)) {
-                return null;
-            }
-
-            const durationDays = Number(value);
-            if (!Number.isFinite(durationDays) || durationDays < 1) {
-                return null;
-            }
-
-            return {
-                isPermanent: false,
-                durationDays: Math.floor(durationDays)
-            };
+                showNotification(data.message || 'IP-бан снят', 'success');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch, currentAccountSort);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка снятия IP-бана', 'error');
+            });
         }
 
         function banSelectedAccount() {
@@ -4214,48 +4999,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return;
             }
 
-            const reasonInput = document.getElementById('banReasonInput');
-            const reason = reasonInput ? reasonInput.value.trim() : '';
-            const rawDurationInput = window.prompt('Введите срок бана в днях. Для бессрочного бана напишите: inf', '5');
-            if (rawDurationInput === null) {
-                return;
-            }
-
-            const banDuration = parseAdminBanDurationInput(rawDurationInput);
-            if (!banDuration) {
-                showNotification('Укажите число дней или inf для бессрочного бана', 'error');
-                return;
-            }
-
-            const actionButton = document.getElementById('toggleBanAccountBtn');
-            const originalContent = actionButton.innerHTML;
-            actionButton.disabled = true;
-            actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
-
-            postAction({
-                action: 'ban_user_account',
-                user_id: String(selectedAccountId),
-                reason: reason || 'Ручной бан администрацией',
-                duration_days: String(banDuration.durationDays),
-                is_permanent: banDuration.isPermanent ? '1' : '0'
-            })
-            .then(data => {
-                if (!data.success) {
-                    throw new Error(data.message || 'Не удалось забанить пользователя');
-                }
-
-                showNotification(data.message || 'Пользователь забанен', 'warning');
-                loadDashboardStats();
-                loadAccounts(lastAccountSearch);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification(error.message || 'Ошибка бана пользователя', 'error');
-            })
-            .finally(() => {
-                actionButton.disabled = false;
-                actionButton.innerHTML = originalContent;
-            });
+            showBanDurationModal();
         }
 
         function unbanSelectedAccount() {
@@ -4279,7 +5023,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 showNotification(data.message || 'Бан снят', 'success');
                 loadDashboardStats();
-                loadAccounts(lastAccountSearch);
+                loadAccounts(lastAccountSearch, currentAccountSort);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -4296,30 +5040,38 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return;
             }
 
-            const loginInput = document.getElementById('adminUserLogin');
-            const currentLogin = loginInput ? loginInput.value.trim() : '';
-            const accountLabel = currentLogin || `ID ${selectedAccountId}`;
-            const confirmed = window.confirm(`Удалить аккаунт ${accountLabel}? Это удалит основную игру, fly-beaver, историю IP и баны. Отменить нельзя.`);
-            if (!confirmed) {
+            showDeleteAccountModal();
+        }
+
+        function submitDeleteSelectedAccount() {
+            if (!selectedAccountId) {
+                hideDeleteAccountModal();
                 return;
             }
 
-            if (currentLogin) {
-                const loginConfirmation = window.prompt(`Для подтверждения удаления введите логин: ${currentLogin}`, '');
-                if (loginConfirmation === null) {
-                    return;
-                }
-
-                if (loginConfirmation.trim() !== currentLogin) {
-                    showNotification('Логин не совпал. Удаление отменено.', 'error');
-                    return;
-                }
+            const confirmationInput = document.getElementById('deleteAccountConfirmInput');
+            if (!confirmationInput || confirmationInput.value.trim() !== deleteAccountConfirmationPhrase) {
+                showNotification('Введите точную фразу подтверждения удаления', 'error');
+                return;
             }
 
             const deleteButton = document.getElementById('deleteAccountBtn');
+            const confirmButton = document.getElementById('confirmDeleteAccountBtn');
+            const confirmText = confirmButton ? confirmButton.querySelector('.btn-text') : null;
+            const confirmLoader = confirmButton ? confirmButton.querySelector('.loader') : null;
             const originalContent = deleteButton.innerHTML;
+
             deleteButton.disabled = true;
             deleteButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            if (confirmButton) {
+                confirmButton.disabled = true;
+            }
+            if (confirmText) {
+                confirmText.style.display = 'none';
+            }
+            if (confirmLoader) {
+                confirmLoader.style.display = 'inline-block';
+            }
 
             postAction({
                 action: 'delete_user_account',
@@ -4330,6 +5082,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     throw new Error(data.message || 'Не удалось удалить аккаунт');
                 }
 
+                hideDeleteAccountModal();
                 selectedAccountId = null;
                 selectedAccountBaselineSnapshot = '';
                 selectedAccountDirty = false;
@@ -4337,7 +5090,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 document.getElementById('accountDetailEmpty').style.display = 'flex';
                 showNotification(data.message || 'Аккаунт удален', 'success');
                 loadDashboardStats();
-                loadAccounts(lastAccountSearch);
+                loadAccounts(lastAccountSearch, currentAccountSort);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -4346,6 +5099,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .finally(() => {
                 deleteButton.disabled = false;
                 deleteButton.innerHTML = originalContent;
+                if (confirmButton) {
+                    updateDeleteAccountConfirmState();
+                }
+                if (confirmText) {
+                    confirmText.style.display = 'inline';
+                }
+                if (confirmLoader) {
+                    confirmLoader.style.display = 'none';
+                }
             });
         }
         

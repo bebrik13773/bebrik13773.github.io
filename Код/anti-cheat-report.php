@@ -31,6 +31,7 @@ try {
 
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
+    bober_enforce_runtime_access_rules($conn, $userId);
 
     $ban = bober_issue_user_ban($conn, $userId, $reason, [
         'source' => 'autoclicker',

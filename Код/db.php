@@ -204,21 +204,77 @@ function bober_require_identifier($identifier, $label = 'Идентификат�
 function bober_default_skin_state()
 {
     return [
-        'skins/bober.png',
-        true,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
+        'version' => 2,
+        'equippedSkinId' => 'classic',
+        'ownedSkinIds' => ['classic', 'standard'],
     ];
 }
 
 function bober_default_skin_json()
 {
     return json_encode(bober_default_skin_state(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function bober_skin_catalog()
+{
+    return [
+        'classic' => [
+            'id' => 'classic',
+            'image' => 'skins/bober.png',
+            'default_owned' => true,
+        ],
+        'paper' => [
+            'id' => 'paper',
+            'image' => 'skins/bumazny-bober.jpg',
+            'default_owned' => false,
+        ],
+        'standard' => [
+            'id' => 'standard',
+            'image' => 'skins/matvey-new-bober.jpg',
+            'default_owned' => true,
+        ],
+        'strawberry' => [
+            'id' => 'strawberry',
+            'image' => 'skins/klub-smz-bober.jpg',
+            'default_owned' => false,
+        ],
+        'sock' => [
+            'id' => 'sock',
+            'image' => 'skins/nosok-bober.jpg',
+            'default_owned' => false,
+        ],
+        'chocolate' => [
+            'id' => 'chocolate',
+            'image' => 'skins/Shok-upok-bober.jpg',
+            'default_owned' => false,
+        ],
+        'strange' => [
+            'id' => 'strange',
+            'image' => 'skins/strany-bober.jpg',
+            'default_owned' => false,
+        ],
+        'dev' => [
+            'id' => 'dev',
+            'image' => 'skins/dev.png',
+            'default_owned' => false,
+        ],
+    ];
+}
+
+function bober_skin_id_by_image($imagePath)
+{
+    $imagePath = trim((string) $imagePath);
+    if ($imagePath === '') {
+        return null;
+    }
+
+    foreach (bober_skin_catalog() as $skinConfig) {
+        if (($skinConfig['image'] ?? '') === $imagePath) {
+            return (string) $skinConfig['id'];
+        }
+    }
+
+    return null;
 }
 
 function bober_normalize_skin_json($skin)
@@ -235,27 +291,73 @@ function bober_normalize_skin_json($skin)
     }
 
     $defaults = bober_default_skin_state();
+    $catalog = bober_skin_catalog();
+    $defaultOwnedSkinIds = [];
+    foreach ($catalog as $skinId => $skinConfig) {
+        if (!empty($skinConfig['default_owned'])) {
+            $defaultOwnedSkinIds[$skinId] = true;
+        }
+    }
 
     if (!is_array($decoded)) {
         $decoded = $defaults;
     }
 
-    $normalized = $defaults;
+    if (array_key_exists(0, $decoded)) {
+        $ownedSkinIds = $defaultOwnedSkinIds;
+        $catalogItems = array_values($catalog);
 
-    foreach ($decoded as $index => $value) {
-        if ($index === 0) {
-            $normalized[0] = is_string($value) && $value !== '' ? $value : $defaults[0];
-            continue;
+        foreach ($catalogItems as $index => $skinConfig) {
+            if (!empty($decoded[$index + 1])) {
+                $ownedSkinIds[(string) $skinConfig['id']] = true;
+            }
         }
 
-        if (is_numeric($index)) {
-            $normalized[(int) $index] = (bool) $value;
+        $equippedSkinId = bober_skin_id_by_image($decoded[0] ?? '') ?: (string) $defaults['equippedSkinId'];
+        if (!isset($ownedSkinIds[$equippedSkinId])) {
+            $ownedSkinIds[$equippedSkinId] = true;
+        }
+
+        return json_encode([
+            'version' => 2,
+            'equippedSkinId' => $equippedSkinId,
+            'ownedSkinIds' => array_values(array_keys($ownedSkinIds)),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    $ownedSkinIds = $defaultOwnedSkinIds;
+    $rawOwnedSkinIds = [];
+
+    if (isset($decoded['ownedSkinIds']) && is_array($decoded['ownedSkinIds'])) {
+        $rawOwnedSkinIds = $decoded['ownedSkinIds'];
+    } elseif (isset($decoded['owned']) && is_array($decoded['owned'])) {
+        $rawOwnedSkinIds = $decoded['owned'];
+    }
+
+    foreach ($rawOwnedSkinIds as $skinId) {
+        $skinId = trim((string) $skinId);
+        if ($skinId !== '') {
+            $ownedSkinIds[$skinId] = true;
         }
     }
 
-    ksort($normalized);
+    $equippedSkinId = trim((string) ($decoded['equippedSkinId'] ?? ''));
+    if ($equippedSkinId === '' && isset($decoded['equipped'])) {
+        $equippedCandidate = trim((string) $decoded['equipped']);
+        if ($equippedCandidate !== '') {
+            $equippedSkinId = isset($catalog[$equippedCandidate]) ? $equippedCandidate : (bober_skin_id_by_image($equippedCandidate) ?: '');
+        }
+    }
 
-    return json_encode(array_values($normalized), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($equippedSkinId === '' || !isset($ownedSkinIds[$equippedSkinId])) {
+        $equippedSkinId = (string) $defaults['equippedSkinId'];
+    }
+
+    return json_encode([
+        'version' => 2,
+        'equippedSkinId' => $equippedSkinId,
+        'ownedSkinIds' => array_values(array_keys($ownedSkinIds)),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
 function bober_game_login_pattern()
@@ -1192,6 +1294,48 @@ function bober_fetch_active_user_ban($conn, $userId)
     $stmt->close();
 
     return $row ? bober_normalize_ban_row($row) : null;
+}
+
+function bober_enforce_runtime_access_rules($conn, $userId, $options = [])
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        bober_json_response(['success' => false, 'message' => 'Сессия не найдена.'], 401);
+    }
+
+    $logoutUser = array_key_exists('logout_user', $options)
+        ? (bool) $options['logout_user']
+        : true;
+
+    $activeIpBan = bober_fetch_active_ip_ban($conn);
+    if ($activeIpBan !== null) {
+        $conn->close();
+        if ($logoutUser) {
+            bober_logout_user();
+        }
+        bober_json_response([
+            'success' => false,
+            'message' => $activeIpBan['message'],
+            'ipBan' => $activeIpBan,
+        ], 403);
+    }
+
+    $activeBan = bober_fetch_active_user_ban($conn, $userId);
+    if ($activeBan !== null) {
+        bober_propagate_user_ban_to_ip_bans($conn, $userId, $activeBan, [
+            'detected_by' => 'runtime_guard',
+            'include_current_ip' => true,
+        ]);
+        $conn->close();
+        if ($logoutUser) {
+            bober_logout_user();
+        }
+        bober_json_response([
+            'success' => false,
+            'message' => $activeBan['message'],
+            'ban' => $activeBan,
+        ], 403);
+    }
 }
 
 function bober_lift_ip_bans_for_user($conn, $userId)
