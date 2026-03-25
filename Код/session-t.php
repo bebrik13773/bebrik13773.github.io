@@ -12,6 +12,20 @@ try {
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
 
+    $sessionValidation = bober_validate_current_game_session($conn, $userId, [
+        'source' => 'session_check',
+        'login' => $_SESSION['game_login'] ?? '',
+    ]);
+    if (empty($sessionValidation['ok'])) {
+        $payload = is_array($sessionValidation['payload'] ?? null)
+            ? $sessionValidation['payload']
+            : bober_build_session_ended_payload();
+
+        $conn->close();
+        bober_logout_user(['skip_session_revoke' => true]);
+        bober_json_response($payload, 409);
+    }
+
     $activeIpBan = bober_fetch_active_ip_ban($conn);
     if ($activeIpBan !== null) {
         $conn->close();

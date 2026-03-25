@@ -75,7 +75,13 @@ try {
 
     $newUserId = (int) $stmt->insert_id;
     $stmt->close();
-    bober_login_user($newUserId, $login);
+    $sessionInfo = bober_login_user($newUserId, $login);
+    if (!empty($sessionInfo['previousSessionHash']) && !empty($sessionInfo['currentSessionHash']) && $sessionInfo['previousSessionHash'] !== $sessionInfo['currentSessionHash']) {
+        bober_revoke_game_session_by_hash($conn, (string) $sessionInfo['previousSessionHash'], 'session_rotated_after_register');
+    }
+    bober_sync_current_game_session($conn, $newUserId, $login, [
+        'source' => 'register',
+    ]);
     bober_record_user_ip($conn, $newUserId);
     $flyBeaver = bober_ensure_fly_progress_row($conn, $newUserId);
     $conn->close();

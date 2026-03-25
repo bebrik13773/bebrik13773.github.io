@@ -936,6 +936,20 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             return null;
         }
 
+        function extractCloudSessionEndedPayload(error) {
+            const payload = error && error.payload && typeof error.payload === 'object'
+                ? error.payload
+                : null;
+
+            if (!payload || payload.sessionEnded !== true) {
+                return null;
+            }
+
+            return {
+                message: String(payload.message || 'Эта сессия завершена на другом устройстве.').trim()
+            };
+        }
+
         function setCloudStatus(type, title, message) {
             cloudTitleElement.textContent = title;
             cloudStatusElement.className = `cloud-status ${type}`;
@@ -1024,6 +1038,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     return;
                 }
 
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Войдите снова в основном кликере, чтобы вернуть облако.`);
+                    setCloudSummary('Облако отключено');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    return;
+                }
+
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
                     accountState.userId = null;
@@ -1080,6 +1106,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     : (Number(data.creditedScore) >= FLY_CREDIT_MIN_SCORE ? 'pending' : 'local');
                 setCloudStatus(saveStatusType, `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
             } catch (error) {
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Забег сохранен только локально.`);
+                    setCloudSummary('Локальный режим');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    return;
+                }
+
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
                     accountState.userId = null;
@@ -1130,6 +1168,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 updateCloudPanel();
                 setCloudStatus(Number(data.awardedCoins) > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
             } catch (error) {
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Перевод очков отключен, пока вы не войдете снова.`);
+                    setCloudSummary('Сессия завершена');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    return;
+                }
+
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
                     accountState.userId = null;

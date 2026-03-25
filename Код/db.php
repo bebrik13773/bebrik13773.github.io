@@ -88,7 +88,7 @@ function bober_start_session()
         return;
     }
 
-    $lifetime = 30 * 24 * 60 * 60;
+    $lifetime = bober_session_lifetime_seconds();
     $isSecure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 
     ini_set('session.gc_maxlifetime', (string) $lifetime);
@@ -107,6 +107,33 @@ function bober_start_session()
     session_start();
 }
 
+function bober_session_lifetime_seconds()
+{
+    return 30 * 24 * 60 * 60;
+}
+
+function bober_current_session_id()
+{
+    bober_start_session();
+
+    return (string) session_id();
+}
+
+function bober_session_hash($sessionId)
+{
+    $sessionId = trim((string) $sessionId);
+    if ($sessionId === '') {
+        return '';
+    }
+
+    return hash('sha256', $sessionId);
+}
+
+function bober_current_session_hash()
+{
+    return bober_session_hash(bober_current_session_id());
+}
+
 function bober_login_user($userId, $login = '')
 {
     $userId = max(0, (int) $userId);
@@ -115,11 +142,18 @@ function bober_login_user($userId, $login = '')
     }
 
     bober_start_session();
+    $previousSessionHash = bober_session_hash(session_id());
     session_regenerate_id(true);
+    $currentSessionHash = bober_session_hash(session_id());
 
     $_SESSION['game_user_id'] = $userId;
     $_SESSION['game_login'] = trim((string) $login);
     $_SESSION['game_last_seen_at'] = time();
+
+    return [
+        'previousSessionHash' => $previousSessionHash,
+        'currentSessionHash' => $currentSessionHash,
+    ];
 }
 
 function bober_get_logged_in_user_id()
@@ -136,7 +170,7 @@ function bober_get_logged_in_user_id()
     return $userId;
 }
 
-function bober_logout_user()
+function bober_destroy_php_session()
 {
     bober_start_session();
 
@@ -156,6 +190,41 @@ function bober_logout_user()
     }
 
     session_destroy();
+}
+
+function bober_logout_user($options = [])
+{
+    $skipSessionRevoke = !empty($options['skip_session_revoke']);
+
+    if (!$skipSessionRevoke) {
+        $sessionHash = bober_current_session_hash();
+        if ($sessionHash !== '') {
+            $logoutConn = $options['conn'] ?? null;
+            $shouldCloseLogoutConn = false;
+
+            try {
+                if (!($logoutConn instanceof mysqli)) {
+                    $logoutConn = bober_db_connect();
+                    bober_ensure_security_schema($logoutConn);
+                    $shouldCloseLogoutConn = true;
+                }
+
+                bober_revoke_game_session_by_hash(
+                    $logoutConn,
+                    $sessionHash,
+                    trim((string) ($options['reason'] ?? 'logout'))
+                );
+            } catch (Throwable $logoutError) {
+                // Logout should still complete even if session tracking cannot be updated.
+            } finally {
+                if ($shouldCloseLogoutConn && isset($logoutConn) && $logoutConn instanceof mysqli) {
+                    $logoutConn->close();
+                }
+            }
+        }
+    }
+
+    bober_destroy_php_session();
 }
 
 function bober_db_connect($withDatabase = true)
@@ -880,6 +949,56 @@ SQL;
     if (!bober_index_exists($conn, 'ip_bans', 'idx_ip_bans_source_ban') && !$conn->query("CREATE INDEX `idx_ip_bans_source_ban` ON `ip_bans` (`source_user_ban_id`)")) {
         throw new RuntimeException('Не удалось создать индекс банов по исходному бану.');
     }
+
+    $createUserSessionsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_sessions` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `session_hash` CHAR(64) NOT NULL,
+    `login_snapshot` VARCHAR(100) NOT NULL DEFAULT '',
+    `ip_address` VARCHAR(64) NULL DEFAULT NULL,
+    `user_agent` VARCHAR(255) NULL DEFAULT NULL,
+    `last_activity_source` VARCHAR(50) NOT NULL DEFAULT 'runtime',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `last_seen_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `revoked_at` TIMESTAMP NULL DEFAULT NULL,
+    `revoked_reason` VARCHAR(255) NULL DEFAULT NULL,
+    `meta_json` LONGTEXT NULL
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserSessionsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу игровых сессий.');
+    }
+
+    $sessionAlterStatements = [
+        'login_snapshot' => "ALTER TABLE `user_sessions` ADD COLUMN `login_snapshot` VARCHAR(100) NOT NULL DEFAULT '' AFTER `session_hash`",
+        'ip_address' => "ALTER TABLE `user_sessions` ADD COLUMN `ip_address` VARCHAR(64) NULL DEFAULT NULL AFTER `login_snapshot`",
+        'user_agent' => "ALTER TABLE `user_sessions` ADD COLUMN `user_agent` VARCHAR(255) NULL DEFAULT NULL AFTER `ip_address`",
+        'last_activity_source' => "ALTER TABLE `user_sessions` ADD COLUMN `last_activity_source` VARCHAR(50) NOT NULL DEFAULT 'runtime' AFTER `user_agent`",
+        'last_seen_at' => "ALTER TABLE `user_sessions` ADD COLUMN `last_seen_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `created_at`",
+        'revoked_at' => "ALTER TABLE `user_sessions` ADD COLUMN `revoked_at` TIMESTAMP NULL DEFAULT NULL AFTER `last_seen_at`",
+        'revoked_reason' => "ALTER TABLE `user_sessions` ADD COLUMN `revoked_reason` VARCHAR(255) NULL DEFAULT NULL AFTER `revoked_at`",
+        'meta_json' => "ALTER TABLE `user_sessions` ADD COLUMN `meta_json` LONGTEXT NULL AFTER `revoked_reason`",
+    ];
+
+    foreach ($sessionAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'user_sessions', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру игровых сессий.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'user_sessions', 'uniq_user_sessions_hash') && !$conn->query("CREATE UNIQUE INDEX `uniq_user_sessions_hash` ON `user_sessions` (`session_hash`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс игровых сессий.');
+    }
+
+    if (!bober_index_exists($conn, 'user_sessions', 'idx_user_sessions_user_active') && !$conn->query("CREATE INDEX `idx_user_sessions_user_active` ON `user_sessions` (`user_id`, `revoked_at`, `last_seen_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс активных игровых сессий.');
+    }
+
+    if (!bober_index_exists($conn, 'user_sessions', 'idx_user_sessions_last_seen') && !$conn->query("CREATE INDEX `idx_user_sessions_last_seen` ON `user_sessions` (`last_seen_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс актуальности игровых сессий.');
+    }
 }
 
 function bober_ensure_fly_beaver_schema($conn)
@@ -1171,6 +1290,409 @@ function bober_record_user_ip($conn, $userId, $ipAddress = null, $userAgent = nu
     return true;
 }
 
+function bober_get_client_user_agent()
+{
+    return trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+}
+
+function bober_cleanup_stale_game_sessions($conn)
+{
+    static $lastCleanupAt = 0;
+
+    $now = time();
+    if (($now - $lastCleanupAt) < 300) {
+        return;
+    }
+
+    bober_ensure_security_schema($conn);
+
+    $cutoff = gmdate('Y-m-d H:i:s', $now - bober_session_lifetime_seconds() - 86400);
+    $stmt = $conn->prepare('DELETE FROM user_sessions WHERE last_seen_at < ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить очистку старых игровых сессий.');
+    }
+
+    $stmt->bind_param('s', $cutoff);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось очистить старые игровые сессии.');
+    }
+
+    $stmt->close();
+    $lastCleanupAt = $now;
+}
+
+function bober_session_platform_label($userAgent)
+{
+    $userAgent = trim((string) $userAgent);
+
+    if ($userAgent === '') {
+        return 'Неизвестная платформа';
+    }
+
+    $platformMap = [
+        '/iPad/i' => 'iPadOS',
+        '/iPhone/i' => 'iOS',
+        '/Android/i' => 'Android',
+        '/Windows/i' => 'Windows',
+        '/Mac OS X|Macintosh/i' => 'macOS',
+        '/Linux/i' => 'Linux',
+    ];
+
+    foreach ($platformMap as $pattern => $label) {
+        if (preg_match($pattern, $userAgent) === 1) {
+            return $label;
+        }
+    }
+
+    return 'Неизвестная платформа';
+}
+
+function bober_session_browser_label($userAgent)
+{
+    $userAgent = trim((string) $userAgent);
+
+    if ($userAgent === '') {
+        return 'Неизвестный браузер';
+    }
+
+    $browserMap = [
+        '/YaBrowser/i' => 'Yandex Browser',
+        '/SamsungBrowser/i' => 'Samsung Internet',
+        '/Edg\//i' => 'Microsoft Edge',
+        '/OPR\//i' => 'Opera',
+        '/Chrome\//i' => 'Google Chrome',
+        '/Firefox\//i' => 'Mozilla Firefox',
+        '/Safari\//i' => 'Safari',
+    ];
+
+    foreach ($browserMap as $pattern => $label) {
+        if (preg_match($pattern, $userAgent) === 1) {
+            return $label;
+        }
+    }
+
+    return 'Неизвестный браузер';
+}
+
+function bober_session_device_label($userAgent)
+{
+    $userAgent = trim((string) $userAgent);
+    $platform = bober_session_platform_label($userAgent);
+
+    if ($userAgent !== '' && preg_match('/iPad|Tablet/i', $userAgent) === 1) {
+        return 'Планшет ' . $platform;
+    }
+
+    if ($userAgent !== '' && preg_match('/Android|iPhone|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i', $userAgent) === 1) {
+        return 'Телефон ' . $platform;
+    }
+
+    return 'ПК ' . $platform;
+}
+
+function bober_normalize_game_session_row($row, $currentSessionHash = '')
+{
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $sessionHash = trim((string) ($row['session_hash'] ?? ''));
+    $userAgent = trim((string) ($row['user_agent'] ?? $row['userAgent'] ?? ''));
+
+    return [
+        'sessionId' => max(0, (int) ($row['id'] ?? $row['session_id'] ?? $row['sessionId'] ?? 0)),
+        'userId' => max(0, (int) ($row['user_id'] ?? $row['userId'] ?? 0)),
+        'login' => trim((string) ($row['login_snapshot'] ?? $row['login'] ?? '')),
+        'deviceLabel' => bober_session_device_label($userAgent),
+        'platformLabel' => bober_session_platform_label($userAgent),
+        'browserLabel' => bober_session_browser_label($userAgent),
+        'userAgent' => $userAgent,
+        'ipAddress' => trim((string) ($row['ip_address'] ?? $row['ipAddress'] ?? '')),
+        'lastActivitySource' => trim((string) ($row['last_activity_source'] ?? $row['lastActivitySource'] ?? 'runtime')),
+        'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
+        'lastSeenAt' => trim((string) ($row['last_seen_at'] ?? $row['lastSeenAt'] ?? '')),
+        'revokedAt' => trim((string) ($row['revoked_at'] ?? $row['revokedAt'] ?? '')),
+        'isCurrent' => $currentSessionHash !== '' && $sessionHash !== '' && hash_equals($currentSessionHash, $sessionHash),
+    ];
+}
+
+function bober_fetch_game_session_row_by_hash($conn, $sessionHash)
+{
+    bober_ensure_security_schema($conn);
+
+    $sessionHash = trim((string) $sessionHash);
+    if ($sessionHash === '') {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT id, user_id, session_hash, login_snapshot, ip_address, user_agent, last_activity_source, created_at, last_seen_at, revoked_at, revoked_reason, meta_json FROM user_sessions WHERE session_hash = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение игровой сессии.');
+    }
+
+    $stmt->bind_param('s', $sessionHash);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить игровую сессию.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $row ?: null;
+}
+
+function bober_sync_current_game_session($conn, $userId, $login = '', $options = [])
+{
+    bober_ensure_security_schema($conn);
+    bober_cleanup_stale_game_sessions($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя для игровой сессии.');
+    }
+
+    $sessionHash = bober_current_session_hash();
+    if ($sessionHash === '') {
+        return null;
+    }
+
+    $loginSnapshot = trim((string) $login);
+    if ($loginSnapshot === '') {
+        $loginSnapshot = trim((string) ($_SESSION['game_login'] ?? ''));
+    }
+
+    $ipAddress = trim((string) bober_get_client_ip());
+    if ($ipAddress === '' || filter_var($ipAddress, FILTER_VALIDATE_IP) === false) {
+        $ipAddress = null;
+    }
+
+    $userAgent = bober_get_client_user_agent();
+    if ($userAgent === '') {
+        $userAgent = null;
+    }
+
+    $activitySource = trim((string) ($options['source'] ?? 'runtime'));
+    if ($activitySource === '') {
+        $activitySource = 'runtime';
+    }
+
+    $metaJson = json_encode([
+        'ip' => $ipAddress,
+        'user_agent' => $userAgent,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $stmt = $conn->prepare('INSERT INTO user_sessions (user_id, session_hash, login_snapshot, ip_address, user_agent, last_activity_source, last_seen_at, revoked_at, revoked_reason, meta_json) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, NULL, ?) ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), login_snapshot = VALUES(login_snapshot), ip_address = VALUES(ip_address), user_agent = VALUES(user_agent), last_activity_source = VALUES(last_activity_source), last_seen_at = CURRENT_TIMESTAMP, revoked_at = NULL, revoked_reason = NULL, meta_json = VALUES(meta_json)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение игровой сессии.');
+    }
+
+    $stmt->bind_param('issssss', $userId, $sessionHash, $loginSnapshot, $ipAddress, $userAgent, $activitySource, $metaJson);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить игровую сессию.');
+    }
+    $stmt->close();
+
+    return bober_fetch_game_session_row_by_hash($conn, $sessionHash);
+}
+
+function bober_fetch_user_active_game_sessions($conn, $userId, $options = [])
+{
+    bober_ensure_security_schema($conn);
+    bober_cleanup_stale_game_sessions($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $excludeSessionHash = trim((string) ($options['exclude_session_hash'] ?? ''));
+    $currentSessionHash = trim((string) ($options['current_session_hash'] ?? bober_current_session_hash()));
+
+    $sql = 'SELECT id, user_id, session_hash, login_snapshot, ip_address, user_agent, last_activity_source, created_at, last_seen_at, revoked_at, revoked_reason, meta_json FROM user_sessions WHERE user_id = ? AND revoked_at IS NULL';
+    if ($excludeSessionHash !== '') {
+        $sql .= ' AND session_hash <> ?';
+    }
+    $sql .= ' ORDER BY last_seen_at DESC, created_at DESC';
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение списка игровых сессий.');
+    }
+
+    if ($excludeSessionHash !== '') {
+        $stmt->bind_param('is', $userId, $excludeSessionHash);
+    } else {
+        $stmt->bind_param('i', $userId);
+    }
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить список игровых сессий.');
+    }
+
+    $result = $stmt->get_result();
+    $sessions = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $normalized = bober_normalize_game_session_row($row, $currentSessionHash);
+        if ($normalized !== null) {
+            $sessions[] = $normalized;
+        }
+    }
+
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $sessions;
+}
+
+function bober_revoke_game_session_by_hash($conn, $sessionHash, $reason = 'manual')
+{
+    bober_ensure_security_schema($conn);
+
+    $sessionHash = trim((string) $sessionHash);
+    if ($sessionHash === '') {
+        return false;
+    }
+
+    $reason = trim((string) $reason);
+    if ($reason === '') {
+        $reason = 'manual';
+    }
+
+    $stmt = $conn->prepare('UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE session_hash = ? AND revoked_at IS NULL');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить завершение игровой сессии.');
+    }
+
+    $stmt->bind_param('ss', $reason, $sessionHash);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось завершить игровую сессию.');
+    }
+
+    $affectedRows = $stmt->affected_rows;
+    $stmt->close();
+
+    return $affectedRows > 0;
+}
+
+function bober_revoke_game_session_by_id($conn, $userId, $sessionId, $reason = 'manual')
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    $sessionId = max(0, (int) $sessionId);
+    if ($userId < 1 || $sessionId < 1) {
+        return false;
+    }
+
+    $reason = trim((string) $reason);
+    if ($reason === '') {
+        $reason = 'manual';
+    }
+
+    $stmt = $conn->prepare('UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить завершение выбранной игровой сессии.');
+    }
+
+    $stmt->bind_param('sii', $reason, $sessionId, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось завершить выбранную игровую сессию.');
+    }
+
+    $affectedRows = $stmt->affected_rows;
+    $stmt->close();
+
+    return $affectedRows > 0;
+}
+
+function bober_build_session_conflict_payload(array $sessions, $message = '')
+{
+    return [
+        'success' => false,
+        'message' => $message !== ''
+            ? $message
+            : 'Аккаунт уже открыт на другом устройстве. Завершите одну из активных сессий, чтобы войти здесь.',
+        'sessionConflict' => true,
+        'sessions' => array_values($sessions),
+        'maxActiveSessions' => 1,
+        'incomingSession' => [
+            'deviceLabel' => bober_session_device_label(bober_get_client_user_agent()),
+            'platformLabel' => bober_session_platform_label(bober_get_client_user_agent()),
+            'browserLabel' => bober_session_browser_label(bober_get_client_user_agent()),
+            'ipAddress' => trim((string) bober_get_client_ip()),
+        ],
+    ];
+}
+
+function bober_build_session_ended_payload($terminatedSession = null, $message = '')
+{
+    return [
+        'success' => false,
+        'message' => $message !== ''
+            ? $message
+            : 'Эта игровая сессия была завершена на другом устройстве. Войдите заново.',
+        'sessionEnded' => true,
+        'terminatedSession' => is_array($terminatedSession) ? $terminatedSession : null,
+    ];
+}
+
+function bober_validate_current_game_session($conn, $userId, $options = [])
+{
+    bober_ensure_security_schema($conn);
+    bober_cleanup_stale_game_sessions($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [
+            'ok' => false,
+            'payload' => bober_build_session_ended_payload(null, 'Сессия не найдена. Войдите заново.'),
+        ];
+    }
+
+    $sessionHash = bober_current_session_hash();
+    if ($sessionHash === '') {
+        return [
+            'ok' => false,
+            'payload' => bober_build_session_ended_payload(null, 'Сессия не найдена. Войдите заново.'),
+        ];
+    }
+
+    $currentRow = bober_fetch_game_session_row_by_hash($conn, $sessionHash);
+    if (is_array($currentRow) && !empty($currentRow['revoked_at'])) {
+        return [
+            'ok' => false,
+            'payload' => bober_build_session_ended_payload(
+                bober_normalize_game_session_row($currentRow, $sessionHash)
+            ),
+        ];
+    }
+
+    if (is_array($currentRow) && max(0, (int) ($currentRow['user_id'] ?? 0)) !== $userId) {
+        bober_revoke_game_session_by_hash($conn, $sessionHash, 'session_user_mismatch');
+    }
+
+    $loginSnapshot = trim((string) ($options['login'] ?? ($_SESSION['game_login'] ?? '')));
+    $syncedRow = bober_sync_current_game_session($conn, $userId, $loginSnapshot, [
+        'source' => $options['source'] ?? 'runtime',
+    ]);
+
+    return [
+        'ok' => true,
+        'session' => $syncedRow ? bober_normalize_game_session_row($syncedRow, $sessionHash) : null,
+    ];
+}
+
 function bober_fetch_user_ip_addresses($conn, $userId)
 {
     bober_ensure_security_schema($conn);
@@ -1448,6 +1970,22 @@ function bober_enforce_runtime_access_rules($conn, $userId, $options = [])
     $logoutUser = array_key_exists('logout_user', $options)
         ? (bool) $options['logout_user']
         : true;
+
+    $sessionValidation = bober_validate_current_game_session($conn, $userId, [
+        'source' => $options['source'] ?? 'runtime',
+        'login' => $options['login'] ?? ($_SESSION['game_login'] ?? ''),
+    ]);
+    if (empty($sessionValidation['ok'])) {
+        $payload = is_array($sessionValidation['payload'] ?? null)
+            ? $sessionValidation['payload']
+            : bober_build_session_ended_payload();
+
+        $conn->close();
+        if ($logoutUser) {
+            bober_logout_user(['skip_session_revoke' => true]);
+        }
+        bober_json_response($payload, 409);
+    }
 
     $activeIpBan = bober_fetch_active_ip_ban($conn);
     if ($activeIpBan !== null) {

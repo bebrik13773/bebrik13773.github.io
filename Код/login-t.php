@@ -70,7 +70,44 @@ try {
         ], 403);
     }
 
-    bober_login_user($id, $login);
+    $terminateSessionId = max(0, (int) ($data['terminateSessionId'] ?? 0));
+    $currentSessionHash = bober_current_session_hash();
+    $activeSessions = bober_fetch_user_active_game_sessions($conn, (int) $id, [
+        'exclude_session_hash' => $currentSessionHash,
+    ]);
+
+    if (!empty($activeSessions)) {
+        if ($terminateSessionId > 0) {
+            $terminated = bober_revoke_game_session_by_id($conn, (int) $id, $terminateSessionId, 'replaced_on_new_device');
+            if (!$terminated) {
+                $conn->close();
+                bober_json_response(
+                    bober_build_session_conflict_payload(
+                        $activeSessions,
+                        'Не удалось завершить выбранную сессию. Обновите список и попробуйте еще раз.'
+                    ),
+                    409
+                );
+            }
+
+            $activeSessions = bober_fetch_user_active_game_sessions($conn, (int) $id, [
+                'exclude_session_hash' => $currentSessionHash,
+            ]);
+        }
+
+        if (!empty($activeSessions)) {
+            $conn->close();
+            bober_json_response(bober_build_session_conflict_payload($activeSessions), 409);
+        }
+    }
+
+    $sessionInfo = bober_login_user($id, $login);
+    if (!empty($sessionInfo['previousSessionHash']) && !empty($sessionInfo['currentSessionHash']) && $sessionInfo['previousSessionHash'] !== $sessionInfo['currentSessionHash']) {
+        bober_revoke_game_session_by_hash($conn, (string) $sessionInfo['previousSessionHash'], 'session_rotated_after_login');
+    }
+    bober_sync_current_game_session($conn, (int) $id, $login, [
+        'source' => 'login',
+    ]);
     bober_record_user_ip($conn, (int) $id);
 
     $normalizedSkin = bober_normalize_skin_json($skin);
