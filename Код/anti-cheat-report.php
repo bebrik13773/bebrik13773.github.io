@@ -22,6 +22,11 @@ try {
         'regularity' => isset($data['regularity']) ? (float) $data['regularity'] : null,
         'positionVariance' => isset($data['positionVariance']) ? (float) $data['positionVariance'] : null,
         'humanFactor' => isset($data['humanFactor']) ? (float) $data['humanFactor'] : null,
+        'averageInterval' => isset($data['averageInterval']) ? (float) $data['averageInterval'] : null,
+        'medianInterval' => isset($data['medianInterval']) ? (float) $data['medianInterval'] : null,
+        'intervalStdDev' => isset($data['intervalStdDev']) ? (float) $data['intervalStdDev'] : null,
+        'longestStreak' => isset($data['longestStreak']) ? (int) $data['longestStreak'] : null,
+        'heat' => isset($data['heat']) ? (float) $data['heat'] : null,
     ];
 
     $conn = bober_db_connect();

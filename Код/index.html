@@ -1784,6 +1784,16 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
+        if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
+            const primaryTouch = e.touches && e.touches[0] ? e.touches[0] : null;
+            window.clickDetector.recordInteraction({
+                source: 'touchstart',
+                x: primaryTouch ? primaryTouch.clientX : 0,
+                y: primaryTouch ? primaryTouch.clientY : 0,
+                touchCount: touches,
+                trusted: e.isTrusted !== false
+            });
+        }
     } else {
         showNotification('Недостаточно энергии!', 'error');
     }
@@ -1804,7 +1814,7 @@ document.getElementById('registerButton').onclick = function() {
     document.getElementById('loginForm').style.display = 'none';
 };
 
-document.getElementById('clicker').onclick = function() {
+document.getElementById('clicker').onclick = function(e) {
     if (!userId) {
         showNotification('Пожалуйста, войдите в аккаунт.', 'error');
         return;
@@ -1817,6 +1827,15 @@ document.getElementById('clicker').onclick = function() {
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
+        if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
+            window.clickDetector.recordInteraction({
+                source: 'click',
+                x: e && typeof e.clientX === 'number' ? e.clientX : 0,
+                y: e && typeof e.clientY === 'number' ? e.clientY : 0,
+                touchCount: 1,
+                trusted: !e || e.isTrusted !== false
+            });
+        }
     } else {
         showNotification('Недостаточно энергии!', 'error');
     }
@@ -2142,24 +2161,16 @@ document.addEventListener('visibilitychange', function() {
 class AutoClickerDetector {
     constructor() {
         this.clicks = [];
-        this.suspiciousCount = 0;
-        this.checkInterval = null;
-        this.lastClickTime = 0;
-        this.detectionCount = 0;
-        this.maxDetections = 3;
+        this.heat = 0;
+        this.warningCount = 0;
+        this.maintenanceTimer = null;
+        this.lastHeatDecayAt = performance.now();
+        this.lastTouchRecord = null;
+        this.warningCooldownUntil = 0;
         this.isMobile = this.checkMobileDevice();
         this.banRequestInFlight = false;
         
-        this.config = {
-            maxCPS: this.isMobile ? 30 : 12,
-            minClicksForAnalysis: this.isMobile ? 20 : 10,
-            timeWindow: this.isMobile ? 2500 : 1500,
-            regularityThreshold: 0.95,
-            positionThreshold: this.isMobile ? 5 : 3,
-            minInterval: this.isMobile ? 20 : 35,
-            multiTouchThreshold: this.isMobile ? 10 : 3,
-            humanFactorThreshold: 0.1
-        };
+        this.config = this.buildConfig();
         
         this.init();
     }
@@ -2170,13 +2181,7 @@ class AutoClickerDetector {
             return;
         }
 
-        const events = ['click', 'touchstart', 'mousedown'];
-        events.forEach(event => {
-            document.addEventListener(event, this.handleClick.bind(this), true);
-        });
-        
-        this.startContinuousCheck();
-        this.backupCheck();
+        this.startMaintenance();
     }
 
     checkMobileDevice() {
@@ -2185,174 +2190,376 @@ class AutoClickerDetector {
                navigator.maxTouchPoints > 0;
     }
 
-    handleClick(e) {
-        const now = Date.now();
-        const timeSinceLastClick = now - this.lastClickTime;
-        
-        this.clicks = this.clicks.filter(click => now - click.time < this.config.timeWindow);
-        
-        const simultaneousClicks = this.clicks.filter(click => Math.abs(click.time - now) < 15);
-        if (simultaneousClicks.length >= this.config.multiTouchThreshold) {
-            this.suspiciousCount += 0.2;
+    buildConfig() {
+        if (this.isMobile) {
+            return {
+                analysisWindowMs: 4200,
+                maxHistoryMs: 10000,
+                minSamples: 12,
+                suspiciousCPS: 14,
+                extremeCPS: 24,
+                cadenceToleranceMs: 8,
+                lowCvThreshold: 0.055,
+                hardCvThreshold: 0.025,
+                stableRatioThreshold: 0.88,
+                hardStableRatioThreshold: 0.95,
+                minStableStreak: 10,
+                hardStableStreak: 15,
+                warningHeatThreshold: 7,
+                banHeatThreshold: 11,
+                heatDecayPerSecond: 0.65,
+                warningCooldownMs: 1800,
+                syntheticClickAfterTouchMs: 450,
+                duplicateDistancePx: 24
+            };
         }
-        
+
+        return {
+            analysisWindowMs: 3200,
+            maxHistoryMs: 8000,
+            minSamples: 10,
+            suspiciousCPS: 8.5,
+            extremeCPS: 14,
+            cadenceToleranceMs: 6,
+            lowCvThreshold: 0.075,
+            hardCvThreshold: 0.035,
+            stableRatioThreshold: 0.82,
+            hardStableRatioThreshold: 0.9,
+            minStableStreak: 8,
+            hardStableStreak: 12,
+            warningHeatThreshold: 6,
+            banHeatThreshold: 10,
+            heatDecayPerSecond: 0.8,
+            warningCooldownMs: 1400,
+            syntheticClickAfterTouchMs: 450,
+            duplicateDistancePx: 20
+        };
+    }
+
+    recordInteraction(payload = {}) {
+        if (!userId || this.banRequestInFlight || this.isBanned()) {
+            return;
+        }
+
+        const now = performance.now();
+        this.pruneClicks(now);
+        this.decayHeat(now);
+
+        const source = String(payload.source || 'click');
+        const x = Number(payload.x) || 0;
+        const y = Number(payload.y) || 0;
+        const touchCount = Math.max(1, Number(payload.touchCount) || 1);
+        const trusted = payload.trusted !== false;
+
+        if (source === 'click' && this.lastTouchRecord) {
+            const elapsed = now - this.lastTouchRecord.time;
+            const distance = Math.hypot(x - this.lastTouchRecord.x, y - this.lastTouchRecord.y);
+            if (elapsed >= 0 && elapsed <= this.config.syntheticClickAfterTouchMs && distance <= this.config.duplicateDistancePx) {
+                return;
+            }
+        }
+
+        if (source === 'touchstart') {
+            this.lastTouchRecord = { time: now, x, y };
+        }
+
         this.clicks.push({
             time: now,
-            type: e.type,
-            x: e.clientX || (e.touches ? e.touches[0].clientX : 0),
-            y: e.clientY || (e.touches ? e.touches[0].clientY : 0),
-            trusted: e.isTrusted
+            source: source,
+            x: x,
+            y: y,
+            touchCount: touchCount,
+            trusted: trusted
         });
 
-        if (this.clicks.length >= this.config.minClicksForAnalysis) {
-            this.checkSuspiciousPatterns(timeSinceLastClick);
-        }
-        
-        this.lastClickTime = now;
-    }
-
-    checkSuspiciousPatterns(timeSinceLastClick) {
-        const cps = this.calculateCPS();
-        
-        if (cps < this.config.maxCPS * 1.5) return;
-
-        const regularity = this.calculateRegularity();
-        const positionVariance = this.calculatePositionVariance();
-        const humanFactor = this.calculateHumanFactor();
-        
-        let detected = false;
-        let reason = '';
-
-        if (cps > this.config.maxCPS * (this.isMobile ? 4 : 3)) {
-            detected = true;
-            reason = `Экстремальная скорость: ${cps.toFixed(1)} CPS`;
-        }
-        else if (cps > this.config.maxCPS * 2.5 && 
-                 regularity > this.config.regularityThreshold && 
-                 humanFactor < this.config.humanFactorThreshold) {
-            detected = true;
-            reason = `Идеальная регулярность: ${Math.round(regularity * 100)}%`;
-        }
-        else if (cps > this.config.maxCPS * 2.5 && 
-                 positionVariance < 1 && 
-                 this.clicks.length > 30) {
-            detected = true;
-            reason = `Совершенно точечные клики`;
+        if (!trusted) {
+            this.heat = Math.min(20, this.heat + 12);
+            this.banUser('Синтетические клики без участия пользователя', this.buildMetrics(this.getRecentClicks(now), {
+                reason: 'untrusted-event'
+            }));
+            return;
         }
 
-        if (detected) {
-            this.suspiciousCount++;
-            if (this.suspiciousCount >= (this.isMobile ? 5 : 4)) {
-                this.onDetection(reason, cps);
-                this.suspiciousCount = 0;
+        const analysis = this.analyze(now);
+        if (!analysis || analysis.action === 'ignore') {
+            return;
+        }
+
+        if (analysis.action === 'warn') {
+            this.warningCount += 1;
+            this.warningCooldownUntil = now + this.config.warningCooldownMs;
+
+            if (this.warningCount === 1) {
+                this.showWarning('ПРЕДУПРЕЖДЕНИЕ', 'Обнаружен слишком ровный темп кликов.', analysis.reason);
+            } else {
+                this.showWarning('ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ', 'Паттерн кликов все еще похож на автокликер.', analysis.reason, true);
             }
-        } else {
-            this.suspiciousCount = Math.max(0, this.suspiciousCount - (this.isMobile ? 0.3 : 0.4));
+
+            return;
+        }
+
+        if (analysis.action === 'ban') {
+            this.banUser(analysis.reason, analysis.metrics);
         }
     }
 
-    calculateCPS() {
-        if (this.clicks.length < 3) return 0;
-        const timeRange = this.clicks[this.clicks.length - 1].time - this.clicks[0].time;
-        if (timeRange === 0) return 1000;
-        return (this.clicks.length / timeRange) * 1000;
+    startMaintenance() {
+        if (this.maintenanceTimer) {
+            clearInterval(this.maintenanceTimer);
+        }
+
+        this.maintenanceTimer = setInterval(() => {
+            const now = performance.now();
+            this.pruneClicks(now);
+            this.decayHeat(now);
+        }, 1000);
     }
 
-    calculateRegularity() {
-        if (this.clicks.length < 5) return 0;
-        
+    pruneClicks(now = performance.now()) {
+        const cutoff = now - this.config.maxHistoryMs;
+        this.clicks = this.clicks.filter(click => click.time >= cutoff);
+    }
+
+    decayHeat(now = performance.now()) {
+        const elapsedSeconds = Math.max(0, (now - this.lastHeatDecayAt) / 1000);
+        if (elapsedSeconds > 0) {
+            this.heat = Math.max(0, this.heat - elapsedSeconds * this.config.heatDecayPerSecond);
+            this.lastHeatDecayAt = now;
+        }
+    }
+
+    getRecentClicks(now = performance.now()) {
+        const cutoff = now - this.config.analysisWindowMs;
+        return this.clicks.filter(click => click.time >= cutoff);
+    }
+
+    buildIntervals(samples) {
         const intervals = [];
-        for (let i = 1; i < this.clicks.length; i++) {
-            intervals.push(this.clicks[i].time - this.clicks[i - 1].time);
+        for (let i = 1; i < samples.length; i++) {
+            intervals.push(samples[i].time - samples[i - 1].time);
         }
-        
-        const avg = intervals.reduce((a, b) => a + b) / intervals.length;
-        const variance = intervals.reduce((sum, interval) => {
-            return sum + Math.pow(interval - avg, 2);
-        }, 0) / intervals.length;
-        
-        const stdDev = Math.sqrt(variance);
-        const coefficientOfVariation = stdDev / avg;
-        
-        return Math.max(0, 1 - coefficientOfVariation);
+        return intervals;
     }
 
-    calculatePositionVariance() {
-        const xs = this.clicks.map(c => c.x).filter(x => x !== undefined);
-        const ys = this.clicks.map(c => c.y).filter(y => y !== undefined);
-        
-        if (xs.length <= 1) return 100;
-        
-        const meanX = xs.reduce((a, b) => a + b) / xs.length;
-        const meanY = ys.reduce((a, b) => a + b) / ys.length;
-        
-        const varianceX = xs.reduce((sum, x) => sum + Math.pow(x - meanX, 2), 0) / xs.length;
-        const varianceY = ys.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0) / ys.length;
-        
-        return (varianceX + varianceY) / 2;
+    average(values) {
+        if (!values.length) {
+            return 0;
+        }
+
+        return values.reduce((sum, value) => sum + value, 0) / values.length;
     }
 
-    calculateHumanFactor() {
-        if (this.clicks.length < 8) return 1;
-        
-        const positionVariance = this.calculatePositionVariance();
-        const regularity = this.calculateRegularity();
-        
-        const positionScore = Math.min(1, positionVariance / 20);
-        const regularityScore = 1 - (regularity * 0.7);
-        
-        return (positionScore + regularityScore) / 2;
+    median(values) {
+        if (!values.length) {
+            return 0;
+        }
+
+        const sorted = [...values].sort((a, b) => a - b);
+        const middle = Math.floor(sorted.length / 2);
+        return sorted.length % 2 === 0
+            ? (sorted[middle - 1] + sorted[middle]) / 2
+            : sorted[middle];
     }
 
-    startContinuousCheck() {
-        this.checkInterval = setInterval(() => {
-            if (this.clicks.length > 25) {
-                const cps = this.calculateCPS();
-                if (cps > this.config.maxCPS * (this.isMobile ? 5 : 4)) {
-                    this.onDetection(`Постоянная экстремальная скорость: ${cps.toFixed(1)} CPS`, cps);
-                }
+    standardDeviation(values, averageValue) {
+        if (!values.length) {
+            return 0;
+        }
+
+        const variance = values.reduce((sum, value) => {
+            return sum + Math.pow(value - averageValue, 2);
+        }, 0) / values.length;
+
+        return Math.sqrt(variance);
+    }
+
+    calculateStableRatio(intervals, medianInterval) {
+        if (!intervals.length) {
+            return 0;
+        }
+
+        const stableIntervals = intervals.filter(interval => Math.abs(interval - medianInterval) <= this.config.cadenceToleranceMs);
+        return stableIntervals.length / intervals.length;
+    }
+
+    calculateLongestStableStreak(intervals, medianInterval) {
+        let longest = 0;
+        let current = 0;
+
+        intervals.forEach(interval => {
+            if (Math.abs(interval - medianInterval) <= this.config.cadenceToleranceMs) {
+                current += 1;
+                longest = Math.max(longest, current);
+                return;
             }
-            
-            const now = Date.now();
-            this.clicks = this.clicks.filter(click => now - click.time < 10000);
-        }, 4000);
-    }
 
-    backupCheck() {
-        setInterval(() => {
-            const now = Date.now();
-            const recentClicks = this.clicks.filter(click => now - click.time < 1000);
-            if (recentClicks.length > (this.isMobile ? 35 : 25)) {
-                this.onDetection("Кратковременная экстремальная активность", recentClicks.length);
-            }
-        }, 5000);
-    }
-
-    onDetection(reason, cps) {
-        this.detectionCount++;
-        
-        console.warn(`Обнаружен автокликер! (${this.detectionCount}/${this.maxDetections})`, {
-            reason: reason,
-            cps: cps,
-            clicks: this.clicks.length,
-            mobile: this.isMobile,
-            time: new Date().toLocaleTimeString()
+            current = 0;
         });
 
-        if (this.detectionCount === 1) {
-            this.showFirstWarning();
-        } else if (this.detectionCount === 2) {
-            this.showSecondWarning();
-        } else if (this.detectionCount >= 3) {
-            this.banUser(reason, cps);
-        }
-        
-        this.clicks = [];
-        this.suspiciousCount = 0;
+        return longest;
     }
 
-    showFirstWarning() {
+    calculateDominantRatio(intervals) {
+        if (!intervals.length) {
+            return 0;
+        }
+
+        const buckets = new Map();
+        intervals.forEach(interval => {
+            const bucket = Math.round(interval / 5) * 5;
+            buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
+        });
+
+        let dominant = 0;
+        buckets.forEach(count => {
+            dominant = Math.max(dominant, count);
+        });
+
+        return dominant / intervals.length;
+    }
+
+    buildMetrics(samples, extra = {}) {
+        const intervals = this.buildIntervals(samples);
+        const sampleCount = samples.length;
+        const timeSpan = sampleCount > 1 ? samples[sampleCount - 1].time - samples[0].time : 0;
+        const cps = timeSpan > 0 ? ((sampleCount - 1) / timeSpan) * 1000 : 0;
+        const averageInterval = this.average(intervals);
+        const medianInterval = this.median(intervals);
+        const stdDev = this.standardDeviation(intervals, averageInterval);
+        const stableRatio = this.calculateStableRatio(intervals, medianInterval);
+        const longestStableStreak = this.calculateLongestStableStreak(intervals, medianInterval);
+        const dominantRatio = this.calculateDominantRatio(intervals);
+
+        return {
+            cps: cps,
+            sampleCount: sampleCount,
+            averageInterval: averageInterval,
+            medianInterval: medianInterval,
+            intervalStdDev: stdDev,
+            stableRatio: stableRatio,
+            dominantRatio: dominantRatio,
+            longestStableStreak: longestStableStreak,
+            heat: this.heat,
+            mobile: this.isMobile,
+            ...extra
+        };
+    }
+
+    analyze(now = performance.now()) {
+        const recentClicks = this.getRecentClicks(now);
+        if (recentClicks.length < this.config.minSamples) {
+            return null;
+        }
+
+        const intervals = this.buildIntervals(recentClicks);
+        if (intervals.length < this.config.minSamples - 1) {
+            return null;
+        }
+
+        const averageInterval = this.average(intervals);
+        const medianInterval = this.median(intervals);
+        const intervalStdDev = this.standardDeviation(intervals, averageInterval);
+        const cps = averageInterval > 0 ? 1000 / averageInterval : 0;
+        const coefficientOfVariation = averageInterval > 0 ? intervalStdDev / averageInterval : 1;
+        const stableRatio = this.calculateStableRatio(intervals, medianInterval);
+        const dominantRatio = this.calculateDominantRatio(intervals);
+        const longestStableStreak = this.calculateLongestStableStreak(intervals, medianInterval);
+        const shortBurstRatio = intervals.filter(interval => interval <= 70).length / intervals.length;
+
+        const suspiciousCadence = cps >= this.config.suspiciousCPS &&
+            coefficientOfVariation <= this.config.lowCvThreshold &&
+            stableRatio >= this.config.stableRatioThreshold &&
+            longestStableStreak >= this.config.minStableStreak;
+
+        const hardCadence = cps >= this.config.suspiciousCPS &&
+            coefficientOfVariation <= this.config.hardCvThreshold &&
+            stableRatio >= this.config.hardStableRatioThreshold &&
+            dominantRatio >= this.config.hardStableRatioThreshold &&
+            longestStableStreak >= this.config.hardStableStreak;
+
+        const exactHundredMsPattern = !this.isMobile &&
+            medianInterval >= 94 &&
+            medianInterval <= 106 &&
+            stableRatio >= 0.88 &&
+            dominantRatio >= 0.88 &&
+            longestStableStreak >= 10;
+
+        const extremeSpeed = cps >= this.config.extremeCPS;
+
+        if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !extremeSpeed) {
+            return {
+                action: 'ignore'
+            };
+        }
+
+        let addedHeat = 0;
+        const reasons = [];
+
+        if (extremeSpeed) {
+            addedHeat += 10;
+            reasons.push(`экстремальная скорость ${cps.toFixed(1)} CPS`);
+        }
+
+        if (suspiciousCadence) {
+            addedHeat += 4;
+            reasons.push(`слишком ровный темп ${medianInterval.toFixed(0)} мс`);
+        }
+
+        if (hardCadence) {
+            addedHeat += 6;
+            reasons.push(`идеальная серия ${longestStableStreak + 1} кликов`);
+        }
+
+        if (exactHundredMsPattern) {
+            addedHeat += 6;
+            reasons.push('паттерн автокликера около 100 мс');
+        }
+
+        if (shortBurstRatio >= 0.6 && cps >= this.config.suspiciousCPS) {
+            addedHeat += 2;
+            reasons.push('слишком много сверхкоротких интервалов');
+        }
+
+        this.heat = Math.min(20, this.heat + addedHeat);
+
+        const metrics = this.buildMetrics(recentClicks, {
+            coefficientOfVariation: coefficientOfVariation,
+            stableRatio: stableRatio,
+            dominantRatio: dominantRatio,
+            longestStableStreak: longestStableStreak,
+            reason: reasons[0] || 'подозрительный ритм'
+        });
+
+        const shouldBanImmediately = extremeSpeed || hardCadence || exactHundredMsPattern || this.heat >= this.config.banHeatThreshold;
+        if (shouldBanImmediately) {
+            return {
+                action: 'ban',
+                reason: reasons[0] || 'подозрительная автоматизированная активность',
+                metrics: metrics
+            };
+        }
+
+        if (this.heat >= this.config.warningHeatThreshold && now >= this.warningCooldownUntil) {
+            return {
+                action: 'warn',
+                reason: reasons[0] || 'подозрительная автоматизированная активность',
+                metrics: metrics
+            };
+        }
+
+        return {
+            action: 'ignore'
+        };
+    }
+
+    showWarning(title, text, reason, strong = false) {
+        const existingWarning = document.getElementById('autoClickerWarning');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+
         const warning = document.createElement('div');
+        warning.id = 'autoClickerWarning';
         warning.innerHTML = `
             <div style="
                 position: fixed;
@@ -2373,17 +2580,20 @@ class AutoClickerDetector {
                 box-sizing: border-box;
             ">
                 <div style="max-width: 500px;">
-                    <h1 style="color: #ffa502; font-size: 2em; margin-bottom: 20px;">⚠ ПРЕДУПРЕЖДЕНИЕ</h1>
+                    <h1 style="color: ${strong ? '#ff4757' : '#ffa502'}; font-size: 2em; margin-bottom: 20px;">${title}</h1>
                     <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 30px;">
-                        Обнаружена подозрительная активность!<br>
+                        ${text}<br>
                         Использование автокликеров запрещено.
                     </p>
-                    <p style="color: #ccc; margin-bottom: 30px;">
-                        При повторных нарушениях последует бан.
+                    <p style="color: #ccc; margin-bottom: 12px;">
+                        Причина: ${reason}
+                    </p>
+                    <p style="color: ${strong ? '#ff8a8a' : '#ddd'}; margin-bottom: 30px;">
+                        ${strong ? 'Следующий детект приведет к бану.' : 'Если паттерн повторится, последует бан.'}
                     </p>
                     <button onclick="this.closest('div').parentElement.remove()" style="
-                        background: #ffa502;
-                        color: black;
+                        background: ${strong ? '#ff4757' : '#ffa502'};
+                        color: ${strong ? 'white' : 'black'};
                         border: none;
                         padding: 15px 30px;
                         font-size: 1.1em;
@@ -2397,52 +2607,7 @@ class AutoClickerDetector {
         document.body.appendChild(warning);
     }
 
-    showSecondWarning() {
-        const warning = document.createElement('div');
-        warning.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.95);
-                color: white;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                z-index: 10000;
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 20px;
-                box-sizing: border-box;
-            ">
-                <div style="max-width: 500px;">
-                    <h1 style="color: #ff4757; font-size: 2em; margin-bottom: 20px;">⛔ ВТОРОЕ ПРЕДУПРЕЖДЕНИЕ</h1>
-                    <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 30px;">
-                        Подозрительная активность снова обнаружена!
-                    </p>
-                    <p style="color: #ff6b6b; margin-bottom: 30px;">
-                        Следующее нарушение приведет к бану.
-                    </p>
-                    <button onclick="this.closest('div').parentElement.remove()" style="
-                        background: #ff4757;
-                        color: white;
-                        border: none;
-                        padding: 15px 30px;
-                        font-size: 1.1em;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-weight: bold;
-                    ">ПОНЯТНО</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(warning);
-    }
-
-    async banUser(reason, cps) {
+    async banUser(reason, metrics = null) {
         if (this.banRequestInFlight) {
             return;
         }
@@ -2467,13 +2632,20 @@ class AutoClickerDetector {
                 },
                 body: JSON.stringify({
                     reason: reason || 'Подозрение на автокликер',
-                    cps: cps,
-                    clicks: this.clicks.length,
+                    cps: metrics && typeof metrics.cps === 'number' ? metrics.cps : 0,
+                    clicks: metrics && typeof metrics.sampleCount === 'number' ? metrics.sampleCount : this.clicks.length,
                     mobile: this.isMobile,
-                    detectionCount: this.detectionCount,
-                    regularity: this.calculateRegularity(),
-                    positionVariance: this.calculatePositionVariance(),
-                    humanFactor: this.calculateHumanFactor()
+                    detectionCount: this.warningCount + 1,
+                    regularity: metrics && typeof metrics.stableRatio === 'number' ? metrics.stableRatio : 0,
+                    positionVariance: 0,
+                    humanFactor: metrics && typeof metrics.coefficientOfVariation === 'number'
+                        ? Math.max(0, Math.min(1, metrics.coefficientOfVariation))
+                        : 0,
+                    averageInterval: metrics && typeof metrics.averageInterval === 'number' ? metrics.averageInterval : null,
+                    medianInterval: metrics && typeof metrics.medianInterval === 'number' ? metrics.medianInterval : null,
+                    intervalStdDev: metrics && typeof metrics.intervalStdDev === 'number' ? metrics.intervalStdDev : null,
+                    longestStreak: metrics && typeof metrics.longestStableStreak === 'number' ? metrics.longestStableStreak : null,
+                    heat: this.heat
                 })
             });
 
@@ -2598,13 +2770,8 @@ class AutoClickerDetector {
     }
 
     destroy() {
-        const events = ['click', 'touchstart', 'mousedown'];
-        events.forEach(event => {
-            document.removeEventListener(event, this.handleClick.bind(this), true);
-        });
-        
-        if (this.checkInterval) {
-            clearInterval(this.checkInterval);
+        if (this.maintenanceTimer) {
+            clearInterval(this.maintenanceTimer);
         }
     }
 }
@@ -2615,7 +2782,7 @@ const clickDetector = new AutoClickerDetector();
 window.clickDetector = clickDetector;
 
 console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
-console.log('Настройки для мобильных:', clickDetector.config);
+console.log('Настройки античита:', clickDetector.config);
 </script>
 	
 	 <footer class="footer">
