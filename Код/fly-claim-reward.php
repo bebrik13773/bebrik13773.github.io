@@ -43,8 +43,8 @@ try {
     }
     $selectStmt->close();
 
-    $minimumTransferScore = 10;
-    $coinsPerScore = 700;
+    $minimumTransferScore = 25;
+    $coinsPerScore = 500;
     $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
     $awardedScore = $pendingScore >= $minimumTransferScore ? $pendingScore : 0;
     $awardedCoins = $awardedScore * $coinsPerScore;
@@ -101,8 +101,8 @@ try {
     bober_json_response([
         'success' => true,
         'message' => $awardedCoins > 0
-            ? 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 700 коинов.'
-            : 'Для перевода нужно минимум 10 очков из Летающего бобра.',
+            ? 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 500 коинов.'
+            : 'Для перевода нужно минимум 25 очков из Летающего бобра.',
         'awardedScore' => $awardedScore,
         'awardedCoins' => $awardedCoins,
         'minimumTransferScore' => $minimumTransferScore,

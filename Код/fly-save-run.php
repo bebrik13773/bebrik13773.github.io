@@ -20,7 +20,7 @@ try {
 
     $score = max(0, (int) ($data['score'] ?? 0));
     $level = max(1, (int) ($data['level'] ?? 1));
-    $minimumCreditedScore = 10;
+    $minimumCreditedScore = 15;
     $creditedScore = $score >= $minimumCreditedScore ? $score : 0;
 
     $conn = bober_db_connect();
@@ -80,7 +80,7 @@ try {
             ? 'Этот забег уже сохранен.'
             : ($creditedScore > 0
                 ? 'Забег сохранен и засчитан в облачный счет.'
-                : 'Забег сохранен в статистику, но в начисление не пошел: нужно минимум 10 очков.'),
+                : 'Забег сохранен в статистику, но в начисление не пошел: нужно минимум 15 очков.'),
         'duplicate' => $isDuplicate,
         'creditedScore' => $creditedScore,
         'minimumCreditedScore' => $minimumCreditedScore,
