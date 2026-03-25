@@ -553,7 +553,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function calculateFlyRewardCoins(scoreValue) {
-            return Math.max(0, Number(scoreValue) || 0) * 500;
+            return Math.max(0, Number(scoreValue) || 0) * 700;
         }
 
         function updateCloudPanel() {
@@ -575,7 +575,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 claimFlyScoreButton.style.display = 'block';
                 claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
                 cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 10 очков = 5000 коинов.`;
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = 700 коинов.`;
                 return;
             }
 

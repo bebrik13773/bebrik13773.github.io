@@ -734,7 +734,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <br>
 <br>
-<button class="shop-action-btn" onclick="window.location.replace('fly-beaver.html');"> Летающий бобер(скоро обновление!) </button>
+<button class="shop-action-btn" onclick="window.location.replace('fly-beaver.html');">Летающий бобер</button>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
     <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
@@ -1119,7 +1119,7 @@ function formatCompactNumber(value) {
 }
 
 function calculateFlyRewardCoins(scoreValue) {
-    return Math.max(0, Number(scoreValue) || 0) * 500;
+    return Math.max(0, Number(scoreValue) || 0) * 700;
 }
 
 function updateFlyRewardUI() {
@@ -1146,7 +1146,7 @@ function updateFlyRewardUI() {
         rewardButton.style.display = 'inline-block';
         rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
         rewardStatus.className = 'save-status draft';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 10 = 5000.`;
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 1 = 700 коинов.`;
         return;
     }
 
