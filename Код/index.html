@@ -3149,6 +3149,10 @@ class AutoClickerDetector {
         const sampleCount = samples.length;
         const timeSpan = sampleCount > 1 ? samples[sampleCount - 1].time - samples[0].time : 0;
         const cps = timeSpan > 0 ? ((sampleCount - 1) / timeSpan) * 1000 : 0;
+        const averageTouchCount = this.average(samples.map(sample => Math.max(1, Number(sample.touchCount) || 1)));
+        const multiTouchRatio = sampleCount > 0
+            ? samples.filter(sample => Math.max(1, Number(sample.touchCount) || 1) >= 3).length / sampleCount
+            : 0;
         const averageInterval = this.average(intervals);
         const medianInterval = this.median(intervals);
         const stdDev = this.standardDeviation(intervals, averageInterval);
@@ -3159,6 +3163,8 @@ class AutoClickerDetector {
         return {
             cps: cps,
             sampleCount: sampleCount,
+            averageTouchCount: averageTouchCount,
+            multiTouchRatio: multiTouchRatio,
             averageInterval: averageInterval,
             medianInterval: medianInterval,
             intervalStdDev: stdDev,
@@ -3186,18 +3192,32 @@ class AutoClickerDetector {
         const medianInterval = this.median(intervals);
         const intervalStdDev = this.standardDeviation(intervals, averageInterval);
         const cps = averageInterval > 0 ? 1000 / averageInterval : 0;
+        const averageTouchCount = this.average(recentClicks.map(click => Math.max(1, Number(click.touchCount) || 1)));
+        const maxTouchCount = recentClicks.reduce((maxValue, click) => {
+            return Math.max(maxValue, Math.max(1, Number(click.touchCount) || 1));
+        }, 1);
+        const multiTouchRatio = recentClicks.length > 0
+            ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) >= 3).length / recentClicks.length
+            : 0;
+        const hasStrongMobileMultiTouch = this.isMobile &&
+            multiTouchRatio >= 0.35 &&
+            averageTouchCount >= 2.4 &&
+            maxTouchCount >= 4;
+        const effectiveCps = hasStrongMobileMultiTouch
+            ? cps / Math.max(1, averageTouchCount * 0.75)
+            : cps;
         const coefficientOfVariation = averageInterval > 0 ? intervalStdDev / averageInterval : 1;
         const stableRatio = this.calculateStableRatio(intervals, medianInterval);
         const dominantRatio = this.calculateDominantRatio(intervals);
         const longestStableStreak = this.calculateLongestStableStreak(intervals, medianInterval);
         const shortBurstRatio = intervals.filter(interval => interval <= 70).length / intervals.length;
 
-        const suspiciousCadence = cps >= this.config.suspiciousCPS &&
+        const suspiciousCadence = effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.lowCvThreshold &&
             stableRatio >= this.config.stableRatioThreshold &&
             longestStableStreak >= this.config.minStableStreak;
 
-        const hardCadence = cps >= this.config.suspiciousCPS &&
+        const hardCadence = effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.hardCvThreshold &&
             stableRatio >= this.config.hardStableRatioThreshold &&
             dominantRatio >= this.config.hardStableRatioThreshold &&
@@ -3210,7 +3230,7 @@ class AutoClickerDetector {
             dominantRatio >= 0.88 &&
             longestStableStreak >= 10;
 
-        const extremeSpeed = cps >= this.config.extremeCPS;
+        const extremeSpeed = effectiveCps >= this.config.extremeCPS;
 
         if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !extremeSpeed) {
             return {
@@ -3223,7 +3243,11 @@ class AutoClickerDetector {
 
         if (extremeSpeed) {
             addedHeat += 10;
-            reasons.push(`экстремальная скорость ${cps.toFixed(1)} CPS`);
+            reasons.push(
+                hasStrongMobileMultiTouch
+                    ? `экстремальная скорость ${cps.toFixed(1)} CPS даже после поправки на ${averageTouchCount.toFixed(1)} пальца`
+                    : `экстремальная скорость ${cps.toFixed(1)} CPS`
+            );
         }
 
         if (suspiciousCadence) {
@@ -3241,7 +3265,7 @@ class AutoClickerDetector {
             reasons.push('паттерн автокликера около 100 мс');
         }
 
-        if (shortBurstRatio >= 0.6 && cps >= this.config.suspiciousCPS) {
+        if (shortBurstRatio >= 0.6 && effectiveCps >= this.config.suspiciousCPS) {
             addedHeat += 2;
             reasons.push('слишком много сверхкоротких интервалов');
         }
@@ -3249,6 +3273,11 @@ class AutoClickerDetector {
         this.heat = Math.min(20, this.heat + addedHeat);
 
         const metrics = this.buildMetrics(recentClicks, {
+            effectiveCps: effectiveCps,
+            averageTouchCount: averageTouchCount,
+            maxTouchCount: maxTouchCount,
+            multiTouchRatio: multiTouchRatio,
+            hasStrongMobileMultiTouch: hasStrongMobileMultiTouch,
             coefficientOfVariation: coefficientOfVariation,
             stableRatio: stableRatio,
             dominantRatio: dominantRatio,
