@@ -2818,6 +2818,110 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             color: var(--muted-text);
         }
 
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: var(--field-bg);
+        }
+
+        .form-check input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+            margin: 0;
+        }
+
+        .form-check-label {
+            font-size: 14px;
+            color: var(--on-surface);
+            font-weight: 500;
+        }
+
+        .skins-panel {
+            background: var(--panel-gradient);
+        }
+
+        .skin-catalog-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .skin-catalog-meta {
+            color: var(--muted-text);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .skin-catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .skin-catalog-card {
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--panel-soft-bg);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .skin-catalog-card-preview {
+            aspect-ratio: 4 / 3;
+            background:
+                linear-gradient(180deg, rgba(9, 14, 27, 0.04), rgba(9, 14, 27, 0.22)),
+                linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82));
+            background-size: cover;
+            background-position: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .skin-catalog-card-body {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .skin-catalog-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .skin-catalog-card-title {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: var(--on-surface);
+        }
+
+        .skin-catalog-card-id {
+            font-size: 12px;
+            color: var(--muted-text);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .skin-catalog-card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: auto;
+        }
+
         @media (max-width: 768px) {
             .modal-content.modal-content-wide,
             .modal-content.modal-content-danger,
@@ -2851,6 +2955,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .skin-create-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .skin-catalog-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -3639,6 +3747,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">groups</span>
             <span>Аккаунты</span>
         </div>
+
+        <div class="sidebar-item" id="skinsBtn">
+            <span class="material-icons">palette</span>
+            <span>Скины</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -3709,9 +3822,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 </div>
                             </div>
                         </div>
-                        <button class="btn btn-primary" id="openAddSkinModalBtn">
+                        <button class="btn btn-primary" id="openSkinsViewBtn">
                             <span class="material-icons">palette</span>
-                            Добавить скин
+                            Редактор скинов
                         </button>
                     </div>
 
@@ -3750,6 +3863,38 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <div id="accountDetailContainer" style="display: none;"></div>
                         </section>
                     </div>
+                </div>
+            </div>
+
+            <div class="skins-view animated fadeIn" id="skinsView" style="display: none;">
+                <div class="card skins-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">palette</span>
+                                Каталог скинов
+                            </h2>
+                            <div class="card-subtitle">Полное управление витриной: создание, редактирование цены и названия, замена картинки и удаление.</div>
+                        </div>
+                        <button class="btn btn-primary" id="createSkinBtn">
+                            <span class="material-icons">add_photo_alternate</span>
+                            Новый скин
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="skinCatalogSearchInput" class="search-input" placeholder="Найти скин по названию или ID">
+                        </div>
+                        <button class="btn btn-outline" id="refreshSkinCatalogBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-meta" id="skinCatalogMeta">Загрузка каталога скинов...</div>
+                    <div class="skin-catalog-grid" id="skinCatalogGrid"></div>
                 </div>
             </div>
             
@@ -4117,9 +4262,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 <div>
                     <h3 class="card-title">
                         <span class="material-icons">palette</span>
-                        Новый скин
+                        <span id="addSkinModalTitle">Новый скин</span>
                     </h3>
-                    <div class="card-subtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                    <div class="card-subtitle" id="addSkinModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
                         Загружаете картинку, задаете имя и цену, а дальше скин сразу попадает в магазин.
                     </div>
                 </div>
@@ -4146,6 +4291,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <input class="form-control" id="addSkinPriceInput" type="number" min="0" step="1" value="0" required>
                             <div class="skin-create-success-hint">ID скина сгенерируется автоматически, руками ничего прописывать не нужно.</div>
                         </div>
+
+                        <label class="form-check">
+                            <input type="checkbox" id="addSkinAvailableInput" checked>
+                            <span class="form-check-label">Скин доступен игрокам сразу после сохранения</span>
+                        </label>
+
+                        <label class="form-check">
+                            <input type="checkbox" id="addSkinDefaultOwnedInput">
+                            <span class="form-check-label">Выдавать этот скин по умолчанию новым игрокам</span>
+                        </label>
                     </form>
 
                     <div class="skin-upload-card">
@@ -4164,7 +4319,47 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
                 <button class="btn btn-outline" id="cancelAddSkinModal">Отмена</button>
                 <button class="btn btn-primary" id="saveAddSkinBtn">
-                    <span class="btn-text">Добавить скин</span>
+                    <span class="btn-text">Сохранить скин</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="deleteSkinModal">
+        <div class="modal-content modal-content-danger">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">delete</span>
+                        Удаление скина
+                    </h3>
+                    <div class="card-subtitle" id="deleteSkinModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Скин исчезнет из каталога магазина
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeDeleteSkinModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="modal-stack">
+                    <div class="modal-hero danger">
+                        <div class="modal-hero-icon">
+                            <span class="material-icons">auto_awesome</span>
+                        </div>
+                        <div>
+                            <div class="modal-hero-title" id="deleteSkinModalTitle">Удалить этот скин?</div>
+                            <div class="modal-hero-text" id="deleteSkinModalText">Картинка останется на сервере, но сам скин пропадет из каталога магазина.</div>
+                        </div>
+                    </div>
+                    <div class="duration-summary" id="deleteSkinModalInfo"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelDeleteSkinModal">Отмена</button>
+                <button class="btn btn-danger" id="confirmDeleteSkinBtn">
+                    <span class="btn-text">Удалить скин</span>
                     <div class="loader" style="display: none; margin-left: 8px;"></div>
                 </button>
             </div>
@@ -4190,6 +4385,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let accountSearchDebounce = null;
         let lastAccountSearch = '';
         let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
+        let skinCatalogItems = [];
+        let skinCatalogSearch = '';
+        let pendingDeleteSkinId = '';
+        let skinEditorState = {
+            mode: 'create',
+            skinId: '',
+            currentImage: ''
+        };
         let pendingBanDurationSelection = {
             isPermanent: false,
             durationDays: 5
