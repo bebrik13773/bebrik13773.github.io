@@ -1348,7 +1348,6 @@ function resetUserState() {
     document.getElementById('password').value = '';
     document.getElementById('login').value = currentLogin || localStorage.getItem('login') || '';
     flyBeaverState = getDefaultFlyBeaverState();
-    setBanInfo(null);
     setSaveStatus('idle', 'Автосохранение выключено');
     updateFlyRewardUI();
 }
@@ -2024,6 +2023,7 @@ document.getElementById('logoutButton').onclick = async function() {
         });
 
         resetUserState();
+        setBanInfo(null);
         showNotification(data.message || 'Вы вышли из аккаунта.', 'success');
         loadLeaderboard();
     } catch (error) {
