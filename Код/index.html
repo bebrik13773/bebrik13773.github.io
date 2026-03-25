@@ -282,6 +282,143 @@ Owner decisions:
 				font-size: 16px;
 			}
 		}
+		#upgradeSection {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 16px;
+			width: min(100%, 960px);
+			margin: 0 auto 18px;
+		}
+		.upgrade-card {
+			appearance: none;
+			border: 2px solid rgba(255, 255, 255, 0.16);
+			border-radius: 20px;
+			padding: 18px 16px;
+			min-height: 190px;
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 12px;
+			cursor: pointer;
+			color: #fff;
+			text-align: left;
+			position: relative;
+			overflow: hidden;
+			box-shadow: 0 16px 30px rgba(0, 0, 0, 0.24);
+			transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, filter 0.16s ease;
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+		}
+		.upgrade-card::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(6, 10, 22, 0.24));
+			pointer-events: none;
+		}
+		.upgrade-card > * {
+			position: relative;
+			z-index: 1;
+		}
+		.upgrade-card:hover {
+			transform: translateY(-3px);
+			box-shadow: 0 22px 34px rgba(0, 0, 0, 0.3);
+		}
+		.upgrade-card:active {
+			transform: scale(0.985);
+		}
+		.upgrade-card.tap-small {
+			background:
+				radial-gradient(circle at top right, rgba(126, 241, 255, 0.28), transparent 40%),
+				linear-gradient(145deg, rgba(24, 52, 104, 0.96), rgba(8, 21, 49, 0.98));
+		}
+		.upgrade-card.tap-big {
+			background:
+				radial-gradient(circle at top right, rgba(255, 144, 224, 0.26), transparent 42%),
+				linear-gradient(145deg, rgba(78, 28, 104, 0.96), rgba(25, 10, 48, 0.98));
+		}
+		.upgrade-card.energy {
+			background:
+				radial-gradient(circle at top right, rgba(255, 223, 120, 0.3), transparent 42%),
+				linear-gradient(145deg, rgba(74, 53, 10, 0.96), rgba(34, 21, 5, 0.98));
+		}
+		.upgrade-card.locked {
+			filter: saturate(0.88);
+			border-color: rgba(255, 255, 255, 0.12);
+		}
+		.upgrade-card.affordable {
+			border-color: rgba(126, 241, 255, 0.56);
+			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.16), 0 22px 34px rgba(0, 0, 0, 0.3);
+		}
+		.upgrade-card-top {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+		}
+		.upgrade-card-badge {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			min-width: 52px;
+			padding: 8px 12px;
+			border-radius: 999px;
+			background: rgba(255, 255, 255, 0.14);
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+			font-size: 13px;
+			font-weight: 800;
+			letter-spacing: 0.03em;
+		}
+		.upgrade-card-title {
+			font-size: 22px;
+			font-weight: 800;
+			line-height: 1.1;
+			text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+		}
+		.upgrade-card-meta {
+			font-size: 14px;
+			line-height: 1.55;
+			color: rgba(255, 255, 255, 0.86);
+			max-width: 24ch;
+		}
+		.upgrade-card-footer {
+			width: 100%;
+			padding: 12px 14px;
+			border-radius: 16px;
+			background: rgba(7, 12, 27, 0.38);
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+		.upgrade-card-price {
+			font-size: 16px;
+			font-weight: 800;
+			color: #e4ffff;
+		}
+		.upgrade-card-status {
+			font-size: 13px;
+			font-weight: 600;
+			color: rgba(255, 255, 255, 0.82);
+		}
+		@media (max-width: 768px) {
+			#upgradeSection {
+				grid-template-columns: 1fr;
+				gap: 12px;
+			}
+			.upgrade-card {
+				min-height: 164px;
+				padding: 16px 14px;
+			}
+			.upgrade-card-title {
+				font-size: 19px;
+			}
+		}
 		#ShopButton,
 		.shop-action-btn {
 			appearance: none;
