@@ -1778,7 +1778,10 @@ function setBanInfo(banInfo, options = {}) {
 
     if (normalizedBan && options.persist !== false) {
         persistStoredDeviceBanInfo(normalizedBan);
+        return;
     }
+
+    clearStoredDeviceBanInfo();
 }
 
 function normalizeBanPayload(payload) {
@@ -3572,7 +3575,6 @@ class AutoClickerDetector {
 
 const clickDetector = new AutoClickerDetector();
 window.clickDetector = clickDetector;
-enforceStoredDeviceBan();
 
 console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
 console.log('Настройки античита:', clickDetector.config);
