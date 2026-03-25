@@ -19,6 +19,16 @@ try {
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
 
+    $activeIpBan = bober_fetch_active_ip_ban($conn);
+    if ($activeIpBan !== null) {
+        $conn->close();
+        bober_json_response([
+            'success' => false,
+            'message' => $activeIpBan['message'],
+            'ipBan' => $activeIpBan,
+        ], 403);
+    }
+
     $stmt = $conn->prepare('SELECT id, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score FROM users WHERE login = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');

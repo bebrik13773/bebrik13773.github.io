@@ -350,6 +350,419 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_users_overview') {
+            if (requireAdminAuth($response)) {
+                $search = trim((string) ($_POST['search'] ?? ''));
+                $searchLike = '%' . $search . '%';
+
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $sql = <<<SQL
+SELECT
+    `u`.`id`,
+    `u`.`login`,
+    `u`.`score`,
+    `u`.`plus`,
+    `u`.`energy`,
+    `u`.`ENERGY_MAX`,
+    `u`.`updated_at`,
+    COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
+    COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_score`,
+    EXISTS(
+        SELECT 1
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        LIMIT 1
+    ) AS `is_banned`,
+    (
+        SELECT `ub2`.`ban_until`
+        FROM `user_bans` `ub2`
+        WHERE `ub2`.`user_id` = `u`.`id`
+          AND `ub2`.`lifted_at` IS NULL
+          AND `ub2`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub2`.`ban_until` DESC
+        LIMIT 1
+    ) AS `ban_until`
+FROM `users` `u`
+LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
+WHERE `u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?
+ORDER BY `is_banned` DESC, `u`.`score` DESC, `u`.`id` DESC
+LIMIT 200
+SQL;
+
+                $stmt = $conn->prepare($sql);
+                if (!$stmt) {
+                    throw new RuntimeException('Не удалось подготовить список пользователей.');
+                }
+
+                $stmt->bind_param('ss', $searchLike, $searchLike);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    throw new RuntimeException('Не удалось загрузить список пользователей.');
+                }
+
+                $result = $stmt->get_result();
+                $users = [];
+
+                while ($row = $result->fetch_assoc()) {
+                    $users[] = [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'login' => (string) ($row['login'] ?? ''),
+                        'score' => max(0, (int) ($row['score'] ?? 0)),
+                        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+                        'energy' => max(0, (int) ($row['energy'] ?? 0)),
+                        'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
+                        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+                        'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
+                        'flyPendingScore' => max(0, (int) ($row['fly_pending_score'] ?? 0)),
+                        'isBanned' => (int) ($row['is_banned'] ?? 0) === 1,
+                        'banUntil' => isset($row['ban_until']) ? (string) $row['ban_until'] : null,
+                    ];
+                }
+
+                if ($result instanceof mysqli_result) {
+                    $result->free();
+                }
+                $stmt->close();
+
+                $countStmt = $conn->prepare('SELECT COUNT(*) AS total FROM `users` WHERE `login` LIKE ? OR CAST(`id` AS CHAR) LIKE ?');
+                if (!$countStmt) {
+                    throw new RuntimeException('Не удалось получить число пользователей.');
+                }
+
+                $countStmt->bind_param('ss', $searchLike, $searchLike);
+                if (!$countStmt->execute()) {
+                    $countStmt->close();
+                    throw new RuntimeException('Не удалось получить число пользователей.');
+                }
+
+                $countResult = $countStmt->get_result();
+                $countRow = $countResult ? $countResult->fetch_assoc() : null;
+                $total = (int) ($countRow['total'] ?? 0);
+                if ($countResult instanceof mysqli_result) {
+                    $countResult->free();
+                }
+                $countStmt->close();
+
+                $response['success'] = true;
+                $response['users'] = $users;
+                $response['returned'] = count($users);
+                $response['total'] = $total;
+                $response['search'] = $search;
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_user_profile') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $profileSql = <<<SQL
+SELECT
+    `u`.`id`,
+    `u`.`login`,
+    `u`.`plus`,
+    `u`.`skin`,
+    `u`.`energy`,
+    `u`.`last_energy_update`,
+    `u`.`ENERGY_MAX`,
+    `u`.`score`,
+    `u`.`created_at`,
+    `u`.`updated_at`,
+    COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
+    COALESCE(`f`.`last_score`, 0) AS `fly_last_score`,
+    COALESCE(`f`.`last_level`, 1) AS `fly_last_level`,
+    COALESCE(`f`.`games_played`, 0) AS `fly_games_played`,
+    COALESCE(`f`.`total_score`, 0) AS `fly_total_score`,
+    COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_transfer_score`,
+    COALESCE(`f`.`transferred_total_score`, 0) AS `fly_transferred_total_score`,
+    `f`.`last_played_at` AS `fly_last_played_at`,
+    (
+        SELECT `ub`.`id`
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub`.`ban_until` DESC
+        LIMIT 1
+    ) AS `active_ban_id`,
+    (
+        SELECT `ub`.`reason`
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub`.`ban_until` DESC
+        LIMIT 1
+    ) AS `active_ban_reason`,
+    (
+        SELECT `ub`.`ban_until`
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub`.`ban_until` DESC
+        LIMIT 1
+    ) AS `active_ban_until`,
+    (
+        SELECT `ub`.`duration_days`
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub`.`ban_until` DESC
+        LIMIT 1
+    ) AS `active_ban_duration_days`,
+    (
+        SELECT `ub`.`is_repeat`
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub`.`ban_until` DESC
+        LIMIT 1
+    ) AS `active_ban_is_repeat`
+FROM `users` `u`
+LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
+WHERE `u`.`id` = ?
+LIMIT 1
+SQL;
+
+                    $stmt = $conn->prepare($profileSql);
+                    if (!$stmt) {
+                        throw new RuntimeException('Не удалось подготовить карточку пользователя.');
+                    }
+
+                    $stmt->bind_param('i', $userId);
+                    if (!$stmt->execute()) {
+                        $stmt->close();
+                        throw new RuntimeException('Не удалось загрузить карточку пользователя.');
+                    }
+
+                    $result = $stmt->get_result();
+                    $row = $result ? $result->fetch_assoc() : null;
+                    if ($result instanceof mysqli_result) {
+                        $result->free();
+                    }
+                    $stmt->close();
+
+                    if (!$row) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $ipHistory = [];
+                        $ipStmt = $conn->prepare('SELECT `ip_address`, `login_count`, `first_seen_at`, `last_seen_at`, `last_user_agent` FROM `user_ip_history` WHERE `user_id` = ? ORDER BY `last_seen_at` DESC LIMIT 20');
+                        if ($ipStmt) {
+                            $ipStmt->bind_param('i', $userId);
+                            if ($ipStmt->execute()) {
+                                $ipResult = $ipStmt->get_result();
+                                if ($ipResult instanceof mysqli_result) {
+                                    while ($ipRow = $ipResult->fetch_assoc()) {
+                                        $ipHistory[] = [
+                                            'ipAddress' => (string) ($ipRow['ip_address'] ?? ''),
+                                            'loginCount' => max(0, (int) ($ipRow['login_count'] ?? 0)),
+                                            'firstSeenAt' => isset($ipRow['first_seen_at']) ? (string) $ipRow['first_seen_at'] : null,
+                                            'lastSeenAt' => isset($ipRow['last_seen_at']) ? (string) $ipRow['last_seen_at'] : null,
+                                            'userAgent' => isset($ipRow['last_user_agent']) ? (string) $ipRow['last_user_agent'] : '',
+                                        ];
+                                    }
+                                    $ipResult->free();
+                                }
+                            }
+                            $ipStmt->close();
+                        }
+
+                        $ipBans = [];
+                        $ipBanStmt = $conn->prepare('SELECT `ip_address`, `ban_until`, `lifted_at`, `created_at` FROM `ip_bans` WHERE `source_user_id` = ? ORDER BY `created_at` DESC LIMIT 20');
+                        if ($ipBanStmt) {
+                            $ipBanStmt->bind_param('i', $userId);
+                            if ($ipBanStmt->execute()) {
+                                $ipBanResult = $ipBanStmt->get_result();
+                                if ($ipBanResult instanceof mysqli_result) {
+                                    while ($ipBanRow = $ipBanResult->fetch_assoc()) {
+                                        $ipBans[] = [
+                                            'ipAddress' => (string) ($ipBanRow['ip_address'] ?? ''),
+                                            'banUntil' => isset($ipBanRow['ban_until']) ? (string) $ipBanRow['ban_until'] : null,
+                                            'liftedAt' => isset($ipBanRow['lifted_at']) ? (string) $ipBanRow['lifted_at'] : null,
+                                            'createdAt' => isset($ipBanRow['created_at']) ? (string) $ipBanRow['created_at'] : null,
+                                        ];
+                                    }
+                                    $ipBanResult->free();
+                                }
+                            }
+                            $ipBanStmt->close();
+                        }
+
+                        $response['success'] = true;
+                        $response['user'] = [
+                            'id' => (int) ($row['id'] ?? 0),
+                            'login' => (string) ($row['login'] ?? ''),
+                            'plus' => max(1, (int) ($row['plus'] ?? 1)),
+                            'skin' => (string) ($row['skin'] ?? bober_default_skin_json()),
+                            'energy' => max(0, (int) ($row['energy'] ?? 0)),
+                            'lastEnergyUpdate' => max(0, (int) ($row['last_energy_update'] ?? 0)),
+                            'ENERGY_MAX' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
+                            'score' => max(0, (int) ($row['score'] ?? 0)),
+                            'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : null,
+                            'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+                            'activeBan' => !empty($row['active_ban_id']) ? [
+                                'id' => (int) $row['active_ban_id'],
+                                'reason' => (string) ($row['active_ban_reason'] ?? ''),
+                                'banUntil' => isset($row['active_ban_until']) ? (string) $row['active_ban_until'] : null,
+                                'durationDays' => max(0, (int) ($row['active_ban_duration_days'] ?? 0)),
+                                'isRepeat' => (int) ($row['active_ban_is_repeat'] ?? 0) === 1,
+                            ] : null,
+                            'flyBeaver' => [
+                                'bestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
+                                'lastScore' => max(0, (int) ($row['fly_last_score'] ?? 0)),
+                                'lastLevel' => max(1, (int) ($row['fly_last_level'] ?? 1)),
+                                'gamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
+                                'totalScore' => max(0, (int) ($row['fly_total_score'] ?? 0)),
+                                'pendingTransferScore' => max(0, (int) ($row['fly_pending_transfer_score'] ?? 0)),
+                                'transferredTotalScore' => max(0, (int) ($row['fly_transferred_total_score'] ?? 0)),
+                                'lastPlayedAt' => isset($row['fly_last_played_at']) ? (string) $row['fly_last_played_at'] : null,
+                            ],
+                            'ipHistory' => $ipHistory,
+                            'ipBans' => $ipBans,
+                        ];
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'save_user_profile') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $data = json_decode((string) ($_POST['data'] ?? '{}'), true);
+
+                if ($userId < 1 || !is_array($data)) {
+                    $response['message'] = 'Недостаточно данных для сохранения пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userExistsStmt = $conn->prepare('SELECT `id`, `login` FROM `users` WHERE `id` = ? LIMIT 1');
+                    if (!$userExistsStmt) {
+                        throw new RuntimeException('Не удалось проверить пользователя.');
+                    }
+
+                    $userExistsStmt->bind_param('i', $userId);
+                    if (!$userExistsStmt->execute()) {
+                        $userExistsStmt->close();
+                        throw new RuntimeException('Не удалось проверить пользователя.');
+                    }
+
+                    $userExistsResult = $userExistsStmt->get_result();
+                    $existingUser = $userExistsResult ? $userExistsResult->fetch_assoc() : null;
+                    if ($userExistsResult instanceof mysqli_result) {
+                        $userExistsResult->free();
+                    }
+                    $userExistsStmt->close();
+
+                    if (!$existingUser) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $login = bober_require_game_login($data['login'] ?? '');
+                        $plus = max(1, (int) ($data['plus'] ?? 1));
+                        $energyMax = max(1, (int) ($data['ENERGY_MAX'] ?? 5000));
+                        $energy = max(0, min($energyMax, (int) ($data['energy'] ?? 0)));
+                        $score = max(0, (int) ($data['score'] ?? 0));
+                        $lastEnergyUpdate = max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
+                        $skin = bober_normalize_skin_json($data['skin'] ?? bober_default_skin_json());
+                        $fly = is_array($data['flyBeaver'] ?? null) ? $data['flyBeaver'] : [];
+                        $flyBestScore = max(0, (int) ($fly['bestScore'] ?? 0));
+                        $flyLastScore = max(0, (int) ($fly['lastScore'] ?? 0));
+                        $flyLastLevel = max(1, (int) ($fly['lastLevel'] ?? 1));
+                        $flyGamesPlayed = max(0, (int) ($fly['gamesPlayed'] ?? 0));
+                        $flyTotalScore = max(0, (int) ($fly['totalScore'] ?? 0));
+                        $flyPendingTransferScore = max(0, (int) ($fly['pendingTransferScore'] ?? 0));
+                        $flyTransferredTotalScore = max(0, (int) ($fly['transferredTotalScore'] ?? 0));
+
+                        $duplicateStmt = $conn->prepare('SELECT `id` FROM `users` WHERE `login` = ? AND `id` <> ? LIMIT 1');
+                        if (!$duplicateStmt) {
+                            throw new RuntimeException('Не удалось проверить уникальность логина.');
+                        }
+
+                        $duplicateStmt->bind_param('si', $login, $userId);
+                        if (!$duplicateStmt->execute()) {
+                            $duplicateStmt->close();
+                            throw new RuntimeException('Не удалось проверить уникальность логина.');
+                        }
+
+                        $duplicateResult = $duplicateStmt->get_result();
+                        $duplicateUser = $duplicateResult ? $duplicateResult->fetch_assoc() : null;
+                        if ($duplicateResult instanceof mysqli_result) {
+                            $duplicateResult->free();
+                        }
+                        $duplicateStmt->close();
+
+                        if ($duplicateUser) {
+                            $response['message'] = 'Этот логин уже занят другим пользователем';
+                        } else {
+                            $userUpdateSql = "UPDATE `users` SET "
+                                . "`login` = " . sqlValueForQuery($conn, $login) . ", "
+                                . "`plus` = " . sqlValueForQuery($conn, $plus) . ", "
+                                . "`skin` = " . sqlValueForQuery($conn, $skin) . ", "
+                                . "`energy` = " . sqlValueForQuery($conn, $energy) . ", "
+                                . "`last_energy_update` = " . sqlValueForQuery($conn, $lastEnergyUpdate) . ", "
+                                . "`ENERGY_MAX` = " . sqlValueForQuery($conn, $energyMax) . ", "
+                                . "`score` = " . sqlValueForQuery($conn, $score)
+                                . " WHERE `id` = " . sqlValueForQuery($conn, $userId)
+                                . " LIMIT 1";
+
+                            if (!$conn->query($userUpdateSql)) {
+                                throw new RuntimeException('Не удалось сохранить изменения пользователя.');
+                            }
+
+                            bober_ensure_fly_progress_row($conn, $userId);
+
+                            $flyUpdateSql = "UPDATE `fly_beaver_progress` SET "
+                                . "`best_score` = " . sqlValueForQuery($conn, $flyBestScore) . ", "
+                                . "`last_score` = " . sqlValueForQuery($conn, $flyLastScore) . ", "
+                                . "`last_level` = " . sqlValueForQuery($conn, $flyLastLevel) . ", "
+                                . "`games_played` = " . sqlValueForQuery($conn, $flyGamesPlayed) . ", "
+                                . "`total_score` = " . sqlValueForQuery($conn, $flyTotalScore) . ", "
+                                . "`pending_transfer_score` = " . sqlValueForQuery($conn, $flyPendingTransferScore) . ", "
+                                . "`transferred_total_score` = " . sqlValueForQuery($conn, $flyTransferredTotalScore)
+                                . " WHERE `user_id` = " . sqlValueForQuery($conn, $userId)
+                                . " LIMIT 1";
+
+                            if (!$conn->query($flyUpdateSql)) {
+                                throw new RuntimeException('Не удалось сохранить прогресс fly-beaver.');
+                            }
+
+                            bober_admin_log_action($conn, 'save_user_profile', [
+                                'target_table' => 'users',
+                                'query_text' => 'SAVE USER PROFILE #' . $userId,
+                                'affected_rows' => 2,
+                                'meta' => [
+                                    'user_id' => $userId,
+                                    'previous_login' => (string) ($existingUser['login'] ?? ''),
+                                    'login' => $login,
+                                ],
+                            ]);
+
+                            $response['success'] = true;
+                            $response['message'] = 'Карточка пользователя сохранена';
+                        }
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'get_table_data') {
             if (requireAdminAuth($response)) {
                 $table = normalizeTableName($_POST['table'] ?? '');
@@ -653,58 +1066,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 $authenticated = adminIsAuthenticated() && $bootstrapError === null;
 $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['password_changed'] : true;
+$adminConfig = bober_load_config();
+$adminDbHost = trim((string) ($adminConfig['db_host'] ?? ''));
+$adminDbUser = trim((string) ($adminConfig['db_user'] ?? ''));
+$adminDbName = trim((string) ($adminConfig['db_name'] ?? ''));
+$darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] === 'true';
 ?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL - Панель управления базой данных</title>
+    <title>Bober Admin</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1d4ed8;
-            --primary-light: #60a5fa;
-            --secondary-color: #0ea5e9;
-            --secondary-dark: #0284c7;
-            --background: #f8fafc;
-            --surface: #ffffff;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-            --on-primary: #ffffff;
+            --primary-color: #7be3ff;
+            --primary-dark: #4fc3ef;
+            --primary-light: #b2f1ff;
+            --secondary-color: #8b5cf6;
+            --secondary-dark: #6d28d9;
+            --background: #060d17;
+            --surface: rgba(13, 24, 41, 0.92);
+            --surface-strong: rgba(18, 31, 51, 0.98);
+            --error: #ff6b8a;
+            --warning: #f7c969;
+            --success: #43d7a3;
+            --on-primary: #04111c;
             --on-secondary: #ffffff;
-            --on-background: #1e293b;
-            --on-surface: #1e293b;
-            --border: #e2e8f0;
-            --hover: #f1f5f9;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1);
-            --shadow-heavy: 0 4px 6px -1px rgba(0,0,0,0.1);
-            --radius: 8px;
+            --on-background: #edf7ff;
+            --on-surface: #edf7ff;
+            --muted-text: rgba(237, 247, 255, 0.68);
+            --border: rgba(123, 227, 255, 0.18);
+            --border-strong: rgba(123, 227, 255, 0.28);
+            --hover: rgba(123, 227, 255, 0.08);
+            --shadow: 0 12px 30px rgba(0, 0, 0, 0.26);
+            --shadow-heavy: 0 22px 60px rgba(0, 0, 0, 0.42);
+            --radius: 18px;
             --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .dark-theme {
-            --primary-color: #3b82f6;
-            --primary-dark: #2563eb;
-            --primary-light: #60a5fa;
-            --secondary-color: #0ea5e9;
-            --secondary-dark: #0284c7;
-            --background: #0f172a;
-            --surface: #1e293b;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --success: #10b981;
-            --on-primary: #ffffff;
-            --on-secondary: #ffffff;
-            --on-background: #f1f5f9;
-            --on-surface: #f1f5f9;
-            --border: #334155;
-            --hover: #2d3748;
-            --shadow: 0 1px 3px rgba(0,0,0,0.3);
-            --shadow-heavy: 0 4px 6px -1px rgba(0,0,0,0.5);
+            --background: #040913;
+            --surface: rgba(10, 19, 34, 0.96);
+            --surface-strong: rgba(14, 25, 43, 0.99);
+            --border: rgba(123, 227, 255, 0.16);
+            --border-strong: rgba(123, 227, 255, 0.3);
+            --hover: rgba(123, 227, 255, 0.1);
+            --shadow: 0 18px 34px rgba(0,0,0,0.34);
+            --shadow-heavy: 0 28px 72px rgba(0,0,0,0.52);
         }
         
         * {
@@ -715,8 +1126,11 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         }
         
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--background);
+            font-family: 'Rubik', sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(139, 92, 246, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(123, 227, 255, 0.16), transparent 26%),
+                linear-gradient(180deg, rgba(7, 14, 26, 0.98), rgba(4, 9, 19, 1));
             color: var(--on-background);
             line-height: 1.6;
             overflow-x: hidden;
@@ -750,7 +1164,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         
         /* Заголовок */
         .app-header {
-            background-color: var(--surface);
+            background: linear-gradient(180deg, rgba(18, 31, 51, 0.98), rgba(11, 20, 35, 0.96));
             border-bottom: 1px solid var(--border);
             padding: 0 24px;
             box-shadow: var(--shadow);
@@ -899,7 +1313,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         /* Боковая панель */
         .sidebar {
             width: 280px;
-            background-color: var(--surface);
+            background: linear-gradient(180deg, rgba(13, 24, 41, 0.98), rgba(8, 15, 27, 0.98));
             height: calc(100vh - 64px);
             position: fixed;
             left: 0;
@@ -1022,6 +1436,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             padding: 24px;
             margin-bottom: 24px;
             border: 1px solid var(--border);
+            backdrop-filter: blur(16px);
         }
         
         .card-header {
@@ -1059,9 +1474,9 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             width: 100%;
             padding: 10px 14px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 12px;
             font-size: 14px;
-            background-color: var(--surface);
+            background-color: rgba(6, 12, 22, 0.62);
             color: var(--on-surface);
             transition: border-color 0.2s;
         }
@@ -1089,10 +1504,10 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         }
         
         .quick-sql-btn {
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: rgba(123, 227, 255, 0.08);
             color: var(--primary-color);
             border: 1px solid var(--primary-color);
-            border-radius: 6px;
+            border-radius: 999px;
             padding: 8px 16px;
             font-size: 14px;
             cursor: pointer;
@@ -1200,7 +1615,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         }
         
         .btn-outline {
-            background-color: transparent;
+            background-color: rgba(123, 227, 255, 0.06);
             border: 1px solid var(--border);
             color: var(--on-surface);
         }
@@ -1248,7 +1663,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         }
         
         .stat-card {
-            background-color: var(--surface);
+            background: linear-gradient(180deg, rgba(19, 31, 50, 0.92), rgba(10, 18, 31, 0.94));
             border-radius: var(--radius);
             padding: 24px;
             border: 1px solid var(--border);
@@ -1429,17 +1844,22 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            background:
+                radial-gradient(circle at top left, rgba(139, 92, 246, 0.22), transparent 25%),
+                radial-gradient(circle at top right, rgba(123, 227, 255, 0.2), transparent 24%),
+                linear-gradient(180deg, #07111d, #040913);
             padding: 20px;
         }
         
         .auth-card {
-            background-color: var(--surface);
+            background-color: rgba(13, 24, 41, 0.94);
             border-radius: var(--radius);
             padding: 40px;
             width: 100%;
             max-width: 400px;
             box-shadow: var(--shadow-heavy);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(16px);
             animation: fadeIn 0.5s;
         }
         
@@ -1640,9 +2060,351 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             align-items: center;
             gap: 8px;
         }
+
+        .card-subtitle {
+            font-size: 14px;
+            color: var(--muted-text);
+            margin-top: 4px;
+        }
+
+        .accounts-view {
+            display: block;
+        }
+
+        .accounts-shell {
+            display: grid;
+            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .accounts-summary {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            color: var(--muted-text);
+            font-size: 13px;
+        }
+
+        .summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(123, 227, 255, 0.08);
+            border: 1px solid var(--border);
+        }
+
+        .account-list-panel,
+        .account-detail-panel {
+            background: linear-gradient(180deg, rgba(19, 31, 50, 0.92), rgba(10, 18, 31, 0.94));
+        }
+
+        .account-list-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .account-list-meta {
+            color: var(--muted-text);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .account-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 72vh;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .account-list-item {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(7, 14, 26, 0.76);
+            color: var(--on-surface);
+            padding: 16px;
+            cursor: pointer;
+            text-align: left;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+
+        .account-list-item:hover {
+            transform: translateY(-1px);
+            border-color: var(--border-strong);
+            background: rgba(10, 20, 34, 0.92);
+        }
+
+        .account-list-item.active {
+            border-color: rgba(123, 227, 255, 0.5);
+            box-shadow: 0 0 0 1px rgba(123, 227, 255, 0.18), 0 18px 42px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(180deg, rgba(24, 41, 67, 0.98), rgba(13, 24, 41, 0.98));
+        }
+
+        .account-list-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .account-name {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .account-id {
+            color: var(--muted-text);
+            font-size: 13px;
+        }
+
+        .account-list-stats {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .mini-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: rgba(123, 227, 255, 0.08);
+            border: 1px solid rgba(123, 227, 255, 0.12);
+            color: var(--on-surface);
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            border: 1px solid transparent;
+        }
+
+        .status-pill.active {
+            background: rgba(67, 215, 163, 0.12);
+            color: #a6ffd9;
+            border-color: rgba(67, 215, 163, 0.2);
+        }
+
+        .status-pill.banned {
+            background: rgba(255, 107, 138, 0.12);
+            color: #ffc0ce;
+            border-color: rgba(255, 107, 138, 0.22);
+        }
+
+        .account-empty {
+            min-height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: var(--muted-text);
+            border: 1px dashed var(--border);
+            border-radius: 20px;
+            background: rgba(7, 14, 26, 0.5);
+            padding: 30px;
+        }
+
+        .account-detail-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .account-hero {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .account-avatar {
+            width: 58px;
+            height: 58px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(123, 227, 255, 0.24), rgba(139, 92, 246, 0.26));
+            color: var(--primary-light);
+            border: 1px solid var(--border-strong);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .account-title {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .account-subline {
+            color: var(--muted-text);
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        .account-head-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .detail-section {
+            padding: 18px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: rgba(7, 14, 26, 0.58);
+        }
+
+        .detail-section.wide {
+            grid-column: 1 / -1;
+        }
+
+        .detail-section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+
+        .detail-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .detail-form-grid .form-group {
+            margin-bottom: 0;
+        }
+
+        .detail-form-grid .form-group.wide {
+            grid-column: 1 / -1;
+        }
+
+        .readonly-value {
+            display: block;
+            min-height: 44px;
+            padding: 11px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--on-surface);
+            font-size: 14px;
+        }
+
+        .code-block {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .stack-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .stack-item {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stack-item-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .stack-item-meta {
+            color: var(--muted-text);
+            font-size: 13px;
+        }
+
+        .inline-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .empty-list {
+            color: var(--muted-text);
+            font-size: 14px;
+            padding: 12px 0;
+        }
+
+        @media (max-width: 1100px) {
+            .accounts-shell,
+            .detail-grid,
+            .detail-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .account-list {
+                max-height: 40vh;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .account-list-toolbar,
+            .account-detail-head,
+            .account-head-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .account-title {
+                font-size: 22px;
+            }
+
+            .account-hero {
+                align-items: flex-start;
+            }
+
+            .account-avatar {
+                width: 50px;
+                height: 50px;
+                border-radius: 16px;
+            }
+        }
     </style>
 </head>
-<body class="<?php echo isset($_COOKIE['dark_theme']) && $_COOKIE['dark_theme'] === 'true' ? 'dark-theme' : ''; ?>">
+<body class="<?php echo $darkThemeEnabled ? 'dark-theme' : ''; ?>">
     <?php if (!$authenticated): ?>
     <!-- Экран авторизации -->
     <div class="auth-container">
@@ -1651,8 +2413,8 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 <div class="auth-logo">
                     <span class="material-icons" style="font-size: 48px;">database</span>
                 </div>
-                <h1 class="auth-title">SQL Панель управления</h1>
-                <p class="auth-subtitle">Войдите в систему для управления базой данных</p>
+                <h1 class="auth-title">Bober Admin</h1>
+                <p class="auth-subtitle">Темная панель управления аккаунтами, банами и базой</p>
             </div>
             <?php if ($bootstrapError): ?>
             <div class="notification error" style="margin-bottom: 20px; position: relative; top: 0; right: 0; transform: none;">
@@ -1686,7 +2448,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 <div class="logo">
                     <span class="material-icons logo-icon">data_array</span>
                     <div class="logo-text">
-                        <h1>SQL</h1>
+                        <h1>Bober Admin</h1>
                     </div>
                 </div>
             </div>
@@ -1695,7 +2457,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 <div class="theme-toggle">
                     <span class="material-icons">light_mode</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="themeToggle" <?php echo isset($_COOKIE['dark_theme']) && $_COOKIE['dark_theme'] === 'true' ? 'checked' : ''; ?>>
+                        <input type="checkbox" id="themeToggle" <?php echo $darkThemeEnabled ? 'checked' : ''; ?>>
                     </label>
                     <span class="material-icons">dark_mode</span>
                 </div>
@@ -1735,6 +2497,11 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 <!-- Список таблиц будет загружен через AJAX -->
             </ul>
         </div>
+
+        <div class="sidebar-item active" id="accountsBtn">
+            <span class="material-icons">groups</span>
+            <span>Аккаунты</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -1754,39 +2521,91 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon primary">
-                        <span class="material-icons">table_chart</span>
+                        <span class="material-icons">groups</span>
                     </div>
                     <div class="stat-value" id="tableCount">0</div>
-                    <div class="stat-label">Таблиц в базе</div>
+                    <div class="stat-label">Пользователей</div>
                 </div>
                 
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon secondary">
-                        <span class="material-icons">storage</span>
+                        <span class="material-icons">gpp_bad</span>
                     </div>
                     <div class="stat-value" id="totalRows">0</div>
-                    <div class="stat-label">Всего строк</div>
+                    <div class="stat-label">Активных банов</div>
                 </div>
                 
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon primary">
-                        <span class="material-icons">data_usage</span>
+                        <span class="material-icons">terminal</span>
                     </div>
                     <div class="stat-value" id="queryCount">0</div>
-                    <div class="stat-label">Выполнено запросов</div>
+                    <div class="stat-label">SQL запросов</div>
                 </div>
                 
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon secondary">
-                        <span class="material-icons">schedule</span>
+                        <span class="material-icons">pace</span>
                     </div>
                     <div class="stat-value" id="activeTime">0:00</div>
-                    <div class="stat-label">Активное время</div>
+                    <div class="stat-label">В панели</div>
+                </div>
+            </div>
+
+            <div class="accounts-view animated fadeIn" id="accountsView">
+                <div class="card account-list-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">groups</span>
+                                Аккаунты
+                            </h2>
+                            <div class="card-subtitle">Поиск по логину или ID, быстрый бан/разбан и редактирование прогресса без SQL.</div>
+                            <div class="accounts-summary">
+                                <div class="summary-chip">
+                                    <span class="material-icons" style="font-size: 16px;">shield</span>
+                                    <span>Бан пользователя тянет связанные IP-адреса</span>
+                                </div>
+                                <div class="summary-chip">
+                                    <span class="material-icons" style="font-size: 16px;">phone_iphone</span>
+                                    <span>Панель адаптирована для телефона</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accounts-shell">
+                        <section class="card account-list-panel" style="margin-bottom: 0;">
+                            <div class="account-list-toolbar">
+                                <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                                    <span class="material-icons search-icon">search</span>
+                                    <input type="text" id="accountSearchInput" class="search-input" placeholder="Найти аккаунт по логину или ID">
+                                </div>
+                                <button class="btn btn-outline" id="refreshAccountsBtn">
+                                    <span class="material-icons">refresh</span>
+                                    Обновить
+                                </button>
+                            </div>
+
+                            <div class="account-list-meta" id="accountListMeta">Загрузка аккаунтов...</div>
+                            <div class="account-list" id="accountList"></div>
+                        </section>
+
+                        <section class="card account-detail-panel" style="margin-bottom: 0;">
+                            <div id="accountDetailEmpty" class="account-empty">
+                                <div>
+                                    <span class="material-icons" style="font-size: 52px; color: var(--primary-color); opacity: 0.8;">manage_accounts</span>
+                                    <p style="margin-top: 14px;">Выберите аккаунт слева, и здесь появятся бан, прогресс, история IP и редактор данных.</p>
+                                </div>
+                            </div>
+                            <div id="accountDetailContainer" style="display: none;"></div>
+                        </section>
+                    </div>
                 </div>
             </div>
             
             <!-- Карточка SQL редактора -->
-            <div class="card animated fadeIn" id="sqlEditorCard">
+            <div class="card animated fadeIn" id="sqlEditorCard" style="display: none;">
                 <div class="card-header">
                     <div>
                         <h2 class="card-title">
@@ -1947,15 +2766,15 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 <div class="profile-info">
                     <div class="profile-item">
                         <span class="profile-label">Хост базы данных:</span>
-                        <span class="profile-value"><?php echo DB_HOST; ?></span>
+                        <span class="profile-value"><?php echo htmlspecialchars($adminDbHost !== '' ? $adminDbHost : 'не настроен', ENT_QUOTES, 'UTF-8'); ?></span>
                     </div>
                     <div class="profile-item">
                         <span class="profile-label">Пользователь БД:</span>
-                        <span class="profile-value"><?php echo DB_USER; ?></span>
+                        <span class="profile-value"><?php echo htmlspecialchars($adminDbUser !== '' ? $adminDbUser : 'не настроен', ENT_QUOTES, 'UTF-8'); ?></span>
                     </div>
                     <div class="profile-item">
                         <span class="profile-label">Имя базы данных:</span>
-                        <span class="profile-value"><?php echo DB_NAME; ?></span>
+                        <span class="profile-value"><?php echo htmlspecialchars($adminDbName !== '' ? $adminDbName : 'не настроено', ENT_QUOTES, 'UTF-8'); ?></span>
                     </div>
                     <div class="profile-item">
                         <span class="profile-label">Кодировка:</span>
@@ -2025,6 +2844,10 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         let activeTimeInterval;
         let editingRowId = null;
         let tableColumns = [];
+        let selectedAccountId = null;
+        let currentAdminView = 'accounts';
+        let accountSearchDebounce = null;
+        let lastAccountSearch = '';
         
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
@@ -2109,6 +2932,16 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 });
             });
         }
+
+        function postAction(params) {
+            return fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(params)
+            }).then(response => response.json());
+        }
         
         // Функция инициализации основной панели
         function initMainPanel() {
@@ -2118,13 +2951,13 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             
             // Обновляем статистику
             updateStats();
-            loadDashboardStats();
             
             // Загружаем список таблиц
             loadTables();
             
             // Инициализация элементов интерфейса
             initUIElements();
+            showAccountsView();
             
             // Если пароль не менялся, показываем уведомление
             <?php if (!$password_changed): ?>
@@ -2155,25 +2988,18 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         }
 
         function loadDashboardStats() {
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    action: 'get_dashboard_stats'
-                })
+            postAction({
+                action: 'get_dashboard_stats'
             })
-            .then(response => response.json())
             .then(data => {
                 if (!data.success || !data.stats) {
                     return;
                 }
 
-                document.getElementById('tableCount').textContent = Number(data.stats.table_count || 0).toLocaleString('ru-RU');
-                document.getElementById('totalRows').textContent = Number(data.stats.total_rows || 0).toLocaleString('ru-RU');
-                document.getElementById('tableCount').title = `Пользователей: ${Number(data.stats.users_count || 0).toLocaleString('ru-RU')}`;
-                document.getElementById('totalRows').title = `Активных банов: ${Number(data.stats.active_bans || 0).toLocaleString('ru-RU')}, очков в очереди из fly-beaver: ${Number(data.stats.fly_pending_score || 0).toLocaleString('ru-RU')}`;
+                document.getElementById('tableCount').textContent = Number(data.stats.users_count || 0).toLocaleString('ru-RU');
+                document.getElementById('totalRows').textContent = Number(data.stats.active_bans || 0).toLocaleString('ru-RU');
+                document.getElementById('tableCount').title = `Таблиц в базе: ${Number(data.stats.table_count || 0).toLocaleString('ru-RU')}`;
+                document.getElementById('totalRows').title = `Очков в очереди из fly-beaver: ${Number(data.stats.fly_pending_score || 0).toLocaleString('ru-RU')}`;
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -2361,6 +3187,10 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 tableList.classList.toggle('expanded');
                 toggleIcon.classList.toggle('expanded');
             });
+
+            document.getElementById('accountsBtn').addEventListener('click', function() {
+                showAccountsView();
+            });
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
                 showStatistics();
@@ -2386,6 +3216,24 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                     document.getElementById('executeSqlBtn').click();
                 }
             });
+
+            const accountSearchInput = document.getElementById('accountSearchInput');
+            if (accountSearchInput) {
+                accountSearchInput.addEventListener('input', function() {
+                    const value = this.value.trim();
+                    clearTimeout(accountSearchDebounce);
+                    accountSearchDebounce = setTimeout(() => {
+                        loadAccounts(value);
+                    }, 220);
+                });
+            }
+
+            const refreshAccountsBtn = document.getElementById('refreshAccountsBtn');
+            if (refreshAccountsBtn) {
+                refreshAccountsBtn.addEventListener('click', function() {
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim());
+                });
+            }
         }
         
         // Функция показа модального окна смены пароля
@@ -2417,12 +3265,30 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         function hideAddRowModal() {
             document.getElementById('addRowModal').classList.remove('active');
         }
+
+        function showAccountsView() {
+            currentAdminView = 'accounts';
+            document.getElementById('accountsView').style.display = 'block';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('accountsBtn');
+            loadDashboardStats();
+            loadAccounts(document.getElementById('accountSearchInput').value.trim());
+
+            if (window.innerWidth <= 1200) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
         
         // Функция показа статистики
         function showStatistics() {
+            currentAdminView = 'statistics';
+            document.getElementById('accountsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
-            document.getElementById('sqlEditorCard').style.display = 'block';
+            document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'grid';
+            loadDashboardStats();
             
             // Обновляем активный элемент меню
             updateActiveMenuItem('statisticsBtn');
@@ -2435,6 +3301,8 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         
         // Функция показа SQL редактора
         function showSqlEditor() {
+            currentAdminView = 'sql';
+            document.getElementById('accountsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
             document.getElementById('statsGrid').style.display = 'none';
@@ -2451,14 +3319,516 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         // Функция обновления активного элемента меню
         function updateActiveMenuItem(activeId) {
             // Убираем активный класс у всех элементов
-            document.querySelectorAll('.sidebar-item').forEach(item => {
+            document.querySelectorAll('.sidebar-item, .table-item').forEach(item => {
                 item.classList.remove('active');
             });
             
             // Добавляем активный класс к выбранному элементу
             if (activeId) {
-                document.getElementById(activeId).classList.add('active');
+                const activeElement = document.getElementById(activeId);
+                if (activeElement) {
+                    activeElement.classList.add('active');
+                }
             }
+        }
+
+        function formatAdminDateTime(value) {
+            if (!value) {
+                return '—';
+            }
+
+            const date = new Date(String(value).replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) {
+                return String(value);
+            }
+
+            return date.toLocaleString('ru-RU');
+        }
+
+        function formatAdminNumber(value) {
+            return Number(value || 0).toLocaleString('ru-RU');
+        }
+
+        function markActiveAccountInList() {
+            document.querySelectorAll('.account-list-item').forEach(item => {
+                item.classList.toggle('active', Number(item.dataset.userId) === Number(selectedAccountId));
+            });
+        }
+
+        function loadAccounts(search = '') {
+            lastAccountSearch = search;
+
+            const meta = document.getElementById('accountListMeta');
+            const list = document.getElementById('accountList');
+
+            if (meta) {
+                meta.textContent = 'Загрузка аккаунтов...';
+            }
+            if (list) {
+                list.innerHTML = `
+                    <div class="empty-list">
+                        <div class="loader" style="margin-right: 10px;"></div>
+                        Загружаю список аккаунтов...
+                    </div>
+                `;
+            }
+
+            postAction({
+                action: 'get_users_overview',
+                search: search
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось загрузить список аккаунтов');
+                }
+
+                renderAccountsList(data.users || [], Number(data.total || 0), search);
+
+                if (Array.isArray(data.users) && data.users.length > 0) {
+                    const hasSelected = data.users.some(user => Number(user.id) === Number(selectedAccountId));
+                    const nextUserId = hasSelected ? selectedAccountId : Number(data.users[0].id);
+                    if (nextUserId > 0) {
+                        loadUserProfile(nextUserId);
+                    }
+                } else {
+                    selectedAccountId = null;
+                    document.getElementById('accountDetailContainer').style.display = 'none';
+                    document.getElementById('accountDetailEmpty').style.display = 'flex';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (meta) {
+                    meta.textContent = 'Не удалось загрузить аккаунты';
+                }
+                if (list) {
+                    list.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка сети при загрузке аккаунтов')}</div>`;
+                }
+                showNotification(error.message || 'Ошибка загрузки аккаунтов', 'error');
+            });
+        }
+
+        function renderAccountsList(users, total, search) {
+            const meta = document.getElementById('accountListMeta');
+            const list = document.getElementById('accountList');
+
+            if (!list) {
+                return;
+            }
+
+            if (!Array.isArray(users) || users.length === 0) {
+                list.innerHTML = `<div class="empty-list">По запросу ничего не найдено.</div>`;
+                if (meta) {
+                    meta.textContent = search
+                        ? `Поиск "${search}" ничего не нашел`
+                        : 'Аккаунты пока не найдены';
+                }
+                return;
+            }
+
+            if (meta) {
+                meta.textContent = search
+                    ? `Найдено ${formatAdminNumber(total)} аккаунтов по запросу "${search}", показаны первые ${formatAdminNumber(users.length)}`
+                    : `Всего аккаунтов: ${formatAdminNumber(total)}. Показаны первые ${formatAdminNumber(users.length)} по активности.`;
+            }
+
+            list.innerHTML = users.map(user => `
+                <button class="account-list-item" data-user-id="${Number(user.id)}" type="button">
+                    <div class="account-list-top">
+                        <div>
+                            <div class="account-name">${escapeHtml(user.login || 'Без логина')}</div>
+                            <div class="account-id">ID ${Number(user.id)}</div>
+                        </div>
+                        <div class="status-pill ${user.isBanned ? 'banned' : 'active'}">
+                            <span class="material-icons" style="font-size: 16px;">${user.isBanned ? 'gpp_bad' : 'verified_user'}</span>
+                            <span>${user.isBanned ? 'Забанен' : 'Активен'}</span>
+                        </div>
+                    </div>
+                    <div class="account-list-stats">
+                        <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">toll</span>${formatAdminNumber(user.score)}</span>
+                        <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">bolt</span>${formatAdminNumber(user.energy)}/${formatAdminNumber(user.energyMax)}</span>
+                        <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sports_esports</span>${formatAdminNumber(user.flyBestScore)}</span>
+                    </div>
+                    <div class="account-id" style="margin-top: 10px;">
+                        ${user.isBanned && user.banUntil ? `Бан до ${escapeHtml(formatAdminDateTime(user.banUntil))}` : `Обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}`}
+                    </div>
+                </button>
+            `).join('');
+
+            list.querySelectorAll('.account-list-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    loadUserProfile(Number(this.dataset.userId));
+                });
+            });
+
+            markActiveAccountInList();
+        }
+
+        function loadUserProfile(userId) {
+            selectedAccountId = Number(userId) || 0;
+            if (selectedAccountId < 1) {
+                return;
+            }
+
+            markActiveAccountInList();
+            document.getElementById('accountDetailEmpty').style.display = 'none';
+            document.getElementById('accountDetailContainer').style.display = 'block';
+            document.getElementById('accountDetailContainer').innerHTML = `
+                <div class="account-empty">
+                    <div>
+                        <div class="loader" style="width: 42px; height: 42px; margin: 0 auto;"></div>
+                        <p style="margin-top: 16px;">Загружаю карточку пользователя...</p>
+                    </div>
+                </div>
+            `;
+
+            postAction({
+                action: 'get_user_profile',
+                user_id: String(selectedAccountId)
+            })
+            .then(data => {
+                if (!data.success || !data.user) {
+                    throw new Error(data.message || 'Не удалось загрузить карточку пользователя');
+                }
+
+                renderUserProfile(data.user);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('accountDetailContainer').innerHTML = `
+                    <div class="account-empty">
+                        <div>
+                            <span class="material-icons" style="font-size: 52px; color: var(--error);">error</span>
+                            <p style="margin-top: 14px;">${escapeHtml(error.message || 'Ошибка загрузки карточки пользователя')}</p>
+                        </div>
+                    </div>
+                `;
+                showNotification(error.message || 'Ошибка загрузки пользователя', 'error');
+            });
+        }
+
+        function renderStackItems(items, emptyMessage, formatter) {
+            if (!Array.isArray(items) || items.length === 0) {
+                return `<div class="empty-list">${escapeHtml(emptyMessage)}</div>`;
+            }
+
+            return `<div class="stack-list">${items.map(item => formatter(item)).join('')}</div>`;
+        }
+
+        function renderUserProfile(user) {
+            const activeBan = user.activeBan || null;
+            const fly = user.flyBeaver || {};
+            const detailContainer = document.getElementById('accountDetailContainer');
+
+            detailContainer.innerHTML = `
+                <div class="account-detail-head">
+                    <div class="account-head-actions">
+                        <button class="btn ${activeBan ? 'btn-success' : 'btn-danger'}" id="toggleBanAccountBtn">
+                            <span class="material-icons">${activeBan ? 'verified_user' : 'gpp_bad'}</span>
+                            ${activeBan ? 'Разбанить' : 'Забанить'}
+                        </button>
+                        <button class="btn btn-primary" id="saveAccountBtn">
+                            <span class="material-icons">save</span>
+                            Сохранить
+                        </button>
+                    </div>
+                    <div class="account-hero">
+                        <div class="account-avatar">
+                            <span class="material-icons" style="font-size: 30px;">person</span>
+                        </div>
+                        <div>
+                            <div class="account-title">${escapeHtml(user.login || 'Без логина')}</div>
+                            <div class="account-subline">
+                                ID ${formatAdminNumber(user.id)} • создан ${escapeHtml(formatAdminDateTime(user.createdAt))} • обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inline-actions" style="margin-top: 0; margin-bottom: 16px;">
+                    <div class="status-pill ${activeBan ? 'banned' : 'active'}">
+                        <span class="material-icons" style="font-size: 16px;">${activeBan ? 'gpp_bad' : 'verified'}</span>
+                        <span>${activeBan ? `Бан до ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}` : 'Аккаунт активен'}</span>
+                    </div>
+                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">devices</span>${formatAdminNumber(Array.isArray(user.ipHistory) ? user.ipHistory.length : 0)} IP в истории</div>
+                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">shield</span>${formatAdminNumber(Array.isArray(user.ipBans) ? user.ipBans.filter(item => !item.liftedAt).length : 0)} активных IP-банов</div>
+                </div>
+
+                <div class="detail-grid">
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">edit_note</span>
+                            Основная игра
+                        </div>
+                        <div class="detail-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserLogin">Логин</label>
+                                <input class="form-control" id="adminUserLogin" type="text" value="${escapeHtml(user.login || '')}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserScore">Счет</label>
+                                <input class="form-control" id="adminUserScore" type="number" min="0" value="${Number(user.score || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserPlus">Плюс за клик</label>
+                                <input class="form-control" id="adminUserPlus" type="number" min="1" value="${Number(user.plus || 1)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserEnergy">Энергия</label>
+                                <input class="form-control" id="adminUserEnergy" type="number" min="0" value="${Number(user.energy || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserEnergyMax">Макс. энергия</label>
+                                <input class="form-control" id="adminUserEnergyMax" type="number" min="1" value="${Number(user.ENERGY_MAX || 1)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserEnergyTs">last_energy_update</label>
+                                <input class="form-control" id="adminUserEnergyTs" type="number" min="0" value="${Number(user.lastEnergyUpdate || 0)}">
+                            </div>
+                            <div class="form-group wide">
+                                <label class="form-label" for="adminUserSkin">Skin JSON</label>
+                                <textarea class="form-control code-block" id="adminUserSkin" rows="6">${escapeHtml(user.skin || '')}</textarea>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">sports_esports</span>
+                            Летающий бобер
+                        </div>
+                        <div class="detail-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="flyBestScore">Лучший счет</label>
+                                <input class="form-control" id="flyBestScore" type="number" min="0" value="${Number(fly.bestScore || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyLastScore">Последний счет</label>
+                                <input class="form-control" id="flyLastScore" type="number" min="0" value="${Number(fly.lastScore || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyLastLevel">Последний уровень</label>
+                                <input class="form-control" id="flyLastLevel" type="number" min="1" value="${Number(fly.lastLevel || 1)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyGamesPlayed">Забегов</label>
+                                <input class="form-control" id="flyGamesPlayed" type="number" min="0" value="${Number(fly.gamesPlayed || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyTotalScore">Всего счета</label>
+                                <input class="form-control" id="flyTotalScore" type="number" min="0" value="${Number(fly.totalScore || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyPendingTransferScore">В очереди на перевод</label>
+                                <input class="form-control" id="flyPendingTransferScore" type="number" min="0" value="${Number(fly.pendingTransferScore || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="flyTransferredTotalScore">Уже переведено</label>
+                                <input class="form-control" id="flyTransferredTotalScore" type="number" min="0" value="${Number(fly.transferredTotalScore || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Последняя игра</label>
+                                <span class="readonly-value">${escapeHtml(formatAdminDateTime(fly.lastPlayedAt))}</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">shield</span>
+                            Бан и ручные действия
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="banReasonInput">Причина ручного бана</label>
+                            <textarea class="form-control" id="banReasonInput" rows="4" placeholder="Например: ручная проверка, жалоба, обход античита">${escapeHtml(activeBan && activeBan.reason ? activeBan.reason : 'Ручной бан через админку')}</textarea>
+                        </div>
+                        <div class="stack-item">
+                            <div class="stack-item-title">
+                                <span>${activeBan ? 'Активный бан' : 'Бан отсутствует'}</span>
+                                <span class="status-pill ${activeBan ? 'banned' : 'active'}">${activeBan ? 'Бан активен' : 'Нет бана'}</span>
+                            </div>
+                            <div class="stack-item-meta">
+                                ${activeBan
+                                    ? `Причина: ${escapeHtml(activeBan.reason || 'не указана')}<br>До: ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}<br>Срок: ${formatAdminNumber(activeBan.durationDays || 0)} дн.${activeBan.isRepeat ? ' Повторный бан.' : ''}`
+                                    : 'Пользователь сейчас не забанен.'}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">lan</span>
+                            История IP
+                        </div>
+                        ${renderStackItems(user.ipHistory || [], 'Для этого пользователя еще не накопилась история IP.', item => `
+                            <div class="stack-item">
+                                <div class="stack-item-title">
+                                    <span>${escapeHtml(item.ipAddress || 'Неизвестный IP')}</span>
+                                    <span class="stack-item-meta">${escapeHtml(formatAdminDateTime(item.lastSeenAt))}</span>
+                                </div>
+                                <div class="stack-item-meta">
+                                    Входов: ${formatAdminNumber(item.loginCount || 0)}<br>
+                                    Первый вход: ${escapeHtml(formatAdminDateTime(item.firstSeenAt))}<br>
+                                    Последний user-agent: ${escapeHtml(item.userAgent || 'не сохранен')}
+                                </div>
+                            </div>
+                        `)}
+                    </section>
+
+                    <section class="detail-section wide">
+                        <div class="detail-section-title">
+                            <span class="material-icons">shield_moon</span>
+                            Связанные IP-баны
+                        </div>
+                        ${renderStackItems(user.ipBans || [], 'Связанных IP-банов пока нет.', item => `
+                            <div class="stack-item">
+                                <div class="stack-item-title">
+                                    <span>${escapeHtml(item.ipAddress || 'Неизвестный IP')}</span>
+                                    <span class="status-pill ${item.liftedAt ? 'active' : 'banned'}">${item.liftedAt ? 'снят' : 'активен'}</span>
+                                </div>
+                                <div class="stack-item-meta">
+                                    Создан: ${escapeHtml(formatAdminDateTime(item.createdAt))}<br>
+                                    До: ${escapeHtml(formatAdminDateTime(item.banUntil))}<br>
+                                    ${item.liftedAt ? `Снят: ${escapeHtml(formatAdminDateTime(item.liftedAt))}` : 'Сейчас ограничивает вход и регистрацию с этих IP'}
+                                </div>
+                            </div>
+                        `)}
+                    </section>
+                </div>
+            `;
+
+            document.getElementById('saveAccountBtn').addEventListener('click', saveSelectedAccountProfile);
+            document.getElementById('toggleBanAccountBtn').addEventListener('click', function() {
+                if (activeBan) {
+                    unbanSelectedAccount();
+                } else {
+                    banSelectedAccount();
+                }
+            });
+        }
+
+        function collectSelectedAccountPayload() {
+            return {
+                login: document.getElementById('adminUserLogin').value.trim(),
+                score: Number(document.getElementById('adminUserScore').value || 0),
+                plus: Number(document.getElementById('adminUserPlus').value || 1),
+                energy: Number(document.getElementById('adminUserEnergy').value || 0),
+                ENERGY_MAX: Number(document.getElementById('adminUserEnergyMax').value || 1),
+                lastEnergyUpdate: Number(document.getElementById('adminUserEnergyTs').value || 0),
+                skin: document.getElementById('adminUserSkin').value,
+                flyBeaver: {
+                    bestScore: Number(document.getElementById('flyBestScore').value || 0),
+                    lastScore: Number(document.getElementById('flyLastScore').value || 0),
+                    lastLevel: Number(document.getElementById('flyLastLevel').value || 1),
+                    gamesPlayed: Number(document.getElementById('flyGamesPlayed').value || 0),
+                    totalScore: Number(document.getElementById('flyTotalScore').value || 0),
+                    pendingTransferScore: Number(document.getElementById('flyPendingTransferScore').value || 0),
+                    transferredTotalScore: Number(document.getElementById('flyTransferredTotalScore').value || 0)
+                }
+            };
+        }
+
+        function saveSelectedAccountProfile() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveAccountBtn');
+            const originalContent = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+
+            postAction({
+                action: 'save_user_profile',
+                user_id: String(selectedAccountId),
+                data: JSON.stringify(collectSelectedAccountPayload())
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось сохранить пользователя');
+                }
+
+                showNotification(data.message || 'Пользователь сохранен', 'success');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка сохранения пользователя', 'error');
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalContent;
+            });
+        }
+
+        function banSelectedAccount() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const reasonInput = document.getElementById('banReasonInput');
+            const reason = reasonInput ? reasonInput.value.trim() : '';
+            const actionButton = document.getElementById('toggleBanAccountBtn');
+            const originalContent = actionButton.innerHTML;
+            actionButton.disabled = true;
+            actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+
+            postAction({
+                action: 'ban_user_account',
+                user_id: String(selectedAccountId),
+                reason: reason || 'Ручной бан через админку'
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось забанить пользователя');
+                }
+
+                showNotification(data.message || 'Пользователь забанен', 'warning');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка бана пользователя', 'error');
+            })
+            .finally(() => {
+                actionButton.disabled = false;
+                actionButton.innerHTML = originalContent;
+            });
+        }
+
+        function unbanSelectedAccount() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const actionButton = document.getElementById('toggleBanAccountBtn');
+            const originalContent = actionButton.innerHTML;
+            actionButton.disabled = true;
+            actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+
+            postAction({
+                action: 'unban_user_account',
+                user_id: String(selectedAccountId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось разбанить пользователя');
+                }
+
+                showNotification(data.message || 'Бан снят', 'success');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка разбана пользователя', 'error');
+            })
+            .finally(() => {
+                actionButton.disabled = false;
+                actionButton.innerHTML = originalContent;
+            });
         }
         
         // Функция загрузки списка таблиц
@@ -2476,7 +3846,6 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             .then(data => {
                 if (data.success) {
                     renderTableList(data.tables);
-                    document.getElementById('tableCount').textContent = data.tables.length;
                     loadDashboardStats();
                 } else {
                     showNotification(data.message, 'error');
@@ -2520,11 +3889,19 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
         // Функция загрузки данных таблицы
         function loadTableData(table) {
             currentTable = table;
+            currentAdminView = 'table';
             
             // Показываем карточку с данными таблицы
+            document.getElementById('accountsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'none';
+            document.querySelectorAll('.table-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.table === table);
+            });
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active');
+            });
             
             // Обновляем заголовок
             document.getElementById('tableTitle').textContent = table;

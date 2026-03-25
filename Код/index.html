@@ -2764,7 +2764,11 @@ class AutoClickerDetector {
         });
         
         banScreen.addEventListener('click', (e) => {
-            if (e.target.id !== 'reloadAfterBanBtn') {
+            const allowedTarget = e.target instanceof Element
+                ? e.target.closest('#reloadAfterBanBtn, a[href]')
+                : null;
+
+            if (!allowedTarget) {
                 e.preventDefault();
                 e.stopPropagation();
             }
