@@ -1036,13 +1036,39 @@ function showNotification(message, type = 'success', duration = 3000) {
 <div id="shop">
 <h1 id="shopTitle">Магазин улучшений и скинов</h1>
 <div id="upgradeSection">
-<button class="shop-action-btn" id="upgradeTap1Button" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
-<br>
-<br>
-<button class="shop-action-btn" id="upgradeTap5Button" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
-<br>
-<br>
-<button class="shop-action-btn" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+<button class="upgrade-card tap-small" id="upgradeTap1Button" onclick="buyUpgrade1()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">+1</span>
+        <span class="upgrade-card-title">Усилить тап</span>
+        <span class="upgrade-card-meta">Каждое нажатие приносит на 1 коин больше.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
+<button class="upgrade-card tap-big" id="upgradeTap5Button" onclick="buyUpgrade2()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">+5</span>
+        <span class="upgrade-card-title">Сильный тап</span>
+        <span class="upgrade-card-meta">Мощное усиление для быстрого роста счета.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
+<button class="upgrade-card energy" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">⚡</span>
+        <span class="upgrade-card-title">Запас энергии</span>
+        <span class="upgrade-card-meta">Увеличивает максимум энергии на 1000.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
 </div>
 <br>
 <div id="skins"></div>
@@ -1773,18 +1799,61 @@ function updateUpgradeShopUI() {
     const upgradeTap1Button = document.getElementById('upgradeTap1Button');
     const upgradeTap5Button = document.getElementById('upgradeTap5Button');
     const upgradeEnergyButton = document.getElementById('upgradeEnergyButton');
+    const cards = [
+        {
+            button: upgradeTap1Button,
+            baseCost: UPGRADE_BASE_COSTS.tapSmall,
+            purchaseCount: upgradePurchaseCounts.tapSmall,
+            affordableText: 'Можно купить прямо сейчас',
+            lockedText: 'Не хватает коинов для покупки'
+        },
+        {
+            button: upgradeTap5Button,
+            baseCost: UPGRADE_BASE_COSTS.tapBig,
+            purchaseCount: upgradePurchaseCounts.tapBig,
+            affordableText: 'Мощный апгрейд уже доступен',
+            lockedText: 'Пока не хватает на сильный тап'
+        },
+        {
+            button: upgradeEnergyButton,
+            baseCost: UPGRADE_BASE_COSTS.energy,
+            purchaseCount: upgradePurchaseCounts.energy,
+            affordableText: 'Можно расширить запас энергии',
+            lockedText: 'Нужно больше коинов для энергии'
+        }
+    ];
 
-    if (upgradeTap1Button) {
-        upgradeTap1Button.textContent = `Улучшение (+1 за один тап) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.tapSmall)}`;
-    }
+    cards.forEach((cardConfig) => {
+        const button = cardConfig.button;
+        if (!button) {
+            return;
+        }
 
-    if (upgradeTap5Button) {
-        upgradeTap5Button.textContent = `Улучшение (+5 за один тап) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.tapBig)}`;
-    }
+        const currentCost = calculateUpgradeCost(cardConfig.baseCost, cardConfig.purchaseCount);
+        const priceNode = button.querySelector('.upgrade-card-price');
+        const statusNode = button.querySelector('.upgrade-card-status');
+        const isAffordable = Boolean(userId) && score >= currentCost;
 
-    if (upgradeEnergyButton) {
-        upgradeEnergyButton.textContent = `Улучшение (+1000 к максимальной энергии) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.energy)}`;
-    }
+        button.classList.toggle('affordable', isAffordable);
+        button.classList.toggle('locked', !isAffordable);
+        button.title = userId
+            ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`
+            : 'Войдите в аккаунт, чтобы покупать улучшения.';
+
+        if (priceNode) {
+            priceNode.textContent = `Цена: ${formatCompactNumber(currentCost)} коинов`;
+        }
+
+        if (statusNode) {
+            if (!userId) {
+                statusNode.textContent = 'Сначала войдите в аккаунт';
+            } else if (isAffordable) {
+                statusNode.textContent = `${cardConfig.affordableText} • Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`;
+            } else {
+                statusNode.textContent = `${cardConfig.lockedText} • Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`;
+            }
+        }
+    });
 }
 
 function formatCompactNumber(value) {
