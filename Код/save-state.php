@@ -30,6 +30,17 @@ try {
     $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
 
     $conn = bober_db_connect();
+    $activeBan = bober_fetch_active_user_ban($conn, $userId);
+
+    if ($activeBan !== null) {
+        $conn->close();
+        bober_logout_user();
+        bober_json_response([
+            'success' => false,
+            'message' => $activeBan['message'],
+            'ban' => $activeBan,
+        ], 403);
+    }
 
     $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ? WHERE id = ?');
     if (!$stmt) {

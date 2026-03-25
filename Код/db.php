@@ -531,3 +531,348 @@ function bober_admin_log_action($conn, $actionType, $details = [])
     $stmt->execute();
     $stmt->close();
 }
+
+function bober_ensure_security_schema($conn)
+{
+    $createUserBansSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_bans` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `source` VARCHAR(50) NOT NULL DEFAULT 'autoclicker',
+    `reason` VARCHAR(255) NOT NULL DEFAULT '',
+    `duration_days` INT NOT NULL DEFAULT 5,
+    `is_repeat` TINYINT(1) NOT NULL DEFAULT 0,
+    `detected_by` VARCHAR(50) NOT NULL DEFAULT 'system',
+    `ban_until` DATETIME NOT NULL,
+    `lifted_at` DATETIME NULL DEFAULT NULL,
+    `meta_json` LONGTEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserBansSql)) {
+        throw new RuntimeException('Не удалось создать таблицу банов.');
+    }
+
+    if (!bober_index_exists($conn, 'user_bans', 'idx_user_bans_user_id') && !$conn->query("CREATE INDEX `idx_user_bans_user_id` ON `user_bans` (`user_id`)")) {
+        throw new RuntimeException('Не удалось создать индекс user_bans.user_id.');
+    }
+
+    if (!bober_index_exists($conn, 'user_bans', 'idx_user_bans_active') && !$conn->query("CREATE INDEX `idx_user_bans_active` ON `user_bans` (`user_id`, `ban_until`, `lifted_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс активности банов.');
+    }
+
+    if (!bober_index_exists($conn, 'user_bans', 'idx_user_bans_source') && !$conn->query("CREATE INDEX `idx_user_bans_source` ON `user_bans` (`source`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс источника банов.');
+    }
+}
+
+function bober_ensure_fly_beaver_schema($conn)
+{
+    $createFlyProgressSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `fly_beaver_progress` (
+    `user_id` INT PRIMARY KEY,
+    `best_score` INT NOT NULL DEFAULT 0,
+    `last_score` INT NOT NULL DEFAULT 0,
+    `last_level` INT NOT NULL DEFAULT 1,
+    `games_played` INT NOT NULL DEFAULT 0,
+    `total_score` BIGINT NOT NULL DEFAULT 0,
+    `pending_transfer_score` BIGINT NOT NULL DEFAULT 0,
+    `transferred_total_score` BIGINT NOT NULL DEFAULT 0,
+    `last_played_at` TIMESTAMP NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createFlyProgressSql)) {
+        throw new RuntimeException('Не удалось создать таблицу прогресса fly-beaver.');
+    }
+
+    $createFlyRunsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `fly_beaver_runs` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `run_token` VARCHAR(80) NOT NULL,
+    `score` INT NOT NULL DEFAULT 0,
+    `level` INT NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createFlyRunsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу запусков fly-beaver.');
+    }
+
+    if (!bober_index_exists($conn, 'fly_beaver_runs', 'uniq_fly_beaver_user_run') && !$conn->query("CREATE UNIQUE INDEX `uniq_fly_beaver_user_run` ON `fly_beaver_runs` (`user_id`, `run_token`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс запусков fly-beaver.');
+    }
+
+    if (!bober_index_exists($conn, 'fly_beaver_runs', 'idx_fly_beaver_runs_created') && !$conn->query("CREATE INDEX `idx_fly_beaver_runs_created` ON `fly_beaver_runs` (`user_id`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории fly-beaver.');
+    }
+}
+
+function bober_ensure_gameplay_schema($conn)
+{
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    bober_ensure_game_schema($conn);
+    bober_ensure_security_schema($conn);
+    bober_ensure_fly_beaver_schema($conn);
+
+    $schemaEnsured = true;
+}
+
+function bober_ensure_project_schema($conn)
+{
+    static $projectSchemaEnsured = false;
+
+    if ($projectSchemaEnsured) {
+        return;
+    }
+
+    bober_ensure_gameplay_schema($conn);
+    bober_ensure_admin_schema($conn);
+
+    $projectSchemaEnsured = true;
+}
+
+function bober_default_fly_beaver_progress()
+{
+    return [
+        'bestScore' => 0,
+        'lastScore' => 0,
+        'lastLevel' => 1,
+        'gamesPlayed' => 0,
+        'totalScore' => 0,
+        'pendingTransferScore' => 0,
+        'transferredTotalScore' => 0,
+        'lastPlayedAt' => null,
+    ];
+}
+
+function bober_normalize_fly_beaver_progress_row($row)
+{
+    $defaults = bober_default_fly_beaver_progress();
+
+    if (!is_array($row)) {
+        return $defaults;
+    }
+
+    return [
+        'bestScore' => max(0, (int) ($row['best_score'] ?? $row['bestScore'] ?? 0)),
+        'lastScore' => max(0, (int) ($row['last_score'] ?? $row['lastScore'] ?? 0)),
+        'lastLevel' => max(1, (int) ($row['last_level'] ?? $row['lastLevel'] ?? 1)),
+        'gamesPlayed' => max(0, (int) ($row['games_played'] ?? $row['gamesPlayed'] ?? 0)),
+        'totalScore' => max(0, (int) ($row['total_score'] ?? $row['totalScore'] ?? 0)),
+        'pendingTransferScore' => max(0, (int) ($row['pending_transfer_score'] ?? $row['pendingTransferScore'] ?? 0)),
+        'transferredTotalScore' => max(0, (int) ($row['transferred_total_score'] ?? $row['transferredTotalScore'] ?? 0)),
+        'lastPlayedAt' => isset($row['last_played_at']) ? (string) $row['last_played_at'] : ($row['lastPlayedAt'] ?? null),
+    ];
+}
+
+function bober_ensure_fly_progress_row($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('INSERT IGNORE INTO fly_beaver_progress (user_id) VALUES (?)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить создание строки прогресса fly-beaver.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function bober_fetch_fly_beaver_progress($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return bober_default_fly_beaver_progress();
+    }
+
+    bober_ensure_fly_progress_row($conn, $userId);
+
+    $stmt = $conn->prepare('SELECT best_score, last_score, last_level, games_played, total_score, pending_transfer_score, transferred_total_score, last_played_at FROM fly_beaver_progress WHERE user_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение прогресса fly-beaver.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить прогресс fly-beaver.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return bober_normalize_fly_beaver_progress_row($row);
+}
+
+function bober_build_ban_message($ban)
+{
+    if (!is_array($ban)) {
+        return 'Аккаунт временно заблокирован.';
+    }
+
+    $banUntil = trim((string) ($ban['banUntil'] ?? ''));
+    if ($banUntil === '') {
+        return 'Аккаунт временно заблокирован.';
+    }
+
+    return 'Аккаунт временно заблокирован до ' . $banUntil . '.';
+}
+
+function bober_normalize_ban_row($row)
+{
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $ban = [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'userId' => max(0, (int) ($row['user_id'] ?? $row['userId'] ?? 0)),
+        'source' => trim((string) ($row['source'] ?? 'autoclicker')),
+        'reason' => trim((string) ($row['reason'] ?? 'Подозрение на автокликер')),
+        'durationDays' => max(1, (int) ($row['duration_days'] ?? $row['durationDays'] ?? 1)),
+        'isRepeat' => (int) ($row['is_repeat'] ?? $row['isRepeat'] ?? 0) === 1,
+        'detectedBy' => trim((string) ($row['detected_by'] ?? $row['detectedBy'] ?? 'system')),
+        'banUntil' => trim((string) ($row['ban_until'] ?? $row['banUntil'] ?? '')),
+        'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
+        'liftedAt' => isset($row['lifted_at']) ? (string) $row['lifted_at'] : ($row['liftedAt'] ?? null),
+    ];
+
+    $ban['message'] = bober_build_ban_message($ban);
+
+    return $ban;
+}
+
+function bober_fetch_active_user_ban($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT id, user_id, source, reason, duration_days, is_repeat, detected_by, ban_until, created_at, lifted_at FROM user_bans WHERE user_id = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP ORDER BY ban_until DESC LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить проверку бана.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось проверить бан пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $row ? bober_normalize_ban_row($row) : null;
+}
+
+function bober_count_user_bans($conn, $userId, $source = 'autoclicker')
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return 0;
+    }
+
+    $source = trim((string) $source);
+    if ($source === '') {
+        $source = 'autoclicker';
+    }
+
+    $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM user_bans WHERE user_id = ? AND source = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить подсчет банов.');
+    }
+
+    $stmt->bind_param('is', $userId, $source);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось подсчитать баны пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : ['total' => 0];
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return max(0, (int) ($row['total'] ?? 0));
+}
+
+function bober_issue_user_ban($conn, $userId, $reason, $details = [])
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $activeBan = bober_fetch_active_user_ban($conn, $userId);
+    if ($activeBan !== null) {
+        return $activeBan;
+    }
+
+    $source = trim((string) ($details['source'] ?? 'autoclicker'));
+    if ($source === '') {
+        $source = 'autoclicker';
+    }
+
+    $detectedBy = trim((string) ($details['detected_by'] ?? 'client'));
+    if ($detectedBy === '') {
+        $detectedBy = 'client';
+    }
+
+    $reason = trim((string) $reason);
+    if ($reason === '') {
+        $reason = 'Подозрение на автокликер';
+    }
+
+    $previousBanCount = bober_count_user_bans($conn, $userId, $source);
+    $durationDays = $previousBanCount > 0 ? 30 : 5;
+    $isRepeat = $previousBanCount > 0 ? 1 : 0;
+    $banUntil = date('Y-m-d H:i:s', time() + ($durationDays * 24 * 60 * 60));
+
+    $meta = is_array($details['meta'] ?? null) ? $details['meta'] : [];
+    $meta['ip'] = $meta['ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
+    $meta['user_agent'] = $meta['user_agent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? null);
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $stmt = $conn->prepare('INSERT INTO user_bans (user_id, source, reason, duration_days, is_repeat, detected_by, ban_until, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить создание бана.');
+    }
+
+    $stmt->bind_param('issiisss', $userId, $source, $reason, $durationDays, $isRepeat, $detectedBy, $banUntil, $metaJson);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить бан пользователя.');
+    }
+    $stmt->close();
+
+    return bober_fetch_active_user_ban($conn, $userId);
+}

@@ -17,6 +17,7 @@ try {
     }
 
     $conn = bober_db_connect();
+    bober_ensure_gameplay_schema($conn);
 
     $stmt = $conn->prepare('SELECT id, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score FROM users WHERE login = ? LIMIT 1');
     if (!$stmt) {
@@ -46,6 +47,16 @@ try {
         bober_json_response(['success' => false, 'message' => 'Неверный логин или пароль.']);
     }
 
+    $activeBan = bober_fetch_active_user_ban($conn, (int) $id);
+    if ($activeBan !== null) {
+        $conn->close();
+        bober_json_response([
+            'success' => false,
+            'message' => $activeBan['message'],
+            'ban' => $activeBan,
+        ], 403);
+    }
+
     bober_login_user($id, $login);
 
     $normalizedSkin = bober_normalize_skin_json($skin);
@@ -61,6 +72,7 @@ try {
 
     $energyMax = max(1, (int) $energyMax);
     $energy = max(0, min($energyMax, (int) $energy));
+    $flyBeaver = bober_fetch_fly_beaver_progress($conn, (int) $id);
 
     $response = [
         'success' => true,
@@ -72,6 +84,7 @@ try {
         'lastEnergyUpdate' => max(0, (int) $lastEnergyUpdate),
         'ENERGY_MAX' => $energyMax,
         'score' => max(0, (int) $score),
+        'flyBeaver' => $flyBeaver,
     ];
 
     $conn->close();

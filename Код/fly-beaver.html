@@ -245,6 +245,60 @@ Future plan: sync accounts and allow score transfer into the main game. -->
             font-size: 14px;
             color: #ffd700;
         }
+
+        .cloud-panel {
+            position: absolute;
+            top: 78px;
+            left: 12px;
+            right: 12px;
+            z-index: 15;
+            background: rgba(12, 18, 31, 0.78);
+            border: 1px solid rgba(142, 220, 255, 0.28);
+            border-radius: 12px;
+            padding: 10px 12px;
+            color: #f5fbff;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+        }
+
+        .cloud-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #8bdcff;
+            margin-bottom: 4px;
+        }
+
+        .cloud-status {
+            font-size: 12px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .cloud-status.connected {
+            color: #b7ffd8;
+        }
+
+        .cloud-status.local {
+            color: #cbd5e1;
+        }
+
+        .cloud-status.pending {
+            color: #ffe082;
+        }
+
+        .cloud-status.error {
+            color: #ffb4b4;
+        }
+
+        .cloud-action {
+            margin-top: 10px;
+            min-width: 0;
+            width: 100%;
+            display: none;
+            background: linear-gradient(to bottom, #38bdf8, #2563eb);
+            box-shadow: 0 6px 0 #1d4ed8, 0 8px 10px rgba(0,0,0,0.35);
+        }
         
         /* Анимации */
         @keyframes float {
@@ -318,6 +372,11 @@ Future plan: sync accounts and allow score transfer into the main game. -->
         <div id="score">0</div>
         <div id="high-score">Рекорд: 0</div>
         <div id="level-indicator">Уровень: 1</div>
+        <div id="cloud-panel" class="cloud-panel">
+            <div id="cloud-title" class="cloud-title">Локальный режим</div>
+            <div id="cloud-status" class="cloud-status local">Войдите в основной аккаунт, чтобы включить облачные сохранения и перевод очков.</div>
+            <button id="claim-fly-score" class="cloud-action">Перевести очки в кликер</button>
+        </div>
         
         <div id="start-screen" class="screen">
             <h1>ЛЕТАЮЩИЙ БОБЕР</h1>
@@ -370,6 +429,9 @@ Future plan: sync accounts and allow score transfer into the main game. -->
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over');
         const pauseScreen = document.getElementById('pause-screen');
+        const cloudTitleElement = document.getElementById('cloud-title');
+        const cloudStatusElement = document.getElementById('cloud-status');
+        const claimFlyScoreButton = document.getElementById('claim-fly-score');
         const startButton = document.getElementById('start-button');
         const restartButton = document.getElementById('restart-button');
         const resumeButton = document.getElementById('resume-button');
@@ -406,16 +468,240 @@ Future plan: sync accounts and allow score transfer into the main game. -->
         let gameRunning = false;
         let gamePaused = false;
         let score = 0;
-        let highScore = localStorage.getItem('flappyBeaverHighScore') || 0;
+        let highScore = Number(localStorage.getItem('flappyBeaverHighScore') || 0);
         let currentLevel = 1;
         let frames = 0;
         let baseGameSpeed = 2;
         let currentGameSpeed = baseGameSpeed;
         let isMuted = false;
         let isMobile = 'ontouchstart' in window;
+        let currentRunToken = '';
+        let cloudSaveInFlight = false;
+        let accountState = {
+            userId: null,
+            login: '',
+            mainScore: 0,
+            flyBeaver: {
+                bestScore: 0,
+                lastScore: 0,
+                lastLevel: 1,
+                gamesPlayed: 0,
+                totalScore: 0,
+                pendingTransferScore: 0,
+                transferredTotalScore: 0,
+                lastPlayedAt: null
+            }
+        };
         
         highScoreElement.textContent = `Рекорд: ${highScore}`;
         levelIndicator.textContent = `Уровень: ${currentLevel}`;
+
+        function normalizeCloudFlyState(rawState) {
+            if (!rawState || typeof rawState !== 'object') {
+                return {
+                    bestScore: 0,
+                    lastScore: 0,
+                    lastLevel: 1,
+                    gamesPlayed: 0,
+                    totalScore: 0,
+                    pendingTransferScore: 0,
+                    transferredTotalScore: 0,
+                    lastPlayedAt: null
+                };
+            }
+
+            return {
+                bestScore: Math.max(0, Number(rawState.bestScore) || 0),
+                lastScore: Math.max(0, Number(rawState.lastScore) || 0),
+                lastLevel: Math.max(1, Number(rawState.lastLevel) || 1),
+                gamesPlayed: Math.max(0, Number(rawState.gamesPlayed) || 0),
+                totalScore: Math.max(0, Number(rawState.totalScore) || 0),
+                pendingTransferScore: Math.max(0, Number(rawState.pendingTransferScore) || 0),
+                transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
+                lastPlayedAt: rawState.lastPlayedAt || null
+            };
+        }
+
+        function requestJson(url, options = {}) {
+            return fetch(url, {
+                credentials: 'include',
+                ...options
+            }).then(async response => {
+                let data = null;
+
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    throw new Error('Сервер вернул некорректный ответ.');
+                }
+
+                if (!response.ok) {
+                    const error = new Error(data && data.message ? data.message : `HTTP ${response.status}`);
+                    error.status = response.status;
+                    error.payload = data;
+                    throw error;
+                }
+
+                return data;
+            });
+        }
+
+        function setCloudStatus(type, title, message) {
+            cloudTitleElement.textContent = title;
+            cloudStatusElement.className = `cloud-status ${type}`;
+            cloudStatusElement.textContent = message;
+        }
+
+        function updateCloudPanel() {
+            const pending = accountState.flyBeaver.pendingTransferScore || 0;
+            const best = Math.max(highScore, accountState.flyBeaver.bestScore || 0);
+            highScore = best;
+            highScoreElement.textContent = `Рекорд: ${best}`;
+            localStorage.setItem('flappyBeaverHighScore', String(best));
+
+            if (!accountState.userId) {
+                claimFlyScoreButton.style.display = 'none';
+                return;
+            }
+
+            cloudTitleElement.textContent = `Облако: ${accountState.login || 'аккаунт'}`;
+
+            if (pending > 0) {
+                claimFlyScoreButton.style.display = 'block';
+                claimFlyScoreButton.textContent = `Перевести в кликер (+${pending.toLocaleString('ru-RU')})`;
+                cloudStatusElement.className = 'cloud-status pending';
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди на перевод: ${pending.toLocaleString('ru-RU')} очк.`;
+                return;
+            }
+
+            claimFlyScoreButton.style.display = 'none';
+            cloudStatusElement.className = 'cloud-status connected';
+            cloudStatusElement.textContent = `Облачный рекорд: ${best}. Сыграно забегов: ${(accountState.flyBeaver.gamesPlayed || 0).toLocaleString('ru-RU')}.`;
+        }
+
+        function createRunToken() {
+            return `run_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        async function restoreFlySession() {
+            try {
+                const data = await requestJson('https://bober-api.gt.tc/fly-session.php', {
+                    cache: 'no-store'
+                });
+
+                accountState.userId = Number(data.userId) || null;
+                accountState.login = data.login || '';
+                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+
+                highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                setCloudStatus('connected', `Облако: ${accountState.login || 'аккаунт'}`, 'Сессия подключена. Забеги сохраняются в облако.');
+                updateCloudPanel();
+                return;
+            } catch (error) {
+                if (error.status === 401) {
+                    setCloudStatus('local', 'Локальный режим', 'Войдите в основной аккаунт, чтобы включить облачные сохранения и перевод очков.');
+                    updateCloudPanel();
+                    return;
+                }
+
+                if (error.payload && error.payload.ban) {
+                    const ban = error.payload.ban;
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Локальная игра доступна, облако отключено.`);
+                    updateCloudPanel();
+                    return;
+                }
+
+                console.error('Не удалось восстановить облачную сессию fly-beaver:', error);
+                setCloudStatus('error', 'Ошибка облака', error.message || 'Не удалось подключить облачные сохранения.');
+                updateCloudPanel();
+            }
+        }
+
+        async function saveFlyRunToCloud() {
+            if (!accountState.userId || !currentRunToken || cloudSaveInFlight || score < 0) {
+                return;
+            }
+
+            cloudSaveInFlight = true;
+            setCloudStatus('pending', `Облако: ${accountState.login || 'аккаунт'}`, 'Сохраняем забег в облако...');
+
+            try {
+                const data = await requestJson('https://bober-api.gt.tc/fly-save-run.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        runToken: currentRunToken,
+                        score: score,
+                        level: currentLevel
+                    })
+                });
+
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                updateCloudPanel();
+                setCloudStatus(data.duplicate ? 'connected' : 'pending', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
+            } catch (error) {
+                if (error.payload && error.payload.ban) {
+                    const ban = error.payload.ban;
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Забег сохранен только локально.`);
+                    updateCloudPanel();
+                    return;
+                }
+
+                console.error('Не удалось сохранить забег fly-beaver:', error);
+                setCloudStatus('error', 'Ошибка облака', error.message || 'Не удалось сохранить забег в облако.');
+            } finally {
+                cloudSaveInFlight = false;
+            }
+        }
+
+        async function claimFlyReward() {
+            if (!accountState.userId || claimFlyScoreButton.disabled) {
+                return;
+            }
+
+            claimFlyScoreButton.disabled = true;
+            setCloudStatus('pending', `Облако: ${accountState.login || 'аккаунт'}`, 'Переводим очки в основной кликер...');
+
+            try {
+                const data = await requestJson('https://bober-api.gt.tc/fly-claim-reward.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: '{}'
+                });
+
+                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                updateCloudPanel();
+                setCloudStatus(data.awardedScore > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
+            } catch (error) {
+                if (error.payload && error.payload.ban) {
+                    const ban = error.payload.ban;
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Перевод очков отключен.`);
+                    updateCloudPanel();
+                    return;
+                }
+
+                console.error('Не удалось перевести очки fly-beaver:', error);
+                setCloudStatus('error', 'Ошибка перевода', error.message || 'Не удалось перевести очки в кликер.');
+            } finally {
+                claimFlyScoreButton.disabled = false;
+            }
+        }
         
         // Функция вибрации для мобильных устройств
         function vibrate(pattern) {
@@ -734,6 +1020,7 @@ Future plan: sync accounts and allow score transfer into the main game. -->
             gamePaused = false;
             score = 0;
             currentLevel = 1;
+            currentRunToken = createRunToken();
             currentGameSpeed = baseGameSpeed;
             frames = 0;
             scoreElement.textContent = score;
@@ -791,6 +1078,8 @@ Future plan: sync accounts and allow score transfer into the main game. -->
                 localStorage.setItem('flappyBeaverHighScore', highScore);
                 highScoreElement.textContent = `Рекорд: ${highScore}`;
             }
+
+             saveFlyRunToCloud();
             
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
@@ -854,6 +1143,7 @@ Future plan: sync accounts and allow score transfer into the main game. -->
         exitButton.addEventListener('click', exitGame);
         exitFromPauseButton.addEventListener('click', exitGame);
         exitBtn.addEventListener('click', exitGame);
+        claimFlyScoreButton.addEventListener('click', claimFlyReward);
         
         pauseBtn.addEventListener('click', togglePause);
         
@@ -898,6 +1188,7 @@ Future plan: sync accounts and allow score transfer into the main game. -->
         
         // Запуск игры
         loop();
+        restoreFlySession();
         
         // Адаптация под устройства
         if (isMobile) {

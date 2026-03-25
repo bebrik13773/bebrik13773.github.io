@@ -19,6 +19,7 @@ try {
     $login = bober_require_game_login($login);
 
     $conn = bober_db_connect();
+    bober_ensure_gameplay_schema($conn);
 
     $checkStmt = $conn->prepare('SELECT id FROM users WHERE login = ? LIMIT 1');
     if (!$checkStmt) {
@@ -59,7 +60,9 @@ try {
         throw new RuntimeException('Ошибка выполнения запроса.');
     }
 
+    $newUserId = (int) $stmt->insert_id;
     $stmt->close();
+    bober_ensure_fly_progress_row($conn, $newUserId);
     $conn->close();
 
     bober_json_response(['success' => true, 'message' => 'Регистрация успешна!']);

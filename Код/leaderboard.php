@@ -4,8 +4,22 @@ require_once __DIR__ . '/db.php';
 
 try {
     $conn = bober_db_connect();
+    bober_ensure_gameplay_schema($conn);
 
-    $result = $conn->query("SELECT login, MAX(score) AS score FROM users WHERE login IS NOT NULL AND login <> '' GROUP BY login ORDER BY score DESC LIMIT 3");
+    $result = $conn->query("
+        SELECT u.login, MAX(u.score) AS score
+        FROM users u
+        LEFT JOIN user_bans b
+            ON b.user_id = u.id
+            AND b.lifted_at IS NULL
+            AND b.ban_until > CURRENT_TIMESTAMP
+        WHERE u.login IS NOT NULL
+            AND u.login <> ''
+            AND b.id IS NULL
+        GROUP BY u.id, u.login
+        ORDER BY score DESC
+        LIMIT 3
+    ");
     if ($result === false) {
         throw new RuntimeException('Ошибка выполнения запроса.');
     }

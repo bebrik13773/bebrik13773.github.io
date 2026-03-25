@@ -28,7 +28,7 @@ function initializeAdmin()
 
     try {
         $conn = connectDB();
-        bober_ensure_admin_schema($conn);
+        bober_ensure_project_schema($conn);
         $conn->close();
     } catch (Throwable $error) {
         $bootstrapError = 'Панель не настроена. Создайте `Код/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
@@ -288,6 +288,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_dashboard_stats') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $tablesResult = $conn->query('SHOW TABLES');
+                if ($tablesResult === false) {
+                    $response['message'] = 'Не удалось получить список таблиц';
+                } else {
+                    $tables = [];
+                    while ($row = $tablesResult->fetch_array()) {
+                        $tables[] = $row[0];
+                    }
+                    $tablesResult->free();
+
+                    $totalRows = 0;
+                    foreach ($tables as $tableName) {
+                        $safeTable = normalizeTableName($tableName);
+                        $countResult = $conn->query("SELECT COUNT(*) AS total FROM `{$safeTable}`");
+                        if ($countResult instanceof mysqli_result) {
+                            $countRow = $countResult->fetch_assoc();
+                            $totalRows += (int) ($countRow['total'] ?? 0);
+                            $countResult->free();
+                        }
+                    }
+
+                    $activeBans = 0;
+                    $flyPending = 0;
+                    $usersCount = 0;
+
+                    $activeBansResult = $conn->query("SELECT COUNT(*) AS total FROM `user_bans` WHERE `lifted_at` IS NULL AND `ban_until` > CURRENT_TIMESTAMP");
+                    if ($activeBansResult instanceof mysqli_result) {
+                        $activeBans = (int) ($activeBansResult->fetch_assoc()['total'] ?? 0);
+                        $activeBansResult->free();
+                    }
+
+                    $flyPendingResult = $conn->query("SELECT COALESCE(SUM(`pending_transfer_score`), 0) AS total FROM `fly_beaver_progress`");
+                    if ($flyPendingResult instanceof mysqli_result) {
+                        $flyPending = (int) ($flyPendingResult->fetch_assoc()['total'] ?? 0);
+                        $flyPendingResult->free();
+                    }
+
+                    $usersResult = $conn->query("SELECT COUNT(*) AS total FROM `users`");
+                    if ($usersResult instanceof mysqli_result) {
+                        $usersCount = (int) ($usersResult->fetch_assoc()['total'] ?? 0);
+                        $usersResult->free();
+                    }
+
+                    $response['success'] = true;
+                    $response['stats'] = [
+                        'table_count' => count($tables),
+                        'total_rows' => $totalRows,
+                        'active_bans' => $activeBans,
+                        'fly_pending_score' => $flyPending,
+                        'users_count' => $usersCount,
+                    ];
+                }
+
+                $conn->close();
+            }
+        }
+
         if ($action === 'get_table_data') {
             if (requireAdminAuth($response)) {
                 $table = normalizeTableName($_POST['table'] ?? '');
@@ -415,6 +477,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $response['message'] = 'Строка успешно добавлена';
                         $response['affected_rows'] = $conn->affected_rows;
                         bober_admin_log_action($conn, 'insert_row', [
+                            'target_table' => $table,
+                            'query_text' => $sql,
+                            'affected_rows' => (int) $conn->affected_rows,
+                        ]);
+                    } else {
+                        $response['message'] = 'Ошибка выполнения запроса: ' . $conn->error;
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'delete_row') {
+            if (requireAdminAuth($response)) {
+                $table = normalizeTableName($_POST['table'] ?? '');
+                $primaryKey = normalizeColumnName($_POST['primary_key'] ?? 'id');
+                $primaryValue = $_POST['primary_value'] ?? '';
+
+                if ($table === '' || $primaryValue === '') {
+                    $response['message'] = 'Недостаточно данных для удаления строки';
+                } else {
+                    $conn = connectDB();
+                    $primaryValueSql = sqlValueForQuery($conn, $primaryValue);
+                    $sql = "DELETE FROM `{$table}` WHERE `{$primaryKey}` = {$primaryValueSql} LIMIT 1";
+
+                    if ($conn->query($sql)) {
+                        $response['success'] = true;
+                        $response['message'] = 'Строка успешно удалена';
+                        $response['affected_rows'] = $conn->affected_rows;
+                        bober_admin_log_action($conn, 'delete_row', [
                             'target_table' => $table,
                             'query_text' => $sql,
                             'affected_rows' => (int) $conn->affected_rows,
@@ -1609,6 +1702,14 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                         <span class="material-icons">history</span>
                         Аудит админки
                     </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM fly_beaver_progress ORDER BY best_score DESC LIMIT 50;">
+                        <span class="material-icons">sports_esports</span>
+                        Fly Progress
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM user_bans ORDER BY id DESC LIMIT 50;">
+                        <span class="material-icons">gpp_bad</span>
+                        Активность банов
+                    </button>
                 </div>
                 
                 <div class="form-group">
@@ -1889,6 +1990,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             
             // Обновляем статистику
             updateStats();
+            loadDashboardStats();
             
             // Загружаем список таблиц
             loadTables();
@@ -1922,6 +2024,32 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             
             // Сохраняем в localStorage
             localStorage.setItem('queryCount', queryCount);
+        }
+
+        function loadDashboardStats() {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'get_dashboard_stats'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success || !data.stats) {
+                    return;
+                }
+
+                document.getElementById('tableCount').textContent = Number(data.stats.table_count || 0).toLocaleString('ru-RU');
+                document.getElementById('totalRows').textContent = Number(data.stats.total_rows || 0).toLocaleString('ru-RU');
+                document.getElementById('tableCount').title = `Пользователей: ${Number(data.stats.users_count || 0).toLocaleString('ru-RU')}`;
+                document.getElementById('totalRows').title = `Активных банов: ${Number(data.stats.active_bans || 0).toLocaleString('ru-RU')}, очков в очереди из fly-beaver: ${Number(data.stats.fly_pending_score || 0).toLocaleString('ru-RU')}`;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
         }
         
         // Функция инициализации элементов UI
@@ -2221,9 +2349,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 if (data.success) {
                     renderTableList(data.tables);
                     document.getElementById('tableCount').textContent = data.tables.length;
-                    
-                    // Загружаем статистику по строкам
-                    loadTotalRows(data.tables);
+                    loadDashboardStats();
                 } else {
                     showNotification(data.message, 'error');
                 }
@@ -2231,39 +2357,6 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             .catch(error => {
                 console.error('Error:', error);
                 showNotification('Ошибка загрузки списка таблиц', 'error');
-            });
-        }
-        
-        // Функция загрузки общего количества строк
-        function loadTotalRows(tables) {
-            let totalRows = 0;
-            let completedRequests = 0;
-            
-            tables.forEach(table => {
-                fetch('', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'get_table_data',
-                        table: table
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        totalRows += data.total_rows || 0;
-                        completedRequests++;
-                        
-                        if (completedRequests === tables.length) {
-                            document.getElementById('totalRows').textContent = totalRows.toLocaleString();
-                        }
-                    }
-                })
-                .catch(() => {
-                    completedRequests++;
-                });
             });
         }
         
@@ -2397,6 +2490,9 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 html += `<button class="btn btn-outline btn-icon btn-small edit-row-btn" data-row-id="${rowId}" title="Редактировать">`;
                 html += `<span class="material-icons" style="font-size: 16px;">edit</span>`;
                 html += `</button>`;
+                html += `<button class="btn btn-danger btn-icon btn-small delete-row-btn" data-row-id="${rowId}" title="Удалить" style="margin-left: 6px;">`;
+                html += `<span class="material-icons" style="font-size: 16px;">delete</span>`;
+                html += `</button>`;
                 html += `</div>`;
                 html += `<div class="edit-mode" style="display: none;">`;
                 html += `<button class="btn btn-success btn-icon btn-small save-row-btn" data-row-id="${rowId}" title="Сохранить">`;
@@ -2463,6 +2559,13 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                 btn.addEventListener('click', function() {
                     const rowId = this.dataset.rowId;
                     enableRowEditing(rowId);
+                });
+            });
+
+            document.querySelectorAll('.delete-row-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const rowId = this.dataset.rowId;
+                    deleteRow(rowId, table);
                 });
             });
             
@@ -2582,6 +2685,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             .then(data => {
                 if (data.success) {
                     showNotification('Строка успешно обновлена', 'success');
+                    loadDashboardStats();
                     
                     // Обновляем отображаемые значения
                     row.querySelectorAll('.edit-input').forEach(input => {
@@ -2647,6 +2751,54 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
             
             row.querySelectorAll('.view-cell').forEach(cell => {
                 cell.style.display = 'block';
+            });
+        }
+
+        function deleteRow(rowId, table) {
+            const row = document.getElementById(`row-${rowId}`);
+            if (!row) {
+                return;
+            }
+
+            const primaryKey = 'id';
+            const primaryCell = row.querySelector(`td[data-column="${primaryKey}"]`);
+            const primaryValue = primaryCell ? primaryCell.dataset.originalValue : rowId;
+
+            if (!primaryValue) {
+                showNotification('Не удалось определить первичный ключ строки', 'error');
+                return;
+            }
+
+            const shouldDelete = confirm(`Удалить строку #${primaryValue} из таблицы "${table}"?`);
+            if (!shouldDelete) {
+                return;
+            }
+
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'delete_row',
+                    table: table,
+                    primary_key: primaryKey,
+                    primary_value: primaryValue
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Строка удалена', 'success');
+                    loadTableData(table);
+                    loadDashboardStats();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Ошибка сети при удалении строки', 'error');
             });
         }
         
@@ -2833,6 +2985,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                     if (currentTable === table) {
                         loadTableData(table);
                     }
+                    loadDashboardStats();
                     
                     showNotification('Строка успешно добавлена', 'success');
                 } else {
@@ -2881,6 +3034,7 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                             renderSqlResults(data.results, data.affected_rows, sql);
                             showNotification('Запрос выполнен успешно', 'success');
                         }
+                        loadDashboardStats();
                         resolve(true);
                     } else {
                         if (!silent) {

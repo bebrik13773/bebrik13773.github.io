@@ -353,7 +353,8 @@ Owner decisions:
 		}
 		#logoutButton:active,
 		#registerButton:active,
-		#loginButton:active {
+		#loginButton:active,
+		#flyRewardButton:active {
 			transform: scale(0.9);
 		}
 		#save {
@@ -364,6 +365,23 @@ Owner decisions:
 			color: #fff;
 			padding: 8px 16px;
 			font-size: 16px;
+		}
+		#flyRewardButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #4676D7;
+			color: #fff;
+			padding: 8px 16px;
+			font-size: 16px;
+			display: none;
+		}
+		#flyRewardPanel {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 8px;
+			margin-top: 12px;
 		}
 		.save-status {
 			margin-top: 12px;
@@ -717,6 +735,10 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <br>
 <button class="shop-action-btn" onclick="window.location.replace('fly-beaver.html');"> Летающий бобер(скоро обновление!) </button>
+<div id="flyRewardPanel">
+    <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
+    <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
+</div>
 <br>
 </div>
 <br>
@@ -982,6 +1004,8 @@ let ENERGY_REGEN_PER_MS = 0;
 let skin = getDefaultSkinState();
 let energyTimer = null;
 let currentLogin = localStorage.getItem('login') || '';
+let flyBeaverState = getDefaultFlyBeaverState();
+window.__boberBanInfo = null;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
 const AUTOSAVE_CONFIG = {
@@ -1006,6 +1030,19 @@ const autosaveState = {
 
 function getDefaultSkinState() {
     return ['skins/bober.png', true, false, true, false, false, false, false, false];
+}
+
+function getDefaultFlyBeaverState() {
+    return {
+        bestScore: 0,
+        lastScore: 0,
+        lastLevel: 1,
+        gamesPlayed: 0,
+        totalScore: 0,
+        pendingTransferScore: 0,
+        transferredTotalScore: 0,
+        lastPlayedAt: null
+    };
 }
 
 function normalizeSkinState(rawSkin) {
@@ -1057,6 +1094,78 @@ function skinLoad() {
 
 function validateRegisterLogin(loginValue) {
     return REGISTER_LOGIN_PATTERN.test(loginValue);
+}
+
+function normalizeFlyBeaverState(rawState) {
+    const defaults = getDefaultFlyBeaverState();
+    if (!rawState || typeof rawState !== 'object') {
+        return defaults;
+    }
+
+    return {
+        bestScore: Math.max(0, Number(rawState.bestScore) || 0),
+        lastScore: Math.max(0, Number(rawState.lastScore) || 0),
+        lastLevel: Math.max(1, Number(rawState.lastLevel) || 1),
+        gamesPlayed: Math.max(0, Number(rawState.gamesPlayed) || 0),
+        totalScore: Math.max(0, Number(rawState.totalScore) || 0),
+        pendingTransferScore: Math.max(0, Number(rawState.pendingTransferScore) || 0),
+        transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
+        lastPlayedAt: rawState.lastPlayedAt || null
+    };
+}
+
+function formatCompactNumber(value) {
+    return Number(value || 0).toLocaleString('ru-RU');
+}
+
+function updateFlyRewardUI() {
+    const rewardButton = document.getElementById('flyRewardButton');
+    const rewardStatus = document.getElementById('flyRewardStatus');
+    const isAuthenticated = Boolean(userId);
+
+    if (!rewardButton || !rewardStatus) {
+        return;
+    }
+
+    if (!isAuthenticated) {
+        rewardButton.style.display = 'none';
+        rewardStatus.className = 'save-status idle';
+        rewardStatus.textContent = 'Летающий бобер без входа работает локально.';
+        return;
+    }
+
+    const pending = Math.max(0, Number(flyBeaverState.pendingTransferScore) || 0);
+    const best = Math.max(0, Number(flyBeaverState.bestScore) || 0);
+
+    if (pending > 0) {
+        rewardButton.style.display = 'inline-block';
+        rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(pending)})`;
+        rewardStatus.className = 'save-status draft';
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)}.`;
+        return;
+    }
+
+    rewardButton.style.display = 'none';
+    rewardStatus.className = 'save-status saved';
+    rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}.`;
+}
+
+function setBanInfo(banInfo) {
+    window.__boberBanInfo = banInfo || null;
+}
+
+function tryHandleBanError(error) {
+    const banInfo = error && error.payload && error.payload.ban ? error.payload.ban : null;
+    if (!banInfo) {
+        return false;
+    }
+
+    setBanInfo(banInfo);
+    if (window.clickDetector && typeof window.clickDetector.showBanScreen === 'function') {
+        window.clickDetector.showBanScreen(banInfo);
+    }
+
+    return true;
 }
 
 function formatSaveTime(timestamp) {
@@ -1238,7 +1347,10 @@ function resetUserState() {
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
     document.getElementById('login').value = currentLogin || localStorage.getItem('login') || '';
+    flyBeaverState = getDefaultFlyBeaverState();
+    setBanInfo(null);
     setSaveStatus('idle', 'Автосохранение выключено');
+    updateFlyRewardUI();
 }
 
 function applyAuthenticatedState(data) {
@@ -1252,6 +1364,7 @@ function applyAuthenticatedState(data) {
     }
 
     currentLogin = resolvedLogin;
+    setBanInfo(null);
     if (resolvedLogin) {
         localStorage.setItem('login', resolvedLogin);
         document.getElementById('login').value = resolvedLogin;
@@ -1261,6 +1374,7 @@ function applyAuthenticatedState(data) {
     plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
     energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : 5000;
     updateRegenRate();
+    flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
 
     skin = normalizeSkinState(data.skin);
     skinLoad();
@@ -1279,6 +1393,7 @@ function applyAuthenticatedState(data) {
     updateAdminVisibility(resolvedLogin);
     setAuthenticatedUI(true);
     document.getElementById('password').value = '';
+    updateFlyRewardUI();
 
     if (!restoreLocalDraftIfAvailable()) {
         autosaveState.lastSavedAt = Date.now();
@@ -1345,7 +1460,10 @@ async function requestJson(url, options = {}) {
     }
 
     if (!response.ok) {
-        throw new Error(data && data.message ? data.message : `HTTP ${response.status}`);
+        const error = new Error(data && data.message ? data.message : `HTTP ${response.status}`);
+        error.status = response.status;
+        error.payload = data;
+        throw error;
     }
 
     return data;
@@ -1436,6 +1554,9 @@ async function saveStateToServer() {
 
         throw new Error(data && data.message ? data.message : 'Не удалось сохранить прогресс.');
     } catch (error) {
+        if (tryHandleBanError(error)) {
+            resetUserState();
+        }
         console.error('Ошибка автосохранения:', error);
         return {
             success: false,
@@ -1549,6 +1670,10 @@ async function restoreSession() {
             return true;
         }
     } catch (error) {
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return false;
+        }
         console.warn('Сессия не восстановлена:', error);
     }
 
@@ -1724,6 +1849,10 @@ document.getElementById('submitLogin').onclick = async function() {
         showNotification('Успешный вход!', 'success');
         loadLeaderboard();
     } catch (error) {
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return;
+        }
         console.error('Ошибка входа:', error);
         showNotification(error.message || 'Ошибка сети при входе.', 'error');
     } finally {
@@ -1905,6 +2034,47 @@ document.getElementById('logoutButton').onclick = async function() {
     }
 };
 
+document.getElementById('flyRewardButton').onclick = async function() {
+    const rewardButton = document.getElementById('flyRewardButton');
+
+    if (!userId) {
+        showNotification('Войдите в аккаунт, чтобы забрать награду.', 'error');
+        return;
+    }
+
+    if (rewardButton.disabled) {
+        return;
+    }
+
+    rewardButton.disabled = true;
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/fly-claim-reward.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: '{}'
+        });
+
+        score = Number.isFinite(Number(data.mainScore)) ? Number(data.mainScore) : score;
+        flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+        updateScoreUI();
+        updateFlyRewardUI();
+        showNotification(data.message || 'Награда переведена в основной кликер.', data.awardedScore > 0 ? 'success' : 'error');
+    } catch (error) {
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return;
+        }
+
+        console.error('Ошибка перевода очков из fly-beaver:', error);
+        showNotification(error.message || 'Не удалось перевести очки из Летающего бобра.', 'error');
+    } finally {
+        rewardButton.disabled = false;
+    }
+};
+
 function saveScore(scoreValue) {
     if (!userId) {
         return;
@@ -1966,7 +2136,7 @@ class AutoClickerDetector {
         this.detectionCount = 0;
         this.maxDetections = 3;
         this.isMobile = this.checkMobileDevice();
-        this.unbanCode = "UNBAN2024";
+        this.banRequestInFlight = false;
         
         this.config = {
             maxCPS: this.isMobile ? 30 : 12,
@@ -1984,7 +2154,7 @@ class AutoClickerDetector {
 
     init() {
         if (this.isBanned()) {
-            this.showBanScreen();
+            this.showBanScreen(window.__boberBanInfo);
             return;
         }
 
@@ -2162,7 +2332,7 @@ class AutoClickerDetector {
         } else if (this.detectionCount === 2) {
             this.showSecondWarning();
         } else if (this.detectionCount >= 3) {
-            this.banUser();
+            this.banUser(reason, cps);
         }
         
         this.clicks = [];
@@ -2260,33 +2430,80 @@ class AutoClickerDetector {
         document.body.appendChild(warning);
     }
 
-    banUser() {
-        // TODO: по решению владельца это нужно перевести на серверный бан:
-        // первый бан на 5 дней, повторный на 30 дней. Пока остается локальный fallback.
-        const banInfo = {
-            banned: true,
-            reason: "Использование автокликера",
-            timestamp: new Date().toISOString(),
-            ip: this.getUserIP()
-        };
-        
-        localStorage.setItem('clicker_ban_info', JSON.stringify(banInfo));
-        this.showBanScreen();
+    async banUser(reason, cps) {
+        if (this.banRequestInFlight) {
+            return;
+        }
+
+        if (!userId) {
+            this.showBanScreen({
+                reason: reason || 'Подозрение на автокликер',
+                message: 'Подозрительная активность обнаружена, но аккаунт сейчас не определен. Войдите заново.',
+                durationDays: 5,
+                banUntil: ''
+            });
+            return;
+        }
+
+        this.banRequestInFlight = true;
+
+        try {
+            const data = await requestJson('https://bober-api.gt.tc/anti-cheat-report.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    reason: reason || 'Подозрение на автокликер',
+                    cps: cps,
+                    clicks: this.clicks.length,
+                    mobile: this.isMobile,
+                    detectionCount: this.detectionCount,
+                    regularity: this.calculateRegularity(),
+                    positionVariance: this.calculatePositionVariance(),
+                    humanFactor: this.calculateHumanFactor()
+                })
+            });
+
+            if (data && data.ban) {
+                setBanInfo(data.ban);
+                resetUserState();
+                this.showBanScreen(data.ban);
+                return;
+            }
+        } catch (error) {
+            if (tryHandleBanError(error)) {
+                resetUserState();
+                return;
+            }
+
+            console.error('Не удалось отправить серверный бан:', error);
+        } finally {
+            this.banRequestInFlight = false;
+        }
+
+        this.showBanScreen({
+            reason: reason || 'Подозрение на автокликер',
+            message: 'Подозрительная активность зафиксирована. Перезайдите в аккаунт для проверки статуса.',
+            durationDays: 5,
+            banUntil: ''
+        });
     }
 
     isBanned() {
-        const banInfo = localStorage.getItem('clicker_ban_info');
-        if (!banInfo) return false;
-        
-        try {
-            const data = JSON.parse(banInfo);
-            return data.banned === true;
-        } catch (e) {
-            return false;
-        }
+        return Boolean(window.__boberBanInfo);
     }
 
-    showBanScreen() {
+    showBanScreen(banInfo) {
+        const normalizedBan = banInfo && typeof banInfo === 'object' ? banInfo : {};
+        const reason = normalizedBan.reason || 'Подозрительная автоматизированная активность';
+        const durationDays = Number(normalizedBan.durationDays) > 0 ? Number(normalizedBan.durationDays) : 5;
+        const isRepeat = Boolean(normalizedBan.isRepeat);
+        const banUntil = normalizedBan.banUntil
+            ? new Date(String(normalizedBan.banUntil).replace(' ', 'T')).toLocaleString('ru-RU')
+            : 'до отдельной проверки';
+        const message = normalizedBan.message || `Аккаунт временно заблокирован до ${banUntil}.`;
+
         const banScreen = document.createElement('div');
         banScreen.innerHTML = `
             <div style="
@@ -2311,10 +2528,11 @@ class AutoClickerDetector {
                     <div style="font-size: 4em; margin-bottom: 20px;">🚫</div>
                     <h1 style="color: #ff4757; font-size: 2.5em; margin-bottom: 20px;">ВЫ ЗАБАНЕНЫ</h1>
                     <p style="font-size: 1.2em; line-height: 1.5; margin-bottom: 20px;">
-                        Ваш аккаунт был заблокирован за использование автокликеров.
+                        ${message}
                     </p>
                     <p style="color: #ccc; margin-bottom: 30px;">
-                        Дата блокировки: ${new Date().toLocaleDateString()}
+                        Срок: ${durationDays} дн.${isRepeat ? ' Повторный бан.' : ' Первый бан.'}<br>
+                        Окончание: ${banUntil}
                     </p>
                     <div style="
                         background: rgba(255, 71, 87, 0.2);
@@ -2323,30 +2541,31 @@ class AutoClickerDetector {
                         border-left: 4px solid #ff4757;
                         margin-bottom: 30px;
                     ">
-                        <strong>Причина:</strong> Нарушение правил игры - использование автоматизированных средств
+                        <strong>Причина:</strong> ${reason}
                     </div>
                     <p style="color: #aaa; font-size: 0.9em; margin-bottom: 20px;">
-                        По вопросам разблокировки обратитесь в поддержку
+                        Бан хранится на сервере. Если считаете это ошибкой, напишите в поддержку и укажите свой логин.
                     </p>
-                    <button id="contactSupportBtn" style="
-                        background: transparent;
-                        color: #74b9ff;
-                        border: 1px solid #74b9ff;
+                    <button id="reloadAfterBanBtn" style="
+                        background: #74b9ff;
+                        color: #0f172a;
+                        border: none;
                         padding: 10px 20px;
                         border-radius: 5px;
                         cursor: pointer;
-                        font-size: 0.9em;
-                    ">Обратиться в поддержку</button>
+                        font-size: 0.95em;
+                        font-weight: bold;
+                    ">Обновить страницу</button>
                 </div>
             </div>
         `;
         
-        banScreen.querySelector('#contactSupportBtn').addEventListener('click', () => {
-            this.showUnbanModal();
+        banScreen.querySelector('#reloadAfterBanBtn').addEventListener('click', () => {
+            location.reload();
         });
         
         banScreen.addEventListener('click', (e) => {
-            if (e.target.id !== 'contactSupportBtn') {
+            if (e.target.id !== 'reloadAfterBanBtn') {
                 e.preventDefault();
                 e.stopPropagation();
             }
@@ -2360,127 +2579,6 @@ class AutoClickerDetector {
         document.body.innerHTML = '';
         document.body.appendChild(banScreen);
         document.body.style.overflow = 'hidden';
-    }
-
-    showUnbanModal() {
-        const modal = document.createElement('div');
-        modal.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 10001;
-                font-family: Arial, sans-serif;
-            ">
-                <div style="
-                    background: linear-gradient(135deg, #1e3c72, #2a5298);
-                    color: white;
-                    padding: 30px;
-                    border-radius: 15px;
-                    max-width: 400px;
-                    width: 90%;
-                    text-align: center;
-                    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-                ">
-                    <h2 style="margin-bottom: 20px; color: #fff;">Разблокировка аккаунта</h2>
-                    <p style="margin-bottom: 20px; color: #ccc;">
-                        Для разблокировки аккаунта введите код, полученный в поддержке
-                    </p>
-                    <input type="text" id="unbanCodeInput" placeholder="Введите код разблокировки" style="
-                        width: 100%;
-                        padding: 12px;
-                        margin-bottom: 20px;
-                        border: none;
-                        border-radius: 8px;
-                        font-size: 16px;
-                        box-sizing: border-box;
-                        background: rgba(255,255,255,0.9);
-                    ">
-                    <div style="display: flex; gap: 10px;">
-                        <button id="submitUnbanCode" style="
-                            flex: 1;
-                            background: #00b894;
-                            color: white;
-                            border: none;
-                            padding: 12px;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-size: 16px;
-                            font-weight: bold;
-                        ">Разблокировать</button>
-                        <button id="cancelUnban" style="
-                            flex: 1;
-                            background: #636e72;
-                            color: white;
-                            border: none;
-                            padding: 12px;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-size: 16px;
-                        ">Отмена</button>
-                    </div>
-                    <div id="unbanMessage" style="margin-top: 15px; min-height: 20px;"></div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        modal.querySelector('#submitUnbanCode').addEventListener('click', () => {
-            this.processUnbanCode(modal);
-        });
-        
-        modal.querySelector('#cancelUnban').addEventListener('click', () => {
-            modal.remove();
-        });
-        
-        modal.querySelector('#unbanCodeInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.processUnbanCode(modal);
-            }
-        });
-        
-        modal.querySelector('#unbanCodeInput').focus();
-    }
-
-    processUnbanCode(modal) {
-        const input = modal.querySelector('#unbanCodeInput');
-        const message = modal.querySelector('#unbanMessage');
-        const code = input.value.trim();
-        
-        if (!code) {
-            message.innerHTML = '<span style="color: #ff7675;">Введите код разблокировки</span>';
-            return;
-        }
-        
-        if (code === this.unbanCode) {
-            message.innerHTML = '<span style="color: #55efc4;">Код принят! Разблокировка...</span>';
-            
-            setTimeout(() => {
-                localStorage.removeItem('clicker_ban_info');
-                modal.remove();
-                location.reload();
-            }, 1500);
-        } else {
-            message.innerHTML = '<span style="color: #ff7675;">Неверный код разблокировки</span>';
-            input.value = '';
-            input.focus();
-            
-            input.style.background = 'rgba(255, 118, 117, 0.2)';
-            setTimeout(() => {
-                input.style.background = 'rgba(255,255,255,0.9)';
-            }, 1000);
-        }
-    }
-
-    getUserIP() {
-        return 'unknown';
     }
 
     setConfig(newConfig) {
@@ -2499,71 +2597,13 @@ class AutoClickerDetector {
     }
 }
 
-function checkBanOnLoad() {
-    const banInfo = localStorage.getItem('clicker_ban_info');
-    if (banInfo) {
-        try {
-            const data = JSON.parse(banInfo);
-            if (data.banned) {
-                const detector = new AutoClickerDetector();
-                detector.showBanScreen();
-                return true;
-            }
-        } catch (e) {
-            console.error('Error reading ban info:', e);
-        }
-    }
-    return false;
-}
+localStorage.removeItem('clicker_ban_info');
 
-if (!checkBanOnLoad()) {
-    const clickDetector = new AutoClickerDetector();
-    
-    window.clickDetector = clickDetector;
-    
-    console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
-    console.log('Настройки для мобильных:', clickDetector.config);
-}
+const clickDetector = new AutoClickerDetector();
+window.clickDetector = clickDetector;
 
-function resetBan() {
-    localStorage.removeItem('clicker_ban_info');
-    location.reload();
-}
-
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'Сбросить бан (dev)';
-    resetBtn.style.cssText = `
-        position: fixed; 
-        bottom: 10px; 
-        right: 10px; 
-        z-index: 9999; 
-        padding: 8px 12px; 
-        font-size: 12px;
-        background: #e17055;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    `;
-    resetBtn.onclick = resetBan;
-    document.body.appendChild(resetBtn);
-    
-    const codeInfo = document.createElement('div');
-    codeInfo.textContent = 'Код разбана: UNBAN2024';
-    codeInfo.style.cssText = `
-        position: fixed; 
-        bottom: 40px; 
-        right: 10px; 
-        z-index: 9999; 
-        padding: 5px 10px; 
-        font-size: 11px;
-        background: rgba(0,0,0,0.7);
-        color: white;
-        border-radius: 4px;
-    `;
-    document.body.appendChild(codeInfo);
-}
+console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
+console.log('Настройки для мобильных:', clickDetector.config);
 </script>
 	
 	 <footer class="footer">
