@@ -643,7 +643,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let score = 0;
         let highScore = Number(localStorage.getItem('flappyBeaverHighScore') || 0);
         let currentLevel = 1;
-        let frames = 0;
         let baseGameSpeed = 2;
         let currentGameSpeed = baseGameSpeed;
         let isMuted = false;
@@ -651,6 +650,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let currentRunToken = '';
         let cloudSaveInFlight = false;
         let isCloudPanelExpanded = false;
+        let lastFrameTime = 0;
+        const TARGET_FRAME_MS = 1000 / 60;
         const DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
         const FLY_TRANSFER_MIN_SCORE = 25;
         const FLY_CREDIT_MIN_SCORE = 15;
@@ -1336,15 +1337,15 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 ctx.restore();
             },
             
-            update: function() {
+            update: function(deltaFactor = 1) {
                 if (gameRunning && !gamePaused) {
-                    this.velocity += this.gravity;
+                    this.velocity += this.gravity * deltaFactor;
                     
                     if (this.velocity > this.maxFallSpeed) {
                         this.velocity = this.maxFallSpeed;
                     }
                     
-                    this.y += this.velocity;
+                    this.y += this.velocity * deltaFactor;
                     
                     this.rotation = this.velocity * 0.03;
                     this.rotation = Math.max(-0.4, Math.min(0.4, this.rotation));
@@ -1397,6 +1398,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             gap: 200,
             maxYPos: -150,
             dx: currentGameSpeed,
+            spawnTicks: 0,
             
             draw: function() {
                 for (let i = 0; i < this.position.length; i++) {
@@ -1415,14 +1417,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 }
             },
             
-            update: function() {
+            update: function(deltaFactor = 1) {
                 if (gameRunning && !gamePaused) {
                     this.dx = currentGameSpeed;
                     const levelFactor = Math.max(0, currentLevel - 1);
                     
                     const spawnInterval = Math.max(60, 100 - (levelFactor * 5));
-                    
-                    if (frames % spawnInterval === 0) {
+                    this.spawnTicks += deltaFactor;
+
+                    while (this.spawnTicks >= spawnInterval) {
+                        this.spawnTicks -= spawnInterval;
                         const currentGap = Math.max(160, this.gap - (levelFactor * 5));
                         const topVariance = Math.max(60, 150 - (levelFactor * 5));
                         
@@ -1439,7 +1443,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     for (let i = 0; i < this.position.length; i++) {
                         let p = this.position[i];
                         
-                        p.x -= this.dx;
+                        p.x -= this.dx * deltaFactor;
                         
                         if (p.x + p.width <= 0) {
                             this.position.shift();
@@ -1479,6 +1483,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         // Облака (декор)
         const clouds = {
             position: [],
+            spawnTicks: 0,
             
             draw: function() {
                 for (let i = 0; i < this.position.length; i++) {
@@ -1501,8 +1506,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 }
             },
             
-            update: function() {
-                if (frames % 150 === 0) {
+            update: function(deltaFactor = 1) {
+                this.spawnTicks += deltaFactor;
+
+                while (this.spawnTicks >= 150) {
+                    this.spawnTicks -= 150;
                     this.position.push({
                         x: canvas.width + 50,
                         y: Math.random() * (canvas.height / 2.5),
@@ -1513,7 +1521,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 
                 for (let i = 0; i < this.position.length; i++) {
                     let c = this.position[i];
-                    c.x -= c.speed;
+                    c.x -= c.speed * deltaFactor;
                     
                     if (c.x + c.size * 2 < -50) {
                         this.position.shift();
@@ -1530,7 +1538,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             currentLevel = 1;
             currentRunToken = createRunToken();
             currentGameSpeed = getGameSpeedForLevel(currentLevel);
-            frames = 0;
+            lastFrameTime = 0;
             scoreElement.textContent = score;
             levelIndicator.textContent = `Уровень: ${currentLevel}`;
             
@@ -1541,7 +1549,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             logs.position = [];
             logs.dx = currentGameSpeed;
             logs.gap = 200;
+            logs.spawnTicks = 0;
             clouds.position = [];
+            clouds.spawnTicks = 0;
             
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
@@ -1611,7 +1621,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
         
         // Основной игровой цикл
-        function loop() {
+        function loop(timestamp) {
+            const now = Number.isFinite(Number(timestamp)) ? Number(timestamp) : performance.now();
+            const deltaMs = lastFrameTime > 0 ? Math.max(8, Math.min(34, now - lastFrameTime)) : TARGET_FRAME_MS;
+            const deltaFactor = deltaMs / TARGET_FRAME_MS;
+            lastFrameTime = now;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1621,17 +1636,15 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             clouds.draw();
-            if (!gamePaused) clouds.update();
+            if (!gamePaused) clouds.update(deltaFactor);
             
             ground.draw();
             
             logs.draw();
-            if (!gamePaused) logs.update();
+            if (!gamePaused) logs.update(deltaFactor);
             
             beaver.draw();
-            if (!gamePaused) beaver.update();
-            
-            if (!gamePaused) frames++;
+            if (!gamePaused) beaver.update(deltaFactor);
             
             requestAnimationFrame(loop);
         }
