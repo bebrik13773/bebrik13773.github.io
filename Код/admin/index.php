@@ -105,6 +105,164 @@ function normalizeSingleSqlStatement($sql)
     return $sql;
 }
 
+function skinNameLength($value)
+{
+    $value = (string) $value;
+
+    if (function_exists('mb_strlen')) {
+        return (int) mb_strlen($value, 'UTF-8');
+    }
+
+    return strlen($value);
+}
+
+function normalizeSkinDisplayName($value)
+{
+    $value = trim((string) $value);
+    $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+
+    $length = skinNameLength($value);
+    if ($length < 2 || $length > 60) {
+        throw new InvalidArgumentException('Название скина должно быть длиной от 2 до 60 символов.');
+    }
+
+    return $value;
+}
+
+function transliterateSkinSlug($value)
+{
+    $map = [
+        'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd', 'е' => 'e', 'ё' => 'e',
+        'ж' => 'zh', 'з' => 'z', 'и' => 'i', 'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm',
+        'н' => 'n', 'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't', 'у' => 'u',
+        'ф' => 'f', 'х' => 'h', 'ц' => 'ts', 'ч' => 'ch', 'ш' => 'sh', 'щ' => 'sch', 'ъ' => '',
+        'ы' => 'y', 'ь' => '', 'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+    ];
+
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 'skin';
+    }
+
+    $lower = function_exists('mb_strtolower')
+        ? mb_strtolower($value, 'UTF-8')
+        : strtolower($value);
+
+    $lower = strtr($lower, $map);
+    $lower = preg_replace('/[^a-z0-9]+/u', '-', $lower) ?? $lower;
+    $lower = trim($lower, '-');
+
+    return $lower !== '' ? $lower : 'skin';
+}
+
+function buildUniqueSkinCatalogId($name, array $catalogItems)
+{
+    $baseId = transliterateSkinSlug($name);
+    $existingIds = [];
+
+    foreach ($catalogItems as $item) {
+        $existingId = trim((string) ($item['id'] ?? ''));
+        if ($existingId !== '') {
+            $existingIds[$existingId] = true;
+        }
+    }
+
+    $candidate = $baseId;
+    $suffix = 2;
+
+    while (isset($existingIds[$candidate])) {
+        $candidate = $baseId . '-' . $suffix;
+        $suffix++;
+    }
+
+    return $candidate;
+}
+
+function skinUploadDirectoryPath()
+{
+    return dirname(__DIR__) . '/skins';
+}
+
+function detectSkinImageExtension($tmpPath, $originalName)
+{
+    $allowedByMime = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+    ];
+
+    $mimeType = null;
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $detected = finfo_file($finfo, $tmpPath);
+            finfo_close($finfo);
+            if (is_string($detected) && $detected !== '') {
+                $mimeType = $detected;
+            }
+        }
+    }
+
+    if ($mimeType !== null && isset($allowedByMime[$mimeType])) {
+        return $allowedByMime[$mimeType];
+    }
+
+    $originalExtension = strtolower(pathinfo((string) $originalName, PATHINFO_EXTENSION));
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    if (in_array($originalExtension, $allowedExtensions, true)) {
+        return $originalExtension === 'jpeg' ? 'jpg' : $originalExtension;
+    }
+
+    throw new InvalidArgumentException('Поддерживаются только изображения JPG, PNG, WEBP и GIF.');
+}
+
+function storeUploadedSkinImage($skinId, array $uploadedFile)
+{
+    $errorCode = (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($errorCode === UPLOAD_ERR_NO_FILE) {
+        throw new InvalidArgumentException('Выберите изображение скина.');
+    }
+
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('Не удалось загрузить изображение скина.');
+    }
+
+    $tmpName = (string) ($uploadedFile['tmp_name'] ?? '');
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        throw new RuntimeException('Временный файл изображения не найден.');
+    }
+
+    $fileSize = max(0, (int) ($uploadedFile['size'] ?? 0));
+    if ($fileSize < 1) {
+        throw new InvalidArgumentException('Изображение скина оказалось пустым.');
+    }
+
+    if ($fileSize > 5 * 1024 * 1024) {
+        throw new InvalidArgumentException('Изображение скина должно быть не больше 5 МБ.');
+    }
+
+    $extension = detectSkinImageExtension($tmpName, (string) ($uploadedFile['name'] ?? ''));
+    $skinsDir = skinUploadDirectoryPath();
+
+    if (!is_dir($skinsDir) && !mkdir($skinsDir, 0775, true) && !is_dir($skinsDir)) {
+        throw new RuntimeException('Не удалось подготовить папку для скинов.');
+    }
+
+    $fileName = $skinId . '-' . gmdate('YmdHis') . '.' . $extension;
+    $targetPath = $skinsDir . '/' . $fileName;
+
+    if (!move_uploaded_file($tmpName, $targetPath)) {
+        throw new RuntimeException('Не удалось сохранить изображение скина.');
+    }
+
+    return [
+        'relative_path' => 'skins/' . $fileName,
+        'absolute_path' => $targetPath,
+    ];
+}
+
 initializeAdmin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -347,6 +505,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
 
                 $conn->close();
+            }
+        }
+
+        if ($action === 'create_skin_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $skinName = normalizeSkinDisplayName($_POST['skin_name'] ?? '');
+                $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
+                $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image'])
+                    ? $_FILES['skin_image']
+                    : null;
+
+                if ($uploadedFile === null) {
+                    $response['message'] = 'Выберите изображение скина.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $catalogItems = bober_skin_catalog_list();
+                    $skinId = buildUniqueSkinCatalogId($skinName, $catalogItems);
+                    $storedImage = storeUploadedSkinImage($skinId, $uploadedFile);
+
+                    try {
+                        $newSkinItem = [
+                            'id' => $skinId,
+                            'name' => $skinName,
+                            'price' => $skinPrice,
+                            'image' => $storedImage['relative_path'],
+                            'default_owned' => false,
+                            'available' => true,
+                        ];
+
+                        $catalogItems[] = $newSkinItem;
+                        bober_store_skin_catalog($catalogItems);
+
+                        $response['success'] = true;
+                        $response['message'] = 'Скин добавлен и сразу доступен в магазине.';
+                        $response['skin'] = $newSkinItem;
+                        $response['catalog_count'] = count($catalogItems);
+
+                        bober_admin_log_action($conn, 'create_skin_catalog_item', [
+                            'target_table' => 'skin_catalog',
+                            'query_text' => 'CREATE SKIN ' . $skinId,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'skin_id' => $skinId,
+                                'skin_name' => $skinName,
+                                'price' => $skinPrice,
+                                'image' => $storedImage['relative_path'],
+                            ],
+                        ]);
+                    } catch (Throwable $error) {
+                        $absolutePath = (string) ($storedImage['absolute_path'] ?? '');
+                        if ($absolutePath !== '' && is_file($absolutePath)) {
+                            @unlink($absolutePath);
+                        }
+                        throw $error;
+                    } finally {
+                        $conn->close();
+                    }
+                }
             }
         }
 
@@ -2097,6 +2315,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             max-width: 540px;
         }
 
+        .modal-content.modal-content-skin {
+            max-width: 680px;
+        }
+
         .modal-hero {
             display: flex;
             gap: 16px;
@@ -2292,9 +2514,116 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             opacity: 1;
         }
 
+        .skin-create-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .skin-upload-card {
+            padding: 18px;
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at top right, rgba(17, 210, 255, 0.15), transparent 42%),
+                linear-gradient(135deg, rgba(17, 32, 54, 0.9), rgba(9, 16, 27, 0.96));
+            border: 1px solid rgba(17, 210, 255, 0.18);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .skin-upload-preview {
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            border-radius: 22px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background:
+                linear-gradient(180deg, rgba(10, 12, 28, 0.08), rgba(10, 12, 28, 0.36)),
+                linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82));
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 18px 32px rgba(0, 0, 0, 0.22);
+            margin-bottom: 14px;
+        }
+
+        .skin-upload-preview-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: #f6fcff;
+        }
+
+        .skin-upload-preview-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .skin-upload-preview-subtitle {
+            font-size: 13px;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+
+        .skin-upload-preview-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            align-self: flex-start;
+            padding: 9px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .file-drop-shell {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px dashed rgba(17, 210, 255, 0.28);
+            background:
+                linear-gradient(180deg, rgba(17, 210, 255, 0.08), rgba(17, 210, 255, 0.03)),
+                var(--field-bg);
+        }
+
+        .file-drop-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--on-surface);
+        }
+
+        .file-drop-note {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--muted-text);
+        }
+
+        .file-drop-shell input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(17, 210, 255, 0.2);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--on-surface);
+        }
+
+        .skin-create-success-hint {
+            margin-top: 8px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--muted-text);
+        }
+
         @media (max-width: 768px) {
             .modal-content.modal-content-wide,
-            .modal-content.modal-content-danger {
+            .modal-content.modal-content-danger,
+            .modal-content.modal-content-skin {
                 width: calc(100% - 24px);
                 max-width: none;
             }
@@ -2321,6 +2650,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             .duration-addon {
                 width: 100%;
+            }
+
+            .skin-create-layout {
+                grid-template-columns: 1fr;
             }
         }
         
@@ -3178,6 +3511,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 </div>
                             </div>
                         </div>
+                        <button class="btn btn-primary" id="openAddSkinModalBtn">
+                            <span class="material-icons">palette</span>
+                            Добавить скин
+                        </button>
                     </div>
 
                     <div class="accounts-shell">
@@ -3575,6 +3912,66 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             </div>
         </div>
     </div>
+
+    <div class="modal-overlay" id="addSkinModal">
+        <div class="modal-content modal-content-skin">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">palette</span>
+                        Новый скин
+                    </h3>
+                    <div class="card-subtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Загружаете картинку, задаете имя и цену, а дальше скин сразу попадает в магазин.
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeAddSkinModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="skin-create-layout">
+                    <form id="addSkinForm" class="modal-stack" novalidate>
+                        <div class="file-drop-shell">
+                            <div class="file-drop-title">Изображение скина</div>
+                            <div class="file-drop-note">Подойдут JPG, PNG, WEBP или GIF до 5 МБ. Картинка сразу покажется в превью справа.</div>
+                            <input type="file" id="addSkinImageInput" accept="image/png,image/jpeg,image/webp,image/gif" required>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="addSkinNameInput">Название</label>
+                            <input class="form-control" id="addSkinNameInput" type="text" maxlength="60" placeholder="Например: Кристальный бобер" required>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="addSkinPriceInput">Цена</label>
+                            <input class="form-control" id="addSkinPriceInput" type="number" min="0" step="1" value="0" required>
+                            <div class="skin-create-success-hint">ID скина сгенерируется автоматически, руками ничего прописывать не нужно.</div>
+                        </div>
+                    </form>
+
+                    <div class="skin-upload-card">
+                        <div class="skin-upload-preview" id="addSkinPreview"></div>
+                        <div class="skin-upload-preview-meta">
+                            <div class="skin-upload-preview-title" id="addSkinPreviewTitle">Новый скин</div>
+                            <div class="skin-upload-preview-subtitle" id="addSkinPreviewSubtitle">После сохранения скин сразу подхватится магазином и будет доступен игрокам.</div>
+                            <div class="skin-upload-preview-chip">
+                                <span class="material-icons" style="font-size: 16px;">sell</span>
+                                <span id="addSkinPreviewPrice">Цена: 0 коинов</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelAddSkinModal">Отмена</button>
+                <button class="btn btn-primary" id="saveAddSkinBtn">
+                    <span class="btn-text">Добавить скин</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
     
     <!-- Уведомления -->
@@ -3599,6 +3996,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             isPermanent: false,
             durationDays: 5
         };
+        let addSkinPreviewObjectUrl = '';
         const deleteAccountConfirmationPhrase = 'Я ПОДТВЕРЖДАЮ УДАЛЕНИЕ';
         
         // Инициализация при загрузке страницы
@@ -4015,6 +4413,54 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 submitDeleteSelectedAccount();
             });
 
+            const openAddSkinModalBtn = document.getElementById('openAddSkinModalBtn');
+            if (openAddSkinModalBtn) {
+                openAddSkinModalBtn.addEventListener('click', function() {
+                    showAddSkinModal();
+                });
+            }
+
+            const addSkinModal = document.getElementById('addSkinModal');
+            if (addSkinModal) {
+                addSkinModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideAddSkinModal();
+                    }
+                });
+            }
+
+            const closeAddSkinModalBtn = document.getElementById('closeAddSkinModal');
+            if (closeAddSkinModalBtn) {
+                closeAddSkinModalBtn.addEventListener('click', function() {
+                    hideAddSkinModal();
+                });
+            }
+
+            const cancelAddSkinModalBtn = document.getElementById('cancelAddSkinModal');
+            if (cancelAddSkinModalBtn) {
+                cancelAddSkinModalBtn.addEventListener('click', function() {
+                    hideAddSkinModal();
+                });
+            }
+
+            const addSkinNameInput = document.getElementById('addSkinNameInput');
+            const addSkinPriceInput = document.getElementById('addSkinPriceInput');
+            const addSkinImageInput = document.getElementById('addSkinImageInput');
+            const saveAddSkinBtn = document.getElementById('saveAddSkinBtn');
+
+            [addSkinNameInput, addSkinPriceInput, addSkinImageInput].forEach(field => {
+                if (field) {
+                    field.addEventListener('input', updateAddSkinPreview);
+                    field.addEventListener('change', updateAddSkinPreview);
+                }
+            });
+
+            if (saveAddSkinBtn) {
+                saveAddSkinBtn.addEventListener('click', function() {
+                    submitAddSkinModal();
+                });
+            }
+
             // Кнопки бокового меню
             document.getElementById('tablesHeader').addEventListener('click', function() {
                 const tableList = document.getElementById('tableList');
@@ -4276,6 +4722,144 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         function hideDeleteAccountModal() {
             document.getElementById('deleteAccountModal').classList.remove('active');
+        }
+
+        function clearAddSkinPreviewObjectUrl() {
+            if (addSkinPreviewObjectUrl) {
+                URL.revokeObjectURL(addSkinPreviewObjectUrl);
+                addSkinPreviewObjectUrl = '';
+            }
+        }
+
+        function updateAddSkinPreview() {
+            const titleNode = document.getElementById('addSkinPreviewTitle');
+            const subtitleNode = document.getElementById('addSkinPreviewSubtitle');
+            const priceNode = document.getElementById('addSkinPreviewPrice');
+            const previewNode = document.getElementById('addSkinPreview');
+            const imageInput = document.getElementById('addSkinImageInput');
+            const nameInput = document.getElementById('addSkinNameInput');
+            const priceInput = document.getElementById('addSkinPriceInput');
+
+            const skinName = nameInput ? nameInput.value.trim() : '';
+            const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
+
+            if (titleNode) {
+                titleNode.textContent = skinName || 'Новый скин';
+            }
+
+            if (subtitleNode) {
+                subtitleNode.textContent = skinName
+                    ? `Скин "${skinName}" появится в общем каталоге и будет доступен в магазине сразу после сохранения.`
+                    : 'После сохранения скин сразу подхватится магазином и будет доступен игрокам.';
+            }
+
+            if (priceNode) {
+                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов`;
+            }
+
+            if (previewNode) {
+                clearAddSkinPreviewObjectUrl();
+                const file = imageInput && imageInput.files ? imageInput.files[0] : null;
+                if (file) {
+                    addSkinPreviewObjectUrl = URL.createObjectURL(file);
+                    previewNode.style.backgroundImage = `linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.2)), url("${addSkinPreviewObjectUrl}")`;
+                } else {
+                    previewNode.style.backgroundImage = 'linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82))';
+                }
+            }
+        }
+
+        function resetAddSkinForm() {
+            const form = document.getElementById('addSkinForm');
+            if (form) {
+                form.reset();
+            }
+
+            const priceInput = document.getElementById('addSkinPriceInput');
+            if (priceInput) {
+                priceInput.value = '0';
+            }
+
+            clearAddSkinPreviewObjectUrl();
+            updateAddSkinPreview();
+        }
+
+        function showAddSkinModal() {
+            resetAddSkinForm();
+            document.getElementById('addSkinModal').classList.add('active');
+        }
+
+        function hideAddSkinModal() {
+            document.getElementById('addSkinModal').classList.remove('active');
+            clearAddSkinPreviewObjectUrl();
+        }
+
+        function submitAddSkinModal() {
+            const nameInput = document.getElementById('addSkinNameInput');
+            const priceInput = document.getElementById('addSkinPriceInput');
+            const imageInput = document.getElementById('addSkinImageInput');
+            const saveButton = document.getElementById('saveAddSkinBtn');
+            const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
+            const loader = saveButton ? saveButton.querySelector('.loader') : null;
+
+            const skinName = nameInput ? nameInput.value.trim() : '';
+            const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
+            const imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
+
+            if (skinName.length < 2) {
+                showNotification('Введите название скина.', 'error');
+                return;
+            }
+
+            if (!imageFile) {
+                showNotification('Выберите изображение скина.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'create_skin_catalog_item');
+            formData.append('skin_name', skinName);
+            formData.append('skin_price', String(skinPrice));
+            formData.append('skin_image', imageFile);
+
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось добавить скин');
+                }
+
+                hideAddSkinModal();
+                showNotification(data.message || 'Скин добавлен', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка загрузки скина', 'error');
+            })
+            .finally(() => {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                }
+                if (btnText) {
+                    btnText.style.display = 'inline';
+                }
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+            });
         }
 
         function updateDeleteAccountConfirmState() {
