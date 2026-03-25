@@ -566,6 +566,67 @@ SQL;
     if (!bober_index_exists($conn, 'user_bans', 'idx_user_bans_source') && !$conn->query("CREATE INDEX `idx_user_bans_source` ON `user_bans` (`source`, `created_at`)")) {
         throw new RuntimeException('Не удалось создать индекс источника банов.');
     }
+
+    $createUserIpHistorySql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_ip_history` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `ip_address` VARCHAR(64) NOT NULL,
+    `login_count` INT NOT NULL DEFAULT 1,
+    `first_seen_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_seen_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_user_agent` VARCHAR(255) NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserIpHistorySql)) {
+        throw new RuntimeException('Не удалось создать таблицу истории IP.');
+    }
+
+    if (!bober_index_exists($conn, 'user_ip_history', 'uniq_user_ip_history_user_ip') && !$conn->query("CREATE UNIQUE INDEX `uniq_user_ip_history_user_ip` ON `user_ip_history` (`user_id`, `ip_address`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс истории IP.');
+    }
+
+    if (!bober_index_exists($conn, 'user_ip_history', 'idx_user_ip_history_ip') && !$conn->query("CREATE INDEX `idx_user_ip_history_ip` ON `user_ip_history` (`ip_address`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории IP по адресу.');
+    }
+
+    if (!bober_index_exists($conn, 'user_ip_history', 'idx_user_ip_history_user') && !$conn->query("CREATE INDEX `idx_user_ip_history_user` ON `user_ip_history` (`user_id`, `last_seen_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории IP по пользователю.');
+    }
+
+    $createIpBansSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `ip_bans` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `ip_address` VARCHAR(64) NOT NULL,
+    `source_user_id` INT NOT NULL,
+    `source_user_ban_id` BIGINT NULL DEFAULT NULL,
+    `reason` VARCHAR(255) NOT NULL DEFAULT '',
+    `ban_until` DATETIME NOT NULL,
+    `lifted_at` DATETIME NULL DEFAULT NULL,
+    `meta_json` LONGTEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createIpBansSql)) {
+        throw new RuntimeException('Не удалось создать таблицу банов по IP.');
+    }
+
+    if (!bober_index_exists($conn, 'ip_bans', 'idx_ip_bans_ip_active') && !$conn->query("CREATE INDEX `idx_ip_bans_ip_active` ON `ip_bans` (`ip_address`, `ban_until`, `lifted_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс активности банов по IP.');
+    }
+
+    if (!bober_index_exists($conn, 'ip_bans', 'idx_ip_bans_source_user') && !$conn->query("CREATE INDEX `idx_ip_bans_source_user` ON `ip_bans` (`source_user_id`, `ban_until`, `lifted_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс банов по исходному пользователю.');
+    }
+
+    if (!bober_index_exists($conn, 'ip_bans', 'idx_ip_bans_source_ban') && !$conn->query("CREATE INDEX `idx_ip_bans_source_ban` ON `ip_bans` (`source_user_ban_id`)")) {
+        throw new RuntimeException('Не удалось создать индекс банов по исходному бану.');
+    }
 }
 
 function bober_ensure_fly_beaver_schema($conn)
@@ -775,6 +836,306 @@ function bober_normalize_ban_row($row)
     return $ban;
 }
 
+function bober_get_client_ip()
+{
+    $candidates = [];
+
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $candidates[] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    }
+
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        foreach (explode(',', (string) $_SERVER['HTTP_X_FORWARDED_FOR']) as $forwardedIp) {
+            $candidates[] = trim($forwardedIp);
+        }
+    }
+
+    if (!empty($_SERVER['REMOTE_ADDR'])) {
+        $candidates[] = $_SERVER['REMOTE_ADDR'];
+    }
+
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string) $candidate);
+        if ($candidate === '' || strlen($candidate) > 64) {
+            continue;
+        }
+
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function bober_record_user_ip($conn, $userId, $ipAddress = null, $userAgent = null)
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $ipAddress = trim((string) ($ipAddress ?? bober_get_client_ip()));
+    if ($ipAddress === '' || strlen($ipAddress) > 64 || filter_var($ipAddress, FILTER_VALIDATE_IP) === false) {
+        return false;
+    }
+
+    $userAgent = trim((string) ($userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? '')));
+    if ($userAgent === '') {
+        $userAgent = null;
+    }
+
+    $stmt = $conn->prepare('INSERT INTO user_ip_history (user_id, ip_address, login_count, first_seen_at, last_seen_at, last_user_agent) VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?) ON DUPLICATE KEY UPDATE login_count = login_count + 1, last_seen_at = CURRENT_TIMESTAMP, last_user_agent = VALUES(last_user_agent)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение IP пользователя.');
+    }
+
+    $stmt->bind_param('iss', $userId, $ipAddress, $userAgent);
+    $success = $stmt->execute();
+    $stmt->close();
+
+    if (!$success) {
+        throw new RuntimeException('Не удалось сохранить IP пользователя.');
+    }
+
+    return true;
+}
+
+function bober_fetch_user_ip_addresses($conn, $userId)
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $stmt = $conn->prepare('SELECT ip_address FROM user_ip_history WHERE user_id = ? ORDER BY last_seen_at DESC');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение IP пользователя.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить IP пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $ips = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $ipAddress = trim((string) ($row['ip_address'] ?? ''));
+        if ($ipAddress !== '') {
+            $ips[] = $ipAddress;
+        }
+    }
+
+    if ($result) {
+        $result->free();
+    }
+
+    $stmt->close();
+
+    return array_values(array_unique($ips));
+}
+
+function bober_build_ip_ban_message($ban)
+{
+    if (!is_array($ban)) {
+        return 'С этого IP временно запрещена регистрация новых аккаунтов.';
+    }
+
+    $banUntil = trim((string) ($ban['banUntil'] ?? ''));
+    if ($banUntil === '') {
+        return 'С этого IP временно запрещена регистрация новых аккаунтов.';
+    }
+
+    return 'С этого IP регистрация новых аккаунтов временно запрещена до ' . $banUntil . '.';
+}
+
+function bober_normalize_ip_ban_row($row)
+{
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $ban = [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'ipAddress' => trim((string) ($row['ip_address'] ?? $row['ipAddress'] ?? '')),
+        'sourceUserId' => max(0, (int) ($row['source_user_id'] ?? $row['sourceUserId'] ?? 0)),
+        'sourceUserBanId' => max(0, (int) ($row['source_user_ban_id'] ?? $row['sourceUserBanId'] ?? 0)),
+        'reason' => trim((string) ($row['reason'] ?? 'Блокировка по IP')),
+        'banUntil' => trim((string) ($row['ban_until'] ?? $row['banUntil'] ?? '')),
+        'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
+        'liftedAt' => isset($row['lifted_at']) ? (string) ($row['lifted_at']) : ($row['liftedAt'] ?? null),
+    ];
+
+    $ban['message'] = bober_build_ip_ban_message($ban);
+
+    return $ban;
+}
+
+function bober_fetch_active_ip_ban($conn, $ipAddress = null)
+{
+    bober_ensure_security_schema($conn);
+
+    $ipAddress = trim((string) ($ipAddress ?? bober_get_client_ip()));
+    if ($ipAddress === '' || strlen($ipAddress) > 64 || filter_var($ipAddress, FILTER_VALIDATE_IP) === false) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT id, ip_address, source_user_id, source_user_ban_id, reason, ban_until, created_at, lifted_at FROM ip_bans WHERE ip_address = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP ORDER BY ban_until DESC LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить проверку IP-бана.');
+    }
+
+    $stmt->bind_param('s', $ipAddress);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось проверить IP-бан.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $row ? bober_normalize_ip_ban_row($row) : null;
+}
+
+function bober_upsert_ip_ban_for_address($conn, $ipAddress, $userId, $sourceUserBanId, $reason, $banUntil, $meta = [])
+{
+    $ipAddress = trim((string) $ipAddress);
+    if ($ipAddress === '' || strlen($ipAddress) > 64 || filter_var($ipAddress, FILTER_VALIDATE_IP) === false) {
+        return false;
+    }
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return false;
+    }
+
+    $sourceUserBanId = max(0, (int) $sourceUserBanId);
+    $reason = trim((string) $reason);
+    $banUntil = trim((string) $banUntil);
+
+    if ($reason === '' || $banUntil === '') {
+        return false;
+    }
+
+    $meta['ip_address'] = $ipAddress;
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $existingStmt = $conn->prepare('SELECT id, ban_until FROM ip_bans WHERE ip_address = ? AND source_user_id = ? AND lifted_at IS NULL ORDER BY ban_until DESC LIMIT 1');
+    if (!$existingStmt) {
+        throw new RuntimeException('Не удалось подготовить проверку существующего IP-бана.');
+    }
+
+    $existingStmt->bind_param('si', $ipAddress, $userId);
+    if (!$existingStmt->execute()) {
+        $existingStmt->close();
+        throw new RuntimeException('Не удалось проверить существующий IP-бан.');
+    }
+
+    $existingResult = $existingStmt->get_result();
+    $existingRow = $existingResult ? $existingResult->fetch_assoc() : null;
+    if ($existingResult) {
+        $existingResult->free();
+    }
+    $existingStmt->close();
+
+    $targetBanUntilTimestamp = strtotime($banUntil);
+
+    if ($existingRow) {
+        $existingBanUntilTimestamp = strtotime((string) ($existingRow['ban_until'] ?? ''));
+        if ($existingBanUntilTimestamp !== false && $targetBanUntilTimestamp !== false && $existingBanUntilTimestamp >= $targetBanUntilTimestamp) {
+            return true;
+        }
+
+        $updateStmt = $conn->prepare('UPDATE ip_bans SET source_user_ban_id = ?, reason = ?, ban_until = ?, meta_json = ?, lifted_at = NULL WHERE id = ? LIMIT 1');
+        if (!$updateStmt) {
+            throw new RuntimeException('Не удалось подготовить обновление IP-бана.');
+        }
+
+        $banId = (int) $existingRow['id'];
+        $updateStmt->bind_param('isssi', $sourceUserBanId, $reason, $banUntil, $metaJson, $banId);
+        $success = $updateStmt->execute();
+        $updateStmt->close();
+
+        if (!$success) {
+            throw new RuntimeException('Не удалось обновить IP-бан.');
+        }
+
+        return true;
+    }
+
+    $insertStmt = $conn->prepare('INSERT INTO ip_bans (ip_address, source_user_id, source_user_ban_id, reason, ban_until, meta_json) VALUES (?, ?, ?, ?, ?, ?)');
+    if (!$insertStmt) {
+        throw new RuntimeException('Не удалось подготовить создание IP-бана.');
+    }
+
+    $insertStmt->bind_param('siisss', $ipAddress, $userId, $sourceUserBanId, $reason, $banUntil, $metaJson);
+    $success = $insertStmt->execute();
+    $insertStmt->close();
+
+    if (!$success) {
+        throw new RuntimeException('Не удалось создать IP-бан.');
+    }
+
+    return true;
+}
+
+function bober_propagate_user_ban_to_ip_bans($conn, $userId, $ban, $options = [])
+{
+    if (!is_array($ban)) {
+        return [];
+    }
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $banUntil = trim((string) ($ban['banUntil'] ?? ''));
+    if ($banUntil === '') {
+        return [];
+    }
+
+    $includeCurrentIp = array_key_exists('include_current_ip', $options)
+        ? (bool) $options['include_current_ip']
+        : true;
+
+    $ips = bober_fetch_user_ip_addresses($conn, $userId);
+    if ($includeCurrentIp) {
+        $currentIp = bober_get_client_ip();
+        if (is_string($currentIp) && $currentIp !== '') {
+            $ips[] = $currentIp;
+        }
+    }
+
+    $ips = array_values(array_unique(array_filter($ips, static function ($ipAddress) {
+        return is_string($ipAddress) && $ipAddress !== '';
+    })));
+
+    $reason = trim((string) ($ban['reason'] ?? 'Аккаунт временно заблокирован'));
+    $sourceUserBanId = max(0, (int) ($ban['id'] ?? 0));
+    $createdIpBans = [];
+
+    foreach ($ips as $ipAddress) {
+        bober_upsert_ip_ban_for_address($conn, $ipAddress, $userId, $sourceUserBanId, $reason, $banUntil, [
+            'source' => 'user-ban-propagation',
+            'reason' => $reason,
+        ]);
+        $createdIpBans[] = $ipAddress;
+    }
+
+    return $createdIpBans;
+}
+
 function bober_fetch_active_user_ban($conn, $userId)
 {
     $userId = max(0, (int) $userId);
@@ -801,6 +1162,63 @@ function bober_fetch_active_user_ban($conn, $userId)
     $stmt->close();
 
     return $row ? bober_normalize_ban_row($row) : null;
+}
+
+function bober_lift_ip_bans_for_user($conn, $userId)
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare('UPDATE ip_bans SET lifted_at = CURRENT_TIMESTAMP WHERE source_user_id = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить снятие IP-банов.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось снять IP-баны.');
+    }
+
+    $affectedRows = (int) $stmt->affected_rows;
+    $stmt->close();
+
+    return max(0, $affectedRows);
+}
+
+function bober_lift_user_bans($conn, $userId)
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('UPDATE user_bans SET lifted_at = CURRENT_TIMESTAMP WHERE user_id = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить снятие банов пользователя.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось снять бан пользователя.');
+    }
+
+    $liftedUserBans = max(0, (int) $stmt->affected_rows);
+    $stmt->close();
+
+    $liftedIpBans = bober_lift_ip_bans_for_user($conn, $userId);
+
+    return [
+        'liftedUserBans' => $liftedUserBans,
+        'liftedIpBans' => $liftedIpBans,
+    ];
 }
 
 function bober_count_user_bans($conn, $userId, $source = 'autoclicker')
@@ -847,6 +1265,9 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
 
     $activeBan = bober_fetch_active_user_ban($conn, $userId);
     if ($activeBan !== null) {
+        bober_propagate_user_ban_to_ip_bans($conn, $userId, $activeBan, [
+            'include_current_ip' => false,
+        ]);
         return $activeBan;
     }
 
@@ -887,5 +1308,10 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
     }
     $stmt->close();
 
-    return bober_fetch_active_user_ban($conn, $userId);
+    $ban = bober_fetch_active_user_ban($conn, $userId);
+    if ($ban !== null) {
+        bober_propagate_user_ban_to_ip_bans($conn, $userId, $ban);
+    }
+
+    return $ban;
 }

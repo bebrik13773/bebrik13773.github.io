@@ -38,6 +38,9 @@ try {
 
     $activeBan = bober_fetch_active_user_ban($conn, (int) $id);
     if ($activeBan !== null) {
+        bober_propagate_user_ban_to_ip_bans($conn, (int) $id, $activeBan, [
+            'include_current_ip' => false,
+        ]);
         $conn->close();
         bober_logout_user();
         bober_json_response([
@@ -46,6 +49,8 @@ try {
             'ban' => $activeBan,
         ], 403);
     }
+
+    bober_record_user_ip($conn, (int) $id);
 
     $normalizedSkin = bober_normalize_skin_json($skin);
     if ($normalizedSkin !== $skin) {

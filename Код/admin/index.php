@@ -520,6 +520,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
         }
+
+        if ($action === 'ban_user_account') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $reason = trim((string) ($_POST['reason'] ?? 'Ручной бан через админку'));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT login FROM users WHERE id = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось подготовить получение пользователя.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось получить пользователя.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult ? $userResult->fetch_assoc() : null;
+                    if ($userResult) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $ban = bober_issue_user_ban($conn, $userId, $reason, [
+                            'source' => 'admin_manual',
+                            'detected_by' => 'admin_panel',
+                            'meta' => [
+                                'admin_action' => 'ban_user_account',
+                            ],
+                        ]);
+
+                        $response['success'] = true;
+                        $response['ban'] = $ban;
+                        $response['message'] = $ban['message'] ?? 'Пользователь забанен';
+
+                        bober_admin_log_action($conn, 'ban_user_account', [
+                            'target_table' => 'users',
+                            'query_text' => 'BAN USER #' . $userId,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => $userRow['login'] ?? '',
+                                'ban_until' => $ban['banUntil'] ?? null,
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'unban_user_account') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT login FROM users WHERE id = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось подготовить получение пользователя.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось получить пользователя.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult ? $userResult->fetch_assoc() : null;
+                    if ($userResult) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $liftResult = bober_lift_user_bans($conn, $userId);
+                        $liftedUserBans = max(0, (int) ($liftResult['liftedUserBans'] ?? 0));
+                        $liftedIpBans = max(0, (int) ($liftResult['liftedIpBans'] ?? 0));
+
+                        $response['success'] = true;
+                        $response['message'] = $liftedUserBans > 0 || $liftedIpBans > 0
+                            ? 'Бан пользователя и связанные IP-баны сняты'
+                            : 'Активных банов для этого пользователя не найдено';
+                        $response['lifted'] = $liftResult;
+
+                        bober_admin_log_action($conn, 'unban_user_account', [
+                            'target_table' => 'users',
+                            'query_text' => 'UNBAN USER #' . $userId,
+                            'affected_rows' => $liftedUserBans + $liftedIpBans,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => $userRow['login'] ?? '',
+                                'lifted_user_bans' => $liftedUserBans,
+                                'lifted_ip_bans' => $liftedIpBans,
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
     } catch (InvalidArgumentException $error) {
         $response['message'] = $error->getMessage();
     } catch (Throwable $error) {
@@ -1709,6 +1829,14 @@ $password_changed = isset($_SESSION['password_changed']) ? (bool) $_SESSION['pas
                     <button class="quick-sql-btn" data-sql="SELECT * FROM user_bans ORDER BY id DESC LIMIT 50;">
                         <span class="material-icons">gpp_bad</span>
                         Активность банов
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM user_ip_history ORDER BY last_seen_at DESC LIMIT 100;">
+                        <span class="material-icons">lan</span>
+                        История IP
+                    </button>
+                    <button class="quick-sql-btn" data-sql="SELECT * FROM ip_bans ORDER BY id DESC LIMIT 100;">
+                        <span class="material-icons">shield</span>
+                        IP Баны
                     </button>
                 </div>
                 
