@@ -1118,6 +1118,10 @@ function formatCompactNumber(value) {
     return Number(value || 0).toLocaleString('ru-RU');
 }
 
+function calculateFlyRewardCoins(scoreValue) {
+    return Math.max(0, Number(scoreValue) || 0) * 500;
+}
+
 function updateFlyRewardUI() {
     const rewardButton = document.getElementById('flyRewardButton');
     const rewardStatus = document.getElementById('flyRewardStatus');
@@ -1136,12 +1140,20 @@ function updateFlyRewardUI() {
 
     const pending = Math.max(0, Number(flyBeaverState.pendingTransferScore) || 0);
     const best = Math.max(0, Number(flyBeaverState.bestScore) || 0);
+    const rewardCoins = calculateFlyRewardCoins(pending);
+
+    if (pending >= 10) {
+        rewardButton.style.display = 'inline-block';
+        rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
+        rewardStatus.className = 'save-status draft';
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 10 = 5000.`;
+        return;
+    }
 
     if (pending > 0) {
-        rewardButton.style.display = 'inline-block';
-        rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(pending)})`;
-        rewardStatus.className = 'save-status draft';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)}.`;
+        rewardButton.style.display = 'none';
+        rewardStatus.className = 'save-status idle';
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(10 - pending)} очк.`;
         return;
     }
 
@@ -2061,7 +2073,7 @@ document.getElementById('flyRewardButton').onclick = async function() {
         flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
         updateScoreUI();
         updateFlyRewardUI();
-        showNotification(data.message || 'Награда переведена в основной кликер.', data.awardedScore > 0 ? 'success' : 'error');
+        showNotification(data.message || 'Награда переведена в основной кликер.', Number(data.awardedCoins) > 0 ? 'success' : 'error');
     } catch (error) {
         if (tryHandleBanError(error)) {
             resetUserState();

@@ -43,15 +43,20 @@ try {
     }
     $selectStmt->close();
 
-    $awardedScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
+    $minimumTransferScore = 10;
+    $coinsPerTenScore = 5000;
+    $coinsPerScore = (int) ($coinsPerTenScore / $minimumTransferScore);
+    $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
+    $awardedScore = $pendingScore >= $minimumTransferScore ? $pendingScore : 0;
+    $awardedCoins = $awardedScore * $coinsPerScore;
 
-    if ($awardedScore > 0) {
+    if ($awardedCoins > 0) {
         $updateUserStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
         if (!$updateUserStmt) {
             throw new RuntimeException('Не удалось подготовить перевод очков в кликер.');
         }
 
-        $updateUserStmt->bind_param('ii', $awardedScore, $userId);
+        $updateUserStmt->bind_param('ii', $awardedCoins, $userId);
         if (!$updateUserStmt->execute()) {
             $updateUserStmt->close();
             throw new RuntimeException('Не удалось перевести очки в кликер.');
@@ -96,8 +101,12 @@ try {
 
     bober_json_response([
         'success' => true,
-        'message' => $awardedScore > 0 ? 'Очки из Летающего бобра переведены в основной кликер.' : 'Для перевода пока нет очков.',
+        'message' => $awardedCoins > 0
+            ? 'Очки из Летающего бобра переведены в основной кликер по курсу 10 очков = 5000 коинов.'
+            : 'Для перевода нужно минимум 10 очков из Летающего бобра.',
         'awardedScore' => $awardedScore,
+        'awardedCoins' => $awardedCoins,
+        'minimumTransferScore' => $minimumTransferScore,
         'mainScore' => max(0, (int) ($scoreRow['score'] ?? 0)),
         'flyBeaver' => $flyBeaver,
     ]);

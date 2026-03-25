@@ -552,9 +552,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             cloudStatusElement.textContent = message;
         }
 
+        function calculateFlyRewardCoins(scoreValue) {
+            return Math.max(0, Number(scoreValue) || 0) * 500;
+        }
+
         function updateCloudPanel() {
             const pending = accountState.flyBeaver.pendingTransferScore || 0;
             const best = Math.max(highScore, accountState.flyBeaver.bestScore || 0);
+            const rewardCoins = calculateFlyRewardCoins(pending);
             highScore = best;
             highScoreElement.textContent = `Рекорд: ${best}`;
             localStorage.setItem('flappyBeaverHighScore', String(best));
@@ -566,11 +571,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             cloudTitleElement.textContent = `Облако: ${accountState.login || 'аккаунт'}`;
 
-            if (pending > 0) {
+            if (pending >= 10) {
                 claimFlyScoreButton.style.display = 'block';
-                claimFlyScoreButton.textContent = `Перевести в кликер (+${pending.toLocaleString('ru-RU')})`;
+                claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
                 cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди на перевод: ${pending.toLocaleString('ru-RU')} очк.`;
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 10 очков = 5000 коинов.`;
+                return;
+            }
+
+            if (pending > 0) {
+                claimFlyScoreButton.style.display = 'none';
+                cloudStatusElement.className = 'cloud-status local';
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Для перевода нужно еще ${(10 - pending).toLocaleString('ru-RU')} очк.`;
                 return;
             }
 
@@ -684,7 +696,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
                 accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
                 updateCloudPanel();
-                setCloudStatus(data.awardedScore > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
+                setCloudStatus(Number(data.awardedCoins) > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
             } catch (error) {
                 if (error.payload && error.payload.ban) {
                     const ban = error.payload.ban;
