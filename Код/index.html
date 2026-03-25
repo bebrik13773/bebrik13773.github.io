@@ -3224,7 +3224,17 @@ class AutoClickerDetector {
                 heatDecayPerSecond: 0.65,
                 warningCooldownMs: 1800,
                 syntheticClickAfterTouchMs: 450,
-                duplicateDistancePx: 24
+                duplicateDistancePx: 24,
+                exactPatternMinSamples: 14,
+                exactPatternMinInterval: 94,
+                exactPatternMaxInterval: 106,
+                exactPatternCvThreshold: 0.032,
+                exactPatternStableRatio: 0.9,
+                exactPatternDominantRatio: 0.88,
+                exactPatternMinStreak: 11,
+                exactPatternMaxAverageTouchCount: 1.35,
+                exactPatternMaxMultiTouchRatio: 0.12,
+                exactPatternMaxTouchCount: 2
             };
         }
 
@@ -3246,7 +3256,17 @@ class AutoClickerDetector {
             heatDecayPerSecond: 0.8,
             warningCooldownMs: 1400,
             syntheticClickAfterTouchMs: 450,
-            duplicateDistancePx: 20
+            duplicateDistancePx: 20,
+            exactPatternMinSamples: 12,
+            exactPatternMinInterval: 94,
+            exactPatternMaxInterval: 106,
+            exactPatternCvThreshold: 0.04,
+            exactPatternStableRatio: 0.88,
+            exactPatternDominantRatio: 0.88,
+            exactPatternMinStreak: 10,
+            exactPatternMaxAverageTouchCount: 1.35,
+            exactPatternMaxMultiTouchRatio: 0.12,
+            exactPatternMaxTouchCount: 2
         };
     }
 
@@ -3491,6 +3511,9 @@ class AutoClickerDetector {
             multiTouchRatio >= 0.35 &&
             averageTouchCount >= 2.4 &&
             maxTouchCount >= 4;
+        const lowTouchAutomationRisk = averageTouchCount <= this.config.exactPatternMaxAverageTouchCount &&
+            multiTouchRatio <= this.config.exactPatternMaxMultiTouchRatio &&
+            maxTouchCount <= this.config.exactPatternMaxTouchCount;
         const effectiveCps = hasStrongMobileMultiTouch
             ? cps / Math.max(1, averageTouchCount * 0.75)
             : cps;
@@ -3511,12 +3534,14 @@ class AutoClickerDetector {
             dominantRatio >= this.config.hardStableRatioThreshold &&
             longestStableStreak >= this.config.hardStableStreak;
 
-        const exactHundredMsPattern = !this.isMobile &&
-            medianInterval >= 94 &&
-            medianInterval <= 106 &&
-            stableRatio >= 0.88 &&
-            dominantRatio >= 0.88 &&
-            longestStableStreak >= 10;
+        const exactHundredMsPattern = recentClicks.length >= this.config.exactPatternMinSamples &&
+            lowTouchAutomationRisk &&
+            medianInterval >= this.config.exactPatternMinInterval &&
+            medianInterval <= this.config.exactPatternMaxInterval &&
+            coefficientOfVariation <= this.config.exactPatternCvThreshold &&
+            stableRatio >= this.config.exactPatternStableRatio &&
+            dominantRatio >= this.config.exactPatternDominantRatio &&
+            longestStableStreak >= this.config.exactPatternMinStreak;
 
         const extremeSpeed = effectiveCps >= this.config.extremeCPS;
 
@@ -3566,6 +3591,7 @@ class AutoClickerDetector {
             maxTouchCount: maxTouchCount,
             multiTouchRatio: multiTouchRatio,
             hasStrongMobileMultiTouch: hasStrongMobileMultiTouch,
+            lowTouchAutomationRisk: lowTouchAutomationRisk,
             coefficientOfVariation: coefficientOfVariation,
             stableRatio: stableRatio,
             dominantRatio: dominantRatio,

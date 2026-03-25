@@ -193,14 +193,16 @@ function detectSkinImageExtension($tmpPath, $originalName)
     ];
 
     $mimeType = null;
-    if (function_exists('finfo_open')) {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        if ($finfo) {
-            $detected = finfo_file($finfo, $tmpPath);
-            finfo_close($finfo);
-            if (is_string($detected) && $detected !== '') {
-                $mimeType = $detected;
-            }
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $detected = $finfo->file($tmpPath);
+        if (is_string($detected) && $detected !== '') {
+            $mimeType = $detected;
+        }
+    } elseif (function_exists('mime_content_type')) {
+        $detected = mime_content_type($tmpPath);
+        if (is_string($detected) && $detected !== '') {
+            $mimeType = $detected;
         }
     }
 
