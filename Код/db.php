@@ -314,6 +314,32 @@ function bober_normalize_skin_catalog_item($rawItem)
     ];
 }
 
+function bober_skin_catalog_is_pinned_last($item)
+{
+    if (!is_array($item)) {
+        return false;
+    }
+
+    return trim((string) ($item['id'] ?? '')) === 'dev';
+}
+
+function bober_order_skin_catalog_items(array $catalogItems)
+{
+    $regularItems = [];
+    $pinnedLastItems = [];
+
+    foreach ($catalogItems as $item) {
+        if (bober_skin_catalog_is_pinned_last($item)) {
+            $pinnedLastItems[] = $item;
+            continue;
+        }
+
+        $regularItems[] = $item;
+    }
+
+    return array_values(array_merge($regularItems, $pinnedLastItems));
+}
+
 function bober_skin_catalog()
 {
     $catalogFile = bober_skin_catalog_file_path();
@@ -343,7 +369,7 @@ function bober_skin_catalog()
 
 function bober_skin_catalog_list()
 {
-    return array_values(bober_skin_catalog());
+    return bober_order_skin_catalog_items(array_values(bober_skin_catalog()));
 }
 
 function bober_store_skin_catalog(array $catalogItems)
@@ -359,6 +385,8 @@ function bober_store_skin_catalog(array $catalogItems)
     if (count($normalizedItems) === 0) {
         throw new RuntimeException('Каталог скинов пуст и не может быть сохранен.');
     }
+
+    $normalizedItems = bober_order_skin_catalog_items($normalizedItems);
 
     $catalogFile = bober_skin_catalog_file_path();
     $encodedCatalog = json_encode(

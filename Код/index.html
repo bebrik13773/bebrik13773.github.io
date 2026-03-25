@@ -1358,13 +1358,35 @@ function normalizeSkinCatalogItem(rawItem, index = 0) {
     };
 }
 
+function isPinnedLastSkinCatalogItem(item) {
+    return Boolean(item && typeof item === 'object' && String(item.id || '').trim() === 'dev');
+}
+
+function sortSkinCatalogForDisplay(items) {
+    const regularItems = [];
+    const pinnedLastItems = [];
+
+    (Array.isArray(items) ? items : []).forEach((item) => {
+        if (isPinnedLastSkinCatalogItem(item)) {
+            pinnedLastItems.push(item);
+            return;
+        }
+
+        regularItems.push(item);
+    });
+
+    return [...regularItems, ...pinnedLastItems];
+}
+
 function rebuildSkinCatalogRuntime(rawCatalog) {
     const normalizedCatalog = Array.isArray(rawCatalog)
         ? rawCatalog.map((item, index) => normalizeSkinCatalogItem(item, index)).filter(Boolean)
         : [];
-    const nextCatalog = normalizedCatalog.length > 0
-        ? normalizedCatalog
-        : FALLBACK_SKIN_CATALOG.map((item, index) => normalizeSkinCatalogItem(item, index)).filter(Boolean);
+    const nextCatalog = sortSkinCatalogForDisplay(
+        normalizedCatalog.length > 0
+            ? normalizedCatalog
+            : FALLBACK_SKIN_CATALOG.map((item, index) => normalizeSkinCatalogItem(item, index)).filter(Boolean)
+    );
 
     SKIN_CATALOG = nextCatalog;
     SKIN_BY_ID = SKIN_CATALOG.reduce((accumulator, item) => {

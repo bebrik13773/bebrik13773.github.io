@@ -4814,10 +4814,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 submitDeleteSelectedAccount();
             });
 
-            const openAddSkinModalBtn = document.getElementById('openAddSkinModalBtn');
-            if (openAddSkinModalBtn) {
-                openAddSkinModalBtn.addEventListener('click', function() {
-                    showAddSkinModal();
+            const openSkinsViewBtn = document.getElementById('openSkinsViewBtn');
+            if (openSkinsViewBtn) {
+                openSkinsViewBtn.addEventListener('click', function() {
+                    showSkinsView();
+                });
+            }
+
+            const createSkinBtn = document.getElementById('createSkinBtn');
+            if (createSkinBtn) {
+                createSkinBtn.addEventListener('click', function() {
+                    showAddSkinModal('create');
                 });
             }
 
@@ -4847,9 +4854,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const addSkinNameInput = document.getElementById('addSkinNameInput');
             const addSkinPriceInput = document.getElementById('addSkinPriceInput');
             const addSkinImageInput = document.getElementById('addSkinImageInput');
+            const addSkinAvailableInput = document.getElementById('addSkinAvailableInput');
+            const addSkinDefaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const saveAddSkinBtn = document.getElementById('saveAddSkinBtn');
 
-            [addSkinNameInput, addSkinPriceInput, addSkinImageInput].forEach(field => {
+            [addSkinNameInput, addSkinPriceInput, addSkinImageInput, addSkinAvailableInput, addSkinDefaultOwnedInput].forEach(field => {
                 if (field) {
                     field.addEventListener('input', updateAddSkinPreview);
                     field.addEventListener('change', updateAddSkinPreview);
@@ -4859,6 +4868,36 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (saveAddSkinBtn) {
                 saveAddSkinBtn.addEventListener('click', function() {
                     submitAddSkinModal();
+                });
+            }
+
+            const deleteSkinModal = document.getElementById('deleteSkinModal');
+            if (deleteSkinModal) {
+                deleteSkinModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideDeleteSkinModal();
+                    }
+                });
+            }
+
+            const closeDeleteSkinModal = document.getElementById('closeDeleteSkinModal');
+            if (closeDeleteSkinModal) {
+                closeDeleteSkinModal.addEventListener('click', function() {
+                    hideDeleteSkinModal();
+                });
+            }
+
+            const cancelDeleteSkinModal = document.getElementById('cancelDeleteSkinModal');
+            if (cancelDeleteSkinModal) {
+                cancelDeleteSkinModal.addEventListener('click', function() {
+                    hideDeleteSkinModal();
+                });
+            }
+
+            const confirmDeleteSkinBtn = document.getElementById('confirmDeleteSkinBtn');
+            if (confirmDeleteSkinBtn) {
+                confirmDeleteSkinBtn.addEventListener('click', function() {
+                    submitDeleteSkinModal();
                 });
             }
 
@@ -4873,6 +4912,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             document.getElementById('accountsBtn').addEventListener('click', function() {
                 showAccountsView();
+            });
+
+            document.getElementById('skinsBtn').addEventListener('click', function() {
+                showSkinsView();
             });
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
@@ -4925,6 +4968,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshAccountsBtn) {
                 refreshAccountsBtn.addEventListener('click', function() {
                     loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
+                });
+            }
+
+            const skinCatalogSearchInput = document.getElementById('skinCatalogSearchInput');
+            if (skinCatalogSearchInput) {
+                skinCatalogSearchInput.addEventListener('input', function() {
+                    skinCatalogSearch = this.value.trim();
+                    renderSkinCatalogList();
+                });
+            }
+
+            const refreshSkinCatalogBtn = document.getElementById('refreshSkinCatalogBtn');
+            if (refreshSkinCatalogBtn) {
+                refreshSkinCatalogBtn.addEventListener('click', function() {
+                    loadSkinCatalogAdmin();
                 });
             }
         }
@@ -5132,6 +5190,179 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
         }
 
+        function resolveAdminSkinImageUrl(imagePath) {
+            const normalizedPath = String(imagePath || '').trim();
+            if (!normalizedPath) {
+                return '';
+            }
+
+            if (/^(https?:)?\/\//i.test(normalizedPath) || normalizedPath.startsWith('data:')) {
+                return normalizedPath;
+            }
+
+            if (normalizedPath.startsWith('../') || normalizedPath.startsWith('./')) {
+                return normalizedPath;
+            }
+
+            return `../${normalizedPath.replace(/^\/+/, '')}`;
+        }
+
+        function getFilteredSkinCatalogItems() {
+            const query = skinCatalogSearch.trim().toLowerCase();
+            if (!query) {
+                return [...skinCatalogItems];
+            }
+
+            return skinCatalogItems.filter(item => {
+                const name = String(item.name || '').toLowerCase();
+                const id = String(item.id || '').toLowerCase();
+                return name.includes(query) || id.includes(query);
+            });
+        }
+
+        function isPinnedLastAdminSkinItem(item) {
+            return Boolean(item && String(item.id || '').trim() === 'dev');
+        }
+
+        function sortAdminSkinCatalogItems(items) {
+            const regularItems = [];
+            const pinnedLastItems = [];
+
+            (Array.isArray(items) ? items : []).forEach(item => {
+                if (isPinnedLastAdminSkinItem(item)) {
+                    pinnedLastItems.push(item);
+                    return;
+                }
+
+                regularItems.push(item);
+            });
+
+            return [...regularItems, ...pinnedLastItems];
+        }
+
+        function renderSkinCatalogList() {
+            const grid = document.getElementById('skinCatalogGrid');
+            const meta = document.getElementById('skinCatalogMeta');
+
+            if (!grid || !meta) {
+                return;
+            }
+
+            const filteredItems = getFilteredSkinCatalogItems();
+            meta.textContent = skinCatalogSearch
+                ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(skinCatalogItems.length)} скинов по запросу "${skinCatalogSearch}".`
+                : `Всего скинов в каталоге: ${formatAdminNumber(skinCatalogItems.length)}.`;
+
+            if (filteredItems.length === 0) {
+                grid.innerHTML = '<div class="empty-list">По этому запросу скины не найдены.</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => {
+                const priceLabel = Number(item.price || 0) > 0
+                    ? `${formatAdminNumber(item.price)} коинов`
+                    : 'Бесплатно';
+                const availabilityLabel = item.available === false ? 'Скрыт' : 'Доступен';
+                const imageUrl = resolveAdminSkinImageUrl(item.image);
+
+                return `
+                    <article class="skin-catalog-card" data-skin-id="${escapeHtml(item.id)}">
+                        <div class="skin-catalog-card-preview" style="background-image: linear-gradient(180deg, rgba(9, 14, 27, 0.04), rgba(9, 14, 27, 0.22)), url('${escapeHtml(imageUrl)}');"></div>
+                        <div class="skin-catalog-card-body">
+                            <div class="skin-catalog-card-head">
+                                <div>
+                                    <div class="skin-catalog-card-title">${escapeHtml(item.name || item.id)}</div>
+                                    <div class="skin-catalog-card-id">${escapeHtml(item.id)}</div>
+                                </div>
+                                <span class="status-pill ${item.available === false ? 'banned' : 'active'}">${item.available === false ? 'Скрыт' : 'В магазине'}</span>
+                            </div>
+                            <div class="inline-actions" style="margin-top: 0;">
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sell</span>${priceLabel}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">verified_user</span>${item.default_owned ? 'Стартовый' : 'Покупаемый'}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">image</span>${availabilityLabel}</span>
+                            </div>
+                            <div class="skin-catalog-card-actions">
+                                <button class="btn btn-outline btn-small edit-skin-btn" type="button" data-skin-id="${escapeHtml(item.id)}">
+                                    <span class="material-icons">edit</span>
+                                    Редактировать
+                                </button>
+                                <button class="btn btn-danger btn-small delete-skin-btn" type="button" data-skin-id="${escapeHtml(item.id)}">
+                                    <span class="material-icons">delete</span>
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+
+            grid.querySelectorAll('.edit-skin-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const skinId = String(this.dataset.skinId || '');
+                    const skinItem = skinCatalogItems.find(item => String(item.id) === skinId);
+                    if (skinItem) {
+                        showAddSkinModal('edit', skinItem);
+                    }
+                });
+            });
+
+            grid.querySelectorAll('.delete-skin-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const skinId = String(this.dataset.skinId || '');
+                    const skinItem = skinCatalogItems.find(item => String(item.id) === skinId);
+                    if (skinItem) {
+                        showDeleteSkinModal(skinItem);
+                    }
+                });
+            });
+        }
+
+        function loadSkinCatalogAdmin() {
+            const grid = document.getElementById('skinCatalogGrid');
+            const meta = document.getElementById('skinCatalogMeta');
+
+            if (grid) {
+                grid.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю каталог скинов...</div>';
+            }
+            if (meta) {
+                meta.textContent = 'Загрузка каталога скинов...';
+            }
+
+            postAction({
+                action: 'get_skin_catalog'
+            })
+            .then(data => {
+                if (!data.success || !Array.isArray(data.skins)) {
+                    throw new Error(data.message || 'Не удалось загрузить каталог скинов');
+                }
+
+                skinCatalogItems = sortAdminSkinCatalogItems(data.skins);
+                renderSkinCatalogList();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (grid) {
+                    grid.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки каталога')}</div>`;
+                }
+                if (meta) {
+                    meta.textContent = 'Не удалось загрузить каталог скинов';
+                }
+                showNotification(error.message || 'Ошибка загрузки каталога скинов', 'error');
+            });
+        }
+
+        function showSkinsView() {
+            currentAdminView = 'skins';
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'block';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('skinsBtn');
+            loadDashboardStats();
+            loadSkinCatalogAdmin();
+        }
+
         function updateAddSkinPreview() {
             const titleNode = document.getElementById('addSkinPreviewTitle');
             const subtitleNode = document.getElementById('addSkinPreviewSubtitle');
@@ -5140,22 +5371,30 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const imageInput = document.getElementById('addSkinImageInput');
             const nameInput = document.getElementById('addSkinNameInput');
             const priceInput = document.getElementById('addSkinPriceInput');
+            const availableInput = document.getElementById('addSkinAvailableInput');
+            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
 
             const skinName = nameInput ? nameInput.value.trim() : '';
             const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
+            const isAvailable = !availableInput || availableInput.checked;
+            const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
 
             if (titleNode) {
                 titleNode.textContent = skinName || 'Новый скин';
             }
 
             if (subtitleNode) {
-                subtitleNode.textContent = skinName
-                    ? `Скин "${skinName}" появится в общем каталоге и будет доступен в магазине сразу после сохранения.`
-                    : 'После сохранения скин сразу подхватится магазином и будет доступен игрокам.';
+                subtitleNode.textContent = skinEditorState.mode === 'edit'
+                    ? `Редактируете скин "${skinName || skinEditorState.skinId || 'без названия'}". Можно заменить картинку, цену и статус без ручной правки файлов.`
+                    : (skinName
+                        ? `Скин "${skinName}" появится в общем каталоге и будет доступен в магазине сразу после сохранения.`
+                        : 'После сохранения скин сразу подхватится магазином и будет доступен игрокам.');
             }
 
             if (priceNode) {
-                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов`;
+                const availabilityLabel = isAvailable ? 'виден игрокам' : 'скрыт из магазина';
+                const defaultLabel = isDefaultOwned ? ' • стартовый' : '';
+                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов • ${availabilityLabel}${defaultLabel}`;
             }
 
             if (previewNode) {
@@ -5164,6 +5403,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (file) {
                     addSkinPreviewObjectUrl = URL.createObjectURL(file);
                     previewNode.style.backgroundImage = `linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.2)), url("${addSkinPreviewObjectUrl}")`;
+                } else if (skinEditorState.mode === 'edit' && skinEditorState.currentImage) {
+                    previewNode.style.backgroundImage = `linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.2)), url("${resolveAdminSkinImageUrl(skinEditorState.currentImage)}")`;
                 } else {
                     previewNode.style.backgroundImage = 'linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82))';
                 }
@@ -5181,12 +5422,84 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 priceInput.value = '0';
             }
 
+            const availableInput = document.getElementById('addSkinAvailableInput');
+            if (availableInput) {
+                availableInput.checked = true;
+            }
+
+            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+            if (defaultOwnedInput) {
+                defaultOwnedInput.checked = false;
+            }
+
             clearAddSkinPreviewObjectUrl();
+            skinEditorState = {
+                mode: 'create',
+                skinId: '',
+                currentImage: ''
+            };
             updateAddSkinPreview();
         }
 
-        function showAddSkinModal() {
+        function showAddSkinModal(mode = 'create', skinItem = null) {
             resetAddSkinForm();
+
+            const titleNode = document.getElementById('addSkinModalTitle');
+            const subtitleNode = document.getElementById('addSkinModalSubtitle');
+            const saveButtonText = document.querySelector('#saveAddSkinBtn .btn-text');
+            const imageInput = document.getElementById('addSkinImageInput');
+            const nameInput = document.getElementById('addSkinNameInput');
+            const priceInput = document.getElementById('addSkinPriceInput');
+            const availableInput = document.getElementById('addSkinAvailableInput');
+            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+
+            if (mode === 'edit' && skinItem) {
+                skinEditorState = {
+                    mode: 'edit',
+                    skinId: String(skinItem.id || ''),
+                    currentImage: String(skinItem.image || '')
+                };
+
+                if (titleNode) {
+                    titleNode.textContent = 'Редактировать скин';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = `ID: ${skinEditorState.skinId}. Можно обновить цену, название, доступность и при желании заменить картинку.`;
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Сохранить изменения';
+                }
+                if (nameInput) {
+                    nameInput.value = String(skinItem.name || '');
+                }
+                if (priceInput) {
+                    priceInput.value = String(Math.max(0, Number(skinItem.price) || 0));
+                }
+                if (availableInput) {
+                    availableInput.checked = skinItem.available !== false;
+                }
+                if (defaultOwnedInput) {
+                    defaultOwnedInput.checked = Boolean(skinItem.default_owned || skinItem.defaultOwned);
+                }
+                if (imageInput) {
+                    imageInput.required = false;
+                }
+            } else {
+                if (titleNode) {
+                    titleNode.textContent = 'Новый скин';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = 'Загружаете картинку, задаете имя и цену, а дальше скин сразу попадает в магазин.';
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Добавить скин';
+                }
+                if (imageInput) {
+                    imageInput.required = true;
+                }
+            }
+
+            updateAddSkinPreview();
             document.getElementById('addSkinModal').classList.add('active');
         }
 
@@ -5199,6 +5512,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const nameInput = document.getElementById('addSkinNameInput');
             const priceInput = document.getElementById('addSkinPriceInput');
             const imageInput = document.getElementById('addSkinImageInput');
+            const availableInput = document.getElementById('addSkinAvailableInput');
+            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const saveButton = document.getElementById('saveAddSkinBtn');
             const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
             const loader = saveButton ? saveButton.querySelector('.loader') : null;
@@ -5206,22 +5521,31 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const skinName = nameInput ? nameInput.value.trim() : '';
             const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
             const imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
+            const isAvailable = !availableInput || availableInput.checked;
+            const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
 
             if (skinName.length < 2) {
                 showNotification('Введите название скина.', 'error');
                 return;
             }
 
-            if (!imageFile) {
+            if (skinEditorState.mode === 'create' && !imageFile) {
                 showNotification('Выберите изображение скина.', 'error');
                 return;
             }
 
             const formData = new FormData();
-            formData.append('action', 'create_skin_catalog_item');
+            formData.append('action', skinEditorState.mode === 'edit' ? 'update_skin_catalog_item' : 'create_skin_catalog_item');
+            if (skinEditorState.mode === 'edit') {
+                formData.append('skin_id', skinEditorState.skinId);
+            }
             formData.append('skin_name', skinName);
             formData.append('skin_price', String(skinPrice));
-            formData.append('skin_image', imageFile);
+            formData.append('available', isAvailable ? '1' : '0');
+            formData.append('default_owned', isDefaultOwned ? '1' : '0');
+            if (imageFile) {
+                formData.append('skin_image', imageFile);
+            }
 
             if (saveButton) {
                 saveButton.disabled = true;
@@ -5244,11 +5568,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
 
                 hideAddSkinModal();
-                showNotification(data.message || 'Скин добавлен', 'success');
+                loadSkinCatalogAdmin();
+                showNotification(data.message || 'Скин сохранен', 'success');
             })
             .catch(error => {
                 console.error('Error:', error);
-                showNotification(error.message || 'Ошибка загрузки скина', 'error');
+                showNotification(error.message || 'Ошибка сохранения скина', 'error');
             })
             .finally(() => {
                 if (saveButton) {
@@ -5259,6 +5584,89 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
                 if (loader) {
                     loader.style.display = 'none';
+                }
+            });
+        }
+
+        function showDeleteSkinModal(skinItem) {
+            pendingDeleteSkinId = String(skinItem.id || '');
+
+            const subtitle = document.getElementById('deleteSkinModalSubtitle');
+            const title = document.getElementById('deleteSkinModalTitle');
+            const text = document.getElementById('deleteSkinModalText');
+            const info = document.getElementById('deleteSkinModalInfo');
+
+            if (subtitle) {
+                subtitle.textContent = `Скин "${skinItem.name || skinItem.id}" будет удален из каталога.`;
+            }
+            if (title) {
+                title.textContent = `Удалить ${skinItem.name || skinItem.id}?`;
+            }
+            if (text) {
+                text.textContent = 'Игроки перестанут видеть этот скин в магазине. Уже сохраненные картинки останутся на сервере.';
+            }
+            if (info) {
+                info.innerHTML = `
+                    <strong>ID:</strong> ${escapeHtml(String(skinItem.id || ''))}<br>
+                    <strong>Цена:</strong> ${formatAdminNumber(Number(skinItem.price || 0))} коинов<br>
+                    <strong>Статус:</strong> ${skinItem.available === false ? 'скрыт' : 'виден в магазине'}
+                `;
+            }
+
+            document.getElementById('deleteSkinModal').classList.add('active');
+        }
+
+        function hideDeleteSkinModal() {
+            pendingDeleteSkinId = '';
+            document.getElementById('deleteSkinModal').classList.remove('active');
+        }
+
+        function submitDeleteSkinModal() {
+            if (!pendingDeleteSkinId) {
+                hideDeleteSkinModal();
+                return;
+            }
+
+            const confirmButton = document.getElementById('confirmDeleteSkinBtn');
+            const confirmText = confirmButton ? confirmButton.querySelector('.btn-text') : null;
+            const confirmLoader = confirmButton ? confirmButton.querySelector('.loader') : null;
+
+            if (confirmButton) {
+                confirmButton.disabled = true;
+            }
+            if (confirmText) {
+                confirmText.style.display = 'none';
+            }
+            if (confirmLoader) {
+                confirmLoader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: 'delete_skin_catalog_item',
+                skin_id: pendingDeleteSkinId
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось удалить скин');
+                }
+
+                hideDeleteSkinModal();
+                loadSkinCatalogAdmin();
+                showNotification(data.message || 'Скин удален', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка удаления скина', 'error');
+            })
+            .finally(() => {
+                if (confirmButton) {
+                    confirmButton.disabled = false;
+                }
+                if (confirmText) {
+                    confirmText.style.display = 'inline';
+                }
+                if (confirmLoader) {
+                    confirmLoader.style.display = 'none';
                 }
             });
         }
@@ -5285,6 +5693,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showAccountsView() {
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
+            document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'grid';
@@ -5297,6 +5706,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showStatistics() {
             currentAdminView = 'statistics';
             document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'grid';
@@ -5310,6 +5720,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showSqlEditor() {
             currentAdminView = 'sql';
             document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
             document.getElementById('statsGrid').style.display = 'none';
@@ -6165,6 +6576,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             
             // Показываем карточку с данными таблицы
             document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'none';
