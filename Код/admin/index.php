@@ -647,6 +647,8 @@ SQL;
                                 'reason' => (string) ($row['active_ban_reason'] ?? ''),
                                 'banUntil' => isset($row['active_ban_until']) ? (string) $row['active_ban_until'] : null,
                                 'durationDays' => max(0, (int) ($row['active_ban_duration_days'] ?? 0)),
+                                'isPermanent' => max(0, (int) ($row['active_ban_duration_days'] ?? 0)) === 0
+                                    || strncmp((string) ($row['active_ban_until'] ?? ''), '2099-', 5) === 0,
                                 'isRepeat' => (int) ($row['active_ban_is_repeat'] ?? 0) === 1,
                             ] : null,
                             'flyBeaver' => [
@@ -1003,10 +1005,14 @@ SQL;
         if ($action === 'ban_user_account') {
             if (requireAdminAuth($response)) {
                 $userId = max(0, (int) ($_POST['user_id'] ?? 0));
-                $reason = trim((string) ($_POST['reason'] ?? 'Ручной бан через админку'));
+                $reason = trim((string) ($_POST['reason'] ?? 'Ручной бан администрацией'));
+                $isPermanent = (string) ($_POST['is_permanent'] ?? '0') === '1';
+                $durationDays = $isPermanent ? 0 : max(0, (int) ($_POST['duration_days'] ?? 0));
 
                 if ($userId < 1) {
                     $response['message'] = 'Некорректный идентификатор пользователя';
+                } elseif (!$isPermanent && $durationDays < 1) {
+                    $response['message'] = 'Укажите срок бана в днях или выберите бессрочный бан';
                 } else {
                     $conn = connectDB();
                     bober_ensure_project_schema($conn);
@@ -1035,8 +1041,12 @@ SQL;
                         $ban = bober_issue_user_ban($conn, $userId, $reason, [
                             'source' => 'admin_manual',
                             'detected_by' => 'admin_panel',
+                            'duration_days' => $durationDays,
+                            'is_permanent' => $isPermanent,
                             'meta' => [
                                 'admin_action' => 'ban_user_account',
+                                'requested_duration_days' => $isPermanent ? null : $durationDays,
+                                'requested_permanent' => $isPermanent,
                             ],
                         ]);
 
@@ -1052,6 +1062,8 @@ SQL;
                                 'user_id' => $userId,
                                 'login' => $userRow['login'] ?? '',
                                 'ban_until' => $ban['banUntil'] ?? null,
+                                'duration_days' => $ban['durationDays'] ?? null,
+                                'is_permanent' => !empty($ban['isPermanent']),
                             ],
                         ]);
                     }
@@ -3601,7 +3613,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             Последняя активность: ${escapeHtml(formatAdminDateTime(user.lastActivityAt))}
                         </div>
                         <div class="account-id">
-                            ${user.isBanned && user.banUntil ? `Бан до ${escapeHtml(formatAdminDateTime(user.banUntil))}` : `Обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}`}
+                            ${user.isBanned && user.banUntil ? (String(user.banUntil).startsWith('2099-') ? 'Бессрочный бан' : `Бан до ${escapeHtml(formatAdminDateTime(user.banUntil))}`) : `Обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}`}
                         </div>
                     </div>
                 </button>
@@ -3791,7 +3803,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 <div class="inline-actions" style="margin-top: 0; margin-bottom: 16px;">
                     <div class="status-pill ${activeBan ? 'banned' : 'active'}">
                         <span class="material-icons" style="font-size: 16px;">${activeBan ? 'gpp_bad' : 'verified'}</span>
-                        <span>${activeBan ? `Бан до ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}` : 'Аккаунт активен'}</span>
+                        <span>${activeBan ? (activeBan.isPermanent ? 'Бессрочный бан' : `Бан до ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}`) : 'Аккаунт активен'}</span>
                     </div>
                     <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">devices</span>${formatAdminNumber(Array.isArray(user.ipHistory) ? user.ipHistory.length : 0)} IP в истории</div>
                     <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">shield</span>${formatAdminNumber(Array.isArray(user.ipBans) ? user.ipBans.filter(item => !item.liftedAt).length : 0)} активных IP-банов</div>
@@ -3916,7 +3928,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="banReasonInput">Причина ручного бана</label>
-                            <textarea class="form-control" id="banReasonInput" rows="4" placeholder="Например: ручная проверка, жалоба, обход античита">${escapeHtml(activeBan && activeBan.reason ? activeBan.reason : 'Ручной бан через админку')}</textarea>
+                            <textarea class="form-control" id="banReasonInput" rows="4" placeholder="Например: ручная проверка, жалоба, обход античита">${escapeHtml(activeBan && activeBan.reason ? activeBan.reason : 'Ручной бан администрацией')}</textarea>
                         </div>
                         <div class="stack-item">
                             <div class="stack-item-title">
@@ -3925,7 +3937,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             </div>
                             <div class="stack-item-meta">
                                 ${activeBan
-                                    ? `Причина: ${escapeHtml(activeBan.reason || 'не указана')}<br>До: ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}<br>Срок: ${formatAdminNumber(activeBan.durationDays || 0)} дн.${activeBan.isRepeat ? ' Повторный бан.' : ''}`
+                                    ? `Причина: ${escapeHtml(activeBan.reason || 'не указана')}<br>${activeBan.isPermanent ? 'Срок: бессрочно' : `До: ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}<br>Срок: ${formatAdminNumber(activeBan.durationDays || 0)} дн.`}${activeBan.isRepeat ? ' Повторный бан.' : ''}`
                                     : 'Пользователь сейчас не забанен.'}
                             </div>
                         </div>
@@ -4069,6 +4081,34 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function parseAdminBanDurationInput(rawValue) {
+            const value = String(rawValue || '').trim().toLowerCase();
+            if (value === '') {
+                return null;
+            }
+
+            if (['inf', 'infinite', 'forever', 'navsegda', 'навсегда', 'бессрочно', 'permanent', '∞'].includes(value)) {
+                return {
+                    isPermanent: true,
+                    durationDays: 0
+                };
+            }
+
+            if (!/^\d+$/.test(value)) {
+                return null;
+            }
+
+            const durationDays = Number(value);
+            if (!Number.isFinite(durationDays) || durationDays < 1) {
+                return null;
+            }
+
+            return {
+                isPermanent: false,
+                durationDays: Math.floor(durationDays)
+            };
+        }
+
         function banSelectedAccount() {
             if (!selectedAccountId) {
                 return;
@@ -4076,6 +4116,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             const reasonInput = document.getElementById('banReasonInput');
             const reason = reasonInput ? reasonInput.value.trim() : '';
+            const rawDurationInput = window.prompt('Введите срок бана в днях. Для бессрочного бана напишите: inf', '5');
+            if (rawDurationInput === null) {
+                return;
+            }
+
+            const banDuration = parseAdminBanDurationInput(rawDurationInput);
+            if (!banDuration) {
+                showNotification('Укажите число дней или inf для бессрочного бана', 'error');
+                return;
+            }
+
             const actionButton = document.getElementById('toggleBanAccountBtn');
             const originalContent = actionButton.innerHTML;
             actionButton.disabled = true;
@@ -4084,7 +4135,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             postAction({
                 action: 'ban_user_account',
                 user_id: String(selectedAccountId),
-                reason: reason || 'Ручной бан через админку'
+                reason: reason || 'Ручной бан администрацией',
+                duration_days: String(banDuration.durationDays),
+                is_permanent: banDuration.isPermanent ? '1' : '0'
             })
             .then(data => {
                 if (!data.success) {

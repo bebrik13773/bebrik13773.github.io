@@ -813,6 +813,10 @@ function bober_build_ban_message($ban)
         return 'Аккаунт временно заблокирован.';
     }
 
+    if (!empty($ban['isPermanent'])) {
+        return 'Аккаунт заблокирован бессрочно.';
+    }
+
     $banUntil = trim((string) ($ban['banUntil'] ?? ''));
     if ($banUntil === '') {
         return 'Аккаунт временно заблокирован.';
@@ -832,13 +836,14 @@ function bober_normalize_ban_row($row)
         'userId' => max(0, (int) ($row['user_id'] ?? $row['userId'] ?? 0)),
         'source' => trim((string) ($row['source'] ?? 'autoclicker')),
         'reason' => trim((string) ($row['reason'] ?? 'Подозрение на автокликер')),
-        'durationDays' => max(1, (int) ($row['duration_days'] ?? $row['durationDays'] ?? 1)),
+        'durationDays' => max(0, (int) ($row['duration_days'] ?? $row['durationDays'] ?? 1)),
         'isRepeat' => (int) ($row['is_repeat'] ?? $row['isRepeat'] ?? 0) === 1,
         'detectedBy' => trim((string) ($row['detected_by'] ?? $row['detectedBy'] ?? 'system')),
         'banUntil' => trim((string) ($row['ban_until'] ?? $row['banUntil'] ?? '')),
         'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
         'liftedAt' => isset($row['lifted_at']) ? (string) $row['lifted_at'] : ($row['liftedAt'] ?? null),
     ];
+    $ban['isPermanent'] = $ban['durationDays'] === 0 || strtotime($ban['banUntil']) >= strtotime('2099-01-01 00:00:00');
 
     $ban['message'] = bober_build_ban_message($ban);
 
@@ -956,6 +961,10 @@ function bober_build_ip_ban_message($ban)
         return 'С этого IP временно ограничен вход в аккаунты и регистрация новых профилей.';
     }
 
+    if (!empty($ban['isPermanent'])) {
+        return 'С этого IP бессрочно ограничены вход в аккаунты и регистрация новых профилей.';
+    }
+
     $banUntil = trim((string) ($ban['banUntil'] ?? ''));
     if ($banUntil === '') {
         return 'С этого IP временно ограничен вход в аккаунты и регистрация новых профилей.';
@@ -980,6 +989,7 @@ function bober_normalize_ip_ban_row($row)
         'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
         'liftedAt' => isset($row['lifted_at']) ? (string) ($row['lifted_at']) : ($row['liftedAt'] ?? null),
     ];
+    $ban['isPermanent'] = strtotime($ban['banUntil']) >= strtotime('2099-01-01 00:00:00');
 
     $ban['message'] = bober_build_ip_ban_message($ban);
 
@@ -1296,9 +1306,20 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
     }
 
     $previousBanCount = bober_count_user_bans($conn, $userId, $source);
-    $durationDays = $previousBanCount > 0 ? 30 : 5;
+    $defaultDurationDays = $previousBanCount > 0 ? 30 : 5;
     $isRepeat = $previousBanCount > 0 ? 1 : 0;
-    $banUntil = date('Y-m-d H:i:s', time() + ($durationDays * 24 * 60 * 60));
+    $requestedDurationDays = isset($details['duration_days']) ? (int) $details['duration_days'] : null;
+    $isPermanent = !empty($details['is_permanent']);
+
+    if ($isPermanent) {
+        $durationDays = 0;
+        $banUntil = '2099-12-31 23:59:59';
+    } else {
+        $durationDays = $requestedDurationDays !== null && $requestedDurationDays > 0
+            ? $requestedDurationDays
+            : $defaultDurationDays;
+        $banUntil = date('Y-m-d H:i:s', time() + ($durationDays * 24 * 60 * 60));
+    }
 
     $meta = is_array($details['meta'] ?? null) ? $details['meta'] : [];
     $meta['ip'] = $meta['ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
