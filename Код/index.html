@@ -1010,6 +1010,7 @@ let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 window.__boberBanInfo = null;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
+const DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
 const UPGRADE_BASE_COSTS = Object.freeze({
     tapSmall: 5000,
     tapBig: 20000,
@@ -1224,8 +1225,120 @@ function updateFlyRewardUI() {
     rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}.`;
 }
 
-function setBanInfo(banInfo) {
-    window.__boberBanInfo = banInfo || null;
+function normalizeBanInfoObject(rawBanInfo) {
+    if (!rawBanInfo || typeof rawBanInfo !== 'object') {
+        return null;
+    }
+
+    const banUntil = typeof rawBanInfo.banUntil === 'string' ? rawBanInfo.banUntil.trim() : '';
+    const durationDays = Number.isFinite(Number(rawBanInfo.durationDays)) ? Math.max(0, Number(rawBanInfo.durationDays)) : 0;
+    const storedAt = Number.isFinite(Number(rawBanInfo.storedAt)) ? Math.max(0, Number(rawBanInfo.storedAt)) : 0;
+    const type = rawBanInfo.type === 'ip' ? 'ip' : 'account';
+    const isPermanent = Boolean(rawBanInfo.isPermanent) || (banUntil !== '' && String(banUntil).startsWith('2099-'));
+
+    return {
+        type,
+        reason: String(rawBanInfo.reason || (type === 'ip' ? 'Блокировка по IP' : 'Блокировка аккаунта')).trim(),
+        message: String(rawBanInfo.message || '').trim(),
+        banUntil,
+        durationDays,
+        isRepeat: Boolean(rawBanInfo.isRepeat),
+        isPermanent,
+        ipAddress: String(rawBanInfo.ipAddress || '').trim(),
+        userAgent: String(rawBanInfo.userAgent || '').trim(),
+        storedAt
+    };
+}
+
+function getStoredDeviceBanEndTimestamp(banInfo) {
+    const normalizedBan = normalizeBanInfoObject(banInfo);
+    if (!normalizedBan) {
+        return 0;
+    }
+
+    if (normalizedBan.isPermanent) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    if (normalizedBan.banUntil) {
+        const parsedBanUntil = Date.parse(String(normalizedBan.banUntil).replace(' ', 'T'));
+        if (Number.isFinite(parsedBanUntil) && parsedBanUntil > 0) {
+            return parsedBanUntil;
+        }
+    }
+
+    if (normalizedBan.durationDays > 0 && normalizedBan.storedAt > 0) {
+        return normalizedBan.storedAt + normalizedBan.durationDays * 24 * 60 * 60 * 1000;
+    }
+
+    return 0;
+}
+
+function isStoredDeviceBanActive(banInfo) {
+    const endTimestamp = getStoredDeviceBanEndTimestamp(banInfo);
+    if (!endTimestamp) {
+        return false;
+    }
+
+    return endTimestamp === Number.POSITIVE_INFINITY || endTimestamp > Date.now();
+}
+
+function clearStoredDeviceBanInfo() {
+    try {
+        localStorage.removeItem(DEVICE_BAN_STORAGE_KEY);
+    } catch (error) {
+        console.warn('Не удалось удалить локальную метку бана.', error);
+    }
+}
+
+function readStoredDeviceBanInfo() {
+    try {
+        const rawBanInfo = localStorage.getItem(DEVICE_BAN_STORAGE_KEY);
+        if (!rawBanInfo) {
+            return null;
+        }
+
+        const parsedBanInfo = JSON.parse(rawBanInfo);
+        const normalizedBan = normalizeBanInfoObject(parsedBanInfo);
+        if (!normalizedBan || !isStoredDeviceBanActive(normalizedBan)) {
+            clearStoredDeviceBanInfo();
+            return null;
+        }
+
+        return normalizedBan;
+    } catch (error) {
+        console.warn('Не удалось прочитать локальную метку бана.', error);
+        clearStoredDeviceBanInfo();
+        return null;
+    }
+}
+
+function persistStoredDeviceBanInfo(banInfo) {
+    const normalizedBan = normalizeBanInfoObject(banInfo);
+    if (!normalizedBan) {
+        return;
+    }
+
+    const storedBan = {
+        ...normalizedBan,
+        storedAt: Date.now(),
+        userAgent: normalizedBan.userAgent || navigator.userAgent || ''
+    };
+
+    try {
+        localStorage.setItem(DEVICE_BAN_STORAGE_KEY, JSON.stringify(storedBan));
+    } catch (error) {
+        console.warn('Не удалось записать локальную метку бана.', error);
+    }
+}
+
+function setBanInfo(banInfo, options = {}) {
+    const normalizedBan = normalizeBanInfoObject(banInfo);
+    window.__boberBanInfo = normalizedBan;
+
+    if (normalizedBan && options.persist !== false) {
+        persistStoredDeviceBanInfo(normalizedBan);
+    }
 }
 
 function normalizeBanPayload(payload) {
@@ -1234,17 +1347,23 @@ function normalizeBanPayload(payload) {
     }
 
     if (payload.ban && typeof payload.ban === 'object') {
-        return payload.ban;
+        return normalizeBanInfoObject({
+            ...payload.ban,
+            type: payload.ban.type || 'account'
+        });
     }
 
     if (payload.ipBan && typeof payload.ipBan === 'object') {
-        return {
+        return normalizeBanInfoObject({
+            type: 'ip',
             reason: payload.ipBan.reason || 'Блокировка по IP',
             message: payload.ipBan.message || 'С этого IP временно ограничен доступ.',
             banUntil: payload.ipBan.banUntil || '',
             durationDays: Number(payload.ipBan.durationDays) > 0 ? Number(payload.ipBan.durationDays) : 5,
-            isRepeat: Boolean(payload.ipBan.isRepeat)
-        };
+            isRepeat: Boolean(payload.ipBan.isRepeat),
+            isPermanent: Boolean(payload.ipBan.isPermanent),
+            ipAddress: payload.ipBan.ipAddress || ''
+        });
     }
 
     return null;
@@ -1746,6 +1865,20 @@ async function flushAutosave(options = {}) {
     }
 
     return false;
+}
+
+function enforceStoredDeviceBan() {
+    const storedBan = readStoredDeviceBanInfo();
+    if (!storedBan) {
+        return false;
+    }
+
+    setBanInfo(storedBan, { persist: false });
+    if (window.clickDetector && typeof window.clickDetector.showBanScreen === 'function') {
+        window.clickDetector.showBanScreen(storedBan);
+    }
+
+    return true;
 }
 
 function flushAutosaveWithBeacon() {
@@ -2818,14 +2951,21 @@ class AutoClickerDetector {
     }
 
     showBanScreen(banInfo) {
-        const normalizedBan = banInfo && typeof banInfo === 'object' ? banInfo : {};
+        const normalizedBan = normalizeBanInfoObject(banInfo) || {};
         const reason = normalizedBan.reason || 'Подозрительная автоматизированная активность';
         const durationDays = Number(normalizedBan.durationDays) > 0 ? Number(normalizedBan.durationDays) : 5;
         const isRepeat = Boolean(normalizedBan.isRepeat);
+        const isPermanent = Boolean(normalizedBan.isPermanent);
         const banUntil = normalizedBan.banUntil
             ? new Date(String(normalizedBan.banUntil).replace(' ', 'T')).toLocaleString('ru-RU')
             : 'до отдельной проверки';
-        const message = normalizedBan.message || `Аккаунт временно заблокирован до ${banUntil}.`;
+        const message = normalizedBan.message || (isPermanent ? 'Аккаунт заблокирован бессрочно.' : `Аккаунт временно заблокирован до ${banUntil}.`);
+        const ipAddress = normalizedBan.ipAddress ? String(normalizedBan.ipAddress) : '';
+        const deviceLockInfo = readStoredDeviceBanInfo();
+        const deviceLockLabel = deviceLockInfo ? 'На устройстве сохранена локальная метка бана.' : 'Локальная метка бана еще не сохранена.';
+        const durationLabel = isPermanent
+            ? 'бессрочно'
+            : `${durationDays} дн.${isRepeat ? ' Повторный бан.' : ' Первый бан.'}`;
 
         const banScreen = document.createElement('div');
         banScreen.innerHTML = `
@@ -2854,8 +2994,8 @@ class AutoClickerDetector {
                         ${message}
                     </p>
                     <p style="color: #ccc; margin-bottom: 30px;">
-                        Срок: ${durationDays} дн.${isRepeat ? ' Повторный бан.' : ' Первый бан.'}<br>
-                        Окончание: ${banUntil}
+                        Срок: ${durationLabel}<br>
+                        Окончание: ${isPermanent ? 'бессрочно' : banUntil}
                     </p>
                     <div style="
                         background: rgba(255, 71, 87, 0.2);
@@ -2865,6 +3005,18 @@ class AutoClickerDetector {
                         margin-bottom: 30px;
                     ">
                         <strong>Причина:</strong> ${reason}
+                    </div>
+                    <div style="
+                        background: rgba(116, 185, 255, 0.14);
+                        padding: 15px;
+                        border-radius: 8px;
+                        border-left: 4px solid #74b9ff;
+                        margin-bottom: 24px;
+                        color: #dfefff;
+                    ">
+                        <strong>Защита от обхода:</strong> ${deviceLockLabel}<br>
+                        ${ipAddress ? `<span>IP при бане: ${ipAddress}</span><br>` : ''}
+                        <span>Информация о блокировке сохранена в браузере, поэтому простая смена VPN на этом устройстве не поможет.</span>
                     </div>
                     <p style="color: #aaa; font-size: 0.9em; margin-bottom: 20px;">
                         Бан хранится на сервере. Если считаете это ошибкой, напишите в поддержку и укажите свой логин.
@@ -2934,10 +3086,9 @@ class AutoClickerDetector {
     }
 }
 
-localStorage.removeItem('clicker_ban_info');
-
 const clickDetector = new AutoClickerDetector();
 window.clickDetector = clickDetector;
+enforceStoredDeviceBan();
 
 console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
 console.log('Настройки античита:', clickDetector.config);

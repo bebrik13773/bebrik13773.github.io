@@ -831,6 +831,14 @@ function bober_normalize_ban_row($row)
         return null;
     }
 
+    $meta = [];
+    if (!empty($row['meta_json']) && is_string($row['meta_json'])) {
+        $decodedMeta = json_decode($row['meta_json'], true);
+        if (is_array($decodedMeta)) {
+            $meta = $decodedMeta;
+        }
+    }
+
     $ban = [
         'id' => max(0, (int) ($row['id'] ?? 0)),
         'userId' => max(0, (int) ($row['user_id'] ?? $row['userId'] ?? 0)),
@@ -842,6 +850,8 @@ function bober_normalize_ban_row($row)
         'banUntil' => trim((string) ($row['ban_until'] ?? $row['banUntil'] ?? '')),
         'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
         'liftedAt' => isset($row['lifted_at']) ? (string) $row['lifted_at'] : ($row['liftedAt'] ?? null),
+        'ipAddress' => trim((string) ($meta['ip'] ?? $row['ip_address'] ?? $row['ipAddress'] ?? '')),
+        'userAgent' => trim((string) ($meta['user_agent'] ?? $row['user_agent'] ?? $row['userAgent'] ?? '')),
     ];
     $ban['isPermanent'] = $ban['durationDays'] === 0 || strtotime($ban['banUntil']) >= strtotime('2099-01-01 00:00:00');
 
@@ -988,6 +998,7 @@ function bober_normalize_ip_ban_row($row)
         'banUntil' => trim((string) ($row['ban_until'] ?? $row['banUntil'] ?? '')),
         'createdAt' => trim((string) ($row['created_at'] ?? $row['createdAt'] ?? '')),
         'liftedAt' => isset($row['lifted_at']) ? (string) ($row['lifted_at']) : ($row['liftedAt'] ?? null),
+        'userAgent' => trim((string) ($row['user_agent'] ?? $row['userAgent'] ?? '')),
     ];
     $ban['isPermanent'] = strtotime($ban['banUntil']) >= strtotime('2099-01-01 00:00:00');
 
@@ -1162,7 +1173,7 @@ function bober_fetch_active_user_ban($conn, $userId)
         return null;
     }
 
-    $stmt = $conn->prepare('SELECT id, user_id, source, reason, duration_days, is_repeat, detected_by, ban_until, created_at, lifted_at FROM user_bans WHERE user_id = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP ORDER BY ban_until DESC LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, user_id, source, reason, duration_days, is_repeat, detected_by, ban_until, created_at, lifted_at, meta_json FROM user_bans WHERE user_id = ? AND lifted_at IS NULL AND ban_until > CURRENT_TIMESTAMP ORDER BY ban_until DESC LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить проверку бана.');
     }
