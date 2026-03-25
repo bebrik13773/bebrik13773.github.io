@@ -2489,9 +2489,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         .modal-content {
             background-color: var(--surface-strong);
             border-radius: var(--radius);
-            width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
+            width: min(94vw, 640px);
+            max-width: 640px;
+            max-height: 92vh;
             overflow-y: auto;
             box-shadow: var(--shadow-heavy);
             transform: translateY(20px) scale(0.97);
@@ -2506,15 +2506,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         .modal-content.modal-content-wide {
-            max-width: 560px;
+            width: min(94vw, 760px);
+            max-width: 760px;
         }
 
         .modal-content.modal-content-danger {
-            max-width: 540px;
+            width: min(94vw, 700px);
+            max-width: 700px;
         }
 
         .modal-content.modal-content-skin {
-            max-width: 680px;
+            width: min(95vw, 900px);
+            max-width: 900px;
         }
 
         .modal-hero {
@@ -2923,10 +2926,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         @media (max-width: 768px) {
+            .modal-content {
+                width: calc(100% - 16px);
+                max-width: none;
+                max-height: calc(100vh - 24px);
+            }
+
             .modal-content.modal-content-wide,
             .modal-content.modal-content-danger,
             .modal-content.modal-content-skin {
-                width: calc(100% - 24px);
+                width: calc(100% - 16px);
                 max-width: none;
             }
 
