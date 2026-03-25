@@ -365,6 +365,30 @@ Owner decisions:
 			padding: 8px 16px;
 			font-size: 16px;
 		}
+		.save-status {
+			margin-top: 12px;
+			min-height: 20px;
+			font-size: 14px;
+			font-weight: 600;
+			text-align: center;
+			transition: color 0.2s ease, opacity 0.2s ease;
+		}
+		.save-status.idle {
+			color: rgba(255, 255, 255, 0.65);
+		}
+		.save-status.saved {
+			color: #8ef2c5;
+		}
+		.save-status.dirty,
+		.save-status.draft {
+			color: #8bdcff;
+		}
+		.save-status.saving {
+			color: #ffe082;
+		}
+		.save-status.error {
+			color: #ff9c9c;
+		}
 		#shopButton {
 			appearance: none;
 			border: 0;
@@ -661,6 +685,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         }
     </style>
     <button id="save" onclick="Save()">Сохранить</button>
+    <div id="saveStatus" class="save-status idle">Автосохранение выключено</div>
 <br>
 <br>
     <button id="loginButton">Войти</button>
@@ -963,14 +988,20 @@ const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
     maxWaitMs: 90000,
-    retryDelayMs: 12000
+    retryDelayMs: 12000,
+    beaconCooldownMs: 15000,
+    localDraftMaxAgeMs: 7 * 24 * 60 * 60 * 1000
 };
 const autosaveState = {
     dirty: false,
     timer: null,
     inFlight: false,
     firstDirtyAt: 0,
-    revision: 0
+    revision: 0,
+    lastSavedAt: 0,
+    lastBeaconAt: 0,
+    lastBeaconRevision: -1,
+    lastError: ''
 };
 
 function getDefaultSkinState() {
@@ -1028,6 +1059,28 @@ function validateRegisterLogin(loginValue) {
     return REGISTER_LOGIN_PATTERN.test(loginValue);
 }
 
+function formatSaveTime(timestamp) {
+    if (!timestamp) {
+        return '';
+    }
+
+    return new Date(timestamp).toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+function setSaveStatus(state, message) {
+    const statusNode = document.getElementById('saveStatus');
+    if (!statusNode) {
+        return;
+    }
+
+    statusNode.className = `save-status ${state}`;
+    statusNode.textContent = message;
+}
+
 function setAuthenticatedUI(isAuthenticated) {
     document.getElementById('loginButton').style.display = isAuthenticated ? 'none' : 'inline-block';
     document.getElementById('registerButton').style.display = isAuthenticated ? 'none' : 'inline-block';
@@ -1045,11 +1098,126 @@ function resetAutosaveState() {
     autosaveState.inFlight = false;
     autosaveState.firstDirtyAt = 0;
     autosaveState.revision = 0;
+    autosaveState.lastSavedAt = 0;
+    autosaveState.lastBeaconAt = 0;
+    autosaveState.lastBeaconRevision = -1;
+    autosaveState.lastError = '';
 
     if (autosaveState.timer) {
         clearTimeout(autosaveState.timer);
         autosaveState.timer = null;
     }
+}
+
+function getLocalDraftKey(userIdValue = userId) {
+    return userIdValue ? `bober-autosave-draft:${userIdValue}` : null;
+}
+
+function saveLocalDraft() {
+    const draftKey = getLocalDraftKey();
+    if (!draftKey || !userId) {
+        return;
+    }
+
+    try {
+        localStorage.setItem(draftKey, JSON.stringify({
+            userId: userId,
+            login: currentLogin || '',
+            savedAt: Date.now(),
+            payload: buildSaveStatePayload()
+        }));
+    } catch (error) {
+        console.warn('Не удалось сохранить локальный черновик.', error);
+    }
+}
+
+function readLocalDraft(userIdValue = userId) {
+    const draftKey = getLocalDraftKey(userIdValue);
+    if (!draftKey) {
+        return null;
+    }
+
+    try {
+        const rawDraft = localStorage.getItem(draftKey);
+        if (!rawDraft) {
+            return null;
+        }
+
+        const parsedDraft = JSON.parse(rawDraft);
+        if (!parsedDraft || Number(parsedDraft.userId) !== Number(userIdValue)) {
+            return null;
+        }
+
+        return parsedDraft;
+    } catch (error) {
+        console.warn('Не удалось прочитать локальный черновик.', error);
+        return null;
+    }
+}
+
+function clearLocalDraft(userIdValue = userId) {
+    const draftKey = getLocalDraftKey(userIdValue);
+    if (!draftKey) {
+        return;
+    }
+
+    try {
+        localStorage.removeItem(draftKey);
+    } catch (error) {
+        console.warn('Не удалось удалить локальный черновик.', error);
+    }
+}
+
+function restoreLocalDraftIfAvailable() {
+    const draft = readLocalDraft();
+    if (!draft || !draft.payload) {
+        return false;
+    }
+
+    if (!draft.savedAt || Date.now() - Number(draft.savedAt) > AUTOSAVE_CONFIG.localDraftMaxAgeMs) {
+        clearLocalDraft();
+        return false;
+    }
+
+    let restored = false;
+
+    const draftScore = Number(draft.payload.score);
+    if (Number.isFinite(draftScore) && draftScore > score) {
+        score = draftScore;
+        restored = true;
+    }
+
+    const draftPlus = Number(draft.payload.plus);
+    if (Number.isFinite(draftPlus) && draftPlus > plus) {
+        plus = draftPlus;
+        restored = true;
+    }
+
+    const draftEnergyMax = Number(draft.payload.ENERGY_MAX);
+    if (Number.isFinite(draftEnergyMax) && draftEnergyMax > energy_max) {
+        energy_max = draftEnergyMax;
+        updateRegenRate();
+        restored = true;
+    }
+
+    const draftSkin = normalizeSkinState(draft.payload.skin);
+    if (JSON.stringify(draftSkin) !== JSON.stringify(skin)) {
+        skin = draftSkin;
+        skinLoad();
+        restored = true;
+    }
+
+    if (!restored) {
+        clearLocalDraft();
+        return false;
+    }
+
+    updateScoreUI();
+    updateEnergyUI();
+    setSaveStatus('draft', `Восстановлен локальный черновик от ${formatSaveTime(draft.savedAt)}`);
+    showNotification('Восстановили локальный черновик прогресса.', 'success');
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
+    return true;
 }
 
 function resetUserState() {
@@ -1070,6 +1238,7 @@ function resetUserState() {
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
     document.getElementById('login').value = currentLogin || localStorage.getItem('login') || '';
+    setSaveStatus('idle', 'Автосохранение выключено');
 }
 
 function applyAuthenticatedState(data) {
@@ -1110,6 +1279,11 @@ function applyAuthenticatedState(data) {
     updateAdminVisibility(resolvedLogin);
     setAuthenticatedUI(true);
     document.getElementById('password').value = '';
+
+    if (!restoreLocalDraftIfAvailable()) {
+        autosaveState.lastSavedAt = Date.now();
+        setSaveStatus('saved', 'Прогресс загружен');
+    }
 }
 
 function escapeHtmlText(value) {
@@ -1225,17 +1399,23 @@ function markProgressDirty(options = {}) {
 
     autosaveState.dirty = true;
     autosaveState.revision += 1;
+    autosaveState.lastError = '';
 
     if (!autosaveState.firstDirtyAt) {
         autosaveState.firstDirtyAt = Date.now();
     }
 
+    saveLocalDraft();
+    setSaveStatus('dirty', 'Есть несохраненные изменения');
     scheduleAutosave(options.delayMs ?? AUTOSAVE_CONFIG.idleDelayMs);
 }
 
 async function saveStateToServer() {
     if (!userId) {
-        return false;
+        return {
+            success: false,
+            message: 'Сессия не найдена.'
+        };
     }
 
     try {
@@ -1248,13 +1428,19 @@ async function saveStateToServer() {
         });
 
         if (data && data.success) {
-            return true;
+            return {
+                success: true,
+                message: data.message || 'Прогресс сохранен.'
+            };
         }
 
         throw new Error(data && data.message ? data.message : 'Не удалось сохранить прогресс.');
     } catch (error) {
         console.error('Ошибка автосохранения:', error);
-        return false;
+        return {
+            success: false,
+            message: error.message || 'Не удалось сохранить прогресс.'
+        };
     }
 }
 
@@ -1270,6 +1456,7 @@ async function flushAutosave(options = {}) {
     }
 
     autosaveState.inFlight = true;
+    setSaveStatus('saving', reason === 'manual' ? 'Сохраняем прогресс...' : 'Автосохранение...');
 
     if (autosaveState.timer) {
         clearTimeout(autosaveState.timer);
@@ -1277,31 +1464,40 @@ async function flushAutosave(options = {}) {
     }
 
     const revisionAtStart = autosaveState.revision;
-    const saved = await saveStateToServer();
+    const result = await saveStateToServer();
 
     autosaveState.inFlight = false;
 
-    if (saved) {
+    if (result.success) {
         if (autosaveState.revision === revisionAtStart) {
             autosaveState.dirty = false;
             autosaveState.firstDirtyAt = 0;
+            autosaveState.lastSavedAt = Date.now();
+            autosaveState.lastError = '';
+            clearLocalDraft();
         }
 
         if (hasPendingAutosave()) {
+            setSaveStatus('dirty', 'Есть несохраненные изменения');
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
-        } else if (!silent && reason === 'manual') {
-            showNotification('Успешное сохранение', 'success');
+        } else {
+            setSaveStatus('saved', `Сохранено в ${formatSaveTime(autosaveState.lastSavedAt)}`);
+            if (!silent && reason === 'manual') {
+                showNotification('Успешное сохранение', 'success');
+            }
         }
 
         return true;
     }
 
     autosaveState.dirty = true;
+    autosaveState.lastError = result.message || 'Не удалось сохранить прогресс.';
     if (!autosaveState.firstDirtyAt) {
         autosaveState.firstDirtyAt = Date.now();
     }
 
     scheduleAutosave(AUTOSAVE_CONFIG.retryDelayMs);
+    setSaveStatus('error', 'Сбой сети, локальный черновик сохранен');
 
     if (!silent && reason === 'manual') {
         showNotification('Не удалось сохранить прогресс. Повторим автоматически.', 'error');
@@ -1315,10 +1511,27 @@ function flushAutosaveWithBeacon() {
         return false;
     }
 
+    const now = Date.now();
+    if (
+        autosaveState.lastBeaconRevision === autosaveState.revision &&
+        now - autosaveState.lastBeaconAt < AUTOSAVE_CONFIG.beaconCooldownMs
+    ) {
+        return false;
+    }
+
     try {
+        saveLocalDraft();
         const payload = JSON.stringify(buildSaveStatePayload());
         const blob = new Blob([payload], { type: 'application/json' });
-        return navigator.sendBeacon('https://bober-api.gt.tc/save-state.php', blob);
+        const queued = navigator.sendBeacon('https://bober-api.gt.tc/save-state.php', blob);
+
+        if (queued) {
+            autosaveState.lastBeaconRevision = autosaveState.revision;
+            autosaveState.lastBeaconAt = now;
+            setSaveStatus('saving', 'Фоновое сохранение...');
+        }
+
+        return queued;
     } catch (error) {
         console.error('Ошибка фонового сохранения:', error);
         return false;
@@ -1738,10 +1951,6 @@ document.addEventListener('visibilitychange', function() {
     } else if (hasPendingAutosave()) {
         scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
     }
-});
-
-window.addEventListener('beforeunload', function() {
-    flushAutosaveWithBeacon();
 });
 
     </script>

@@ -11,15 +11,16 @@ try {
 
     $sessionUserId = bober_get_logged_in_user_id();
     $requestUserId = max(0, (int) ($data['userId'] ?? 0));
-    $userId = $sessionUserId !== null ? $sessionUserId : $requestUserId;
 
-    if ($sessionUserId !== null && $requestUserId > 0 && $requestUserId !== $sessionUserId) {
+    if ($sessionUserId === null) {
+        bober_json_response(['success' => false, 'message' => 'Сессия не найдена. Войдите в аккаунт заново.'], 401);
+    }
+
+    if ($requestUserId > 0 && $requestUserId !== $sessionUserId) {
         bober_json_response(['success' => false, 'message' => 'Неверный идентификатор пользователя для активной сессии.'], 403);
     }
 
-    if ($userId < 1) {
-        bober_json_response(['success' => false, 'message' => 'Некорректный идентификатор пользователя.'], 400);
-    }
+    $userId = $sessionUserId;
 
     $score = max(0, (int) ($data['score'] ?? 0));
     $plus = max(1, (int) ($data['plus'] ?? 1));
