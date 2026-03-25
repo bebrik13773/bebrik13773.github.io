@@ -727,6 +727,36 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             });
         }
 
+        function extractCloudBanPayload(error) {
+            const payload = error && error.payload && typeof error.payload === 'object'
+                ? error.payload
+                : null;
+
+            if (!payload) {
+                return null;
+            }
+
+            if (payload.ban && typeof payload.ban === 'object') {
+                return {
+                    type: 'account',
+                    reason: payload.ban.reason || 'Блокировка аккаунта',
+                    banUntil: payload.ban.banUntil || '',
+                    message: payload.ban.message || ''
+                };
+            }
+
+            if (payload.ipBan && typeof payload.ipBan === 'object') {
+                return {
+                    type: 'ip',
+                    reason: payload.ipBan.reason || 'Блокировка по IP',
+                    banUntil: payload.ipBan.banUntil || '',
+                    message: payload.ipBan.message || ''
+                };
+            }
+
+            return null;
+        }
+
         function setCloudStatus(type, title, message) {
             cloudTitleElement.textContent = title;
             cloudStatusElement.className = `cloud-status ${type}`;
@@ -815,12 +845,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     return;
                 }
 
-                if (error.payload && error.payload.ban) {
-                    const ban = error.payload.ban;
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Локальная игра доступна, облако отключено.`);
+                    setCloudStatus(
+                        'error',
+                        'Облако недоступно',
+                        ban.type === 'ip'
+                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Локальная игра доступна, облако отключено.`
+                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Локальная игра доступна, облако отключено.`
+                    );
                     setCloudSummary('Облако недоступно');
                     setCloudPanelExpanded(true);
                     updateCloudPanel();
@@ -865,12 +901,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     : (Number(data.creditedScore) >= FLY_CREDIT_MIN_SCORE ? 'pending' : 'local');
                 setCloudStatus(saveStatusType, `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
             } catch (error) {
-                if (error.payload && error.payload.ban) {
-                    const ban = error.payload.ban;
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Забег сохранен только локально.`);
+                    setCloudStatus(
+                        'error',
+                        'Облако недоступно',
+                        ban.type === 'ip'
+                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Забег сохранен только локально.`
+                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Забег сохранен только локально.`
+                    );
                     setCloudSummary('Облако недоступно');
                     setCloudPanelExpanded(true);
                     updateCloudPanel();
@@ -909,12 +951,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 updateCloudPanel();
                 setCloudStatus(Number(data.awardedCoins) > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
             } catch (error) {
-                if (error.payload && error.payload.ban) {
-                    const ban = error.payload.ban;
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus('error', 'Облако недоступно', `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Перевод очков отключен.`);
+                    setCloudStatus(
+                        'error',
+                        'Облако недоступно',
+                        ban.type === 'ip'
+                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Перевод очков отключен.`
+                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Перевод очков отключен.`
+                    );
                     setCloudSummary('Облако недоступно');
                     setCloudPanelExpanded(true);
                     updateCloudPanel();

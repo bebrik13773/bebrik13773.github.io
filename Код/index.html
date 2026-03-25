@@ -1166,8 +1166,30 @@ function setBanInfo(banInfo) {
     window.__boberBanInfo = banInfo || null;
 }
 
+function normalizeBanPayload(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    if (payload.ban && typeof payload.ban === 'object') {
+        return payload.ban;
+    }
+
+    if (payload.ipBan && typeof payload.ipBan === 'object') {
+        return {
+            reason: payload.ipBan.reason || 'Блокировка по IP',
+            message: payload.ipBan.message || 'С этого IP временно ограничен доступ.',
+            banUntil: payload.ipBan.banUntil || '',
+            durationDays: Number(payload.ipBan.durationDays) > 0 ? Number(payload.ipBan.durationDays) : 5,
+            isRepeat: Boolean(payload.ipBan.isRepeat)
+        };
+    }
+
+    return null;
+}
+
 function tryHandleBanError(error) {
-    const banInfo = error && error.payload && error.payload.ban ? error.payload.ban : null;
+    const banInfo = normalizeBanPayload(error && error.payload ? error.payload : null);
     if (!banInfo) {
         return false;
     }
@@ -1873,7 +1895,7 @@ document.getElementById('submitLogin').onclick = async function() {
             return;
         }
 
-        currentLogin = loginValue;
+        currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : loginValue;
         applyAuthenticatedState(data);
 
         showNotification('Успешный вход!', 'success');
@@ -2018,8 +2040,24 @@ document.getElementById('submitRegister').onclick = async function() {
             body: JSON.stringify({ login: regLogin, password: regPassword })
         });
 
-        showNotification(data.message || 'Регистрация завершена.', data.success ? 'success' : 'error');
+        if (!data.success) {
+            showNotification(data.message || 'Ошибка регистрации.', 'error');
+            return;
+        }
+
+        currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : regLogin;
+        applyAuthenticatedState(data);
+        document.getElementById('regLogin').value = '';
+        document.getElementById('regPassword').value = '';
+        document.getElementById('password').value = '';
+
+        showNotification(data.message || 'Регистрация завершена.', 'success');
+        loadLeaderboard();
     } catch (error) {
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return;
+        }
         console.error('Ошибка регистрации:', error);
         showNotification(error.message || 'Ошибка сети при регистрации.', 'error');
     } finally {
@@ -2649,10 +2687,11 @@ class AutoClickerDetector {
                 })
             });
 
-            if (data && data.ban) {
-                setBanInfo(data.ban);
+            const reportedBan = normalizeBanPayload(data);
+            if (reportedBan) {
+                setBanInfo(reportedBan);
                 resetUserState();
-                this.showBanScreen(data.ban);
+                this.showBanScreen(reportedBan);
                 return;
             }
         } catch (error) {

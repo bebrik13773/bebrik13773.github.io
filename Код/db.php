@@ -944,15 +944,15 @@ function bober_fetch_user_ip_addresses($conn, $userId)
 function bober_build_ip_ban_message($ban)
 {
     if (!is_array($ban)) {
-        return 'С этого IP временно запрещена регистрация новых аккаунтов.';
+        return 'С этого IP временно ограничен вход в аккаунты и регистрация новых профилей.';
     }
 
     $banUntil = trim((string) ($ban['banUntil'] ?? ''));
     if ($banUntil === '') {
-        return 'С этого IP временно запрещена регистрация новых аккаунтов.';
+        return 'С этого IP временно ограничен вход в аккаунты и регистрация новых профилей.';
     }
 
-    return 'С этого IP регистрация новых аккаунтов временно запрещена до ' . $banUntil . '.';
+    return 'С этого IP вход в аккаунты и регистрация новых профилей временно ограничены до ' . $banUntil . '.';
 }
 
 function bober_normalize_ip_ban_row($row)

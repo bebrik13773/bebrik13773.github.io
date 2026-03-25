@@ -72,10 +72,24 @@ try {
 
     $newUserId = (int) $stmt->insert_id;
     $stmt->close();
-    bober_ensure_fly_progress_row($conn, $newUserId);
+    bober_login_user($newUserId, $login);
+    bober_record_user_ip($conn, $newUserId);
+    $flyBeaver = bober_ensure_fly_progress_row($conn, $newUserId);
     $conn->close();
 
-    bober_json_response(['success' => true, 'message' => 'Регистрация успешна!']);
+    bober_json_response([
+        'success' => true,
+        'message' => 'Регистрация успешна! Вход выполнен автоматически.',
+        'userId' => $newUserId,
+        'login' => $login,
+        'plus' => $plus,
+        'skin' => $defaultSkin,
+        'energy' => $energy,
+        'lastEnergyUpdate' => (int) $lastEnergyUpdate,
+        'ENERGY_MAX' => $energyMax,
+        'score' => $score,
+        'flyBeaver' => $flyBeaver,
+    ]);
 } catch (Throwable $error) {
     $statusCode = $error instanceof InvalidArgumentException ? 400 : 500;
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], $statusCode);
