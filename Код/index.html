@@ -747,13 +747,13 @@ function showNotification(message, type = 'success', duration = 3000) {
 <div id="shop">
 <h1 id="shopTitle">Магазин улучшений и скинов</h1>
 <div id="upgradeSection">
-<button class="shop-action-btn" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
+<button class="shop-action-btn" id="upgradeTap1Button" onclick="buyUpgrade1()">Улучшение (+1 за один тап) цена:5000 </button>
 <br>
 <br>
-<button class="shop-action-btn" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
+<button class="shop-action-btn" id="upgradeTap5Button" onclick="buyUpgrade2()">Улучшение (+5 за один тап) цена:20000 </button>
 <br>
 <br>
-<button class="shop-action-btn" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
+<button class="shop-action-btn" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">Улучшение (+1000 к максимальной энергии) цена:10000 </button>
 </div>
 <br>
 <div id="skins">
@@ -893,6 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
     getLatestCommit();
     startAutoUpdate();
     addManualRefreshButton();
+    updateUpgradeShopUI();
     
     document.addEventListener('visibilitychange', function() {
         if (document.hidden) {
@@ -1005,9 +1006,15 @@ let skin = getDefaultSkinState();
 let energyTimer = null;
 let currentLogin = localStorage.getItem('login') || '';
 let flyBeaverState = getDefaultFlyBeaverState();
+let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 window.__boberBanInfo = null;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
+const UPGRADE_BASE_COSTS = Object.freeze({
+    tapSmall: 5000,
+    tapBig: 20000,
+    energy: 10000
+});
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
@@ -1042,6 +1049,14 @@ function getDefaultFlyBeaverState() {
         pendingTransferScore: 0,
         transferredTotalScore: 0,
         lastPlayedAt: null
+    };
+}
+
+function getDefaultUpgradePurchaseCounts() {
+    return {
+        tapSmall: 0,
+        tapBig: 0,
+        energy: 0
     };
 }
 
@@ -1112,6 +1127,53 @@ function normalizeFlyBeaverState(rawState) {
         transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
         lastPlayedAt: rawState.lastPlayedAt || null
     };
+}
+
+function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
+    const normalized = getDefaultUpgradePurchaseCounts();
+    if (rawCounts && typeof rawCounts === 'object') {
+        normalized.tapSmall = Math.max(0, Math.floor(Number(rawCounts.tapSmall) || 0));
+        normalized.tapBig = Math.max(0, Math.floor(Number(rawCounts.tapBig) || 0));
+        normalized.energy = Math.max(0, Math.floor(Number(rawCounts.energy) || 0));
+    }
+
+    const resolvedPlus = Math.max(1, Math.floor(Number(options.plus) || 1));
+    const resolvedEnergyMax = Math.max(5000, Math.floor(Number(options.energyMax) || 5000));
+
+    if (normalized.tapSmall === 0 && normalized.tapBig === 0 && resolvedPlus > 1) {
+        const extraTap = resolvedPlus - 1;
+        normalized.tapBig = Math.floor(extraTap / 5);
+        normalized.tapSmall = extraTap % 5;
+    }
+
+    if (normalized.energy === 0 && resolvedEnergyMax > 5000) {
+        normalized.energy = Math.floor((resolvedEnergyMax - 5000) / 1000);
+    }
+
+    return normalized;
+}
+
+function calculateUpgradeCost(baseCost, purchaseCount) {
+    const exponent = Math.max(0, Math.floor(Number(purchaseCount) || 0) - 2);
+    return baseCost * Math.pow(2, exponent);
+}
+
+function updateUpgradeShopUI() {
+    const upgradeTap1Button = document.getElementById('upgradeTap1Button');
+    const upgradeTap5Button = document.getElementById('upgradeTap5Button');
+    const upgradeEnergyButton = document.getElementById('upgradeEnergyButton');
+
+    if (upgradeTap1Button) {
+        upgradeTap1Button.textContent = `Улучшение (+1 за один тап) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.tapSmall)}`;
+    }
+
+    if (upgradeTap5Button) {
+        upgradeTap5Button.textContent = `Улучшение (+5 за один тап) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.tapBig)}`;
+    }
+
+    if (upgradeEnergyButton) {
+        upgradeEnergyButton.textContent = `Улучшение (+1000 к максимальной энергии) цена: ${formatCompactNumber(calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy))} | куплено: ${formatCompactNumber(upgradePurchaseCounts.energy)}`;
+    }
 }
 
 function formatCompactNumber(value) {
@@ -1343,6 +1405,19 @@ function restoreLocalDraftIfAvailable() {
         restored = true;
     }
 
+    const draftUpgradePurchases = normalizeUpgradePurchaseCounts(draft.payload.upgradePurchases, {
+        plus: draft.payload.plus,
+        energyMax: draft.payload.ENERGY_MAX
+    });
+    if (draftUpgradePurchases.tapSmall > upgradePurchaseCounts.tapSmall || draftUpgradePurchases.tapBig > upgradePurchaseCounts.tapBig || draftUpgradePurchases.energy > upgradePurchaseCounts.energy) {
+        upgradePurchaseCounts = {
+            tapSmall: Math.max(upgradePurchaseCounts.tapSmall, draftUpgradePurchases.tapSmall),
+            tapBig: Math.max(upgradePurchaseCounts.tapBig, draftUpgradePurchases.tapBig),
+            energy: Math.max(upgradePurchaseCounts.energy, draftUpgradePurchases.energy)
+        };
+        restored = true;
+    }
+
     const draftSkin = normalizeSkinState(draft.payload.skin);
     if (JSON.stringify(draftSkin) !== JSON.stringify(skin)) {
         skin = draftSkin;
@@ -1357,6 +1432,7 @@ function restoreLocalDraftIfAvailable() {
 
     updateScoreUI();
     updateEnergyUI();
+    updateUpgradeShopUI();
     setSaveStatus('draft', `Восстановлен локальный черновик от ${formatSaveTime(draft.savedAt)}`);
     showNotification('Восстановили локальный черновик прогресса.', 'success');
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
@@ -1371,11 +1447,13 @@ function resetUserState() {
     lastEnergyUpdate = Date.now();
     energy_max = 5000;
     skin = getDefaultSkinState();
+    upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 
     updateRegenRate();
     skinLoad();
     updateScoreUI();
     updateEnergyUI();
+    updateUpgradeShopUI();
     resetAutosaveState();
     updateAdminVisibility('');
     setAuthenticatedUI(false);
@@ -1406,6 +1484,10 @@ function applyAuthenticatedState(data) {
     score = Number.isFinite(Number(data.score)) ? Number(data.score) : 0;
     plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
     energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : 5000;
+    upgradePurchaseCounts = normalizeUpgradePurchaseCounts(data.upgradePurchases, {
+        plus: data.plus,
+        energyMax: data.ENERGY_MAX
+    });
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
 
@@ -1422,6 +1504,7 @@ function applyAuthenticatedState(data) {
     updateEnergy();
     updateScoreUI();
     updateEnergyUI();
+    updateUpgradeShopUI();
     startEnergyTimer();
     updateAdminVisibility(resolvedLogin);
     setAuthenticatedUI(true);
@@ -1512,7 +1595,12 @@ function buildSaveStatePayload() {
         skin: JSON.stringify(skin),
         energy: Math.max(0, Math.floor(energy)),
         lastEnergyUpdate: Math.max(0, Math.floor(lastEnergyUpdate)),
-        ENERGY_MAX: Math.max(1, Math.floor(energy_max))
+        ENERGY_MAX: Math.max(1, Math.floor(energy_max)),
+        upgradePurchases: {
+            tapSmall: Math.max(0, Math.floor(upgradePurchaseCounts.tapSmall || 0)),
+            tapBig: Math.max(0, Math.floor(upgradePurchaseCounts.tapBig || 0)),
+            energy: Math.max(0, Math.floor(upgradePurchaseCounts.energy || 0))
+        }
     };
 }
 
@@ -1946,51 +2034,63 @@ async function Save() {
 }
 
 function buyUpgrade1() {
-    if (userId) {
-        if (score >= 5000) {
-            plus += 1;
-            score -= 5000;
-            updateScoreUI();
-            saveplus();
-            showNotification('Успешная покупка улучшения!', 'success');
-        } else {
-            showNotification('Недостаточно средств!', 'error');
-        }
-    } else {
+    if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        return;
+    }
+
+    const currentCost = calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall);
+    if (score >= currentCost) {
+        plus += 1;
+        score -= currentCost;
+        upgradePurchaseCounts.tapSmall += 1;
+        updateScoreUI();
+        updateUpgradeShopUI();
+        saveplus();
+        showNotification('Успешная покупка улучшения!', 'success');
+    } else {
+        showNotification(`Недостаточно средств! Нужно ${currentCost}.`, 'error');
     }
 }
 
 function buyUpgrade2() {
-    if (userId) {
-        if (score >= 20000) {
-            plus += 5;
-            score -= 20000;
-            updateScoreUI();
-            saveplus();
-            showNotification('Успешная покупка улучшения!', 'success');
-        } else {
-            showNotification('Недостаточно средств!', 'error');
-        }
-    } else {
+    if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        return;
+    }
+
+    const currentCost = calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig);
+    if (score >= currentCost) {
+        plus += 5;
+        score -= currentCost;
+        upgradePurchaseCounts.tapBig += 1;
+        updateScoreUI();
+        updateUpgradeShopUI();
+        saveplus();
+        showNotification('Успешная покупка улучшения!', 'success');
+    } else {
+        showNotification(`Недостаточно средств! Нужно ${currentCost}.`, 'error');
     }
 }
 
 function buyEnergyUpgrade() {
-    if (userId) {
-        if (score >= 10000) {
-            energy_max += 1000;
-            score -= 10000;
-            updateRegenRate();
-            updateScoreUI();
-            markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
-            showNotification('Успешная покупка улучшения! Новый максимум: ' + energy_max, 'success');
-        } else {
-            showNotification('Недостаточно средств!', 'error');
-        }
-    } else {
+    if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        return;
+    }
+
+    const currentCost = calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy);
+    if (score >= currentCost) {
+        energy_max += 1000;
+        score -= currentCost;
+        upgradePurchaseCounts.energy += 1;
+        updateRegenRate();
+        updateScoreUI();
+        updateUpgradeShopUI();
+        markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
+        showNotification('Успешная покупка улучшения! Новый максимум: ' + energy_max, 'success');
+    } else {
+        showNotification(`Недостаточно средств! Нужно ${currentCost}.`, 'error');
     }
 }
 

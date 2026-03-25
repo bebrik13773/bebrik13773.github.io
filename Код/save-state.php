@@ -28,6 +28,10 @@ try {
     $energyMax = max(1, (int) ($data['ENERGY_MAX'] ?? 5000));
     $energy = min($energyMax, max(0, (int) ($data['energy'] ?? 0)));
     $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
+    $upgradePurchases = is_array($data['upgradePurchases'] ?? null) ? $data['upgradePurchases'] : [];
+    $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
+    $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
+    $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
 
     $conn = bober_db_connect();
     $activeBan = bober_fetch_active_user_ban($conn, $userId);
@@ -42,12 +46,12 @@ try {
         ], 403);
     }
 
-    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ? WHERE id = ?');
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('iisiisi', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $userId);
+    $stmt->bind_param('iisisiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $userId);
 
     if (!$stmt->execute()) {
         $stmt->close();

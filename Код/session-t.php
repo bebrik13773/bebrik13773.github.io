@@ -23,7 +23,7 @@ try {
         ], 403);
     }
 
-    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score FROM users WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
@@ -43,7 +43,7 @@ try {
         bober_json_response(['success' => false, 'message' => 'Сессия устарела.'], 401);
     }
 
-    $stmt->bind_result($id, $login, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $score);
+    $stmt->bind_result($id, $login, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount);
     $stmt->fetch();
     $stmt->close();
 
@@ -90,6 +90,11 @@ try {
         'lastEnergyUpdate' => max(0, (int) $lastEnergyUpdate),
         'ENERGY_MAX' => $energyMax,
         'score' => max(0, (int) $score),
+        'upgradePurchases' => [
+            'tapSmall' => max(0, (int) $upgradeTapSmallCount),
+            'tapBig' => max(0, (int) $upgradeTapBigCount),
+            'energy' => max(0, (int) $upgradeEnergyCount),
+        ],
         'flyBeaver' => $flyBeaver,
     ]);
 } catch (Throwable $error) {

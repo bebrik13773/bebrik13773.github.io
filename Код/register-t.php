@@ -57,13 +57,16 @@ try {
     $energyMax = 5000;
     $score = 0;
     $plus = 1;
+    $upgradeTapSmallCount = 0;
+    $upgradeTapBigCount = 0;
+    $upgradeEnergyCount = 0;
 
-    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('ssisisii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score);
+    $stmt->bind_param('ssisisiiiii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount);
 
     if (!$stmt->execute()) {
         $stmt->close();
@@ -88,6 +91,11 @@ try {
         'lastEnergyUpdate' => (int) $lastEnergyUpdate,
         'ENERGY_MAX' => $energyMax,
         'score' => $score,
+        'upgradePurchases' => [
+            'tapSmall' => $upgradeTapSmallCount,
+            'tapBig' => $upgradeTapBigCount,
+            'energy' => $upgradeEnergyCount,
+        ],
         'flyBeaver' => $flyBeaver,
     ]);
 } catch (Throwable $error) {

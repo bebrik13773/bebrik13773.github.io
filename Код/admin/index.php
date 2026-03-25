@@ -367,6 +367,15 @@ SELECT
     `u`.`energy`,
     `u`.`ENERGY_MAX`,
     `u`.`updated_at`,
+    GREATEST(
+        COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
+        COALESCE(`f`.`last_played_at`, '1970-01-01 00:00:00'),
+        COALESCE((
+            SELECT MAX(`iph`.`last_seen_at`)
+            FROM `user_ip_history` `iph`
+            WHERE `iph`.`user_id` = `u`.`id`
+        ), '1970-01-01 00:00:00')
+    ) AS `last_activity_at`,
     COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
     COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_score`,
     EXISTS(
@@ -389,7 +398,7 @@ SELECT
 FROM `users` `u`
 LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
 WHERE `u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?
-ORDER BY `is_banned` DESC, `u`.`score` DESC, `u`.`id` DESC
+ORDER BY `is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC
 LIMIT 200
 SQL;
 
@@ -416,6 +425,7 @@ SQL;
                         'energy' => max(0, (int) ($row['energy'] ?? 0)),
                         'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
                         'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+                        'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
                         'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
                         'flyPendingScore' => max(0, (int) ($row['fly_pending_score'] ?? 0)),
                         'isBanned' => (int) ($row['is_banned'] ?? 0) === 1,
@@ -477,8 +487,20 @@ SELECT
     `u`.`last_energy_update`,
     `u`.`ENERGY_MAX`,
     `u`.`score`,
+    `u`.`upgrade_tap_small_count`,
+    `u`.`upgrade_tap_big_count`,
+    `u`.`upgrade_energy_count`,
     `u`.`created_at`,
     `u`.`updated_at`,
+    GREATEST(
+        COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
+        COALESCE(`f`.`last_played_at`, '1970-01-01 00:00:00'),
+        COALESCE((
+            SELECT MAX(`iph`.`last_seen_at`)
+            FROM `user_ip_history` `iph`
+            WHERE `iph`.`user_id` = `u`.`id`
+        ), '1970-01-01 00:00:00')
+    ) AS `last_activity_at`,
     COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
     COALESCE(`f`.`last_score`, 0) AS `fly_last_score`,
     COALESCE(`f`.`last_level`, 1) AS `fly_last_level`,
@@ -614,6 +636,12 @@ SQL;
                             'score' => max(0, (int) ($row['score'] ?? 0)),
                             'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : null,
                             'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+                            'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
+                            'upgradePurchases' => [
+                                'tapSmall' => max(0, (int) ($row['upgrade_tap_small_count'] ?? 0)),
+                                'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
+                                'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
+                            ],
                             'activeBan' => !empty($row['active_ban_id']) ? [
                                 'id' => (int) $row['active_ban_id'],
                                 'reason' => (string) ($row['active_ban_reason'] ?? ''),
@@ -680,6 +708,12 @@ SQL;
                         $score = max(0, (int) ($data['score'] ?? 0));
                         $lastEnergyUpdate = max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
                         $skin = bober_normalize_skin_json($data['skin'] ?? bober_default_skin_json());
+                        $upgradePurchases = is_array($data['upgradePurchases'] ?? null) ? $data['upgradePurchases'] : [];
+                        $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
+                        $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
+                        $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
+                        $newPassword = (string) ($data['newPassword'] ?? '');
+                        $confirmPassword = (string) ($data['confirmPassword'] ?? '');
                         $fly = is_array($data['flyBeaver'] ?? null) ? $data['flyBeaver'] : [];
                         $flyBestScore = max(0, (int) ($fly['bestScore'] ?? 0));
                         $flyLastScore = max(0, (int) ($fly['lastScore'] ?? 0));
@@ -707,17 +741,41 @@ SQL;
                         }
                         $duplicateStmt->close();
 
+                        $passwordValidationMessage = null;
+                        if ($newPassword !== '' || $confirmPassword !== '') {
+                            if (strlen($newPassword) < 6) {
+                                $passwordValidationMessage = 'Пароль пользователя должен быть не короче 6 символов';
+                            } elseif ($newPassword !== $confirmPassword) {
+                                $passwordValidationMessage = 'Подтверждение пароля пользователя не совпадает';
+                            }
+                        }
+
                         if ($duplicateUser) {
                             $response['message'] = 'Этот логин уже занят другим пользователем';
+                        } elseif ($passwordValidationMessage !== null) {
+                            $response['message'] = $passwordValidationMessage;
                         } else {
+                            $userAssignments = [
+                                "`login` = " . sqlValueForQuery($conn, $login),
+                                "`plus` = " . sqlValueForQuery($conn, $plus),
+                                "`skin` = " . sqlValueForQuery($conn, $skin),
+                                "`energy` = " . sqlValueForQuery($conn, $energy),
+                                "`last_energy_update` = " . sqlValueForQuery($conn, $lastEnergyUpdate),
+                                "`ENERGY_MAX` = " . sqlValueForQuery($conn, $energyMax),
+                                "`score` = " . sqlValueForQuery($conn, $score),
+                                "`upgrade_tap_small_count` = " . sqlValueForQuery($conn, $upgradeTapSmallCount),
+                                "`upgrade_tap_big_count` = " . sqlValueForQuery($conn, $upgradeTapBigCount),
+                                "`upgrade_energy_count` = " . sqlValueForQuery($conn, $upgradeEnergyCount),
+                            ];
+
+                            $passwordChanged = false;
+                            if ($newPassword !== '') {
+                                $userAssignments[] = "`password` = " . sqlValueForQuery($conn, password_hash($newPassword, PASSWORD_DEFAULT));
+                                $passwordChanged = true;
+                            }
+
                             $userUpdateSql = "UPDATE `users` SET "
-                                . "`login` = " . sqlValueForQuery($conn, $login) . ", "
-                                . "`plus` = " . sqlValueForQuery($conn, $plus) . ", "
-                                . "`skin` = " . sqlValueForQuery($conn, $skin) . ", "
-                                . "`energy` = " . sqlValueForQuery($conn, $energy) . ", "
-                                . "`last_energy_update` = " . sqlValueForQuery($conn, $lastEnergyUpdate) . ", "
-                                . "`ENERGY_MAX` = " . sqlValueForQuery($conn, $energyMax) . ", "
-                                . "`score` = " . sqlValueForQuery($conn, $score)
+                                . implode(', ', $userAssignments)
                                 . " WHERE `id` = " . sqlValueForQuery($conn, $userId)
                                 . " LIMIT 1";
 
@@ -750,11 +808,19 @@ SQL;
                                     'user_id' => $userId,
                                     'previous_login' => (string) ($existingUser['login'] ?? ''),
                                     'login' => $login,
+                                    'password_changed' => $passwordChanged,
+                                    'upgrade_purchases' => [
+                                        'tapSmall' => $upgradeTapSmallCount,
+                                        'tapBig' => $upgradeTapBigCount,
+                                        'energy' => $upgradeEnergyCount,
+                                    ],
                                 ],
                             ]);
 
                             $response['success'] = true;
-                            $response['message'] = 'Карточка пользователя сохранена';
+                            $response['message'] = $passwordChanged
+                                ? 'Карточка пользователя и пароль сохранены'
+                                : 'Карточка пользователя сохранена';
                         }
                     }
 
@@ -1082,40 +1148,99 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #7be3ff;
-            --primary-dark: #4fc3ef;
-            --primary-light: #b2f1ff;
-            --secondary-color: #8b5cf6;
-            --secondary-dark: #6d28d9;
-            --background: #060d17;
-            --surface: rgba(13, 24, 41, 0.92);
-            --surface-strong: rgba(18, 31, 51, 0.98);
+            --primary-color: #11d2ff;
+            --primary-dark: #08a8cf;
+            --primary-light: #dffbff;
+            --secondary-color: #6e63ff;
+            --secondary-dark: #4f46e5;
+            --background: #eef9ff;
+            --surface: rgba(255, 255, 255, 0.82);
+            --surface-strong: rgba(255, 255, 255, 0.94);
             --error: #ff6b8a;
             --warning: #f7c969;
             --success: #43d7a3;
-            --on-primary: #04111c;
+            --on-primary: #06212f;
             --on-secondary: #ffffff;
+            --on-background: #13314b;
+            --on-surface: #13314b;
+            --muted-text: rgba(19, 49, 75, 0.68);
+            --border: rgba(17, 210, 255, 0.18);
+            --border-strong: rgba(17, 210, 255, 0.32);
+            --hover: rgba(17, 210, 255, 0.08);
+            --shadow: 0 16px 36px rgba(22, 66, 95, 0.12);
+            --shadow-heavy: 0 26px 72px rgba(22, 66, 95, 0.18);
+            --radius: 18px;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --body-gradient:
+                radial-gradient(circle at top left, rgba(110, 99, 255, 0.16), transparent 26%),
+                radial-gradient(circle at top right, rgba(17, 210, 255, 0.16), transparent 25%),
+                linear-gradient(180deg, #f6fdff, #eaf6ff);
+            --header-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(240, 249, 255, 0.88));
+            --sidebar-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(236, 248, 255, 0.92));
+            --panel-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(239, 249, 255, 0.88));
+            --panel-soft-bg: rgba(255, 255, 255, 0.74);
+            --panel-hover-bg: rgba(247, 253, 255, 0.98);
+            --panel-active-bg: linear-gradient(180deg, rgba(221, 248, 255, 0.98), rgba(244, 252, 255, 0.98));
+            --field-bg: rgba(255, 255, 255, 0.76);
+            --auth-gradient:
+                radial-gradient(circle at top left, rgba(110, 99, 255, 0.18), transparent 25%),
+                radial-gradient(circle at top right, rgba(17, 210, 255, 0.18), transparent 24%),
+                linear-gradient(180deg, #f6fdff, #e7f4ff);
+            --overlay-bg: rgba(9, 18, 31, 0.26);
+            --empty-bg: rgba(255, 255, 255, 0.56);
+            --stack-bg: rgba(255, 255, 255, 0.6);
+            --chip-bg: rgba(17, 210, 255, 0.08);
+            --chip-border: rgba(17, 210, 255, 0.18);
+            --pill-active-bg: rgba(67, 215, 163, 0.14);
+            --pill-active-text: #107a5a;
+            --pill-active-border: rgba(67, 215, 163, 0.24);
+            --pill-banned-bg: rgba(255, 107, 138, 0.14);
+            --pill-banned-text: #c34a66;
+            --pill-banned-border: rgba(255, 107, 138, 0.26);
+            --primary-soft-bg: rgba(17, 210, 255, 0.12);
+            --secondary-soft-bg: rgba(110, 99, 255, 0.12);
+        }
+
+        .dark-theme {
+            --background: #040913;
+            --surface: rgba(10, 19, 34, 0.92);
+            --surface-strong: rgba(14, 25, 43, 0.98);
             --on-background: #edf7ff;
             --on-surface: #edf7ff;
             --muted-text: rgba(237, 247, 255, 0.68);
-            --border: rgba(123, 227, 255, 0.18);
-            --border-strong: rgba(123, 227, 255, 0.28);
-            --hover: rgba(123, 227, 255, 0.08);
-            --shadow: 0 12px 30px rgba(0, 0, 0, 0.26);
-            --shadow-heavy: 0 22px 60px rgba(0, 0, 0, 0.42);
-            --radius: 18px;
-            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .dark-theme {
-            --background: #040913;
-            --surface: rgba(10, 19, 34, 0.96);
-            --surface-strong: rgba(14, 25, 43, 0.99);
             --border: rgba(123, 227, 255, 0.16);
             --border-strong: rgba(123, 227, 255, 0.3);
             --hover: rgba(123, 227, 255, 0.1);
-            --shadow: 0 18px 34px rgba(0,0,0,0.34);
-            --shadow-heavy: 0 28px 72px rgba(0,0,0,0.52);
+            --shadow: 0 18px 34px rgba(0, 0, 0, 0.34);
+            --shadow-heavy: 0 28px 72px rgba(0, 0, 0, 0.52);
+            --body-gradient:
+                radial-gradient(circle at top left, rgba(139, 92, 246, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(123, 227, 255, 0.16), transparent 26%),
+                linear-gradient(180deg, rgba(7, 14, 26, 0.98), rgba(4, 9, 19, 1));
+            --header-gradient: linear-gradient(180deg, rgba(18, 31, 51, 0.98), rgba(11, 20, 35, 0.96));
+            --sidebar-gradient: linear-gradient(180deg, rgba(13, 24, 41, 0.98), rgba(8, 15, 27, 0.98));
+            --panel-gradient: linear-gradient(180deg, rgba(19, 31, 50, 0.92), rgba(10, 18, 31, 0.94));
+            --panel-soft-bg: rgba(7, 14, 26, 0.76);
+            --panel-hover-bg: rgba(10, 20, 34, 0.92);
+            --panel-active-bg: linear-gradient(180deg, rgba(24, 41, 67, 0.98), rgba(13, 24, 41, 0.98));
+            --field-bg: rgba(6, 12, 22, 0.62);
+            --auth-gradient:
+                radial-gradient(circle at top left, rgba(139, 92, 246, 0.22), transparent 25%),
+                radial-gradient(circle at top right, rgba(123, 227, 255, 0.2), transparent 24%),
+                linear-gradient(180deg, #07111d, #040913);
+            --overlay-bg: rgba(0, 0, 0, 0.5);
+            --empty-bg: rgba(7, 14, 26, 0.5);
+            --stack-bg: rgba(255, 255, 255, 0.02);
+            --chip-bg: rgba(123, 227, 255, 0.08);
+            --chip-border: rgba(123, 227, 255, 0.12);
+            --pill-active-bg: rgba(67, 215, 163, 0.12);
+            --pill-active-text: #a6ffd9;
+            --pill-active-border: rgba(67, 215, 163, 0.2);
+            --pill-banned-bg: rgba(255, 107, 138, 0.12);
+            --pill-banned-text: #ffc0ce;
+            --pill-banned-border: rgba(255, 107, 138, 0.22);
+            --primary-soft-bg: rgba(17, 210, 255, 0.14);
+            --secondary-soft-bg: rgba(110, 99, 255, 0.18);
         }
         
         * {
@@ -1127,10 +1252,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         body {
             font-family: 'Rubik', sans-serif;
-            background:
-                radial-gradient(circle at top left, rgba(139, 92, 246, 0.18), transparent 28%),
-                radial-gradient(circle at top right, rgba(123, 227, 255, 0.16), transparent 26%),
-                linear-gradient(180deg, rgba(7, 14, 26, 0.98), rgba(4, 9, 19, 1));
+            background: var(--body-gradient);
             color: var(--on-background);
             line-height: 1.6;
             overflow-x: hidden;
@@ -1164,7 +1286,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         /* Заголовок */
         .app-header {
-            background: linear-gradient(180deg, rgba(18, 31, 51, 0.98), rgba(11, 20, 35, 0.96));
+            background: var(--header-gradient);
             border-bottom: 1px solid var(--border);
             padding: 0 24px;
             box-shadow: var(--shadow);
@@ -1177,6 +1299,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             right: 0;
             height: 64px;
             z-index: 1000;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
         
         .header-content {
@@ -1274,9 +1398,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             position: absolute;
             top: 100%;
             right: 0;
-            background-color: var(--surface);
+            background-color: var(--surface-strong);
             color: var(--on-surface);
-            border-radius: 8px;
+            border-radius: 16px;
             box-shadow: var(--shadow-heavy);
             min-width: 240px;
             overflow: hidden;
@@ -1284,6 +1408,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             margin-top: 8px;
             border: 1px solid var(--border);
             display: none;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
         
         .user-dropdown.active {
@@ -1312,8 +1438,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         /* Боковая панель */
         .sidebar {
-            width: 280px;
-            background: linear-gradient(180deg, rgba(13, 24, 41, 0.98), rgba(8, 15, 27, 0.98));
+            width: 320px;
+            background: var(--sidebar-gradient);
             height: calc(100vh - 64px);
             position: fixed;
             left: 0;
@@ -1323,6 +1449,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             border-right: 1px solid var(--border);
             transform: translateX(-100%);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
         
         .sidebar.active {
@@ -1420,7 +1548,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .main-content.with-sidebar {
-            margin-left: 280px;
+            margin-left: 320px;
         }
         
         .container {
@@ -1437,6 +1565,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             margin-bottom: 24px;
             border: 1px solid var(--border);
             backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
         
         .card-header {
@@ -1476,7 +1605,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             border: 1px solid var(--border);
             border-radius: 12px;
             font-size: 14px;
-            background-color: rgba(6, 12, 22, 0.62);
+            background-color: var(--field-bg);
             color: var(--on-surface);
             transition: border-color 0.2s;
         }
@@ -1490,7 +1619,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         textarea.form-control {
             min-height: 120px;
             resize: vertical;
-            font-family: 'Roboto Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 14px;
             line-height: 1.5;
         }
@@ -1504,9 +1633,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .quick-sql-btn {
-            background-color: rgba(123, 227, 255, 0.08);
+            background-color: var(--chip-bg);
             color: var(--primary-color);
-            border: 1px solid var(--primary-color);
+            border: 1px solid var(--chip-border);
             border-radius: 999px;
             padding: 8px 16px;
             font-size: 14px;
@@ -1519,7 +1648,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .quick-sql-btn:hover {
-            background-color: rgba(37, 99, 235, 0.2);
+            background-color: var(--hover);
+            border-color: var(--border-strong);
         }
         
         /* Таблицы */
@@ -1586,21 +1716,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             gap: 8px;
             padding: 10px 20px;
             border: none;
-            border-radius: 6px;
+            border-radius: 12px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
             text-decoration: none;
         }
+
+        .btn:disabled {
+            opacity: 0.58;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+            filter: saturate(0.7);
+        }
         
         .btn-primary {
-            background-color: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), rgba(91, 222, 255, 0.98) 58%, var(--secondary-color));
             color: var(--on-primary);
+            box-shadow: 0 14px 30px rgba(17, 210, 255, 0.18);
         }
         
         .btn-primary:hover {
-            background-color: var(--primary-dark);
             transform: translateY(-1px);
             box-shadow: var(--shadow-heavy);
         }
@@ -1615,7 +1753,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .btn-outline {
-            background-color: rgba(123, 227, 255, 0.06);
+            background-color: var(--chip-bg);
             border: 1px solid var(--border);
             color: var(--on-surface);
         }
@@ -1663,11 +1801,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .stat-card {
-            background: linear-gradient(180deg, rgba(19, 31, 50, 0.92), rgba(10, 18, 31, 0.94));
+            background: var(--panel-gradient);
             border-radius: var(--radius);
             padding: 24px;
             border: 1px solid var(--border);
             transition: transform 0.2s;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
         
         .stat-card:hover {
@@ -1687,12 +1827,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .stat-icon.primary {
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: var(--primary-soft-bg);
             color: var(--primary-color);
         }
-        
+
         .stat-icon.secondary {
-            background-color: rgba(14, 165, 233, 0.1);
+            background-color: var(--secondary-soft-bg);
             color: var(--secondary-color);
         }
         
@@ -1716,7 +1856,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: var(--overlay-bg);
             z-index: 1100;
             display: flex;
             align-items: center;
@@ -1724,6 +1864,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             opacity: 0;
             visibility: hidden;
             transition: all 0.3s;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
         
         .modal-overlay.active {
@@ -1732,7 +1874,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .modal-content {
-            background-color: var(--surface);
+            background-color: var(--surface-strong);
             border-radius: var(--radius);
             width: 90%;
             max-width: 500px;
@@ -1741,6 +1883,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             box-shadow: var(--shadow-heavy);
             transform: translateY(20px);
             transition: transform 0.3s;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
         }
         
         .modal-overlay.active .modal-content {
@@ -1759,7 +1904,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .notification {
-            background-color: var(--surface);
+            background-color: var(--surface-strong);
             border-radius: var(--radius);
             padding: 16px 20px;
             box-shadow: var(--shadow-heavy);
@@ -1771,6 +1916,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             transform: translateX(150%);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
         
         .notification.active {
@@ -1844,15 +1991,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background:
-                radial-gradient(circle at top left, rgba(139, 92, 246, 0.22), transparent 25%),
-                radial-gradient(circle at top right, rgba(123, 227, 255, 0.2), transparent 24%),
-                linear-gradient(180deg, #07111d, #040913);
+            background: var(--auth-gradient);
             padding: 20px;
         }
-        
+
         .auth-card {
-            background-color: rgba(13, 24, 41, 0.94);
+            background-color: var(--surface-strong);
             border-radius: var(--radius);
             padding: 40px;
             width: 100%;
@@ -1905,23 +2049,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         .toggle-switch {
             width: 50px;
             height: 26px;
-            background-color: #ccc;
+            background-color: var(--chip-bg);
+            border: 1px solid var(--chip-border);
             border-radius: 13px;
             position: relative;
             transition: background-color 0.3s;
         }
-        
-        .dark-theme .toggle-switch {
-            background-color: #475569; /* Более темный цвет для темной темы */
-        }
-        
+
         .toggle-switch:before {
             content: "";
             position: absolute;
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            background-color: white;
+            background-color: var(--surface-strong);
             top: 2px;
             left: 2px;
             transition: transform 0.3s;
@@ -1942,9 +2083,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             width: 100%;
             padding: 10px 14px 10px 40px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 12px;
             font-size: 14px;
-            background-color: var(--surface);
+            background-color: var(--field-bg);
             color: var(--on-surface);
         }
         
@@ -2025,8 +2166,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             justify-content: space-between;
             align-items: center;
             padding: 12px;
-            background-color: var(--hover);
-            border-radius: 6px;
+            background-color: var(--stack-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
         }
         
         .profile-label {
@@ -2035,12 +2177,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         .profile-value {
-            font-family: 'Roboto Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
             color: var(--primary-color);
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: var(--chip-bg);
             padding: 4px 8px;
-            border-radius: 4px;
+            border-radius: 8px;
         }
         
         /* Инлайн редактирование */
@@ -2073,7 +2215,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         .accounts-shell {
             display: grid;
-            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
             gap: 20px;
             align-items: start;
         }
@@ -2094,13 +2236,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             gap: 6px;
             padding: 8px 12px;
             border-radius: 999px;
-            background: rgba(123, 227, 255, 0.08);
-            border: 1px solid var(--border);
+            background: var(--chip-bg);
+            border: 1px solid var(--chip-border);
         }
 
         .account-list-panel,
         .account-detail-panel {
-            background: linear-gradient(180deg, rgba(19, 31, 50, 0.92), rgba(10, 18, 31, 0.94));
+            background: var(--panel-gradient);
         }
 
         .account-list-toolbar {
@@ -2129,24 +2271,26 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             width: 100%;
             border: 1px solid var(--border);
             border-radius: 18px;
-            background: rgba(7, 14, 26, 0.76);
+            background: var(--panel-soft-bg);
             color: var(--on-surface);
             padding: 16px;
             cursor: pointer;
             text-align: left;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
         }
 
         .account-list-item:hover {
             transform: translateY(-1px);
             border-color: var(--border-strong);
-            background: rgba(10, 20, 34, 0.92);
+            background: var(--panel-hover-bg);
         }
 
         .account-list-item.active {
             border-color: rgba(123, 227, 255, 0.5);
             box-shadow: 0 0 0 1px rgba(123, 227, 255, 0.18), 0 18px 42px rgba(0, 0, 0, 0.3);
-            background: linear-gradient(180deg, rgba(24, 41, 67, 0.98), rgba(13, 24, 41, 0.98));
+            background: var(--panel-active-bg);
         }
 
         .account-list-top {
@@ -2173,6 +2317,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             flex-wrap: wrap;
         }
 
+        .account-list-foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
         .mini-chip {
             display: inline-flex;
             align-items: center;
@@ -2180,8 +2332,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             padding: 7px 10px;
             border-radius: 999px;
             font-size: 12px;
-            background: rgba(123, 227, 255, 0.08);
-            border: 1px solid rgba(123, 227, 255, 0.12);
+            background: var(--chip-bg);
+            border: 1px solid var(--chip-border);
             color: var(--on-surface);
         }
 
@@ -2198,15 +2350,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         .status-pill.active {
-            background: rgba(67, 215, 163, 0.12);
-            color: #a6ffd9;
-            border-color: rgba(67, 215, 163, 0.2);
+            background: var(--pill-active-bg);
+            color: var(--pill-active-text);
+            border-color: var(--pill-active-border);
         }
 
         .status-pill.banned {
-            background: rgba(255, 107, 138, 0.12);
-            color: #ffc0ce;
-            border-color: rgba(255, 107, 138, 0.22);
+            background: var(--pill-banned-bg);
+            color: var(--pill-banned-text);
+            border-color: var(--pill-banned-border);
         }
 
         .account-empty {
@@ -2218,7 +2370,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             color: var(--muted-text);
             border: 1px dashed var(--border);
             border-radius: 20px;
-            background: rgba(7, 14, 26, 0.5);
+            background: var(--empty-bg);
             padding: 30px;
         }
 
@@ -2279,7 +2431,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             padding: 18px;
             border-radius: 20px;
             border: 1px solid var(--border);
-            background: rgba(7, 14, 26, 0.58);
+            background: var(--stack-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
         }
 
         .detail-section.wide {
@@ -2315,7 +2469,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             padding: 11px 14px;
             border-radius: 12px;
             border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--field-bg);
             color: var(--on-surface);
             font-size: 14px;
         }
@@ -2338,7 +2492,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 14px 16px;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--stack-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .stack-item-title {
@@ -2383,7 +2539,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         @media (max-width: 768px) {
             .account-list-toolbar,
             .account-detail-head,
-            .account-head-actions {
+            .account-head-actions,
+            .account-list-foot {
                 flex-direction: column;
                 align-items: stretch;
             }
@@ -2545,7 +2702,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon secondary">
-                        <span class="material-icons">pace</span>
+                        <span class="material-icons">timer</span>
                     </div>
                     <div class="stat-value" id="activeTime">0:00</div>
                     <div class="stat-label">В панели</div>
@@ -2845,6 +3002,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let editingRowId = null;
         let tableColumns = [];
         let selectedAccountId = null;
+        let selectedAccountBaselineSnapshot = '';
+        let selectedAccountDirty = false;
         let currentAdminView = 'accounts';
         let accountSearchDebounce = null;
         let lastAccountSearch = '';
@@ -3275,10 +3434,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             updateActiveMenuItem('accountsBtn');
             loadDashboardStats();
             loadAccounts(document.getElementById('accountSearchInput').value.trim());
-
-            if (window.innerWidth <= 1200) {
-                document.getElementById('sidebar').classList.remove('active');
-            }
         }
         
         // Функция показа статистики
@@ -3292,11 +3447,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             
             // Обновляем активный элемент меню
             updateActiveMenuItem('statisticsBtn');
-            
-            // Закрываем боковую панель на мобильных
-            if (window.innerWidth <= 1200) {
-                document.getElementById('sidebar').classList.remove('active');
-            }
         }
         
         // Функция показа SQL редактора
@@ -3309,11 +3459,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             
             // Обновляем активный элемент меню
             updateActiveMenuItem('sqlEditorBtn');
-            
-            // Закрываем боковую панель на мобильных
-            if (window.innerWidth <= 1200) {
-                document.getElementById('sidebar').classList.remove('active');
-            }
         }
         
         // Функция обновления активного элемента меню
@@ -3392,6 +3537,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     }
                 } else {
                     selectedAccountId = null;
+                    selectedAccountBaselineSnapshot = '';
+                    selectedAccountDirty = false;
                     document.getElementById('accountDetailContainer').style.display = 'none';
                     document.getElementById('accountDetailEmpty').style.display = 'flex';
                 }
@@ -3449,8 +3596,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">bolt</span>${formatAdminNumber(user.energy)}/${formatAdminNumber(user.energyMax)}</span>
                         <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sports_esports</span>${formatAdminNumber(user.flyBestScore)}</span>
                     </div>
-                    <div class="account-id" style="margin-top: 10px;">
-                        ${user.isBanned && user.banUntil ? `Бан до ${escapeHtml(formatAdminDateTime(user.banUntil))}` : `Обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}`}
+                    <div class="account-list-foot">
+                        <div class="account-id">
+                            Последняя активность: ${escapeHtml(formatAdminDateTime(user.lastActivityAt))}
+                        </div>
+                        <div class="account-id">
+                            ${user.isBanned && user.banUntil ? `Бан до ${escapeHtml(formatAdminDateTime(user.banUntil))}` : `Обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}`}
+                        </div>
                     </div>
                 </button>
             `).join('');
@@ -3470,6 +3622,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return;
             }
 
+            selectedAccountBaselineSnapshot = '';
+            selectedAccountDirty = false;
             markActiveAccountInList();
             document.getElementById('accountDetailEmpty').style.display = 'none';
             document.getElementById('accountDetailContainer').style.display = 'block';
@@ -3495,6 +3649,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             })
             .catch(error => {
                 console.error('Error:', error);
+                selectedAccountBaselineSnapshot = '';
+                selectedAccountDirty = false;
                 document.getElementById('accountDetailContainer').innerHTML = `
                     <div class="account-empty">
                         <div>
@@ -3513,6 +3669,93 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             return `<div class="stack-list">${items.map(item => formatter(item)).join('')}</div>`;
+        }
+
+        function normalizeSelectedAccountPayload(payload) {
+            return {
+                login: String(payload.login || '').trim(),
+                score: Number(payload.score || 0),
+                plus: Number(payload.plus || 1),
+                energy: Number(payload.energy || 0),
+                ENERGY_MAX: Number(payload.ENERGY_MAX || 1),
+                lastEnergyUpdate: Number(payload.lastEnergyUpdate || 0),
+                skin: String(payload.skin || ''),
+                upgradePurchases: {
+                    tapSmall: Number((payload.upgradePurchases || {}).tapSmall || 0),
+                    tapBig: Number((payload.upgradePurchases || {}).tapBig || 0),
+                    energy: Number((payload.upgradePurchases || {}).energy || 0)
+                },
+                newPassword: String(payload.newPassword || ''),
+                confirmPassword: String(payload.confirmPassword || ''),
+                flyBeaver: {
+                    bestScore: Number((payload.flyBeaver || {}).bestScore || 0),
+                    lastScore: Number((payload.flyBeaver || {}).lastScore || 0),
+                    lastLevel: Number((payload.flyBeaver || {}).lastLevel || 1),
+                    gamesPlayed: Number((payload.flyBeaver || {}).gamesPlayed || 0),
+                    totalScore: Number((payload.flyBeaver || {}).totalScore || 0),
+                    pendingTransferScore: Number((payload.flyBeaver || {}).pendingTransferScore || 0),
+                    transferredTotalScore: Number((payload.flyBeaver || {}).transferredTotalScore || 0)
+                }
+            };
+        }
+
+        function getSelectedAccountPayloadSnapshot() {
+            return JSON.stringify(normalizeSelectedAccountPayload(collectSelectedAccountPayload()));
+        }
+
+        function setSelectedAccountDirty(isDirty) {
+            selectedAccountDirty = Boolean(isDirty);
+            const saveBtn = document.getElementById('saveAccountBtn');
+            if (!saveBtn) {
+                return;
+            }
+
+            saveBtn.disabled = !selectedAccountDirty;
+            saveBtn.title = selectedAccountDirty ? 'Есть несохраненные изменения' : 'Изменений нет';
+        }
+
+        function syncSelectedAccountDirtyState() {
+            const saveBtn = document.getElementById('saveAccountBtn');
+            if (!saveBtn || selectedAccountBaselineSnapshot === '') {
+                setSelectedAccountDirty(false);
+                return;
+            }
+
+            setSelectedAccountDirty(getSelectedAccountPayloadSnapshot() !== selectedAccountBaselineSnapshot);
+        }
+
+        function bindSelectedAccountDirtyTracking() {
+            const trackedFieldIds = [
+                'adminUserLogin',
+                'adminUserScore',
+                'adminUserPlus',
+                'adminUserEnergy',
+                'adminUserEnergyMax',
+                'adminUserEnergyTs',
+                'adminUserSkin',
+                'adminUpgradeTapSmall',
+                'adminUpgradeTapBig',
+                'adminUpgradeEnergy',
+                'adminUserNewPassword',
+                'adminUserConfirmPassword',
+                'flyBestScore',
+                'flyLastScore',
+                'flyLastLevel',
+                'flyGamesPlayed',
+                'flyTotalScore',
+                'flyPendingTransferScore',
+                'flyTransferredTotalScore'
+            ];
+
+            trackedFieldIds.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field) {
+                    return;
+                }
+
+                field.addEventListener('input', syncSelectedAccountDirtyState);
+                field.addEventListener('change', syncSelectedAccountDirtyState);
+            });
         }
 
         function renderUserProfile(user) {
@@ -3539,7 +3782,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <div>
                             <div class="account-title">${escapeHtml(user.login || 'Без логина')}</div>
                             <div class="account-subline">
-                                ID ${formatAdminNumber(user.id)} • создан ${escapeHtml(formatAdminDateTime(user.createdAt))} • обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))}
+                                ID ${formatAdminNumber(user.id)} • создан ${escapeHtml(formatAdminDateTime(user.createdAt))} • обновлен ${escapeHtml(formatAdminDateTime(user.updatedAt))} • активность ${escapeHtml(formatAdminDateTime(user.lastActivityAt))}
                             </div>
                         </div>
                     </div>
@@ -3585,9 +3828,42 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <label class="form-label" for="adminUserEnergyTs">last_energy_update</label>
                                 <input class="form-control" id="adminUserEnergyTs" type="number" min="0" value="${Number(user.lastEnergyUpdate || 0)}">
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Последняя активность</label>
+                                <span class="readonly-value">${escapeHtml(formatAdminDateTime(user.lastActivityAt))}</span>
+                            </div>
                             <div class="form-group wide">
                                 <label class="form-label" for="adminUserSkin">Skin JSON</label>
                                 <textarea class="form-control code-block" id="adminUserSkin" rows="6">${escapeHtml(user.skin || '')}</textarea>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">tune</span>
+                            Баланс и пароль
+                        </div>
+                        <div class="detail-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeTapSmall">Покупки +1</label>
+                                <input class="form-control" id="adminUpgradeTapSmall" type="number" min="0" value="${Number((user.upgradePurchases || {}).tapSmall || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeTapBig">Покупки +5</label>
+                                <input class="form-control" id="adminUpgradeTapBig" type="number" min="0" value="${Number((user.upgradePurchases || {}).tapBig || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeEnergy">Покупки энергии</label>
+                                <input class="form-control" id="adminUpgradeEnergy" type="number" min="0" value="${Number((user.upgradePurchases || {}).energy || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUserNewPassword">Новый пароль</label>
+                                <input class="form-control" id="adminUserNewPassword" type="password" minlength="6" placeholder="Оставьте пустым, чтобы не менять">
+                            </div>
+                            <div class="form-group wide">
+                                <label class="form-label" for="adminUserConfirmPassword">Подтверждение нового пароля</label>
+                                <input class="form-control" id="adminUserConfirmPassword" type="password" minlength="6" placeholder="Повторите пароль пользователя">
                             </div>
                         </div>
                     </section>
@@ -3697,6 +3973,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 </div>
             `;
 
+            selectedAccountBaselineSnapshot = getSelectedAccountPayloadSnapshot();
+            bindSelectedAccountDirtyTracking();
+            setSelectedAccountDirty(false);
             document.getElementById('saveAccountBtn').addEventListener('click', saveSelectedAccountProfile);
             document.getElementById('toggleBanAccountBtn').addEventListener('click', function() {
                 if (activeBan) {
@@ -3716,6 +3995,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 ENERGY_MAX: Number(document.getElementById('adminUserEnergyMax').value || 1),
                 lastEnergyUpdate: Number(document.getElementById('adminUserEnergyTs').value || 0),
                 skin: document.getElementById('adminUserSkin').value,
+                upgradePurchases: {
+                    tapSmall: Number(document.getElementById('adminUpgradeTapSmall').value || 0),
+                    tapBig: Number(document.getElementById('adminUpgradeTapBig').value || 0),
+                    energy: Number(document.getElementById('adminUpgradeEnergy').value || 0)
+                },
+                newPassword: document.getElementById('adminUserNewPassword').value,
+                confirmPassword: document.getElementById('adminUserConfirmPassword').value,
                 flyBeaver: {
                     bestScore: Number(document.getElementById('flyBestScore').value || 0),
                     lastScore: Number(document.getElementById('flyLastScore').value || 0),
@@ -3733,6 +4019,25 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return;
             }
 
+            if (!selectedAccountDirty) {
+                return;
+            }
+
+            const nextPassword = document.getElementById('adminUserNewPassword').value;
+            const confirmPassword = document.getElementById('adminUserConfirmPassword').value;
+            if (nextPassword !== '' || confirmPassword !== '') {
+                if (nextPassword.length < 6) {
+                    showNotification('Пароль пользователя должен быть не короче 6 символов', 'error');
+                    return;
+                }
+
+                if (nextPassword !== confirmPassword) {
+                    showNotification('Подтверждение пароля пользователя не совпадает', 'error');
+                    return;
+                }
+            }
+
+            const payload = collectSelectedAccountPayload();
             const saveBtn = document.getElementById('saveAccountBtn');
             const originalContent = saveBtn.innerHTML;
             saveBtn.disabled = true;
@@ -3741,13 +4046,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             postAction({
                 action: 'save_user_profile',
                 user_id: String(selectedAccountId),
-                data: JSON.stringify(collectSelectedAccountPayload())
+                data: JSON.stringify(payload)
             })
             .then(data => {
                 if (!data.success) {
                     throw new Error(data.message || 'Не удалось сохранить пользователя');
                 }
 
+                selectedAccountBaselineSnapshot = getSelectedAccountPayloadSnapshot();
+                setSelectedAccountDirty(false);
                 showNotification(data.message || 'Пользователь сохранен', 'success');
                 loadDashboardStats();
                 loadAccounts(lastAccountSearch);
@@ -3875,11 +4182,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 li.addEventListener('click', function() {
                     // Загружаем данные таблицы
                     loadTableData(table);
-                    
-                    // Закрываем боковую панель на мобильных устройствах
-                    if (window.innerWidth <= 1200) {
-                        document.getElementById('sidebar').classList.remove('active');
-                    }
                 });
                 
                 tableList.appendChild(li);
@@ -4579,7 +4881,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     <span class="material-icons" style="color: var(--primary-color);">code</span>
                     <h3 style="font-size: 16px; font-weight: 600;">Выполненный запрос</h3>
                 </div>
-                <div style="background-color: var(--hover); padding: 12px; border-radius: 6px; font-family: 'Roboto Mono', monospace; font-size: 13px; overflow-x: auto;">
+                <div style="background-color: var(--hover); padding: 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 13px; overflow-x: auto;">
                     ${escapeHtml(sql)}
                 </div>
                 <div style="margin-top: 12px; font-size: 14px; color: var(--on-surface); opacity: 0.7;">
