@@ -263,6 +263,61 @@ function storeUploadedSkinImage($skinId, array $uploadedFile)
     ];
 }
 
+function postBooleanFlag($value)
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    $normalized = strtolower(trim((string) $value));
+    return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+}
+
+function findSkinCatalogItemIndex(array $catalogItems, $skinId)
+{
+    $skinId = trim((string) $skinId);
+    if ($skinId === '') {
+        return -1;
+    }
+
+    foreach ($catalogItems as $index => $item) {
+        if (trim((string) ($item['id'] ?? '')) === $skinId) {
+            return (int) $index;
+        }
+    }
+
+    return -1;
+}
+
+function ensureSkinCatalogDefaults(array $catalogItems)
+{
+    $normalizedItems = [];
+    foreach ($catalogItems as $item) {
+        $normalized = bober_normalize_skin_catalog_item($item);
+        if ($normalized !== null) {
+            $normalizedItems[] = $normalized;
+        }
+    }
+
+    if (count($normalizedItems) === 0) {
+        throw new RuntimeException('Каталог скинов не может быть пустым.');
+    }
+
+    $hasDefaultOwned = false;
+    foreach ($normalizedItems as $item) {
+        if (!empty($item['default_owned'])) {
+            $hasDefaultOwned = true;
+            break;
+        }
+    }
+
+    if (!$hasDefaultOwned) {
+        $normalizedItems[0]['default_owned'] = true;
+    }
+
+    return $normalizedItems;
+}
+
 initializeAdmin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -508,10 +563,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_skin_catalog') {
+            if (requireAdminAuth($response)) {
+                $catalogItems = ensureSkinCatalogDefaults(bober_skin_catalog_list());
+
+                $response['success'] = true;
+                $response['skins'] = array_values($catalogItems);
+                $response['total'] = count($catalogItems);
+            }
+        }
+
         if ($action === 'create_skin_catalog_item') {
             if (requireAdminAuth($response)) {
                 $skinName = normalizeSkinDisplayName($_POST['skin_name'] ?? '');
                 $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
+                $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
+                $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
                 $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image'])
                     ? $_FILES['skin_image']
                     : null;
@@ -532,16 +599,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'name' => $skinName,
                             'price' => $skinPrice,
                             'image' => $storedImage['relative_path'],
-                            'default_owned' => false,
-                            'available' => true,
+                            'default_owned' => $defaultOwned,
+                            'available' => $available,
                         ];
 
                         $catalogItems[] = $newSkinItem;
+                        $catalogItems = ensureSkinCatalogDefaults($catalogItems);
                         bober_store_skin_catalog($catalogItems);
+
+                        $storedIndex = findSkinCatalogItemIndex($catalogItems, $skinId);
+                        $storedItem = $storedIndex >= 0 ? $catalogItems[$storedIndex] : $newSkinItem;
 
                         $response['success'] = true;
                         $response['message'] = 'Скин добавлен и сразу доступен в магазине.';
-                        $response['skin'] = $newSkinItem;
+                        $response['skin'] = $storedItem;
                         $response['catalog_count'] = count($catalogItems);
 
                         bober_admin_log_action($conn, 'create_skin_catalog_item', [
@@ -553,6 +624,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'skin_name' => $skinName,
                                 'price' => $skinPrice,
                                 'image' => $storedImage['relative_path'],
+                                'default_owned' => !empty($storedItem['default_owned']),
+                                'available' => !empty($storedItem['available']),
                             ],
                         ]);
                     } catch (Throwable $error) {
@@ -564,6 +637,131 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     } finally {
                         $conn->close();
                     }
+                }
+            }
+        }
+
+        if ($action === 'update_skin_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $skinId = trim((string) ($_POST['skin_id'] ?? ''));
+                $skinName = normalizeSkinDisplayName($_POST['skin_name'] ?? '');
+                $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
+                $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
+                $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
+                $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image']) ? $_FILES['skin_image'] : null;
+
+                if ($skinId === '') {
+                    $response['message'] = 'Не указан идентификатор скина.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $catalogItems = ensureSkinCatalogDefaults(bober_skin_catalog_list());
+                    $skinIndex = findSkinCatalogItemIndex($catalogItems, $skinId);
+
+                    if ($skinIndex < 0) {
+                        $response['message'] = 'Скин не найден в каталоге.';
+                        $conn->close();
+                    } else {
+                        $currentItem = $catalogItems[$skinIndex];
+                        $storedImage = null;
+
+                        try {
+                            $nextImage = (string) ($currentItem['image'] ?? '');
+                            if ($uploadedFile && (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                                $storedImage = storeUploadedSkinImage($skinId, $uploadedFile);
+                                $nextImage = $storedImage['relative_path'];
+                            }
+
+                            $catalogItems[$skinIndex] = [
+                                'id' => $skinId,
+                                'name' => $skinName,
+                                'price' => $skinPrice,
+                                'image' => $nextImage,
+                                'default_owned' => $defaultOwned,
+                                'available' => $available,
+                            ];
+
+                            $catalogItems = ensureSkinCatalogDefaults($catalogItems);
+                            bober_store_skin_catalog($catalogItems);
+
+                            $updatedIndex = findSkinCatalogItemIndex($catalogItems, $skinId);
+                            $updatedItem = $updatedIndex >= 0 ? $catalogItems[$updatedIndex] : $catalogItems[$skinIndex];
+
+                            $response['success'] = true;
+                            $response['message'] = 'Скин обновлен.';
+                            $response['skin'] = $updatedItem;
+
+                            bober_admin_log_action($conn, 'update_skin_catalog_item', [
+                                'target_table' => 'skin_catalog',
+                                'query_text' => 'UPDATE SKIN ' . $skinId,
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'skin_id' => $skinId,
+                                    'previous_name' => $currentItem['name'] ?? '',
+                                    'name' => $updatedItem['name'] ?? $skinName,
+                                    'previous_image' => $currentItem['image'] ?? '',
+                                    'image' => $updatedItem['image'] ?? $nextImage,
+                                    'price' => $skinPrice,
+                                    'default_owned' => !empty($updatedItem['default_owned']),
+                                    'available' => !empty($updatedItem['available']),
+                                ],
+                            ]);
+                        } catch (Throwable $error) {
+                            $absolutePath = (string) ($storedImage['absolute_path'] ?? '');
+                            if ($absolutePath !== '' && is_file($absolutePath)) {
+                                @unlink($absolutePath);
+                            }
+                            throw $error;
+                        } finally {
+                            $conn->close();
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($action === 'delete_skin_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $skinId = trim((string) ($_POST['skin_id'] ?? ''));
+
+                if ($skinId === '') {
+                    $response['message'] = 'Не указан идентификатор скина.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $catalogItems = ensureSkinCatalogDefaults(bober_skin_catalog_list());
+                    $skinIndex = findSkinCatalogItemIndex($catalogItems, $skinId);
+
+                    if ($skinIndex < 0) {
+                        $response['message'] = 'Скин не найден в каталоге.';
+                    } elseif (count($catalogItems) <= 1) {
+                        $response['message'] = 'Нельзя удалить последний скин в каталоге.';
+                    } else {
+                        $deletedItem = $catalogItems[$skinIndex];
+                        array_splice($catalogItems, $skinIndex, 1);
+                        $catalogItems = ensureSkinCatalogDefaults($catalogItems);
+                        bober_store_skin_catalog($catalogItems);
+
+                        $response['success'] = true;
+                        $response['message'] = 'Скин удален из каталога.';
+                        $response['deleted_skin_id'] = $skinId;
+                        $response['catalog_count'] = count($catalogItems);
+
+                        bober_admin_log_action($conn, 'delete_skin_catalog_item', [
+                            'target_table' => 'skin_catalog',
+                            'query_text' => 'DELETE SKIN ' . $skinId,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'skin_id' => $skinId,
+                                'skin_name' => $deletedItem['name'] ?? '',
+                                'image' => $deletedItem['image'] ?? '',
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
                 }
             }
         }
