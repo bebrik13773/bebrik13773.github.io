@@ -1131,6 +1131,101 @@ SQL;
                 }
             }
         }
+
+        if ($action === 'delete_user_account') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT login FROM users WHERE id = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось подготовить получение пользователя.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось получить пользователя.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult ? $userResult->fetch_assoc() : null;
+                    if ($userResult) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $deleteMeta = [
+                            'fly_beaver_runs' => 0,
+                            'fly_beaver_progress' => 0,
+                            'user_ip_history' => 0,
+                            'ip_bans' => 0,
+                            'user_bans' => 0,
+                            'users' => 0,
+                        ];
+
+                        $conn->begin_transaction();
+
+                        try {
+                            $deleteQueries = [
+                                'fly_beaver_runs' => 'DELETE FROM `fly_beaver_runs` WHERE `user_id` = ?',
+                                'fly_beaver_progress' => 'DELETE FROM `fly_beaver_progress` WHERE `user_id` = ?',
+                                'user_ip_history' => 'DELETE FROM `user_ip_history` WHERE `user_id` = ?',
+                                'ip_bans' => 'DELETE FROM `ip_bans` WHERE `source_user_id` = ?',
+                                'user_bans' => 'DELETE FROM `user_bans` WHERE `user_id` = ?',
+                                'users' => 'DELETE FROM `users` WHERE `id` = ? LIMIT 1',
+                            ];
+
+                            foreach ($deleteQueries as $tableName => $sql) {
+                                $deleteStmt = $conn->prepare($sql);
+                                if (!$deleteStmt) {
+                                    throw new RuntimeException('Не удалось подготовить удаление данных пользователя.');
+                                }
+
+                                $deleteStmt->bind_param('i', $userId);
+                                if (!$deleteStmt->execute()) {
+                                    $deleteStmt->close();
+                                    throw new RuntimeException('Не удалось удалить связанные данные пользователя.');
+                                }
+
+                                $deleteMeta[$tableName] = max(0, (int) $deleteStmt->affected_rows);
+                                $deleteStmt->close();
+                            }
+
+                            $conn->commit();
+                        } catch (Throwable $transactionError) {
+                            $conn->rollback();
+                            throw $transactionError;
+                        }
+
+                        $response['success'] = true;
+                        $response['message'] = 'Аккаунт и связанные данные удалены';
+                        $response['deleted'] = $deleteMeta;
+
+                        bober_admin_log_action($conn, 'delete_user_account', [
+                            'target_table' => 'users',
+                            'query_text' => 'DELETE USER #' . $userId,
+                            'affected_rows' => array_sum($deleteMeta),
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => $userRow['login'] ?? '',
+                                'deleted' => $deleteMeta,
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
     } catch (InvalidArgumentException $error) {
         $response['message'] = $error->getMessage();
     } catch (Throwable $error) {
@@ -3782,6 +3877,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <span class="material-icons">${activeBan ? 'verified_user' : 'gpp_bad'}</span>
                             ${activeBan ? 'Разбанить' : 'Забанить'}
                         </button>
+                        <button class="btn btn-danger" id="deleteAccountBtn">
+                            <span class="material-icons">delete_forever</span>
+                            Удалить аккаунт
+                        </button>
                         <button class="btn btn-primary" id="saveAccountBtn">
                             <span class="material-icons">save</span>
                             Сохранить
@@ -3989,6 +4088,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             bindSelectedAccountDirtyTracking();
             setSelectedAccountDirty(false);
             document.getElementById('saveAccountBtn').addEventListener('click', saveSelectedAccountProfile);
+            document.getElementById('deleteAccountBtn').addEventListener('click', deleteSelectedAccount);
             document.getElementById('toggleBanAccountBtn').addEventListener('click', function() {
                 if (activeBan) {
                     unbanSelectedAccount();
@@ -4188,6 +4288,64 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .finally(() => {
                 actionButton.disabled = false;
                 actionButton.innerHTML = originalContent;
+            });
+        }
+
+        function deleteSelectedAccount() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const loginInput = document.getElementById('adminUserLogin');
+            const currentLogin = loginInput ? loginInput.value.trim() : '';
+            const accountLabel = currentLogin || `ID ${selectedAccountId}`;
+            const confirmed = window.confirm(`Удалить аккаунт ${accountLabel}? Это удалит основную игру, fly-beaver, историю IP и баны. Отменить нельзя.`);
+            if (!confirmed) {
+                return;
+            }
+
+            if (currentLogin) {
+                const loginConfirmation = window.prompt(`Для подтверждения удаления введите логин: ${currentLogin}`, '');
+                if (loginConfirmation === null) {
+                    return;
+                }
+
+                if (loginConfirmation.trim() !== currentLogin) {
+                    showNotification('Логин не совпал. Удаление отменено.', 'error');
+                    return;
+                }
+            }
+
+            const deleteButton = document.getElementById('deleteAccountBtn');
+            const originalContent = deleteButton.innerHTML;
+            deleteButton.disabled = true;
+            deleteButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+
+            postAction({
+                action: 'delete_user_account',
+                user_id: String(selectedAccountId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось удалить аккаунт');
+                }
+
+                selectedAccountId = null;
+                selectedAccountBaselineSnapshot = '';
+                selectedAccountDirty = false;
+                document.getElementById('accountDetailContainer').style.display = 'none';
+                document.getElementById('accountDetailEmpty').style.display = 'flex';
+                showNotification(data.message || 'Аккаунт удален', 'success');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка удаления аккаунта', 'error');
+            })
+            .finally(() => {
+                deleteButton.disabled = false;
+                deleteButton.innerHTML = originalContent;
             });
         }
         

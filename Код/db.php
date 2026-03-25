@@ -1251,24 +1251,33 @@ function bober_lift_user_bans($conn, $userId)
     ];
 }
 
-function bober_count_user_bans($conn, $userId, $source = 'autoclicker')
+function bober_count_user_bans($conn, $userId, $source = null)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
         return 0;
     }
 
-    $source = trim((string) $source);
-    if ($source === '') {
-        $source = 'autoclicker';
+    if ($source === null || trim((string) $source) === '') {
+        $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM user_bans WHERE user_id = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить подсчет банов.');
+        }
+
+        $stmt->bind_param('i', $userId);
+    } else {
+        $source = trim((string) $source);
+        $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM user_bans WHERE user_id = ? AND source = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить подсчет банов.');
+        }
+
+        $stmt->bind_param('is', $userId, $source);
     }
 
-    $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM user_bans WHERE user_id = ? AND source = ?');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить подсчет банов.');
     }
-
-    $stmt->bind_param('is', $userId, $source);
     if (!$stmt->execute()) {
         $stmt->close();
         throw new RuntimeException('Не удалось подсчитать баны пользователя.');
@@ -1316,11 +1325,11 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
         $reason = 'Подозрение на автокликер';
     }
 
-    $previousBanCount = bober_count_user_bans($conn, $userId, $source);
+    $previousBanCount = bober_count_user_bans($conn, $userId, null);
     $defaultDurationDays = $previousBanCount > 0 ? 30 : 5;
     $isRepeat = $previousBanCount > 0 ? 1 : 0;
     $requestedDurationDays = isset($details['duration_days']) ? (int) $details['duration_days'] : null;
-    $isPermanent = !empty($details['is_permanent']);
+    $isPermanent = !empty($details['is_permanent']) || $previousBanCount >= 2;
 
     if ($isPermanent) {
         $durationDays = 0;
@@ -1335,6 +1344,7 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
     $meta = is_array($details['meta'] ?? null) ? $details['meta'] : [];
     $meta['ip'] = $meta['ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
     $meta['user_agent'] = $meta['user_agent'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? null);
+    $meta['ban_stage'] = $meta['ban_stage'] ?? ($previousBanCount + 1);
     $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     $stmt = $conn->prepare('INSERT INTO user_bans (user_id, source, reason, duration_days, is_repeat, detected_by, ban_until, meta_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
