@@ -581,6 +581,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
                 $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
                 $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
+                $rarity = bober_normalize_skin_rarity($_POST['skin_rarity'] ?? '');
+                $category = bober_normalize_skin_category($_POST['skin_category'] ?? '');
+                $grantOnly = postBooleanFlag($_POST['grant_only'] ?? '0');
                 $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image'])
                     ? $_FILES['skin_image']
                     : null;
@@ -603,6 +606,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'image' => $storedImage['relative_path'],
                             'default_owned' => $defaultOwned,
                             'available' => $available,
+                            'rarity' => $rarity,
+                            'category' => $category,
+                            'grant_only' => $grantOnly,
                         ];
 
                         $catalogItems[] = $newSkinItem;
@@ -628,6 +634,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'image' => $storedImage['relative_path'],
                                 'default_owned' => !empty($storedItem['default_owned']),
                                 'available' => !empty($storedItem['available']),
+                                'rarity' => (string) ($storedItem['rarity'] ?? $rarity),
+                                'category' => (string) ($storedItem['category'] ?? $category),
+                                'grant_only' => !empty($storedItem['grant_only']),
                             ],
                         ]);
                     } catch (Throwable $error) {
@@ -650,6 +659,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
                 $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
                 $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
+                $rarity = bober_normalize_skin_rarity($_POST['skin_rarity'] ?? '');
+                $category = bober_normalize_skin_category($_POST['skin_category'] ?? '');
+                $grantOnly = postBooleanFlag($_POST['grant_only'] ?? '0');
                 $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image']) ? $_FILES['skin_image'] : null;
 
                 if ($skinId === '') {
@@ -682,6 +694,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'image' => $nextImage,
                                 'default_owned' => $defaultOwned,
                                 'available' => $available,
+                                'rarity' => $rarity,
+                                'category' => $category,
+                                'grant_only' => $grantOnly,
                             ];
 
                             $catalogItems = ensureSkinCatalogDefaults($catalogItems);
@@ -707,6 +722,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                     'price' => $skinPrice,
                                     'default_owned' => !empty($updatedItem['default_owned']),
                                     'available' => !empty($updatedItem['available']),
+                                    'rarity' => (string) ($updatedItem['rarity'] ?? $rarity),
+                                    'category' => (string) ($updatedItem['category'] ?? $category),
+                                    'grant_only' => !empty($updatedItem['grant_only']),
                                 ],
                             ]);
                         } catch (Throwable $error) {
@@ -772,6 +790,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (requireAdminAuth($response)) {
                 $search = trim((string) ($_POST['search'] ?? ''));
                 $sort = trim((string) ($_POST['sort'] ?? 'activity_desc'));
+                $filter = trim((string) ($_POST['filter'] ?? 'all'));
                 $searchLike = '%' . $search . '%';
                 $sortMap = [
                     'activity_desc' => '`is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC',
@@ -781,8 +800,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     'created_asc' => '`is_banned` DESC, `u`.`created_at` ASC, `u`.`id` ASC',
                     'login_asc' => '`is_banned` DESC, `u`.`login` ASC, `u`.`id` ASC',
                 ];
+                $filterSqlMap = [
+                    'all' => '',
+                    'banned' => ' AND EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
+                    'active' => ' AND NOT EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
+                    'has_sessions' => ' AND EXISTS(SELECT 1 FROM `user_sessions` `usf` WHERE `usf`.`user_id` = `u`.`id` AND `usf`.`revoked_at` IS NULL)',
+                ];
                 $orderBySql = $sortMap[$sort] ?? $sortMap['activity_desc'];
                 $sort = isset($sortMap[$sort]) ? $sort : 'activity_desc';
+                $filter = isset($filterSqlMap[$filter]) ? $filter : 'all';
+                $filterSql = $filterSqlMap[$filter];
 
                 $conn = connectDB();
                 bober_ensure_project_schema($conn);
@@ -808,6 +835,12 @@ SELECT
     ) AS `last_activity_at`,
     COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
     COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_score`,
+    (
+        SELECT COUNT(*)
+        FROM `user_sessions` `us`
+        WHERE `us`.`user_id` = `u`.`id`
+          AND `us`.`revoked_at` IS NULL
+    ) AS `active_session_count`,
     EXISTS(
         SELECT 1
         FROM `user_bans` `ub`
@@ -827,7 +860,8 @@ SELECT
     ) AS `ban_until`
 FROM `users` `u`
 LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
-WHERE `u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?
+WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)
+{$filterSql}
 ORDER BY {$orderBySql}
 LIMIT 200
 SQL;
@@ -859,6 +893,7 @@ SQL;
                         'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
                         'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
                         'flyPendingScore' => max(0, (int) ($row['fly_pending_score'] ?? 0)),
+                        'activeSessionCount' => max(0, (int) ($row['active_session_count'] ?? 0)),
                         'isBanned' => (int) ($row['is_banned'] ?? 0) === 1,
                         'banUntil' => isset($row['ban_until']) ? (string) $row['ban_until'] : null,
                     ];
@@ -869,7 +904,8 @@ SQL;
                 }
                 $stmt->close();
 
-                $countStmt = $conn->prepare('SELECT COUNT(*) AS total FROM `users` WHERE `login` LIKE ? OR CAST(`id` AS CHAR) LIKE ?');
+                $countSql = 'SELECT COUNT(*) AS total FROM `users` `u` WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)' . $filterSql;
+                $countStmt = $conn->prepare($countSql);
                 if (!$countStmt) {
                     throw new RuntimeException('Не удалось получить число пользователей.');
                 }
@@ -894,6 +930,7 @@ SQL;
                 $response['total'] = $total;
                 $response['search'] = $search;
                 $response['sort'] = $sort;
+                $response['filter'] = $filter;
 
                 $conn->close();
             }
@@ -1059,6 +1096,7 @@ SQL;
                         }
 
                         $response['success'] = true;
+                        $activeSessions = bober_fetch_user_active_game_sessions($conn, $userId);
                         $response['user'] = [
                             'id' => (int) ($row['id'] ?? 0),
                             'login' => (string) ($row['login'] ?? ''),
@@ -1097,6 +1135,7 @@ SQL;
                             ],
                             'ipHistory' => $ipHistory,
                             'ipBans' => $ipBans,
+                            'activeSessions' => $activeSessions,
                         ];
                     }
 
@@ -1258,6 +1297,74 @@ SQL;
                                 ? 'Карточка пользователя и пароль сохранены'
                                 : 'Карточка пользователя сохранена';
                         }
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'grant_skin_to_user') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $skinId = trim((string) ($_POST['skin_id'] ?? ''));
+                $equipSkin = postBooleanFlag($_POST['equip_skin'] ?? '0');
+
+                if ($userId < 1 || $skinId === '') {
+                    $response['message'] = 'Не удалось определить пользователя или скин.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $nextSkinState = bober_grant_skin_to_user($conn, $userId, $skinId, $equipSkin);
+                    $response['success'] = true;
+                    $response['message'] = $equipSkin
+                        ? 'Скин выдан и сразу установлен.'
+                        : 'Скин выдан пользователю.';
+                    $response['skin'] = $nextSkinState;
+
+                    bober_admin_log_action($conn, 'grant_skin_to_user', [
+                        'target_table' => 'users',
+                        'query_text' => 'GRANT SKIN ' . $skinId . ' TO USER ' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => [
+                            'user_id' => $userId,
+                            'skin_id' => $skinId,
+                            'equip_skin' => $equipSkin,
+                        ],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'terminate_user_session') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $sessionId = max(0, (int) ($_POST['session_id'] ?? 0));
+
+                if ($userId < 1 || $sessionId < 1) {
+                    $response['message'] = 'Не удалось определить сессию.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $terminated = bober_revoke_game_session_by_id($conn, $userId, $sessionId, 'terminated_from_admin');
+                    if (!$terminated) {
+                        $response['message'] = 'Сессия уже завершена или не найдена.';
+                    } else {
+                        $response['success'] = true;
+                        $response['message'] = 'Сессия завершена.';
+                        bober_admin_log_action($conn, 'terminate_user_session', [
+                            'target_table' => 'user_sessions',
+                            'query_text' => 'TERMINATE SESSION ' . $sessionId,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'session_id' => $sessionId,
+                            ],
+                        ]);
                     }
 
                     $conn->close();
@@ -3846,6 +3953,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                     <span class="material-icons search-icon">search</span>
                                     <input type="text" id="accountSearchInput" class="search-input" placeholder="Найти аккаунт по логину или ID">
                                 </div>
+                                <select class="form-control account-sort-select" id="accountFilterSelect" aria-label="Фильтр аккаунтов">
+                                    <option value="all">Все аккаунты</option>
+                                    <option value="banned">Только забаненные</option>
+                                    <option value="active">Только активные</option>
+                                    <option value="has_sessions">Только с сессиями</option>
+                                </select>
                                 <select class="form-control account-sort-select" id="accountSortSelect" aria-label="Сортировка аккаунтов">
                                     <option value="activity_desc">Сначала по активности</option>
                                     <option value="score_desc">Сначала по счету</option>
@@ -3898,6 +4011,24 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <span class="material-icons search-icon">search</span>
                             <input type="text" id="skinCatalogSearchInput" class="search-input" placeholder="Найти скин по названию или ID">
                         </div>
+                        <select class="form-control account-sort-select" id="skinCatalogCategorySelect" aria-label="Фильтр по категории">
+                            <option value="all">Все категории</option>
+                            <option value="classic">Классика</option>
+                            <option value="food">Еда</option>
+                            <option value="fun">Фан</option>
+                            <option value="mystic">Мистика</option>
+                            <option value="event">Ивент</option>
+                            <option value="admin">Админ</option>
+                            <option value="other">Другое</option>
+                        </select>
+                        <select class="form-control account-sort-select" id="skinCatalogSortSelect" aria-label="Сортировка скинов">
+                            <option value="manual">Как в каталоге</option>
+                            <option value="rarity_desc">Сначала редкие</option>
+                            <option value="price_desc">Сначала дорогие</option>
+                            <option value="price_asc">Сначала дешевые</option>
+                            <option value="name_asc">По названию A-Z</option>
+                            <option value="category_asc">По категории</option>
+                        </select>
                         <button class="btn btn-outline" id="refreshSkinCatalogBtn">
                             <span class="material-icons">refresh</span>
                             Обновить
@@ -4303,6 +4434,31 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <div class="skin-create-success-hint">ID скина сгенерируется автоматически, руками ничего прописывать не нужно.</div>
                         </div>
 
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="addSkinRarityInput">Редкость</label>
+                            <select class="form-control" id="addSkinRarityInput">
+                                <option value="common">Common</option>
+                                <option value="uncommon">Uncommon</option>
+                                <option value="rare">Rare</option>
+                                <option value="epic">Epic</option>
+                                <option value="legendary">Legendary</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="addSkinCategoryInput">Категория</label>
+                            <select class="form-control" id="addSkinCategoryInput">
+                                <option value="classic">Классика</option>
+                                <option value="food">Еда</option>
+                                <option value="fun">Фан</option>
+                                <option value="mystic">Мистика</option>
+                                <option value="event">Ивент</option>
+                                <option value="admin">Админ</option>
+                                <option value="other">Другое</option>
+                            </select>
+                        </div>
+
                         <label class="form-check">
                             <input type="checkbox" id="addSkinAvailableInput" checked>
                             <span class="form-check-label">Скин доступен игрокам сразу после сохранения</span>
@@ -4311,6 +4467,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <label class="form-check">
                             <input type="checkbox" id="addSkinDefaultOwnedInput">
                             <span class="form-check-label">Выдавать этот скин по умолчанию новым игрокам</span>
+                        </label>
+
+                        <label class="form-check">
+                            <input type="checkbox" id="addSkinGrantOnlyInput">
+                            <span class="form-check-label">Только ручная выдача: в магазине виден, но купить нельзя</span>
                         </label>
                     </form>
 
@@ -4390,14 +4551,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let editingRowId = null;
         let tableColumns = [];
         let selectedAccountId = null;
+        let selectedAccountProfile = null;
         let selectedAccountBaselineSnapshot = '';
         let selectedAccountDirty = false;
         let currentAdminView = 'accounts';
         let accountSearchDebounce = null;
         let lastAccountSearch = '';
         let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
+        let currentAccountFilter = localStorage.getItem('admin_account_filter') || 'all';
         let skinCatalogItems = [];
         let skinCatalogSearch = '';
+        let skinCatalogCategoryFilter = localStorage.getItem('admin_skin_category_filter') || 'all';
+        let skinCatalogSort = localStorage.getItem('admin_skin_sort') || 'manual';
         let pendingDeleteSkinId = '';
         let skinEditorState = {
             mode: 'create',
@@ -4867,9 +5032,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const addSkinImageInput = document.getElementById('addSkinImageInput');
             const addSkinAvailableInput = document.getElementById('addSkinAvailableInput');
             const addSkinDefaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+            const addSkinRarityInput = document.getElementById('addSkinRarityInput');
+            const addSkinCategoryInput = document.getElementById('addSkinCategoryInput');
+            const addSkinGrantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
             const saveAddSkinBtn = document.getElementById('saveAddSkinBtn');
 
-            [addSkinNameInput, addSkinPriceInput, addSkinImageInput, addSkinAvailableInput, addSkinDefaultOwnedInput].forEach(field => {
+            [addSkinNameInput, addSkinPriceInput, addSkinImageInput, addSkinAvailableInput, addSkinDefaultOwnedInput, addSkinRarityInput, addSkinCategoryInput, addSkinGrantOnlyInput].forEach(field => {
                 if (field) {
                     field.addEventListener('input', updateAddSkinPreview);
                     field.addEventListener('change', updateAddSkinPreview);
@@ -4960,7 +5128,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     const value = this.value.trim();
                     clearTimeout(accountSearchDebounce);
                     accountSearchDebounce = setTimeout(() => {
-                        loadAccounts(value, currentAccountSort);
+                        loadAccounts(value, currentAccountSort, currentAccountFilter);
                     }, 220);
                 });
             }
@@ -4971,14 +5139,24 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 accountSortSelect.addEventListener('change', function() {
                     currentAccountSort = this.value;
                     localStorage.setItem('admin_account_sort', currentAccountSort);
-                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
+                });
+            }
+
+            const accountFilterSelect = document.getElementById('accountFilterSelect');
+            if (accountFilterSelect) {
+                accountFilterSelect.value = currentAccountFilter;
+                accountFilterSelect.addEventListener('change', function() {
+                    currentAccountFilter = this.value;
+                    localStorage.setItem('admin_account_filter', currentAccountFilter);
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
                 });
             }
 
             const refreshAccountsBtn = document.getElementById('refreshAccountsBtn');
             if (refreshAccountsBtn) {
                 refreshAccountsBtn.addEventListener('click', function() {
-                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
                 });
             }
 
@@ -4994,6 +5172,26 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshSkinCatalogBtn) {
                 refreshSkinCatalogBtn.addEventListener('click', function() {
                     loadSkinCatalogAdmin();
+                });
+            }
+
+            const skinCatalogCategorySelect = document.getElementById('skinCatalogCategorySelect');
+            if (skinCatalogCategorySelect) {
+                skinCatalogCategorySelect.value = skinCatalogCategoryFilter;
+                skinCatalogCategorySelect.addEventListener('change', function() {
+                    skinCatalogCategoryFilter = this.value;
+                    localStorage.setItem('admin_skin_category_filter', skinCatalogCategoryFilter);
+                    renderSkinCatalogList();
+                });
+            }
+
+            const skinCatalogSortSelect = document.getElementById('skinCatalogSortSelect');
+            if (skinCatalogSortSelect) {
+                skinCatalogSortSelect.value = skinCatalogSort;
+                skinCatalogSortSelect.addEventListener('change', function() {
+                    skinCatalogSort = this.value;
+                    localStorage.setItem('admin_skin_sort', skinCatalogSort);
+                    renderSkinCatalogList();
                 });
             }
         }
@@ -5220,15 +5418,44 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         function getFilteredSkinCatalogItems() {
             const query = skinCatalogSearch.trim().toLowerCase();
-            if (!query) {
-                return [...skinCatalogItems];
-            }
+            const filteredItems = skinCatalogItems.filter(item => {
+                const itemCategory = String(item.category || 'other').toLowerCase();
+                if (skinCatalogCategoryFilter !== 'all' && itemCategory !== skinCatalogCategoryFilter) {
+                    return false;
+                }
 
-            return skinCatalogItems.filter(item => {
+                if (!query) {
+                    return true;
+                }
+
                 const name = String(item.name || '').toLowerCase();
                 const id = String(item.id || '').toLowerCase();
-                return name.includes(query) || id.includes(query);
+                const rarity = String(item.rarity || '').toLowerCase();
+                return name.includes(query)
+                    || id.includes(query)
+                    || rarity.includes(query)
+                    || getSkinCategoryLabel(itemCategory).toLowerCase().includes(query);
             });
+
+            if (skinCatalogSort === 'price_desc') {
+                filteredItems.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+            } else if (skinCatalogSort === 'price_asc') {
+                filteredItems.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+            } else if (skinCatalogSort === 'name_asc') {
+                filteredItems.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+            } else if (skinCatalogSort === 'category_asc') {
+                filteredItems.sort((a, b) => {
+                    const categoryDiff = getSkinCategoryLabel(a.category).localeCompare(getSkinCategoryLabel(b.category), 'ru');
+                    return categoryDiff !== 0 ? categoryDiff : String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+                });
+            } else if (skinCatalogSort === 'rarity_desc') {
+                filteredItems.sort((a, b) => {
+                    const rarityDiff = getSkinRarityOrder(b.rarity) - getSkinRarityOrder(a.rarity);
+                    return rarityDiff !== 0 ? rarityDiff : String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+                });
+            }
+
+            return filteredItems;
         }
 
         function isPinnedLastAdminSkinItem(item) {
@@ -5262,7 +5489,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const filteredItems = getFilteredSkinCatalogItems();
             meta.textContent = skinCatalogSearch
                 ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(skinCatalogItems.length)} скинов по запросу "${skinCatalogSearch}".`
-                : `Всего скинов в каталоге: ${formatAdminNumber(skinCatalogItems.length)}.`;
+                : `Всего скинов в каталоге: ${formatAdminNumber(skinCatalogItems.length)}. Категория: ${skinCatalogCategoryFilter === 'all' ? 'все' : getSkinCategoryLabel(skinCatalogCategoryFilter)}.`;
 
             if (filteredItems.length === 0) {
                 grid.innerHTML = '<div class="empty-list">По этому запросу скины не найдены.</div>';
@@ -5275,6 +5502,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     : 'Бесплатно';
                 const availabilityLabel = item.available === false ? 'Скрыт' : 'Доступен';
                 const imageUrl = resolveAdminSkinImageUrl(item.image);
+                const rarityLabel = getSkinRarityLabel(item.rarity);
+                const categoryLabel = getSkinCategoryLabel(item.category);
 
                 return `
                     <article class="skin-catalog-card" data-skin-id="${escapeHtml(item.id)}">
@@ -5289,7 +5518,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             </div>
                             <div class="inline-actions" style="margin-top: 0;">
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sell</span>${priceLabel}</span>
-                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">verified_user</span>${item.default_owned ? 'Стартовый' : 'Покупаемый'}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">workspace_premium</span>${escapeHtml(rarityLabel)}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">category</span>${escapeHtml(categoryLabel)}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">verified_user</span>${item.default_owned ? 'Стартовый' : (item.grant_only ? 'Только выдача' : 'Покупаемый')}</span>
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">image</span>${availabilityLabel}</span>
                             </div>
                             <div class="skin-catalog-card-actions">
@@ -5349,6 +5580,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 skinCatalogItems = sortAdminSkinCatalogItems(data.skins);
                 renderSkinCatalogList();
+                if (currentAdminView === 'accounts' && selectedAccountProfile && !selectedAccountDirty) {
+                    renderUserProfile(selectedAccountProfile);
+                }
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -5384,11 +5618,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const priceInput = document.getElementById('addSkinPriceInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
             const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+            const rarityInput = document.getElementById('addSkinRarityInput');
+            const categoryInput = document.getElementById('addSkinCategoryInput');
+            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
 
             const skinName = nameInput ? nameInput.value.trim() : '';
             const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
             const isAvailable = !availableInput || availableInput.checked;
             const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
+            const rarityLabel = getSkinRarityLabel(rarityInput ? rarityInput.value : 'common');
+            const categoryLabel = getSkinCategoryLabel(categoryInput ? categoryInput.value : 'other');
+            const isGrantOnly = Boolean(grantOnlyInput && grantOnlyInput.checked);
 
             if (titleNode) {
                 titleNode.textContent = skinName || 'Новый скин';
@@ -5396,7 +5636,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             if (subtitleNode) {
                 subtitleNode.textContent = skinEditorState.mode === 'edit'
-                    ? `Редактируете скин "${skinName || skinEditorState.skinId || 'без названия'}". Можно заменить картинку, цену и статус без ручной правки файлов.`
+                    ? `Редактируете скин "${skinName || skinEditorState.skinId || 'без названия'}". Можно заменить картинку, цену, редкость, категорию и статус без ручной правки файлов.`
                     : (skinName
                         ? `Скин "${skinName}" появится в общем каталоге и будет доступен в магазине сразу после сохранения.`
                         : 'После сохранения скин сразу подхватится магазином и будет доступен игрокам.');
@@ -5405,7 +5645,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (priceNode) {
                 const availabilityLabel = isAvailable ? 'виден игрокам' : 'скрыт из магазина';
                 const defaultLabel = isDefaultOwned ? ' • стартовый' : '';
-                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов • ${availabilityLabel}${defaultLabel}`;
+                const grantOnlyLabel = isGrantOnly ? ' • только выдача' : '';
+                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов • ${rarityLabel} • ${categoryLabel} • ${availabilityLabel}${defaultLabel}${grantOnlyLabel}`;
             }
 
             if (previewNode) {
@@ -5443,6 +5684,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 defaultOwnedInput.checked = false;
             }
 
+            const rarityInput = document.getElementById('addSkinRarityInput');
+            if (rarityInput) {
+                rarityInput.value = 'common';
+            }
+
+            const categoryInput = document.getElementById('addSkinCategoryInput');
+            if (categoryInput) {
+                categoryInput.value = 'classic';
+            }
+
+            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
+            if (grantOnlyInput) {
+                grantOnlyInput.checked = false;
+            }
+
             clearAddSkinPreviewObjectUrl();
             skinEditorState = {
                 mode: 'create',
@@ -5463,6 +5719,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const priceInput = document.getElementById('addSkinPriceInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
             const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+            const rarityInput = document.getElementById('addSkinRarityInput');
+            const categoryInput = document.getElementById('addSkinCategoryInput');
+            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
 
             if (mode === 'edit' && skinItem) {
                 skinEditorState = {
@@ -5491,6 +5750,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
                 if (defaultOwnedInput) {
                     defaultOwnedInput.checked = Boolean(skinItem.default_owned || skinItem.defaultOwned);
+                }
+                if (rarityInput) {
+                    rarityInput.value = String(skinItem.rarity || 'common');
+                }
+                if (categoryInput) {
+                    categoryInput.value = String(skinItem.category || 'other');
+                }
+                if (grantOnlyInput) {
+                    grantOnlyInput.checked = Boolean(skinItem.grant_only || skinItem.grantOnly);
                 }
                 if (imageInput) {
                     imageInput.required = false;
@@ -5525,6 +5793,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const imageInput = document.getElementById('addSkinImageInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
             const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
+            const rarityInput = document.getElementById('addSkinRarityInput');
+            const categoryInput = document.getElementById('addSkinCategoryInput');
+            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
             const saveButton = document.getElementById('saveAddSkinBtn');
             const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
             const loader = saveButton ? saveButton.querySelector('.loader') : null;
@@ -5534,6 +5805,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
             const isAvailable = !availableInput || availableInput.checked;
             const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
+            const rarity = rarityInput ? String(rarityInput.value || 'common') : 'common';
+            const category = categoryInput ? String(categoryInput.value || 'other') : 'other';
+            const isGrantOnly = Boolean(grantOnlyInput && grantOnlyInput.checked);
 
             if (skinName.length < 2) {
                 showNotification('Введите название скина.', 'error');
@@ -5554,6 +5828,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             formData.append('skin_price', String(skinPrice));
             formData.append('available', isAvailable ? '1' : '0');
             formData.append('default_owned', isDefaultOwned ? '1' : '0');
+            formData.append('skin_rarity', rarity);
+            formData.append('skin_category', category);
+            formData.append('grant_only', isGrantOnly ? '1' : '0');
             if (imageFile) {
                 formData.append('skin_image', imageFile);
             }
@@ -5710,7 +5987,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('accountsBtn');
             loadDashboardStats();
-            loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort);
+            if (skinCatalogItems.length === 0) {
+                loadSkinCatalogAdmin();
+            }
+            loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
         }
         
         // Функция показа статистики
@@ -5773,6 +6053,46 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             return Number(value || 0).toLocaleString('ru-RU');
         }
 
+        function getSkinRarityLabel(rarity) {
+            const labels = {
+                common: 'Common',
+                uncommon: 'Uncommon',
+                rare: 'Rare',
+                epic: 'Epic',
+                legendary: 'Legendary',
+                admin: 'Admin'
+            };
+
+            return labels[String(rarity || '').toLowerCase()] || 'Common';
+        }
+
+        function getSkinCategoryLabel(category) {
+            const labels = {
+                classic: 'Классика',
+                food: 'Еда',
+                fun: 'Фан',
+                mystic: 'Мистика',
+                event: 'Ивент',
+                admin: 'Админ',
+                other: 'Другое'
+            };
+
+            return labels[String(category || '').toLowerCase()] || 'Другое';
+        }
+
+        function getSkinRarityOrder(rarity) {
+            const order = {
+                admin: 6,
+                legendary: 5,
+                epic: 4,
+                rare: 3,
+                uncommon: 2,
+                common: 1
+            };
+
+            return order[String(rarity || '').toLowerCase()] || 0;
+        }
+
         function getAccountSortLabel(sortKey) {
             const labels = {
                 activity_desc: 'сначала по активности',
@@ -5792,9 +6112,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
-        function loadAccounts(search = '', sort = currentAccountSort) {
+        function loadAccounts(search = '', sort = currentAccountSort, filter = currentAccountFilter) {
             lastAccountSearch = search;
             currentAccountSort = sort || currentAccountSort;
+            currentAccountFilter = filter || currentAccountFilter;
 
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
@@ -5814,7 +6135,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             postAction({
                 action: 'get_users_overview',
                 search: search,
-                sort: currentAccountSort
+                sort: currentAccountSort,
+                filter: currentAccountFilter
             })
             .then(data => {
                 if (!data.success) {
@@ -5822,12 +6144,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
 
                 currentAccountSort = data.sort || currentAccountSort;
+                currentAccountFilter = data.filter || currentAccountFilter;
                 const sortSelect = document.getElementById('accountSortSelect');
                 if (sortSelect && sortSelect.value !== currentAccountSort) {
                     sortSelect.value = currentAccountSort;
                 }
+                const filterSelect = document.getElementById('accountFilterSelect');
+                if (filterSelect && filterSelect.value !== currentAccountFilter) {
+                    filterSelect.value = currentAccountFilter;
+                }
 
-                renderAccountsList(data.users || [], Number(data.total || 0), search, currentAccountSort);
+                renderAccountsList(data.users || [], Number(data.total || 0), search, currentAccountSort, currentAccountFilter);
 
                 if (Array.isArray(data.users) && data.users.length > 0) {
                     const hasSelected = data.users.some(user => Number(user.id) === Number(selectedAccountId));
@@ -5837,6 +6164,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     }
                 } else {
                     selectedAccountId = null;
+                    selectedAccountProfile = null;
                     selectedAccountBaselineSnapshot = '';
                     selectedAccountDirty = false;
                     document.getElementById('accountDetailContainer').style.display = 'none';
@@ -5855,7 +6183,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
-        function renderAccountsList(users, total, search, sort) {
+        function renderAccountsList(users, total, search, sort, filter) {
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
 
@@ -5874,9 +6202,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             if (meta) {
+                const filterLabelMap = {
+                    all: 'все аккаунты',
+                    banned: 'только забаненные',
+                    active: 'только активные',
+                    has_sessions: 'только с активными сессиями'
+                };
+                const filterLabel = filterLabelMap[filter] || filterLabelMap.all;
                 meta.textContent = search
-                    ? `Найдено ${formatAdminNumber(total)} аккаунтов по запросу "${search}", показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}).`
-                    : `Всего аккаунтов: ${formatAdminNumber(total)}. Показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}).`;
+                    ? `Найдено ${formatAdminNumber(total)} аккаунтов по запросу "${search}", показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}, ${filterLabel}).`
+                    : `Всего аккаунтов: ${formatAdminNumber(total)}. Показаны первые ${formatAdminNumber(users.length)} (${getAccountSortLabel(sort)}, ${filterLabel}).`;
             }
 
             list.innerHTML = users.map(user => `
@@ -5895,6 +6230,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">toll</span>${formatAdminNumber(user.score)}</span>
                         <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">bolt</span>${formatAdminNumber(user.energy)}/${formatAdminNumber(user.energyMax)}</span>
                         <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sports_esports</span>${formatAdminNumber(user.flyBestScore)}</span>
+                        <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">devices</span>${formatAdminNumber(user.activeSessionCount || 0)}</span>
                     </div>
                     <div class="account-list-foot">
                         <div class="account-id">
@@ -5945,10 +6281,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     throw new Error(data.message || 'Не удалось загрузить карточку пользователя');
                 }
 
-                renderUserProfile(data.user);
+                selectedAccountProfile = data.user;
+                renderUserProfile(selectedAccountProfile);
             })
             .catch(error => {
                 console.error('Error:', error);
+                selectedAccountProfile = null;
                 selectedAccountBaselineSnapshot = '';
                 selectedAccountDirty = false;
                 document.getElementById('accountDetailContainer').innerHTML = `
@@ -5969,6 +6307,56 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             return `<div class="stack-list">${items.map(item => formatter(item)).join('')}</div>`;
+        }
+
+        function parseAdminSkinState(rawSkin) {
+            try {
+                const parsed = JSON.parse(String(rawSkin || ''));
+                if (parsed && typeof parsed === 'object') {
+                    const ownedSkinIds = Array.isArray(parsed.ownedSkinIds)
+                        ? parsed.ownedSkinIds.map(value => String(value || '').trim()).filter(Boolean)
+                        : [];
+                    const equippedSkinId = String(parsed.equippedSkinId || '').trim();
+                    return {
+                        equippedSkinId,
+                        ownedSkinIds
+                    };
+                }
+            } catch (error) {
+                console.warn('Не удалось распарсить Skin JSON в админке.', error);
+            }
+
+            return {
+                equippedSkinId: '',
+                ownedSkinIds: []
+            };
+        }
+
+        function buildGrantSkinSelectOptions(ownedSkinIds) {
+            if (!Array.isArray(skinCatalogItems) || skinCatalogItems.length === 0) {
+                return '<option value="">Каталог скинов еще загружается...</option>';
+            }
+
+            const ownedSet = new Set(Array.isArray(ownedSkinIds) ? ownedSkinIds : []);
+
+            return skinCatalogItems.map(item => {
+                const skinId = String(item.id || '');
+                const suffix = ownedSet.has(skinId) ? ' • уже есть' : '';
+                return `<option value="${escapeHtml(skinId)}">${escapeHtml(item.name || skinId)} (${getSkinRarityLabel(item.rarity)} / ${getSkinCategoryLabel(item.category)})${suffix}</option>`;
+            }).join('');
+        }
+
+        function renderOwnedSkinChips(ownedSkinIds, equippedSkinId) {
+            if (!Array.isArray(ownedSkinIds) || ownedSkinIds.length === 0) {
+                return '<div class="empty-list">У пользователя пока нет сохраненных скинов.</div>';
+            }
+
+            return `<div class="inline-actions" style="margin-top: 0;">${ownedSkinIds.map(skinId => {
+                const skinItem = skinCatalogItems.find(item => String(item.id) === String(skinId));
+                const label = skinItem ? skinItem.name : skinId;
+                const extra = skinItem ? ` • ${getSkinRarityLabel(skinItem.rarity)}` : '';
+                return `<span class="mini-chip">${escapeHtml(label)}${equippedSkinId === skinId ? ' • надет' : ''}${extra}</span>`;
+            }).join('')}</div>`;
         }
 
         function normalizeSelectedAccountPayload(payload) {
@@ -6061,6 +6449,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function renderUserProfile(user) {
             const activeBan = user.activeBan || null;
             const fly = user.flyBeaver || {};
+            const activeSessions = Array.isArray(user.activeSessions) ? user.activeSessions : [];
+            const skinState = parseAdminSkinState(user.skin || '');
             const detailContainer = document.getElementById('accountDetailContainer');
 
             detailContainer.innerHTML = `
@@ -6097,7 +6487,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <span class="material-icons" style="font-size: 16px;">${activeBan ? 'gpp_bad' : 'verified'}</span>
                         <span>${activeBan ? (activeBan.isPermanent ? 'Бессрочный бан' : `Бан до ${escapeHtml(formatAdminDateTime(activeBan.banUntil))}`) : 'Аккаунт активен'}</span>
                     </div>
-                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">devices</span>${formatAdminNumber(Array.isArray(user.ipHistory) ? user.ipHistory.length : 0)} IP в истории</div>
+                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">devices</span>${formatAdminNumber(activeSessions.length)} активных сессий</div>
+                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">inventory_2</span>${formatAdminNumber(skinState.ownedSkinIds.length)} скинов у игрока</div>
+                    <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">lan</span>${formatAdminNumber(Array.isArray(user.ipHistory) ? user.ipHistory.length : 0)} IP в истории</div>
                     <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">shield</span>${formatAdminNumber(Array.isArray(user.ipBans) ? user.ipBans.filter(item => !item.liftedAt).length : 0)} активных IP-банов</div>
                 </div>
 
@@ -6140,6 +6532,33 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <label class="form-label" for="adminUserSkin">Skin JSON</label>
                                 <textarea class="form-control code-block" id="adminUserSkin" rows="6">${escapeHtml(user.skin || '')}</textarea>
                             </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">palette</span>
+                            Скины пользователя
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="grantSkinSelect">Выдать скин вручную</label>
+                            <div class="inline-actions" style="margin-top: 0;">
+                                <select class="form-control" id="grantSkinSelect" style="flex: 1; min-width: 220px;">
+                                    ${buildGrantSkinSelectOptions(skinState.ownedSkinIds)}
+                                </select>
+                                <label class="form-check" style="margin-bottom: 0;">
+                                    <input type="checkbox" id="grantSkinEquipInput">
+                                    <span class="form-check-label">Сразу надеть</span>
+                                </label>
+                                <button class="btn btn-outline" type="button" id="grantSkinBtn">
+                                    <span class="material-icons">redeem</span>
+                                    Выдать
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Уже выданные скины</label>
+                            ${renderOwnedSkinChips(skinState.ownedSkinIds, skinState.equippedSkinId)}
                         </div>
                     </section>
 
@@ -6211,6 +6630,33 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="readonly-value">${escapeHtml(formatAdminDateTime(fly.lastPlayedAt))}</span>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">devices</span>
+                            Активные сессии
+                        </div>
+                        ${renderStackItems(activeSessions, 'У пользователя сейчас нет активных игровых сессий.', item => `
+                            <div class="stack-item">
+                                <div class="stack-item-title">
+                                    <span>${escapeHtml(item.deviceLabel || 'Устройство')}</span>
+                                    <span class="status-pill active">${escapeHtml(item.platformLabel || 'Онлайн')}</span>
+                                </div>
+                                <div class="stack-item-meta">
+                                    Браузер: ${escapeHtml(item.browserLabel || 'неизвестно')}<br>
+                                    IP: ${escapeHtml(item.ipAddress || 'неизвестно')}<br>
+                                    Создана: ${escapeHtml(formatAdminDateTime(item.createdAt))}<br>
+                                    Последняя активность: ${escapeHtml(formatAdminDateTime(item.lastSeenAt))}
+                                </div>
+                                <div class="stack-item-actions">
+                                    <button class="btn btn-outline btn-small terminate-session-btn" type="button" data-session-id="${Number(item.sessionId || 0)}">
+                                        <span class="material-icons">phonelink_erase</span>
+                                        Завершить сессию
+                                    </button>
+                                </div>
+                            </div>
+                        `)}
                     </section>
 
                     <section class="detail-section">
@@ -6291,6 +6737,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             setSelectedAccountDirty(false);
             document.getElementById('saveAccountBtn').addEventListener('click', saveSelectedAccountProfile);
             document.getElementById('deleteAccountBtn').addEventListener('click', deleteSelectedAccount);
+            document.getElementById('grantSkinBtn').addEventListener('click', function() {
+                const select = document.getElementById('grantSkinSelect');
+                const equipInput = document.getElementById('grantSkinEquipInput');
+                if (!select || !select.value) {
+                    showNotification('Выберите скин для выдачи.', 'error');
+                    return;
+                }
+
+                grantSkinToSelectedAccount(String(select.value), Boolean(equipInput && equipInput.checked));
+            });
             document.getElementById('toggleBanAccountBtn').addEventListener('click', function() {
                 if (activeBan) {
                     unbanSelectedAccount();
@@ -6301,6 +6757,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             detailContainer.querySelectorAll('.lift-ip-ban-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     liftSingleIpBan(Number(this.dataset.ipBanId || 0));
+                });
+            });
+            detailContainer.querySelectorAll('.terminate-session-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    terminateSelectedUserSession(Number(this.dataset.sessionId || 0));
                 });
             });
         }
@@ -6462,6 +6923,97 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             showDeleteAccountModal();
         }
 
+        function grantSkinToSelectedAccount(skinId, equipSkin) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const normalizedSkinId = String(skinId || '').trim();
+            if (normalizedSkinId === '') {
+                showNotification('Выберите скин для выдачи.', 'error');
+                return;
+            }
+
+            const actionButton = document.getElementById('grantSkinBtn');
+            const originalContent = actionButton ? actionButton.innerHTML : '';
+
+            if (actionButton) {
+                actionButton.disabled = true;
+                actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'grant_skin_to_user',
+                user_id: String(selectedAccountId),
+                skin_id: normalizedSkinId,
+                equip_skin: equipSkin ? '1' : '0'
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось выдать скин');
+                }
+
+                showNotification(data.message || 'Скин выдан пользователю', 'success');
+                loadUserProfile(selectedAccountId);
+                loadAccounts(lastAccountSearch, currentAccountSort, currentAccountFilter);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка выдачи скина', 'error');
+            })
+            .finally(() => {
+                if (actionButton) {
+                    actionButton.disabled = false;
+                    actionButton.innerHTML = originalContent;
+                }
+            });
+        }
+
+        function terminateSelectedUserSession(sessionId) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const normalizedSessionId = Math.max(0, Number(sessionId) || 0);
+            if (normalizedSessionId < 1) {
+                showNotification('Не удалось определить сессию для завершения.', 'error');
+                return;
+            }
+
+            const actionButton = document.querySelector(`.terminate-session-btn[data-session-id="${normalizedSessionId}"]`);
+            const originalContent = actionButton ? actionButton.innerHTML : '';
+
+            if (actionButton) {
+                actionButton.disabled = true;
+                actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'terminate_user_session',
+                user_id: String(selectedAccountId),
+                session_id: String(normalizedSessionId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось завершить сессию');
+                }
+
+                showNotification(data.message || 'Сессия завершена', 'success');
+                loadUserProfile(selectedAccountId);
+                loadAccounts(lastAccountSearch, currentAccountSort, currentAccountFilter);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка завершения сессии', 'error');
+            })
+            .finally(() => {
+                if (actionButton) {
+                    actionButton.disabled = false;
+                    actionButton.innerHTML = originalContent;
+                }
+            });
+        }
+
         function submitDeleteSelectedAccount() {
             if (!selectedAccountId) {
                 hideDeleteAccountModal();
@@ -6503,6 +7055,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 hideDeleteAccountModal();
                 selectedAccountId = null;
+                selectedAccountProfile = null;
                 selectedAccountBaselineSnapshot = '';
                 selectedAccountDirty = false;
                 document.getElementById('accountDetailContainer').style.display = 'none';

@@ -30,6 +30,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             box-sizing: border-box;
             user-select: none;
         }
+
+        :root {
+            --safe-top: max(14px, env(safe-area-inset-top));
+            --safe-right: max(14px, env(safe-area-inset-right));
+            --safe-bottom: max(14px, env(safe-area-inset-bottom));
+            --safe-left: max(14px, env(safe-area-inset-left));
+        }
         
         body {
             display: flex;
@@ -42,14 +49,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 linear-gradient(180deg, #10172a 0%, #0a0f1a 55%, #05070d 100%);
             font-family: 'Trebuchet MS', 'Verdana', sans-serif;
             overflow: hidden;
-            padding: 14px;
+            padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
         }
         
         #game-container {
             position: relative;
             width: 100%;
             max-width: 420px;
-            height: 80vh;
+            height: min(80vh, 700px);
             max-height: 640px;
             overflow: hidden;
             box-shadow: 0 30px 60px rgba(2, 6, 23, 0.62);
@@ -87,8 +94,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #score {
             position: absolute;
-            top: 14px;
-            left: 14px;
+            top: var(--safe-top);
+            left: var(--safe-left);
             min-width: 68px;
             padding: 10px 14px;
             font-size: 30px;
@@ -106,8 +113,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #high-score {
             position: absolute;
-            top: 84px;
-            left: 14px;
+            top: calc(var(--safe-top) + 70px);
+            left: var(--safe-left);
             font-size: 13px;
             font-weight: bold;
             color: white;
@@ -122,8 +129,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #level-indicator {
             position: absolute;
-            top: 120px;
-            left: 14px;
+            top: calc(var(--safe-top) + 106px);
+            left: var(--safe-left);
             font-size: 13px;
             font-weight: bold;
             color: #92f4ff;
@@ -150,7 +157,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             color: white;
             z-index: 20;
             text-align: center;
-            padding: 118px 22px 28px;
+            padding: calc(var(--safe-top) + 104px) 22px calc(var(--safe-bottom) + 18px);
             backdrop-filter: blur(14px);
         }
         
@@ -234,8 +241,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #mute-btn {
             position: absolute;
-            bottom: 15px;
-            right: 15px;
+            bottom: var(--safe-bottom);
+            right: var(--safe-right);
             width: 36px;
             height: 36px;
             background: rgba(7, 12, 25, 0.48);
@@ -252,8 +259,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #exit-btn {
             position: absolute;
-            bottom: 15px;
-            left: 15px;
+            bottom: var(--safe-bottom);
+            left: var(--safe-left);
             width: 36px;
             height: 36px;
             background: rgba(7, 12, 25, 0.48);
@@ -270,7 +277,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #pause-btn {
             position: absolute;
-            bottom: 15px;
+            bottom: var(--safe-bottom);
             left: 50%;
             transform: translateX(-50%);
             width: 36px;
@@ -306,8 +313,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
         .cloud-panel {
             position: absolute;
-            top: 14px;
-            right: 14px;
+            top: var(--safe-top);
+            right: var(--safe-right);
             width: min(232px, calc(100% - 28px));
             z-index: 22;
             background: rgba(9, 14, 29, 0.74);
@@ -436,25 +443,22 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             
             #score {
                 font-size: 26px;
-                top: 12px;
-                left: 12px;
+                min-width: 60px;
             }
             
             #high-score {
-                top: 76px;
-                left: 12px;
+                top: calc(var(--safe-top) + 62px);
                 font-size: 12px;
-                max-width: 110px;
+                max-width: 122px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
             
             #level-indicator {
-                top: 108px;
-                left: 12px;
+                top: calc(var(--safe-top) + 94px);
                 font-size: 12px;
-                max-width: 110px;
+                max-width: 122px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -465,14 +469,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .cloud-panel {
-                top: 12px;
-                right: 12px;
-                width: min(148px, calc(100% - 24px));
+                width: min(168px, calc(100% - 24px));
                 padding: 9px 10px;
             }
 
             .cloud-panel.expanded {
-                width: min(204px, calc(100% - 24px));
+                width: min(220px, calc(100% - 24px));
             }
 
             .cloud-title {
@@ -497,7 +499,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .screen {
-                padding: 108px 18px 22px;
+                padding: calc(var(--safe-top) + 92px) 18px calc(var(--safe-bottom) + 16px);
             }
         }
         
@@ -522,7 +524,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .screen {
-                padding-top: 92px;
+                padding-top: calc(var(--safe-top) + 78px);
             }
         }
     </style>
@@ -1023,6 +1025,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     cache: 'no-store'
                 });
 
+                clearStoredDeviceBan();
                 accountState.userId = Number(data.userId) || null;
                 accountState.login = data.login || '';
                 accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
@@ -1034,6 +1037,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 return;
             } catch (error) {
                 if (error.status === 401) {
+                    clearStoredDeviceBan();
                     setCloudStatus('local', 'Локальный режим', 'Войдите в основной аккаунт, чтобы включить облачные сохранения и перевод очков.');
                     updateCloudPanel();
                     return;
@@ -1053,19 +1057,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
+                    persistStoredDeviceBan(ban);
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus(
-                        'error',
-                        'Облако недоступно',
-                        ban.type === 'ip'
-                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Локальная игра доступна, облако отключено.`
-                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Локальная игра доступна, облако отключено.`
-                    );
-                    setCloudSummary('Облако недоступно');
-                    setCloudPanelExpanded(true);
-                    updateCloudPanel();
+                    showStoredDeviceBanOverlay(ban);
                     return;
                 }
 
@@ -1121,19 +1117,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
+                    persistStoredDeviceBan(ban);
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus(
-                        'error',
-                        'Облако недоступно',
-                        ban.type === 'ip'
-                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Забег сохранен только локально.`
-                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Забег сохранен только локально.`
-                    );
-                    setCloudSummary('Облако недоступно');
-                    setCloudPanelExpanded(true);
-                    updateCloudPanel();
+                    showStoredDeviceBanOverlay(ban);
                     return;
                 }
 
@@ -1183,19 +1171,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                 const ban = extractCloudBanPayload(error);
                 if (ban) {
+                    persistStoredDeviceBan(ban);
                     accountState.userId = null;
                     accountState.login = '';
                     accountState.flyBeaver = normalizeCloudFlyState(null);
-                    setCloudStatus(
-                        'error',
-                        'Облако недоступно',
-                        ban.type === 'ip'
-                            ? `${ban.message || `С этого IP доступ к облаку ограничен до ${ban.banUntil || 'отдельной проверки'}.`} Перевод очков отключен.`
-                            : `Аккаунт забанен до ${ban.banUntil || 'отдельной проверки'}. Перевод очков отключен.`
-                    );
-                    setCloudSummary('Облако недоступно');
-                    setCloudPanelExpanded(true);
-                    updateCloudPanel();
+                    showStoredDeviceBanOverlay(ban);
                     return;
                 }
 
@@ -1720,15 +1700,17 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         });
         
         // Запуск игры
-        setCloudPanelExpanded(false);
-        loop();
-        restoreFlySession();
-        
-        // Адаптация под устройства
-        if (isMobile) {
-            document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> КАСАНИЕ';
-        } else {
-            document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК<br>Пауза: P или ESC';
+        if (!enforceStoredDeviceBan()) {
+            setCloudPanelExpanded(false);
+            loop();
+            restoreFlySession();
+
+            // Адаптация под устройства
+            if (isMobile) {
+                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> КАСАНИЕ';
+            } else {
+                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК<br>Пауза: P или ESC';
+            }
         }
     </script>
 </body>

@@ -5,7 +5,10 @@
     "price": 0,
     "image": "skins/bober.png",
     "default_owned": true,
-    "available": true
+    "available": true,
+    "rarity": "common",
+    "category": "classic",
+    "grant_only": false
   },
   {
     "id": "paper",
@@ -13,7 +16,10 @@
     "price": 5000,
     "image": "skins/bumazny-bober.jpg",
     "default_owned": false,
-    "available": true
+    "available": true,
+    "rarity": "common",
+    "category": "fun",
+    "grant_only": false
   },
   {
     "id": "standard",
@@ -21,7 +27,10 @@
     "price": 0,
     "image": "skins/matvey-new-bober.jpg",
     "default_owned": true,
-    "available": true
+    "available": true,
+    "rarity": "common",
+    "category": "classic",
+    "grant_only": false
   },
   {
     "id": "strawberry",
@@ -29,7 +38,10 @@
     "price": 15000,
     "image": "skins/klub-smz-bober.jpg",
     "default_owned": false,
-    "available": true
+    "available": true,
+    "rarity": "rare",
+    "category": "food",
+    "grant_only": false
   },
   {
     "id": "sock",
@@ -37,7 +49,10 @@
     "price": 30000,
     "image": "skins/nosok-bober.jpg",
     "default_owned": false,
-    "available": true
+    "available": true,
+    "rarity": "rare",
+    "category": "fun",
+    "grant_only": false
   },
   {
     "id": "chocolate",
@@ -45,7 +60,10 @@
     "price": 50000,
     "image": "skins/Shok-upok-bober.jpg",
     "default_owned": false,
-    "available": true
+    "available": true,
+    "rarity": "epic",
+    "category": "food",
+    "grant_only": false
   },
   {
     "id": "strange",
@@ -53,7 +71,32 @@
     "price": 30000,
     "image": "skins/strany-bober.jpg",
     "default_owned": false,
-    "available": true
+    "available": true,
+    "rarity": "epic",
+    "category": "mystic",
+    "grant_only": false
+  },
+  {
+    "id": "aurora",
+    "name": "Aurora бобер",
+    "price": 0,
+    "image": "skins/aurora-beaver.svg",
+    "default_owned": false,
+    "available": true,
+    "rarity": "legendary",
+    "category": "event",
+    "grant_only": true
+  },
+  {
+    "id": "ember",
+    "name": "Ember бобер",
+    "price": 0,
+    "image": "skins/ember-beaver.svg",
+    "default_owned": false,
+    "available": true,
+    "rarity": "legendary",
+    "category": "event",
+    "grant_only": true
   },
   {
     "id": "dev",
@@ -61,6 +104,9 @@
     "price": 90000,
     "image": "skins/dev.png",
     "default_owned": false,
-    "available": false
+    "available": false,
+    "rarity": "legendary",
+    "category": "admin",
+    "grant_only": true
   }
 ]

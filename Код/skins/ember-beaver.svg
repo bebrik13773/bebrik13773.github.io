@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ember Beaver">
+  <defs>
+    <linearGradient id="emberBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#240404"/>
+      <stop offset="55%" stop-color="#6c170d"/>
+      <stop offset="100%" stop-color="#f28b1d"/>
+    </linearGradient>
+    <linearGradient id="emberGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff3b4"/>
+      <stop offset="55%" stop-color="#ff8a3d"/>
+      <stop offset="100%" stop-color="#ff4d3b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="42" fill="url(#emberBg)"/>
+  <path d="M108 412c26-86 80-147 164-184 18-50 61-93 128-128-10 47-5 82 14 106 31 40 48 91 48 152 0 64-27 108-82 132-49 21-110 21-183 0-58-18-88-44-89-78z" fill="url(#emberGlow)" opacity=".58"/>
+  <ellipse cx="250" cy="280" rx="132" ry="104" fill="#432617"/>
+  <ellipse cx="314" cy="246" rx="72" ry="68" fill="#5a321c"/>
+  <circle cx="337" cy="233" r="13" fill="#fff"/>
+  <circle cx="340" cy="233" r="7" fill="#180707"/>
+  <ellipse cx="366" cy="251" rx="20" ry="14" fill="#24110a"/>
+  <path d="M208 194c-12-36-42-52-71-44 16 34 35 55 58 62z" fill="#6c3b20"/>
+  <path d="M161 309c-16 17-24 42-23 77 35-10 61-32 79-64z" fill="#2d1b10"/>
+  <path d="M226 173c17-55 52-100 105-136-4 36 6 67 29 93-53 6-97 21-134 43z" fill="#ffd56a" opacity=".3"/>
+  <path d="M352 346c-31 42-81 65-151 70 40 27 89 35 146 23 44-9 78-32 103-70-32 9-65 1-98-23z" fill="#ffca6b" opacity=".28"/>
+</svg>

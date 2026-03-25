@@ -180,6 +180,56 @@ Owner decisions:
 			width: min(100%, 960px);
 			margin: 0 auto;
 		}
+		.skin-shop-toolbar {
+			width: min(100%, 960px);
+			margin: 0 auto 16px;
+			display: grid;
+			grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(160px, 220px));
+			gap: 14px;
+			align-items: stretch;
+		}
+		.skin-shop-panel {
+			border: 1px solid rgba(255, 255, 255, 0.14);
+			border-radius: 18px;
+			padding: 14px 16px;
+			background: rgba(15, 18, 36, 0.34);
+			color: #f3fbff;
+			backdrop-filter: blur(14px);
+			-webkit-backdrop-filter: blur(14px);
+			box-shadow: 0 16px 26px rgba(8, 10, 26, 0.18);
+		}
+		.skin-shop-panel-title {
+			font-size: 16px;
+			font-weight: 700;
+			margin-bottom: 6px;
+		}
+		.skin-shop-panel-subtitle {
+			font-size: 13px;
+			line-height: 1.45;
+			color: rgba(255, 255, 255, 0.74);
+		}
+		.skin-shop-filter {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			text-align: left;
+		}
+		.skin-shop-filter label {
+			font-size: 13px;
+			font-weight: 700;
+			color: rgba(255, 255, 255, 0.82);
+		}
+		.skin-shop-filter select {
+			width: 100%;
+			padding: 10px 12px;
+			border-radius: 12px;
+			border: 1px solid rgba(126, 241, 255, 0.2);
+			background: rgba(9, 13, 27, 0.62);
+			color: #fff;
+			font-size: 14px;
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+		}
 		.skin-shop-card {
 			appearance: none;
 			border: 2px solid rgba(255, 255, 255, 0.2);
@@ -191,7 +241,7 @@ Owner decisions:
 			background-position: center;
 			color: #fff;
 			cursor: pointer;
-			min-height: 210px;
+			min-height: 224px;
 			padding: 14px;
 			display: flex;
 			flex-direction: column;
@@ -213,7 +263,7 @@ Owner decisions:
 			content: '';
 			position: absolute;
 			inset: 0;
-			background: linear-gradient(180deg, rgba(12, 10, 24, 0.05), rgba(12, 10, 24, 0.72));
+			background: linear-gradient(180deg, rgba(12, 10, 24, 0.02), rgba(12, 10, 24, 0.38) 58%, rgba(12, 10, 24, 0.64));
 			pointer-events: none;
 		}
 		.skin-shop-card > * {
@@ -225,7 +275,7 @@ Owner decisions:
 		}
 		.skin-shop-card.equipped {
 			border-color: #7ef1ff;
-			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.25), 0 18px 34px rgba(0, 0, 0, 0.3);
+			box-shadow: 0 0 0 3px rgba(126, 241, 255, 0.28), 0 20px 38px rgba(0, 0, 0, 0.32);
 		}
 		.skin-shop-card.locked {
 			border-color: rgba(255, 255, 255, 0.14);
@@ -238,12 +288,64 @@ Owner decisions:
 			font-size: 18px;
 			font-weight: 700;
 			text-shadow: 0 2px 10px rgba(0, 0, 0, 0.38);
-			padding: 10px 12px;
-			border-radius: 14px;
-			background: rgba(7, 12, 27, 0.44);
+			padding: 0;
+		}
+		.skin-shop-card-footer {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			padding: 12px;
+			border-radius: 16px;
+			background: rgba(7, 12, 27, 0.34);
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+		}
+		.skin-shop-card-meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+		.skin-chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 5px 9px;
+			border-radius: 999px;
+			background: rgba(6, 10, 24, 0.54);
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.01em;
+			color: rgba(255, 255, 255, 0.88);
+			border: 1px solid rgba(255, 255, 255, 0.08);
+		}
+		.skin-chip.rarity-legendary {
+			background: rgba(255, 198, 87, 0.22);
+			color: #fff0c1;
+		}
+		.skin-chip.rarity-epic {
+			background: rgba(199, 145, 255, 0.24);
+			color: #f3d9ff;
+		}
+		.skin-chip.rarity-rare {
+			background: rgba(116, 231, 255, 0.24);
+			color: #ddfbff;
+		}
+		.skin-chip.mode-grant-only {
+			background: rgba(255, 122, 122, 0.18);
+			color: #ffd8d8;
+		}
+		.skin-shop-card-price,
+		.skin-shop-card-status {
+			font-size: 13px;
+			line-height: 1.4;
+		}
+		.skin-shop-card-price {
+			font-weight: 700;
+			color: #d7ffff;
+		}
+		.skin-shop-card-status {
+			color: rgba(255, 255, 255, 0.82);
 		}
 		.skin-shop-badge {
 			position: absolute;
@@ -265,11 +367,18 @@ Owner decisions:
 		.skin-shop-badge.owned {
 			background: rgba(87, 176, 255, 0.24);
 		}
+		.skin-shop-badge.grant-only {
+			background: rgba(255, 122, 122, 0.24);
+			color: #ffe3e3;
+		}
 		.skin-shop-badge.coming-soon {
 			background: rgba(255, 196, 87, 0.24);
 			color: #fff1cb;
 		}
 		@media (max-width: 768px) {
+			.skin-shop-toolbar {
+				grid-template-columns: 1fr;
+			}
 			#skins {
 				grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 				gap: 12px;
@@ -280,6 +389,10 @@ Owner decisions:
 			}
 			.skin-shop-card-name {
 				font-size: 16px;
+			}
+			.skin-shop-card-footer {
+				padding: 10px;
+				gap: 6px;
 			}
 		}
 		#upgradeSection {
@@ -479,6 +592,18 @@ Owner decisions:
 			padding: 8px 16px;
 			font-size: 16px;
 		}
+		#sessionsButton {
+			appearance: none;
+			border: 0;
+			border-radius: 5px;
+			background: #2dbec1;
+			color: #091225;
+			padding: 8px 16px;
+			font-size: 16px;
+			font-weight: 700;
+			display: none;
+			box-shadow: 0 10px 22px rgba(14, 15, 35, 0.18);
+		}
 		#skinShop {
 			appearance: none;
 			border: 0;
@@ -510,6 +635,7 @@ Owner decisions:
 			font-size: 16px;
 		}
 		#logoutButton:active,
+		#sessionsButton:active,
 		#registerButton:active,
 		#loginButton:active,
 		#flyRewardButton:active {
@@ -1138,6 +1264,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
     <button id="logoutButton">Выйти</button>
+    <button id="sessionsButton">Мои сессии</button>
 <br>
     <div id="admin">
 	    <h2> Admin </h2>
@@ -1211,6 +1338,35 @@ function showNotification(message, type = 'success', duration = 3000) {
 </button>
 </div>
 <br>
+<div class="skin-shop-toolbar">
+    <div class="skin-shop-panel">
+        <div class="skin-shop-panel-title">Каталог скинов</div>
+        <div class="skin-shop-panel-subtitle" id="skinShopMeta">Покупаемые, редкие и админские скины. Редкие скины можно только получить вручную.</div>
+    </div>
+    <div class="skin-shop-panel skin-shop-filter">
+        <label for="skinCategorySelect">Категория</label>
+        <select id="skinCategorySelect">
+            <option value="all">Все категории</option>
+            <option value="classic">Классика</option>
+            <option value="food">Еда</option>
+            <option value="fun">Фан</option>
+            <option value="mystic">Мистика</option>
+            <option value="event">Ивенты</option>
+            <option value="admin">Админские</option>
+            <option value="other">Другое</option>
+        </select>
+    </div>
+    <div class="skin-shop-panel skin-shop-filter">
+        <label for="skinSortSelect">Сортировка</label>
+        <select id="skinSortSelect">
+            <option value="manual">По порядку</option>
+            <option value="price_asc">Сначала дешевле</option>
+            <option value="price_desc">Сначала дороже</option>
+            <option value="rarity_desc">Сначала редкие</option>
+            <option value="name_asc">По названию</option>
+        </select>
+    </div>
+</div>
 <div id="skins"></div>
 </div>
 <br>
@@ -1471,20 +1627,67 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     tapBig: 20000,
     energy: 10000
 });
+const SKIN_RARITY_ORDER = Object.freeze({
+    common: 0,
+    rare: 1,
+    epic: 2,
+    legendary: 3
+});
 const FALLBACK_SKIN_CATALOG = Object.freeze([
-    { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true },
-    { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true },
-    { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true },
-    { id: 'strawberry', name: 'Клубничный йогурт бобер', price: 15000, image: 'skins/klub-smz-bober.jpg', defaultOwned: false, available: true },
-    { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true },
-    { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true },
-    { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true },
-    { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true }
+    { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true, rarity: 'common', category: 'classic', grant_only: false },
+    { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true, rarity: 'common', category: 'fun', grant_only: false },
+    { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true, rarity: 'common', category: 'classic', grant_only: false },
+    { id: 'strawberry', name: 'Клубничный йогурт бобер', price: 15000, image: 'skins/klub-smz-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'food', grant_only: false },
+    { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'fun', grant_only: false },
+    { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'food', grant_only: false },
+    { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'mystic', grant_only: false },
+    { id: 'aurora', name: 'Aurora бобер', price: 0, image: 'skins/aurora-beaver.svg', defaultOwned: false, available: true, rarity: 'legendary', category: 'event', grant_only: true },
+    { id: 'ember', name: 'Ember бобер', price: 0, image: 'skins/ember-beaver.svg', defaultOwned: false, available: true, rarity: 'legendary', category: 'event', grant_only: true },
+    { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true, rarity: 'legendary', category: 'admin', grant_only: true }
 ]);
 let SKIN_CATALOG = [];
 let SKIN_BY_ID = {};
 let DEFAULT_SKIN_ID = 'classic';
 let DEFAULT_OWNED_SKIN_IDS = [];
+const skinShopViewState = {
+    category: localStorage.getItem('skin_shop_category') || 'all',
+    sort: localStorage.getItem('skin_shop_sort') || 'manual'
+};
+
+function normalizeSkinRarity(value) {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(SKIN_RARITY_ORDER, normalizedValue) ? normalizedValue : 'common';
+}
+
+function normalizeSkinCategory(value) {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+    return normalizedValue || 'other';
+}
+
+function getSkinRarityLabel(rarity) {
+    const labels = {
+        common: 'Обычный',
+        rare: 'Редкий',
+        epic: 'Эпический',
+        legendary: 'Легендарный'
+    };
+
+    return labels[normalizeSkinRarity(rarity)] || labels.common;
+}
+
+function getSkinCategoryLabel(category) {
+    const labels = {
+        classic: 'Классика',
+        food: 'Еда',
+        fun: 'Фан',
+        mystic: 'Мистика',
+        event: 'Ивент',
+        admin: 'Админский',
+        other: 'Другое'
+    };
+
+    return labels[normalizeSkinCategory(category)] || labels.other;
+}
 
 function normalizeSkinCatalogItem(rawItem, index = 0) {
     if (!rawItem || typeof rawItem !== 'object') {
@@ -1507,7 +1710,10 @@ function normalizeSkinCatalogItem(rawItem, index = 0) {
         image,
         defaultOwned: Boolean(rawItem.defaultOwned || rawItem.default_owned),
         available: Object.prototype.hasOwnProperty.call(rawItem, 'available') ? Boolean(rawItem.available) : true,
-        comingSoon: Boolean(rawItem.comingSoon || rawItem.coming_soon || rawItem.available === false)
+        comingSoon: Boolean(rawItem.comingSoon || rawItem.coming_soon || rawItem.available === false),
+        rarity: normalizeSkinRarity(rawItem.rarity),
+        category: normalizeSkinCategory(rawItem.category),
+        grantOnly: Boolean(rawItem.grantOnly || rawItem.grant_only)
     };
 }
 
@@ -1552,6 +1758,29 @@ function rebuildSkinCatalogRuntime(rawCatalog) {
     DEFAULT_OWNED_SKIN_IDS = defaultOwned.length > 0 ? defaultOwned : [DEFAULT_SKIN_ID];
 }
 
+function getVisibleSkinCatalog() {
+    const filteredItems = SKIN_CATALOG.filter((item) => {
+        if (skinShopViewState.category === 'all') {
+            return true;
+        }
+
+        return normalizeSkinCategory(item.category) === skinShopViewState.category;
+    });
+
+    const sortedItems = [...filteredItems];
+    if (skinShopViewState.sort === 'price_asc') {
+        sortedItems.sort((left, right) => Number(left.price || 0) - Number(right.price || 0));
+    } else if (skinShopViewState.sort === 'price_desc') {
+        sortedItems.sort((left, right) => Number(right.price || 0) - Number(left.price || 0));
+    } else if (skinShopViewState.sort === 'rarity_desc') {
+        sortedItems.sort((left, right) => (SKIN_RARITY_ORDER[right.rarity] || 0) - (SKIN_RARITY_ORDER[left.rarity] || 0));
+    } else if (skinShopViewState.sort === 'name_asc') {
+        sortedItems.sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'ru'));
+    }
+
+    return sortSkinCatalogForDisplay(sortedItems);
+}
+
 rebuildSkinCatalogRuntime(FALLBACK_SKIN_CATALOG);
 let skin = getDefaultSkinState();
 let energyTimer = null;
@@ -1581,6 +1810,7 @@ const autosaveState = {
 const sessionConflictState = {
     visible: false,
     mode: 'login',
+    context: 'login',
     message: '',
     login: '',
     password: '',
@@ -1742,12 +1972,34 @@ function isSkinOwned(skinId) {
     return Boolean(skin && Array.isArray(skin.ownedSkinIds) && skin.ownedSkinIds.includes(skinId));
 }
 
+function updateSkinShopControls() {
+    const categorySelect = document.getElementById('skinCategorySelect');
+    const sortSelect = document.getElementById('skinSortSelect');
+    const metaNode = document.getElementById('skinShopMeta');
+    const visibleItems = getVisibleSkinCatalog();
+
+    if (categorySelect && categorySelect.value !== skinShopViewState.category) {
+        categorySelect.value = skinShopViewState.category;
+    }
+
+    if (sortSelect && sortSelect.value !== skinShopViewState.sort) {
+        sortSelect.value = skinShopViewState.sort;
+    }
+
+    if (metaNode) {
+        const grantOnlyCount = visibleItems.filter((item) => item.grantOnly).length;
+        metaNode.textContent = `Показано ${visibleItems.length} скинов. Категория: ${skinShopViewState.category === 'all' ? 'все' : getSkinCategoryLabel(skinShopViewState.category)}.${grantOnlyCount > 0 ? ` Из них ${grantOnlyCount} доступны только через выдачу.` : ''}`;
+    }
+}
+
 function updateSkinShopUI() {
     const skinCards = document.querySelectorAll('.skin-shop-card');
     if (skinCards.length === 0) {
+        updateSkinShopControls();
         return;
     }
 
+    updateSkinShopControls();
     skinCards.forEach((skinCard) => {
         const skinId = skinCard.dataset.skinId;
         const skinConfig = getSkinConfigById(skinId);
@@ -1763,18 +2015,24 @@ function updateSkinShopUI() {
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
-        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false);
+        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false && !skinConfig.grantOnly);
         skinCard.classList.toggle('coming-soon', skinConfig.available === false);
 
         if (priceNode) {
-            priceNode.textContent = skinConfig.available === false
-                ? 'Пока недоступен'
-                : (skinConfig.price > 0 ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов` : 'Цена: бесплатно');
+            if (skinConfig.available === false) {
+                priceNode.textContent = 'Пока недоступен';
+            } else if (skinConfig.grantOnly && !isOwned) {
+                priceNode.textContent = 'Только ручная выдача';
+            } else {
+                priceNode.textContent = skinConfig.price > 0 ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов` : 'Цена: бесплатно';
+            }
         }
 
         if (statusNode) {
             if (skinConfig.available === false) {
                 statusNode.textContent = 'В разработке';
+            } else if (skinConfig.grantOnly && !isOwned) {
+                statusNode.textContent = 'Этот редкий скин нельзя купить. Его можно только получить вручную.';
             } else if (!userId) {
                 statusNode.textContent = 'Войдите, чтобы выбрать или купить';
             } else if (isEquipped) {
@@ -1793,12 +2051,15 @@ function updateSkinShopUI() {
             if (skinConfig.available === false) {
                 badgeNode.classList.add('coming-soon');
                 badgeNode.textContent = 'Скоро';
+            } else if (skinConfig.grantOnly && !isOwned) {
+                badgeNode.classList.add('grant-only');
+                badgeNode.textContent = 'Выдача';
             } else if (isEquipped) {
                 badgeNode.classList.add('equipped');
-                badgeNode.textContent = 'Надет';
+                badgeNode.textContent = '✓ Надет';
             } else if (isOwned) {
                 badgeNode.classList.add('owned');
-                badgeNode.textContent = 'Куплен';
+                badgeNode.textContent = '◆ Куплен';
             } else {
                 badgeNode.textContent = skinConfig.price > 0 ? `${formatCompactNumber(skinConfig.price)}` : 'Free';
             }
@@ -1812,7 +2073,14 @@ function renderSkinShop() {
         return;
     }
 
-    skinsContainer.innerHTML = SKIN_CATALOG.map((skinConfig) => `
+    const visibleSkins = getVisibleSkinCatalog();
+    if (visibleSkins.length === 0) {
+        skinsContainer.innerHTML = '<div class="skin-shop-panel">По этим фильтрам скины не найдены. Попробуйте другую категорию или сортировку.</div>';
+        updateSkinShopControls();
+        return;
+    }
+
+    skinsContainer.innerHTML = visibleSkins.map((skinConfig) => `
         <button
             type="button"
             class="skin-shop-card"
@@ -1820,9 +2088,16 @@ function renderSkinShop() {
             style="--skin-card-image: url('${escapeHtmlText(skinConfig.image)}');"
         >
             <span class="skin-shop-badge"></span>
-            <span class="skin-shop-card-name">${escapeHtmlText(skinConfig.name)}</span>
-            <span class="skin-shop-card-price"></span>
-            <span class="skin-shop-card-status"></span>
+            <span class="skin-shop-card-footer">
+                <span class="skin-shop-card-name">${escapeHtmlText(skinConfig.name)}</span>
+                <span class="skin-shop-card-meta">
+                    <span class="skin-chip rarity-${escapeHtmlText(skinConfig.rarity)}">${escapeHtmlText(getSkinRarityLabel(skinConfig.rarity))}</span>
+                    <span class="skin-chip">${escapeHtmlText(getSkinCategoryLabel(skinConfig.category))}</span>
+                    ${skinConfig.grantOnly ? '<span class="skin-chip mode-grant-only">Только выдача</span>' : ''}
+                </span>
+                <span class="skin-shop-card-price"></span>
+                <span class="skin-shop-card-status"></span>
+            </span>
         </button>
     `).join('');
 
@@ -1896,6 +2171,32 @@ function showSkinActionModal(skinConfig, mode) {
     modal.setAttribute('aria-hidden', 'false');
 }
 
+function applySkinPurchaseOrEquip(skinConfig, mode) {
+    if (mode === 'install') {
+        skin.equippedSkinId = skinConfig.id;
+        skinLoad();
+        updateSkinShopUI();
+        saveskin();
+        showNotification('Скин успешно установлен!', 'success');
+        return true;
+    }
+
+    if (score < skinConfig.price) {
+        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
+        return false;
+    }
+
+    skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
+    skin.equippedSkinId = skinConfig.id;
+    score -= skinConfig.price;
+    skinLoad();
+    updateScoreUI();
+    updateSkinShopUI();
+    saveskin();
+    showNotification('Успешная покупка скина!', 'success');
+    return true;
+}
+
 function confirmSkinAction() {
     const skinConfig = getSkinConfigById(skinActionState.skinId);
     if (!skinConfig) {
@@ -1904,30 +2205,8 @@ function confirmSkinAction() {
         return;
     }
 
-    if (skinActionState.mode === 'install') {
-        skin.equippedSkinId = skinConfig.id;
-        skinLoad();
-        updateSkinShopUI();
-        saveskin();
-        hideSkinActionModal();
-        showNotification('Скин успешно установлен!', 'success');
-        return;
-    }
-
-    if (score >= skinConfig.price) {
-        skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
-        skin.equippedSkinId = skinConfig.id;
-        score -= skinConfig.price;
-        skinLoad();
-        updateScoreUI();
-        updateSkinShopUI();
-        saveskin();
-        hideSkinActionModal();
-        showNotification('Успешная покупка скина!', 'success');
-    } else {
-        hideSkinActionModal();
-        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
-    }
+    applySkinPurchaseOrEquip(skinConfig, skinActionState.mode);
+    hideSkinActionModal();
 }
 
 function validateRegisterLogin(loginValue) {
@@ -2345,6 +2624,7 @@ function hideSessionConflictModal(options = {}) {
 
     sessionConflictState.visible = false;
     sessionConflictState.mode = 'login';
+    sessionConflictState.context = 'login';
     sessionConflictState.resolving = false;
     sessionConflictState.resolvingSessionId = null;
 
@@ -2362,6 +2642,7 @@ function renderSessionConflictModal() {
     const incomingNode = document.getElementById('sessionConflictIncoming');
     const textNode = document.getElementById('sessionConflictModalText');
     const cancelButton = document.getElementById('sessionConflictCancel');
+    const titleNode = document.getElementById('sessionConflictModalTitle');
 
     if (!listNode || !incomingNode || !textNode) {
         return;
@@ -2369,6 +2650,7 @@ function renderSessionConflictModal() {
 
     const incoming = sessionConflictState.incomingSession;
     const isAuthenticatedConflict = sessionConflictState.mode === 'authenticated';
+    const isSessionManager = sessionConflictState.context === 'manager';
     const incomingLabel = isAuthenticatedConflict
         ? 'Текущая сессия на этом устройстве:'
         : 'Текущая попытка входа:';
@@ -2382,6 +2664,12 @@ function renderSessionConflictModal() {
         `
         : `<strong>${escapeHtmlText(incomingLabel)}</strong> Это устройство`;
 
+    if (titleNode) {
+        titleNode.textContent = isSessionManager
+            ? 'Мои активные сессии'
+            : (isAuthenticatedConflict ? 'Сессии конфликтуют' : 'Аккаунт уже открыт');
+    }
+
     textNode.textContent = sessionConflictState.resolving
         ? (isAuthenticatedConflict ? 'Завершаем выбранную сессию...' : 'Завершаем выбранную сессию и продолжаем вход...')
         : (
@@ -2394,9 +2682,9 @@ function renderSessionConflictModal() {
 
     if (cancelButton) {
         cancelButton.disabled = sessionConflictState.resolving;
-        cancelButton.textContent = isAuthenticatedConflict
-            ? (sessionConflictState.resolving ? 'Подождите...' : 'Выйти здесь')
-            : 'Отмена';
+        cancelButton.textContent = sessionConflictState.resolving
+            ? 'Подождите...'
+            : (isSessionManager ? 'Закрыть' : (isAuthenticatedConflict ? 'Выйти здесь' : 'Отмена'));
     }
 
     if (!Array.isArray(sessionConflictState.sessions) || sessionConflictState.sessions.length === 0) {
@@ -2444,6 +2732,7 @@ function renderSessionConflictModal() {
 function showSessionConflictModal(conflictPayload, credentials = {}) {
     sessionConflictState.visible = true;
     sessionConflictState.mode = conflictPayload.mode === 'authenticated' ? 'authenticated' : 'login';
+    sessionConflictState.context = String(conflictPayload.context || (sessionConflictState.mode === 'authenticated' ? 'authenticated_conflict' : 'login'));
     sessionConflictState.message = String(conflictPayload.message || '').trim();
     sessionConflictState.login = String(credentials.login || '').trim();
     sessionConflictState.password = String(credentials.password || '');
@@ -2556,6 +2845,42 @@ async function checkAuthenticatedSessionConflict() {
     }
 }
 
+async function openSessionManagerModal() {
+    if (!userId) {
+        showNotification('Сначала войдите в аккаунт.', 'error');
+        return;
+    }
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/game-sessions.php', {
+            cache: 'no-store'
+        });
+
+        if (!data || data.success !== true) {
+            throw new Error('Не удалось загрузить список сессий.');
+        }
+
+        showSessionConflictModal({
+            mode: 'authenticated',
+            context: 'manager',
+            message: data.message || 'Здесь можно завершить лишние игровые сессии на других устройствах.',
+            sessions: Array.isArray(data.sessions) ? data.sessions : [],
+            incomingSession: data.currentSession || null
+        });
+    } catch (error) {
+        if (tryHandleSessionEndedError(error)) {
+            return;
+        }
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return;
+        }
+
+        console.error('Ошибка загрузки списка сессий:', error);
+        showNotification(error.message || 'Не удалось открыть список сессий.', 'error');
+    }
+}
+
 async function continueLoginWithSessionTermination(sessionId) {
     const isAuthenticatedConflict = sessionConflictState.mode === 'authenticated' && !!userId;
     const isLoginConflict = sessionConflictState.mode !== 'authenticated' && !!sessionConflictState.login && !!sessionConflictState.password;
@@ -2664,7 +2989,7 @@ async function logoutFromSessionConflictModal() {
 const sessionConflictModalNode = document.getElementById('sessionConflictModal');
 if (sessionConflictModalNode) {
     sessionConflictModalNode.addEventListener('click', (event) => {
-        if (event.target === sessionConflictModalNode && !sessionConflictState.resolving && sessionConflictState.mode !== 'authenticated') {
+        if (event.target === sessionConflictModalNode && !sessionConflictState.resolving && (sessionConflictState.mode !== 'authenticated' || sessionConflictState.context === 'manager')) {
             hideSessionConflictModal();
         }
     });
@@ -2677,11 +3002,36 @@ if (sessionConflictCancelButton) {
             return;
         }
 
-        if (sessionConflictState.mode === 'authenticated') {
+        if (sessionConflictState.context === 'manager') {
+            hideSessionConflictModal();
+        } else if (sessionConflictState.mode === 'authenticated') {
             await logoutFromSessionConflictModal();
         } else {
             hideSessionConflictModal();
         }
+    });
+}
+
+const skinActionModalNode = document.getElementById('skinActionModal');
+if (skinActionModalNode) {
+    skinActionModalNode.addEventListener('click', (event) => {
+        if (event.target === skinActionModalNode) {
+            hideSkinActionModal();
+        }
+    });
+}
+
+const skinActionCancelButton = document.getElementById('skinActionModalCancel');
+if (skinActionCancelButton) {
+    skinActionCancelButton.addEventListener('click', () => {
+        hideSkinActionModal();
+    });
+}
+
+const skinActionConfirmButton = document.getElementById('skinActionModalConfirm');
+if (skinActionConfirmButton) {
+    skinActionConfirmButton.addEventListener('click', () => {
+        confirmSkinAction();
     });
 }
 
@@ -2711,6 +3061,7 @@ function setAuthenticatedUI(isAuthenticated) {
     document.getElementById('loginButton').style.display = isAuthenticated ? 'none' : 'inline-block';
     document.getElementById('registerButton').style.display = isAuthenticated ? 'none' : 'inline-block';
     document.getElementById('logoutButton').style.display = isAuthenticated ? 'inline-block' : 'none';
+    document.getElementById('sessionsButton').style.display = isAuthenticated ? 'inline-block' : 'none';
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'none';
 }
@@ -3333,32 +3684,27 @@ function buySkin(skinId) {
         return;
     }
 
+    if (skinConfig.grantOnly && !isSkinOwned(skinConfig.id)) {
+        showNotification('Этот скин нельзя купить. Его можно получить только через ручную выдачу.', 'error');
+        return;
+    }
+
     if (isSkinOwned(skinConfig.id)) {
         if (skin.equippedSkinId === skinConfig.id) {
             showNotification('Этот скин уже установлен.', 'success');
             return;
         }
 
-        skin.equippedSkinId = skinConfig.id;
-        skinLoad();
-        updateSkinShopUI();
-        saveskin();
-        showNotification('Скин успешно установлен!', 'success');
+        showSkinActionModal(skinConfig, 'install');
         return;
     }
 
-    if (score >= skinConfig.price) {
-        skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
-        skin.equippedSkinId = skinConfig.id;
-        score -= skinConfig.price;
-        skinLoad();
-        updateScoreUI();
-        updateSkinShopUI();
-        saveskin();
-        showNotification('Успешная покупка скина!', 'success');
-    } else {
+    if (score < skinConfig.price) {
         showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
+        return;
     }
+
+    showSkinActionModal(skinConfig, 'buy');
 }
 
 document.getElementById('clicker').addEventListener('touchstart', function(e) {
@@ -3408,6 +3754,30 @@ document.getElementById('registerButton').onclick = function() {
     document.getElementById('registerForm').style.display = 'block';
     document.getElementById('loginForm').style.display = 'none';
 };
+
+document.getElementById('sessionsButton').onclick = function() {
+    openSessionManagerModal();
+};
+
+const skinCategorySelect = document.getElementById('skinCategorySelect');
+if (skinCategorySelect) {
+    skinCategorySelect.value = skinShopViewState.category;
+    skinCategorySelect.addEventListener('change', function() {
+        skinShopViewState.category = String(this.value || 'all');
+        localStorage.setItem('skin_shop_category', skinShopViewState.category);
+        renderSkinShop();
+    });
+}
+
+const skinSortSelect = document.getElementById('skinSortSelect');
+if (skinSortSelect) {
+    skinSortSelect.value = skinShopViewState.sort;
+    skinSortSelect.addEventListener('change', function() {
+        skinShopViewState.sort = String(this.value || 'manual');
+        localStorage.setItem('skin_shop_sort', skinShopViewState.sort);
+        renderSkinShop();
+    });
+}
 
 document.getElementById('clicker').onclick = function(e) {
     if (!userId) {

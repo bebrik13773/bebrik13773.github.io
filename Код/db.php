@@ -299,6 +299,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/bober.png',
             'default_owned' => true,
             'available' => true,
+            'rarity' => 'common',
+            'category' => 'classic',
+            'grant_only' => false,
         ],
         'paper' => [
             'id' => 'paper',
@@ -307,6 +310,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/bumazny-bober.jpg',
             'default_owned' => false,
             'available' => true,
+            'rarity' => 'common',
+            'category' => 'fun',
+            'grant_only' => false,
         ],
         'standard' => [
             'id' => 'standard',
@@ -315,6 +321,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/matvey-new-bober.jpg',
             'default_owned' => true,
             'available' => true,
+            'rarity' => 'common',
+            'category' => 'classic',
+            'grant_only' => false,
         ],
         'strawberry' => [
             'id' => 'strawberry',
@@ -323,6 +332,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/klub-smz-bober.jpg',
             'default_owned' => false,
             'available' => true,
+            'rarity' => 'uncommon',
+            'category' => 'food',
+            'grant_only' => false,
         ],
         'sock' => [
             'id' => 'sock',
@@ -331,6 +343,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/nosok-bober.jpg',
             'default_owned' => false,
             'available' => true,
+            'rarity' => 'epic',
+            'category' => 'fun',
+            'grant_only' => false,
         ],
         'chocolate' => [
             'id' => 'chocolate',
@@ -339,6 +354,9 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/Shok-upok-bober.jpg',
             'default_owned' => false,
             'available' => true,
+            'rarity' => 'rare',
+            'category' => 'food',
+            'grant_only' => false,
         ],
         'strange' => [
             'id' => 'strange',
@@ -347,6 +365,31 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/strany-bober.jpg',
             'default_owned' => false,
             'available' => true,
+            'rarity' => 'rare',
+            'category' => 'mystic',
+            'grant_only' => false,
+        ],
+        'aurora' => [
+            'id' => 'aurora',
+            'name' => 'Северный бобер',
+            'price' => 0,
+            'image' => 'skins/aurora-beaver.svg',
+            'default_owned' => false,
+            'available' => true,
+            'rarity' => 'legendary',
+            'category' => 'event',
+            'grant_only' => true,
+        ],
+        'ember' => [
+            'id' => 'ember',
+            'name' => 'Искровый бобер',
+            'price' => 0,
+            'image' => 'skins/ember-beaver.svg',
+            'default_owned' => false,
+            'available' => true,
+            'rarity' => 'legendary',
+            'category' => 'event',
+            'grant_only' => true,
         ],
         'dev' => [
             'id' => 'dev',
@@ -355,8 +398,33 @@ function bober_builtin_skin_catalog()
             'image' => 'skins/dev.png',
             'default_owned' => false,
             'available' => false,
+            'rarity' => 'admin',
+            'category' => 'admin',
+            'grant_only' => true,
         ],
     ];
+}
+
+function bober_skin_rarity_values()
+{
+    return ['common', 'uncommon', 'rare', 'epic', 'legendary', 'admin'];
+}
+
+function bober_skin_category_values()
+{
+    return ['classic', 'food', 'fun', 'mystic', 'event', 'admin', 'other'];
+}
+
+function bober_normalize_skin_rarity($value)
+{
+    $value = strtolower(trim((string) $value));
+    return in_array($value, bober_skin_rarity_values(), true) ? $value : 'common';
+}
+
+function bober_normalize_skin_category($value)
+{
+    $value = strtolower(trim((string) $value));
+    return in_array($value, bober_skin_category_values(), true) ? $value : 'other';
 }
 
 function bober_normalize_skin_catalog_item($rawItem)
@@ -380,6 +448,9 @@ function bober_normalize_skin_catalog_item($rawItem)
         'image' => $image,
         'default_owned' => !empty($rawItem['default_owned']),
         'available' => array_key_exists('available', $rawItem) ? (bool) $rawItem['available'] : true,
+        'rarity' => bober_normalize_skin_rarity($rawItem['rarity'] ?? ''),
+        'category' => bober_normalize_skin_category($rawItem['category'] ?? ''),
+        'grant_only' => !empty($rawItem['grant_only']),
     ];
 }
 
@@ -569,6 +640,94 @@ function bober_normalize_skin_json($skin)
         'equippedSkinId' => $equippedSkinId,
         'ownedSkinIds' => array_values(array_keys($ownedSkinIds)),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function bober_decode_skin_state($skin)
+{
+    $normalizedJson = bober_normalize_skin_json($skin);
+    $decoded = json_decode($normalizedJson, true);
+
+    if (!is_array($decoded)) {
+        $decoded = bober_default_skin_state();
+    }
+
+    if (!isset($decoded['ownedSkinIds']) || !is_array($decoded['ownedSkinIds'])) {
+        $decoded['ownedSkinIds'] = bober_default_skin_state()['ownedSkinIds'];
+    }
+
+    $decoded['equippedSkinId'] = trim((string) ($decoded['equippedSkinId'] ?? bober_default_skin_state()['equippedSkinId']));
+
+    return [
+        'version' => 2,
+        'equippedSkinId' => $decoded['equippedSkinId'] !== '' ? $decoded['equippedSkinId'] : bober_default_skin_state()['equippedSkinId'],
+        'ownedSkinIds' => array_values(array_unique(array_map('strval', $decoded['ownedSkinIds']))),
+    ];
+}
+
+function bober_encode_skin_state(array $skinState)
+{
+    return bober_normalize_skin_json($skinState);
+}
+
+function bober_grant_skin_to_user($conn, $userId, $skinId, $equip = false)
+{
+    $userId = max(0, (int) $userId);
+    $skinId = trim((string) $skinId);
+
+    if ($userId < 1 || $skinId === '') {
+        throw new InvalidArgumentException('Некорректные данные для выдачи скина.');
+    }
+
+    $catalog = bober_skin_catalog();
+    if (!isset($catalog[$skinId])) {
+        throw new InvalidArgumentException('Скин не найден в каталоге.');
+    }
+
+    $stmt = $conn->prepare('SELECT `skin` FROM `users` WHERE `id` = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить выдачу скина.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить текущие скины пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$row) {
+        throw new RuntimeException('Пользователь не найден.');
+    }
+
+    $skinState = bober_decode_skin_state($row['skin'] ?? '');
+    if (!in_array($skinId, $skinState['ownedSkinIds'], true)) {
+        $skinState['ownedSkinIds'][] = $skinId;
+    }
+
+    if ($equip) {
+        $skinState['equippedSkinId'] = $skinId;
+    }
+
+    $encodedSkin = bober_encode_skin_state($skinState);
+    $updateStmt = $conn->prepare('UPDATE `users` SET `skin` = ? WHERE `id` = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение скина пользователя.');
+    }
+
+    $updateStmt->bind_param('si', $encodedSkin, $userId);
+    if (!$updateStmt->execute()) {
+        $updateStmt->close();
+        throw new RuntimeException('Не удалось сохранить выданный скин.');
+    }
+    $updateStmt->close();
+
+    return $skinState;
 }
 
 function bober_game_login_pattern()
