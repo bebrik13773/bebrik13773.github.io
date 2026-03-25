@@ -25,7 +25,7 @@ try {
     $conn->begin_transaction();
     bober_ensure_fly_progress_row($conn, $userId);
 
-    $selectStmt = $conn->prepare('SELECT pending_transfer_score FROM fly_beaver_progress WHERE user_id = ? LIMIT 1 FOR UPDATE');
+    $selectStmt = $conn->prepare('SELECT pending_transfer_score, transfer_window_started_at, transfer_window_coins FROM fly_beaver_progress WHERE user_id = ? LIMIT 1 FOR UPDATE');
     if (!$selectStmt) {
         throw new RuntimeException('Не удалось подготовить получение награды fly-beaver.');
     }
@@ -45,11 +45,38 @@ try {
 
     $minimumTransferScore = 25;
     $coinsPerScore = 500;
+    $hourlyCoinsLimit = 100000;
+    $hourlyWindowSeconds = 60 * 60;
     $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
-    $awardedScore = $pendingScore >= $minimumTransferScore ? $pendingScore : 0;
+    $windowStartedAtRaw = isset($row['transfer_window_started_at']) ? trim((string) $row['transfer_window_started_at']) : '';
+    $windowUsedCoins = max(0, (int) ($row['transfer_window_coins'] ?? 0));
+    $nowTimestamp = time();
+    $windowStartedTimestamp = $windowStartedAtRaw !== '' ? strtotime($windowStartedAtRaw) : false;
+    $isWindowExpired = $windowStartedTimestamp === false || ($nowTimestamp - $windowStartedTimestamp) >= $hourlyWindowSeconds;
+
+    if ($isWindowExpired) {
+        $windowUsedCoins = 0;
+        $windowStartedTimestamp = false;
+        $windowStartedAtRaw = '';
+    }
+
+    $remainingCoins = max(0, $hourlyCoinsLimit - $windowUsedCoins);
+    $requestedScore = $pendingScore >= $minimumTransferScore ? $pendingScore : 0;
+    $maxScoreByHourlyLimit = intdiv($remainingCoins, $coinsPerScore);
+    $awardedScore = ($requestedScore > 0 && $maxScoreByHourlyLimit >= $minimumTransferScore)
+        ? min($requestedScore, $maxScoreByHourlyLimit)
+        : 0;
     $awardedCoins = $awardedScore * $coinsPerScore;
+    $currentWindowStartedAt = $windowStartedAtRaw;
+    $currentWindowCoins = $windowUsedCoins;
 
     if ($awardedCoins > 0) {
+        if ($windowStartedTimestamp === false) {
+            $windowStartedTimestamp = $nowTimestamp;
+            $currentWindowStartedAt = date('Y-m-d H:i:s', $windowStartedTimestamp);
+            $currentWindowCoins = 0;
+        }
+
         $updateUserStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
         if (!$updateUserStmt) {
             throw new RuntimeException('Не удалось подготовить перевод очков в кликер.');
@@ -62,18 +89,24 @@ try {
         }
         $updateUserStmt->close();
 
-        $updateFlyStmt = $conn->prepare('UPDATE fly_beaver_progress SET pending_transfer_score = 0, transferred_total_score = transferred_total_score + ? WHERE user_id = ?');
+        $currentWindowCoins += $awardedCoins;
+        $updateFlyStmt = $conn->prepare('UPDATE fly_beaver_progress SET pending_transfer_score = GREATEST(0, pending_transfer_score - ?), transferred_total_score = transferred_total_score + ?, transfer_window_started_at = ?, transfer_window_coins = ? WHERE user_id = ?');
         if (!$updateFlyStmt) {
             throw new RuntimeException('Не удалось обновить прогресс fly-beaver после перевода.');
         }
 
-        $updateFlyStmt->bind_param('ii', $awardedScore, $userId);
+        $updateFlyStmt->bind_param('iisii', $awardedScore, $awardedScore, $currentWindowStartedAt, $currentWindowCoins, $userId);
         if (!$updateFlyStmt->execute()) {
             $updateFlyStmt->close();
             throw new RuntimeException('Не удалось завершить перевод очков.');
         }
         $updateFlyStmt->close();
     }
+
+    $hourlyRemainingCoins = max(0, $hourlyCoinsLimit - $currentWindowCoins);
+    $hourlyResetAt = $currentWindowStartedAt !== ''
+        ? date('Y-m-d H:i:s', strtotime($currentWindowStartedAt) + $hourlyWindowSeconds)
+        : null;
 
     $scoreStmt = $conn->prepare('SELECT score FROM users WHERE id = ? LIMIT 1');
     if (!$scoreStmt) {
@@ -98,14 +131,30 @@ try {
     $conn->commit();
     $conn->close();
 
+    if ($awardedCoins > 0) {
+        if ($awardedScore < $requestedScore) {
+            $message = 'Переведена часть очков из Летающего бобра. Достигнут лимит вывода: максимум 100000 коинов в час, остаток остался в очереди.';
+        } else {
+            $message = 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 500 коинов.';
+        }
+    } elseif ($requestedScore < $minimumTransferScore) {
+        $message = 'Для перевода нужно минимум 25 очков из Летающего бобра.';
+    } elseif ($remainingCoins < ($minimumTransferScore * $coinsPerScore)) {
+        $message = 'Сейчас достигнут лимит вывода: максимум 100000 коинов в час. Попробуйте позже.';
+    } else {
+        $message = 'Перевод сейчас недоступен. Попробуйте позже.';
+    }
+
     bober_json_response([
         'success' => true,
-        'message' => $awardedCoins > 0
-            ? 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 500 коинов.'
-            : 'Для перевода нужно минимум 25 очков из Летающего бобра.',
+        'message' => $message,
         'awardedScore' => $awardedScore,
         'awardedCoins' => $awardedCoins,
         'minimumTransferScore' => $minimumTransferScore,
+        'hourlyCoinsLimit' => $hourlyCoinsLimit,
+        'hourlyCoinsUsed' => $currentWindowCoins,
+        'hourlyCoinsRemaining' => $hourlyRemainingCoins,
+        'hourlyWindowResetAt' => $hourlyResetAt,
         'mainScore' => max(0, (int) ($scoreRow['score'] ?? 0)),
         'flyBeaver' => $flyBeaver,
     ]);

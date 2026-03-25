@@ -150,7 +150,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             color: white;
             z-index: 20;
             text-align: center;
-            padding: 28px 22px;
+            padding: 118px 22px 28px;
             backdrop-filter: blur(14px);
         }
         
@@ -216,7 +216,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
         
         .icon {
-            display: inline-block;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
             width: 24px;
             height: 24px;
             background: #ffd700;
@@ -224,6 +226,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             border-radius: 5px;
             box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
             vertical-align: middle;
+            color: #261805;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
         }
         
         #mute-btn {
@@ -235,7 +241,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             background: rgba(7, 12, 25, 0.48);
             border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 50%;
-            z-index: 24;
+            z-index: 18;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -253,7 +259,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             background: rgba(7, 12, 25, 0.48);
             border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 50%;
-            z-index: 24;
+            z-index: 18;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -272,7 +278,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             background: rgba(7, 12, 25, 0.48);
             border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 50%;
-            z-index: 24;
+            z-index: 18;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -303,7 +309,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             top: 14px;
             right: 14px;
             width: min(232px, calc(100% - 28px));
-            z-index: 18;
+            z-index: 22;
             background: rgba(9, 14, 29, 0.74);
             border: 1px solid rgba(142, 220, 255, 0.24);
             border-radius: 18px;
@@ -438,12 +444,20 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 top: 76px;
                 left: 12px;
                 font-size: 12px;
+                max-width: 110px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             
             #level-indicator {
                 top: 108px;
                 left: 12px;
                 font-size: 12px;
+                max-width: 110px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             
             .controls {
@@ -453,12 +467,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             .cloud-panel {
                 top: 12px;
                 right: 12px;
-                width: min(176px, calc(100% - 24px));
+                width: min(148px, calc(100% - 24px));
                 padding: 9px 10px;
             }
 
             .cloud-panel.expanded {
-                width: min(232px, calc(100% - 24px));
+                width: min(204px, calc(100% - 24px));
             }
 
             .cloud-title {
@@ -481,6 +495,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 font-size: 13px;
                 padding: 9px 12px;
             }
+
+            .screen {
+                padding: 108px 18px 22px;
+            }
         }
         
         @media (max-height: 600px) {
@@ -501,6 +519,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             .instructions {
                 font-size: 12px;
                 padding: 8px;
+            }
+
+            .screen {
+                padding-top: 92px;
             }
         }
     </style>
@@ -748,7 +770,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 claimFlyScoreButton.style.display = 'block';
                 claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
                 cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = ${FLY_COINS_PER_SCORE} коинов.`;
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = ${FLY_COINS_PER_SCORE} коинов. Лимит вывода: 100000 коинов в час.`;
                 setCloudSummary(`К выдаче: +${rewardCoins.toLocaleString('ru-RU')} коинов`);
                 return;
             }
@@ -1302,6 +1324,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             vibrate(100);
             window.location.href = "/index.html";
         }
+
+        function isElementVisible(element) {
+            return window.getComputedStyle(element).display !== 'none';
+        }
+
+        function canStartNewRunFromOverlay() {
+            return isElementVisible(startScreen) || isElementVisible(gameOverScreen);
+        }
         
         // Основной игровой цикл
         function loop() {
@@ -1364,7 +1394,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             if (e.code === 'Space') {
                 if (gameRunning && !gamePaused) {
                     beaver.flap();
-                } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
+                } else if (canStartNewRunFromOverlay()) {
                     startGame();
                 }
                 e.preventDefault();
@@ -1379,7 +1409,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         canvas.addEventListener('click', function() {
             if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
+            } else if (canStartNewRunFromOverlay()) {
                 startGame();
             }
         });
@@ -1387,7 +1417,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         canvas.addEventListener('touchstart', function(e) {
             if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
+            } else if (canStartNewRunFromOverlay()) {
                 startGame();
             }
             e.preventDefault();

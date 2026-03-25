@@ -580,6 +580,8 @@ CREATE TABLE IF NOT EXISTS `fly_beaver_progress` (
     `total_score` BIGINT NOT NULL DEFAULT 0,
     `pending_transfer_score` BIGINT NOT NULL DEFAULT 0,
     `transferred_total_score` BIGINT NOT NULL DEFAULT 0,
+    `transfer_window_started_at` TIMESTAMP NULL DEFAULT NULL,
+    `transfer_window_coins` BIGINT NOT NULL DEFAULT 0,
     `last_played_at` TIMESTAMP NULL DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -588,6 +590,17 @@ SQL;
 
     if (!$conn->query($createFlyProgressSql)) {
         throw new RuntimeException('Не удалось создать таблицу прогресса fly-beaver.');
+    }
+
+    $flyProgressAlterStatements = [
+        'transfer_window_started_at' => "ALTER TABLE `fly_beaver_progress` ADD COLUMN `transfer_window_started_at` TIMESTAMP NULL DEFAULT NULL AFTER `transferred_total_score`",
+        'transfer_window_coins' => "ALTER TABLE `fly_beaver_progress` ADD COLUMN `transfer_window_coins` BIGINT NOT NULL DEFAULT 0 AFTER `transfer_window_started_at`",
+    ];
+
+    foreach ($flyProgressAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'fly_beaver_progress', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру прогресса fly-beaver.');
+        }
     }
 
     $createFlyRunsSql = <<<SQL
