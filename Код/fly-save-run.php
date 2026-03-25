@@ -20,6 +20,8 @@ try {
 
     $score = max(0, (int) ($data['score'] ?? 0));
     $level = max(1, (int) ($data['level'] ?? 1));
+    $minimumCreditedScore = 10;
+    $creditedScore = $score >= $minimumCreditedScore ? $score : 0;
 
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
@@ -59,7 +61,7 @@ try {
             throw new RuntimeException('Не удалось подготовить обновление прогресса fly-beaver.');
         }
 
-        $updateStmt->bind_param('iiiiii', $score, $score, $level, $score, $score, $userId);
+        $updateStmt->bind_param('iiiiii', $score, $score, $level, $creditedScore, $creditedScore, $userId);
         if (!$updateStmt->execute()) {
             $updateStmt->close();
             throw new RuntimeException('Не удалось обновить прогресс fly-beaver.');
@@ -74,8 +76,14 @@ try {
 
     bober_json_response([
         'success' => true,
-        'message' => $isDuplicate ? 'Этот забег уже сохранен.' : 'Забег успешно сохранен.',
+        'message' => $isDuplicate
+            ? 'Этот забег уже сохранен.'
+            : ($creditedScore > 0
+                ? 'Забег сохранен и засчитан в облачный счет.'
+                : 'Забег сохранен в статистику, но в начисление не пошел: нужно минимум 10 очков.'),
         'duplicate' => $isDuplicate,
+        'creditedScore' => $creditedScore,
+        'minimumCreditedScore' => $minimumCreditedScore,
         'flyBeaver' => $flyBeaver,
     ]);
 } catch (Throwable $error) {

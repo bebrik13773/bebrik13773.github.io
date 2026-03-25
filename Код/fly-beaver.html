@@ -496,6 +496,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         highScoreElement.textContent = `Рекорд: ${highScore}`;
         levelIndicator.textContent = `Уровень: ${currentLevel}`;
 
+        function getGameSpeedForLevel(level) {
+            return baseGameSpeed + (Math.max(1, level) - 1) * 0.3;
+        }
+
         function normalizeCloudFlyState(rawState) {
             if (!rawState || typeof rawState !== 'object') {
                 return {
@@ -657,7 +661,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
                 highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
                 updateCloudPanel();
-                setCloudStatus(data.duplicate ? 'connected' : 'pending', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
+                const saveStatusType = data.duplicate
+                    ? 'connected'
+                    : (Number(data.creditedScore) >= 10 ? 'pending' : 'local');
+                setCloudStatus(saveStatusType, `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
             } catch (error) {
                 if (error.payload && error.payload.ban) {
                     const ban = error.payload.ban;
@@ -909,33 +916,37 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             draw: function() {
                 for (let i = 0; i < this.position.length; i++) {
                     let p = this.position[i];
+                    const pipeGap = p.gap || this.gap;
                     
                     ctx.drawImage(woodTexture, p.x, 0, p.width, p.top);
                     
                     ctx.fillStyle = '#5D4037';
                     ctx.fillRect(p.x, p.top - 12, p.width, 12);
                     
-                    ctx.drawImage(woodTexture, p.x, p.top + this.gap, p.width, canvas.height - p.top - this.gap);
+                    ctx.drawImage(woodTexture, p.x, p.top + pipeGap, p.width, canvas.height - p.top - pipeGap);
                     
                     ctx.fillStyle = '#5D4037';
-                    ctx.fillRect(p.x, p.top + this.gap, p.width, 12);
+                    ctx.fillRect(p.x, p.top + pipeGap, p.width, 12);
                 }
             },
             
             update: function() {
                 if (gameRunning && !gamePaused) {
                     this.dx = currentGameSpeed;
+                    const levelFactor = Math.max(0, currentLevel - 1);
                     
-                    const spawnInterval = Math.max(60, 100 - (currentLevel * 5));
+                    const spawnInterval = Math.max(60, 100 - (levelFactor * 5));
                     
                     if (frames % spawnInterval === 0) {
-                        const currentGap = Math.max(160, this.gap - (currentLevel * 5));
+                        const currentGap = Math.max(160, this.gap - (levelFactor * 5));
+                        const topVariance = Math.max(60, 150 - (levelFactor * 5));
                         
                         this.position.push({
                             x: canvas.width,
                             y: 0,
                             width: 60,
-                            top: 100 + Math.random() * (150 - currentLevel * 5),
+                            top: 100 + Math.random() * topVariance,
+                            gap: currentGap,
                             counted: false
                         });
                     }
@@ -952,7 +963,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                         if (
                             beaver.x + beaver.width - 10 > p.x && 
                             beaver.x + 10 < p.x + p.width && 
-                            (beaver.y + 5 < p.top || beaver.y + beaver.height - 5 > p.top + this.gap)
+                            (beaver.y + 5 < p.top || beaver.y + beaver.height - 5 > p.top + (p.gap || this.gap))
                         ) {
                             playSound(hitSound);
                             vibrate(200);
@@ -970,7 +981,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                             if (newLevel > currentLevel) {
                                 currentLevel = newLevel;
                                 levelIndicator.textContent = `Уровень: ${currentLevel}`;
-                                currentGameSpeed = baseGameSpeed + (currentLevel * 0.3);
+                                currentGameSpeed = getGameSpeedForLevel(currentLevel);
                                 playSound(levelupSound);
                                 vibrate(150);
                             }
@@ -1033,7 +1044,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             score = 0;
             currentLevel = 1;
             currentRunToken = createRunToken();
-            currentGameSpeed = baseGameSpeed;
+            currentGameSpeed = getGameSpeedForLevel(currentLevel);
             frames = 0;
             scoreElement.textContent = score;
             levelIndicator.textContent = `Уровень: ${currentLevel}`;
@@ -1044,6 +1055,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             
             logs.position = [];
             logs.dx = currentGameSpeed;
+            logs.gap = 200;
             clouds.position = [];
             
             startScreen.style.display = 'none';
@@ -1091,7 +1103,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 highScoreElement.textContent = `Рекорд: ${highScore}`;
             }
 
-             saveFlyRunToCloud();
+            saveFlyRunToCloud();
             
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
