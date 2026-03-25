@@ -215,50 +215,164 @@ function bober_default_skin_json()
     return json_encode(bober_default_skin_state(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
-function bober_skin_catalog()
+function bober_skin_catalog_file_path()
+{
+    return __DIR__ . '/skin-catalog.json';
+}
+
+function bober_builtin_skin_catalog()
 {
     return [
         'classic' => [
             'id' => 'classic',
+            'name' => 'Просто бобер',
+            'price' => 0,
             'image' => 'skins/bober.png',
             'default_owned' => true,
+            'available' => true,
         ],
         'paper' => [
             'id' => 'paper',
+            'name' => 'Бумажный бобер',
+            'price' => 5000,
             'image' => 'skins/bumazny-bober.jpg',
             'default_owned' => false,
+            'available' => true,
         ],
         'standard' => [
             'id' => 'standard',
+            'name' => 'Стандартный бобер',
+            'price' => 0,
             'image' => 'skins/matvey-new-bober.jpg',
             'default_owned' => true,
+            'available' => true,
         ],
         'strawberry' => [
             'id' => 'strawberry',
+            'name' => 'Клубничный йогурт бобер',
+            'price' => 15000,
             'image' => 'skins/klub-smz-bober.jpg',
             'default_owned' => false,
+            'available' => true,
         ],
         'sock' => [
             'id' => 'sock',
+            'name' => 'Носок бобер',
+            'price' => 30000,
             'image' => 'skins/nosok-bober.jpg',
             'default_owned' => false,
+            'available' => true,
         ],
         'chocolate' => [
             'id' => 'chocolate',
+            'name' => 'Шоколад бобер',
+            'price' => 50000,
             'image' => 'skins/Shok-upok-bober.jpg',
             'default_owned' => false,
+            'available' => true,
         ],
         'strange' => [
             'id' => 'strange',
+            'name' => 'Странный бобер',
+            'price' => 30000,
             'image' => 'skins/strany-bober.jpg',
             'default_owned' => false,
+            'available' => true,
         ],
         'dev' => [
             'id' => 'dev',
+            'name' => 'Dev бобер',
+            'price' => 90000,
             'image' => 'skins/dev.png',
             'default_owned' => false,
+            'available' => false,
         ],
     ];
+}
+
+function bober_normalize_skin_catalog_item($rawItem)
+{
+    if (!is_array($rawItem)) {
+        return null;
+    }
+
+    $id = trim((string) ($rawItem['id'] ?? ''));
+    $image = trim((string) ($rawItem['image'] ?? ''));
+    $name = trim((string) ($rawItem['name'] ?? ''));
+
+    if ($id === '' || $image === '') {
+        return null;
+    }
+
+    return [
+        'id' => $id,
+        'name' => $name !== '' ? $name : $id,
+        'price' => max(0, (int) ($rawItem['price'] ?? 0)),
+        'image' => $image,
+        'default_owned' => !empty($rawItem['default_owned']),
+        'available' => array_key_exists('available', $rawItem) ? (bool) $rawItem['available'] : true,
+    ];
+}
+
+function bober_skin_catalog()
+{
+    $catalogFile = bober_skin_catalog_file_path();
+    if (is_file($catalogFile)) {
+        $rawCatalog = file_get_contents($catalogFile);
+        if ($rawCatalog !== false && trim($rawCatalog) !== '') {
+            $decodedCatalog = json_decode($rawCatalog, true);
+            if (is_array($decodedCatalog)) {
+                $catalog = [];
+                $items = array_values($decodedCatalog);
+                foreach ($items as $item) {
+                    $normalizedItem = bober_normalize_skin_catalog_item($item);
+                    if ($normalizedItem !== null) {
+                        $catalog[$normalizedItem['id']] = $normalizedItem;
+                    }
+                }
+
+                if (!empty($catalog)) {
+                    return $catalog;
+                }
+            }
+        }
+    }
+
+    return bober_builtin_skin_catalog();
+}
+
+function bober_skin_catalog_list()
+{
+    return array_values(bober_skin_catalog());
+}
+
+function bober_store_skin_catalog(array $catalogItems)
+{
+    $normalizedItems = [];
+    foreach ($catalogItems as $item) {
+        $normalizedItem = bober_normalize_skin_catalog_item($item);
+        if ($normalizedItem !== null) {
+            $normalizedItems[] = $normalizedItem;
+        }
+    }
+
+    if (count($normalizedItems) === 0) {
+        throw new RuntimeException('Каталог скинов пуст и не может быть сохранен.');
+    }
+
+    $catalogFile = bober_skin_catalog_file_path();
+    $encodedCatalog = json_encode(
+        array_values($normalizedItems),
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+
+    if (!is_string($encodedCatalog) || $encodedCatalog === '') {
+        throw new RuntimeException('Не удалось подготовить каталог скинов к сохранению.');
+    }
+
+    if (file_put_contents($catalogFile, $encodedCatalog . PHP_EOL, LOCK_EX) === false) {
+        throw new RuntimeException('Не удалось сохранить каталог скинов.');
+    }
 }
 
 function bober_skin_id_by_image($imagePath)

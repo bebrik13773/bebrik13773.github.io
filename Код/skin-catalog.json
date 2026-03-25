@@ -1,0 +1,66 @@
+[
+  {
+    "id": "classic",
+    "name": "Просто бобер",
+    "price": 0,
+    "image": "skins/bober.png",
+    "default_owned": true,
+    "available": true
+  },
+  {
+    "id": "paper",
+    "name": "Бумажный бобер",
+    "price": 5000,
+    "image": "skins/bumazny-bober.jpg",
+    "default_owned": false,
+    "available": true
+  },
+  {
+    "id": "standard",
+    "name": "Стандартный бобер",
+    "price": 0,
+    "image": "skins/matvey-new-bober.jpg",
+    "default_owned": true,
+    "available": true
+  },
+  {
+    "id": "strawberry",
+    "name": "Клубничный йогурт бобер",
+    "price": 15000,
+    "image": "skins/klub-smz-bober.jpg",
+    "default_owned": false,
+    "available": true
+  },
+  {
+    "id": "sock",
+    "name": "Носок бобер",
+    "price": 30000,
+    "image": "skins/nosok-bober.jpg",
+    "default_owned": false,
+    "available": true
+  },
+  {
+    "id": "chocolate",
+    "name": "Шоколад бобер",
+    "price": 50000,
+    "image": "skins/Shok-upok-bober.jpg",
+    "default_owned": false,
+    "available": true
+  },
+  {
+    "id": "strange",
+    "name": "Странный бобер",
+    "price": 30000,
+    "image": "skins/strany-bober.jpg",
+    "default_owned": false,
+    "available": true
+  },
+  {
+    "id": "dev",
+    "name": "Dev бобер",
+    "price": 90000,
+    "image": "skins/dev.png",
+    "default_owned": false,
+    "available": false
+  }
+]

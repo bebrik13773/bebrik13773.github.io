@@ -2275,6 +2275,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             font-weight: 700;
             color: #ffccbc;
             word-break: break-word;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         .danger-confirm-status {
@@ -3991,6 +3994,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('deleteAccountConfirmInput').addEventListener('input', function() {
                 updateDeleteAccountConfirmState();
             });
+
+            const deletePhraseCode = document.querySelector('.danger-phrase-code');
+            if (deletePhraseCode) {
+                ['copy', 'cut', 'contextmenu', 'dragstart'].forEach(eventName => {
+                    deletePhraseCode.addEventListener(eventName, function(event) {
+                        event.preventDefault();
+                    });
+                });
+            }
 
             document.getElementById('deleteAccountConfirmInput').addEventListener('keydown', function(event) {
                 if (event.key === 'Enter' && !document.getElementById('confirmDeleteAccountBtn').disabled) {
