@@ -1165,8 +1165,7 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     tapBig: 20000,
     energy: 10000
 });
-// Чтобы добавить новый скин, достаточно дописать один объект в каталог ниже.
-const SKIN_CATALOG = Object.freeze([
+const FALLBACK_SKIN_CATALOG = Object.freeze([
     { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true },
     { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true },
     { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true },
@@ -1176,12 +1175,56 @@ const SKIN_CATALOG = Object.freeze([
     { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true },
     { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true }
 ]);
-const SKIN_BY_ID = Object.freeze(SKIN_CATALOG.reduce((accumulator, item) => {
-    accumulator[item.id] = item;
-    return accumulator;
-}, {}));
-const DEFAULT_SKIN_ID = (SKIN_CATALOG.find((item) => item.defaultOwned) || SKIN_CATALOG[0]).id;
-const DEFAULT_OWNED_SKIN_IDS = Object.freeze(SKIN_CATALOG.filter((item) => item.defaultOwned).map((item) => item.id));
+let SKIN_CATALOG = [];
+let SKIN_BY_ID = {};
+let DEFAULT_SKIN_ID = 'classic';
+let DEFAULT_OWNED_SKIN_IDS = [];
+
+function normalizeSkinCatalogItem(rawItem, index = 0) {
+    if (!rawItem || typeof rawItem !== 'object') {
+        return null;
+    }
+
+    const id = String(rawItem.id || '').trim();
+    const image = String(rawItem.image || '').trim();
+
+    if (!id || !image) {
+        return null;
+    }
+
+    const name = String(rawItem.name || id).trim() || `Скин ${index + 1}`;
+
+    return {
+        id,
+        name,
+        price: Math.max(0, Number(rawItem.price) || 0),
+        image,
+        defaultOwned: Boolean(rawItem.defaultOwned || rawItem.default_owned),
+        available: Object.prototype.hasOwnProperty.call(rawItem, 'available') ? Boolean(rawItem.available) : true,
+        comingSoon: Boolean(rawItem.comingSoon || rawItem.coming_soon || rawItem.available === false)
+    };
+}
+
+function rebuildSkinCatalogRuntime(rawCatalog) {
+    const normalizedCatalog = Array.isArray(rawCatalog)
+        ? rawCatalog.map((item, index) => normalizeSkinCatalogItem(item, index)).filter(Boolean)
+        : [];
+    const nextCatalog = normalizedCatalog.length > 0
+        ? normalizedCatalog
+        : FALLBACK_SKIN_CATALOG.map((item, index) => normalizeSkinCatalogItem(item, index)).filter(Boolean);
+
+    SKIN_CATALOG = nextCatalog;
+    SKIN_BY_ID = SKIN_CATALOG.reduce((accumulator, item) => {
+        accumulator[item.id] = item;
+        return accumulator;
+    }, {});
+
+    const defaultOwned = SKIN_CATALOG.filter((item) => item.defaultOwned).map((item) => item.id);
+    DEFAULT_SKIN_ID = (SKIN_CATALOG.find((item) => item.defaultOwned) || SKIN_CATALOG[0] || { id: 'classic' }).id;
+    DEFAULT_OWNED_SKIN_IDS = defaultOwned.length > 0 ? defaultOwned : [DEFAULT_SKIN_ID];
+}
+
+rebuildSkinCatalogRuntime(FALLBACK_SKIN_CATALOG);
 let skin = getDefaultSkinState();
 let energyTimer = null;
 let currentLogin = localStorage.getItem('login') || '';
@@ -2150,6 +2193,26 @@ async function requestJson(url, options = {}) {
     return data;
 }
 
+async function loadSkinCatalog() {
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/skin-catalog.php', {
+            cache: 'no-store'
+        });
+
+        if (!data || data.success !== true || !Array.isArray(data.skins)) {
+            throw new Error('Каталог скинов недоступен.');
+        }
+
+        rebuildSkinCatalogRuntime(data.skins);
+        skin = normalizeSkinState(skin);
+        renderSkinShop();
+        skinLoad();
+        updateSkinShopUI();
+    } catch (error) {
+        console.warn('Не удалось загрузить серверный каталог скинов, используем встроенный.', error);
+    }
+}
+
 function buildSaveStatePayload() {
     updateEnergy();
 
@@ -2590,6 +2653,7 @@ document.getElementById('submitLogin').onclick = async function() {
 };
 
 function shopShow() {
+    loadSkinCatalog();
     updateSkinShopUI();
     document.getElementById('shop').style.display = 'block';
     document.getElementById('shopButton').style.display = 'none';
@@ -2867,7 +2931,10 @@ updateScoreUI();
 updateEnergyUI();
 startEnergyTimer();
 window.addEventListener('load', async function() {
-    await restoreSession();
+    await Promise.all([
+        restoreSession(),
+        loadSkinCatalog()
+    ]);
     loadLeaderboard();
 });
 
