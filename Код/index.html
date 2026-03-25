@@ -956,10 +956,22 @@ const ENERGY_REGEN_TIME = 15 * 60 * 1000;
 let ENERGY_REGEN_PER_MS = 0;
 let skin = getDefaultSkinState();
 let energyTimer = null;
-let saveEnergyTimeout = null;
 let currentLogin = localStorage.getItem('login') || '';
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
+const AUTOSAVE_CONFIG = {
+    idleDelayMs: 25000,
+    importantDelayMs: 1500,
+    maxWaitMs: 90000,
+    retryDelayMs: 12000
+};
+const autosaveState = {
+    dirty: false,
+    timer: null,
+    inFlight: false,
+    firstDirtyAt: 0,
+    revision: 0
+};
 
 function getDefaultSkinState() {
     return ['skins/bober.png', true, false, true, false, false, false, false, false];
@@ -1028,6 +1040,18 @@ function updateAdminVisibility(loginValue) {
     document.getElementById('admin').style.display = loginValue === 'test' ? 'block' : 'none';
 }
 
+function resetAutosaveState() {
+    autosaveState.dirty = false;
+    autosaveState.inFlight = false;
+    autosaveState.firstDirtyAt = 0;
+    autosaveState.revision = 0;
+
+    if (autosaveState.timer) {
+        clearTimeout(autosaveState.timer);
+        autosaveState.timer = null;
+    }
+}
+
 function resetUserState() {
     userId = null;
     score = 0;
@@ -1037,15 +1061,11 @@ function resetUserState() {
     energy_max = 5000;
     skin = getDefaultSkinState();
 
-    if (saveEnergyTimeout) {
-        clearTimeout(saveEnergyTimeout);
-        saveEnergyTimeout = null;
-    }
-
     updateRegenRate();
     skinLoad();
     updateScoreUI();
     updateEnergyUI();
+    resetAutosaveState();
     updateAdminVisibility('');
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
@@ -1082,6 +1102,7 @@ function applyAuthenticatedState(data) {
     const serverUpdateTime = Number(data.lastEnergyUpdate);
     lastEnergyUpdate = Number.isFinite(serverUpdateTime) && serverUpdateTime > 0 ? serverUpdateTime : Date.now();
 
+    resetAutosaveState();
     updateEnergy();
     updateScoreUI();
     updateEnergyUI();
@@ -1156,6 +1177,154 @@ async function requestJson(url, options = {}) {
     return data;
 }
 
+function buildSaveStatePayload() {
+    updateEnergy();
+
+    return {
+        userId: userId,
+        score: Math.max(0, Math.floor(score)),
+        plus: Math.max(1, Math.floor(plus)),
+        skin: JSON.stringify(skin),
+        energy: Math.max(0, Math.floor(energy)),
+        lastEnergyUpdate: Math.max(0, Math.floor(lastEnergyUpdate)),
+        ENERGY_MAX: Math.max(1, Math.floor(energy_max))
+    };
+}
+
+function hasPendingAutosave() {
+    return Boolean(userId) && autosaveState.dirty;
+}
+
+function scheduleAutosave(delayMs = AUTOSAVE_CONFIG.idleDelayMs) {
+    if (!hasPendingAutosave()) {
+        return;
+    }
+
+    if (!autosaveState.firstDirtyAt) {
+        autosaveState.firstDirtyAt = Date.now();
+    }
+
+    const elapsed = Date.now() - autosaveState.firstDirtyAt;
+    const maxRemaining = Math.max(0, AUTOSAVE_CONFIG.maxWaitMs - elapsed);
+    const finalDelay = Math.max(0, Math.min(delayMs, maxRemaining));
+
+    if (autosaveState.timer) {
+        clearTimeout(autosaveState.timer);
+    }
+
+    autosaveState.timer = setTimeout(() => {
+        autosaveState.timer = null;
+        flushAutosave({ reason: 'timer' });
+    }, finalDelay);
+}
+
+function markProgressDirty(options = {}) {
+    if (!userId) {
+        return;
+    }
+
+    autosaveState.dirty = true;
+    autosaveState.revision += 1;
+
+    if (!autosaveState.firstDirtyAt) {
+        autosaveState.firstDirtyAt = Date.now();
+    }
+
+    scheduleAutosave(options.delayMs ?? AUTOSAVE_CONFIG.idleDelayMs);
+}
+
+async function saveStateToServer() {
+    if (!userId) {
+        return false;
+    }
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/save-state.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(buildSaveStatePayload())
+        });
+
+        if (data && data.success) {
+            return true;
+        }
+
+        throw new Error(data && data.message ? data.message : 'Не удалось сохранить прогресс.');
+    } catch (error) {
+        console.error('Ошибка автосохранения:', error);
+        return false;
+    }
+}
+
+async function flushAutosave(options = {}) {
+    const { reason = 'auto', silent = true } = options;
+
+    if (!hasPendingAutosave()) {
+        return true;
+    }
+
+    if (autosaveState.inFlight) {
+        return false;
+    }
+
+    autosaveState.inFlight = true;
+
+    if (autosaveState.timer) {
+        clearTimeout(autosaveState.timer);
+        autosaveState.timer = null;
+    }
+
+    const revisionAtStart = autosaveState.revision;
+    const saved = await saveStateToServer();
+
+    autosaveState.inFlight = false;
+
+    if (saved) {
+        if (autosaveState.revision === revisionAtStart) {
+            autosaveState.dirty = false;
+            autosaveState.firstDirtyAt = 0;
+        }
+
+        if (hasPendingAutosave()) {
+            scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
+        } else if (!silent && reason === 'manual') {
+            showNotification('Успешное сохранение', 'success');
+        }
+
+        return true;
+    }
+
+    autosaveState.dirty = true;
+    if (!autosaveState.firstDirtyAt) {
+        autosaveState.firstDirtyAt = Date.now();
+    }
+
+    scheduleAutosave(AUTOSAVE_CONFIG.retryDelayMs);
+
+    if (!silent && reason === 'manual') {
+        showNotification('Не удалось сохранить прогресс. Повторим автоматически.', 'error');
+    }
+
+    return false;
+}
+
+function flushAutosaveWithBeacon() {
+    if (!hasPendingAutosave() || !navigator.sendBeacon) {
+        return false;
+    }
+
+    try {
+        const payload = JSON.stringify(buildSaveStatePayload());
+        const blob = new Blob([payload], { type: 'application/json' });
+        return navigator.sendBeacon('https://bober-api.gt.tc/save-state.php', blob);
+    } catch (error) {
+        console.error('Ошибка фонового сохранения:', error);
+        return false;
+    }
+}
+
 async function restoreSession() {
     try {
         const data = await requestJson('https://bober-api.gt.tc/session-t.php', {
@@ -1205,44 +1374,12 @@ function startEnergyTimer() {
 }
 
 async function saveEnergy() {
-    if (!userId) {
-        return false;
-    }
-
-    try {
-        const data = await requestJson('https://bober-api.gt.tc/save-energy.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                userId: userId,
-                energy: Math.floor(energy),
-                lastEnergyUpdate: lastEnergyUpdate,
-                ENERGY_MAX: energy_max
-            })
-        });
-
-        if (data && data.success) {
-            console.log('✅ Энергия успешно сохранена');
-            return true;
-        }
-
-        throw new Error(data && data.message ? data.message : 'Не удалось сохранить энергию.');
-    } catch (error) {
-        console.error('❌ Ошибка при сохранении энергии:', error);
-        return false;
-    }
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
+    return flushAutosave({ reason: 'manual', silent: true });
 }
 
 function saveEnergyDebounced() {
-    if (saveEnergyTimeout) {
-        clearTimeout(saveEnergyTimeout);
-    }
-
-    saveEnergyTimeout = setTimeout(() => {
-        saveEnergy();
-    }, 90000);
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.idleDelayMs });
 }
 
 function buySkin(id, sum, tex) {
@@ -1274,7 +1411,6 @@ function buySkin(id, sum, tex) {
         skinLoad();
         updateScoreUI();
         saveskin();
-        saveScore(score);
         showNotification('Успешная покупка скина!', 'success');
     } else {
         showNotification('Недостаточно средств!', 'error');
@@ -1406,11 +1542,10 @@ function shopClose() {
     document.getElementById('shopExit').style.zIndex = '';
 }
 
-function Save() {
+async function Save() {
     if (userId) {
-        saveScore(score);
-        saveEnergy();
-        showNotification('Успешное сохранение', 'success');
+        markProgressDirty({ delayMs: 0 });
+        await flushAutosave({ reason: 'manual', silent: false });
     } else {
         showNotification('Пожалуйста, войдите в аккаунт.', 'error');
     }
@@ -1455,8 +1590,7 @@ function buyEnergyUpgrade() {
             score -= 10000;
             updateRegenRate();
             updateScoreUI();
-            saveEnergy();
-            saveScore(score);
+            markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
             showNotification('Успешная покупка улучшения! Новый максимум: ' + energy_max, 'success');
         } else {
             showNotification('Недостаточно средств!', 'error');
@@ -1471,16 +1605,7 @@ function saveplus() {
         return;
     }
 
-    saveScore(score);
-    requestJson('https://bober-api.gt.tc/save-plus.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: userId, plus: plus })
-    })
-    .then(data => console.log(data))
-    .catch(error => console.error('Ошибка:', error));
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
 }
 
 function saveskin() {
@@ -1488,16 +1613,7 @@ function saveskin() {
         return;
     }
 
-    saveScore(score);
-    requestJson('https://bober-api.gt.tc/save-skin.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: userId, skin: JSON.stringify(skin) })
-    })
-    .then(data => console.log(data))
-    .catch(error => console.error('Ошибка:', error));
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
 }
 
 document.getElementById('submitRegister').onclick = async function() {
@@ -1549,6 +1665,14 @@ document.getElementById('logoutButton').onclick = async function() {
     logoutBtn.disabled = true;
 
     try {
+        const savedBeforeLogout = await flushAutosave({ reason: 'logout', silent: true });
+        if (!savedBeforeLogout && hasPendingAutosave()) {
+            const shouldContinueLogout = confirm('Не удалось сохранить последний прогресс. Выйти все равно?');
+            if (!shouldContinueLogout) {
+                return;
+            }
+        }
+
         const data = await requestJson('https://bober-api.gt.tc/logout-t.php', {
             method: 'POST',
             headers: {
@@ -1573,15 +1697,12 @@ function saveScore(scoreValue) {
         return;
     }
 
-    requestJson('https://bober-api.gt.tc/save-score.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: userId, score: scoreValue, skin: JSON.stringify(skin) })
-    })
-    .then(data => console.log(data))
-    .catch(error => console.error('Ошибка:', error));
+    if (typeof scoreValue === 'number') {
+        score = scoreValue;
+        updateScoreUI();
+    }
+
+    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.idleDelayMs });
 }
 
 async function loadLeaderboard() {
@@ -1607,16 +1728,20 @@ window.addEventListener('load', async function() {
     loadLeaderboard();
 });
 
-window.addEventListener('beforeunload', function() {
-    if (userId) {
-        saveEnergy();
-    }
+window.addEventListener('pagehide', function() {
+    flushAutosaveWithBeacon();
 });
 
 document.addEventListener('visibilitychange', function() {
-    if (document.hidden && userId) {
-        saveEnergy();
+    if (document.hidden) {
+        flushAutosaveWithBeacon();
+    } else if (hasPendingAutosave()) {
+        scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
     }
+});
+
+window.addEventListener('beforeunload', function() {
+    flushAutosaveWithBeacon();
 });
 
     </script>
