@@ -323,6 +323,10 @@ Owner decisions:
 			background: rgba(255, 198, 87, 0.22);
 			color: #fff0c1;
 		}
+		.skin-chip.rarity-uncommon {
+			background: rgba(139, 255, 202, 0.2);
+			color: #defee6;
+		}
 		.skin-chip.rarity-epic {
 			background: rgba(199, 145, 255, 0.24);
 			color: #f3d9ff;
@@ -330,6 +334,10 @@ Owner decisions:
 		.skin-chip.rarity-rare {
 			background: rgba(116, 231, 255, 0.24);
 			color: #ddfbff;
+		}
+		.skin-chip.rarity-admin {
+			background: rgba(255, 110, 185, 0.2);
+			color: #ffd8ef;
 		}
 		.skin-chip.mode-grant-only {
 			background: rgba(255, 122, 122, 0.18);
@@ -1341,7 +1349,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 <div class="skin-shop-toolbar">
     <div class="skin-shop-panel">
         <div class="skin-shop-panel-title">Каталог скинов</div>
-        <div class="skin-shop-panel-subtitle" id="skinShopMeta">Покупаемые, редкие и админские скины. Редкие скины можно только получить вручную.</div>
+        <div class="skin-shop-panel-subtitle" id="skinShopMeta">Каталог поддерживает обычные, стартовые и выдаваемые вручную скины.</div>
     </div>
     <div class="skin-shop-panel skin-shop-filter">
         <label for="skinCategorySelect">Категория</label>
@@ -1629,21 +1637,21 @@ const UPGRADE_BASE_COSTS = Object.freeze({
 });
 const SKIN_RARITY_ORDER = Object.freeze({
     common: 0,
-    rare: 1,
-    epic: 2,
-    legendary: 3
+    uncommon: 1,
+    rare: 2,
+    epic: 3,
+    legendary: 4,
+    admin: 5
 });
 const FALLBACK_SKIN_CATALOG = Object.freeze([
-    { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true, rarity: 'common', category: 'classic', grant_only: false },
-    { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true, rarity: 'common', category: 'fun', grant_only: false },
-    { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true, rarity: 'common', category: 'classic', grant_only: false },
-    { id: 'strawberry', name: 'Клубничный йогурт бобер', price: 15000, image: 'skins/klub-smz-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'food', grant_only: false },
-    { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'fun', grant_only: false },
-    { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'food', grant_only: false },
-    { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'mystic', grant_only: false },
-    { id: 'aurora', name: 'Aurora бобер', price: 0, image: 'skins/aurora-beaver.svg', defaultOwned: false, available: true, rarity: 'legendary', category: 'event', grant_only: true },
-    { id: 'ember', name: 'Ember бобер', price: 0, image: 'skins/ember-beaver.svg', defaultOwned: false, available: true, rarity: 'legendary', category: 'event', grant_only: true },
-    { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true, rarity: 'legendary', category: 'admin', grant_only: true }
+    { id: 'classic', name: 'Просто бобер', price: 0, image: 'skins/bober.png', defaultOwned: true, available: true, rarity: 'common', category: 'classic', issue_mode: 'starter' },
+    { id: 'paper', name: 'Бумажный бобер', price: 5000, image: 'skins/bumazny-bober.jpg', defaultOwned: false, available: true, rarity: 'common', category: 'fun', issue_mode: 'shop' },
+    { id: 'standard', name: 'Стандартный бобер', price: 0, image: 'skins/matvey-new-bober.jpg', defaultOwned: true, available: true, rarity: 'common', category: 'classic', issue_mode: 'starter' },
+    { id: 'strawberry', name: 'Клубничный йогурт бобер', price: 15000, image: 'skins/klub-smz-bober.jpg', defaultOwned: false, available: true, rarity: 'uncommon', category: 'food', issue_mode: 'shop' },
+    { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'fun', issue_mode: 'shop' },
+    { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'food', issue_mode: 'shop' },
+    { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'mystic', issue_mode: 'shop' },
+    { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true, rarity: 'admin', category: 'admin', issue_mode: 'grant_only' }
 ]);
 let SKIN_CATALOG = [];
 let SKIN_BY_ID = {};
@@ -1659,6 +1667,25 @@ function normalizeSkinRarity(value) {
     return Object.prototype.hasOwnProperty.call(SKIN_RARITY_ORDER, normalizedValue) ? normalizedValue : 'common';
 }
 
+function normalizeSkinIssueMode(value, rawItem = null) {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+    if (normalizedValue === 'shop' || normalizedValue === 'grant_only' || normalizedValue === 'starter') {
+        return normalizedValue;
+    }
+
+    if (rawItem && typeof rawItem === 'object') {
+        if (Boolean(rawItem.defaultOwned || rawItem.default_owned)) {
+            return 'starter';
+        }
+
+        if (Boolean(rawItem.grantOnly || rawItem.grant_only)) {
+            return 'grant_only';
+        }
+    }
+
+    return 'shop';
+}
+
 function normalizeSkinCategory(value) {
     const normalizedValue = String(value || '').trim().toLowerCase();
     return normalizedValue || 'other';
@@ -1667,9 +1694,11 @@ function normalizeSkinCategory(value) {
 function getSkinRarityLabel(rarity) {
     const labels = {
         common: 'Обычный',
+        uncommon: 'Необычный',
         rare: 'Редкий',
         epic: 'Эпический',
-        legendary: 'Легендарный'
+        legendary: 'Легендарный',
+        admin: 'Админский'
     };
 
     return labels[normalizeSkinRarity(rarity)] || labels.common;
@@ -1689,6 +1718,16 @@ function getSkinCategoryLabel(category) {
     return labels[normalizeSkinCategory(category)] || labels.other;
 }
 
+function getSkinIssueModeLabel(issueMode) {
+    const labels = {
+        shop: 'Магазин',
+        grant_only: 'Только выдача',
+        starter: 'Стартовый'
+    };
+
+    return labels[normalizeSkinIssueMode(issueMode)] || labels.shop;
+}
+
 function normalizeSkinCatalogItem(rawItem, index = 0) {
     if (!rawItem || typeof rawItem !== 'object') {
         return null;
@@ -1703,17 +1742,20 @@ function normalizeSkinCatalogItem(rawItem, index = 0) {
 
     const name = String(rawItem.name || id).trim() || `Скин ${index + 1}`;
 
+    const issueMode = normalizeSkinIssueMode(rawItem.issueMode || rawItem.issue_mode, rawItem);
+
     return {
         id,
         name,
         price: Math.max(0, Number(rawItem.price) || 0),
         image,
-        defaultOwned: Boolean(rawItem.defaultOwned || rawItem.default_owned),
+        defaultOwned: issueMode === 'starter',
         available: Object.prototype.hasOwnProperty.call(rawItem, 'available') ? Boolean(rawItem.available) : true,
         comingSoon: Boolean(rawItem.comingSoon || rawItem.coming_soon || rawItem.available === false),
         rarity: normalizeSkinRarity(rawItem.rarity),
         category: normalizeSkinCategory(rawItem.category),
-        grantOnly: Boolean(rawItem.grantOnly || rawItem.grant_only)
+        issueMode,
+        grantOnly: issueMode === 'grant_only'
     };
 }
 
@@ -1987,8 +2029,8 @@ function updateSkinShopControls() {
     }
 
     if (metaNode) {
-        const grantOnlyCount = visibleItems.filter((item) => item.grantOnly).length;
-        metaNode.textContent = `Показано ${visibleItems.length} скинов. Категория: ${skinShopViewState.category === 'all' ? 'все' : getSkinCategoryLabel(skinShopViewState.category)}.${grantOnlyCount > 0 ? ` Из них ${grantOnlyCount} доступны только через выдачу.` : ''}`;
+        const specialCount = visibleItems.filter((item) => item.issueMode !== 'shop').length;
+        metaNode.textContent = `Показано ${visibleItems.length} скинов. Категория: ${skinShopViewState.category === 'all' ? 'все' : getSkinCategoryLabel(skinShopViewState.category)}.${specialCount > 0 ? ` У ${specialCount} скинов особый режим выдачи.` : ''}`;
     }
 }
 
@@ -2009,20 +2051,23 @@ function updateSkinShopUI() {
 
         const isOwned = isSkinOwned(skinId);
         const isEquipped = isOwned && skin.equippedSkinId === skinId;
+        const requiresSpecialIssue = skinConfig.issueMode !== 'shop';
         const priceNode = skinCard.querySelector('.skin-shop-card-price');
         const statusNode = skinCard.querySelector('.skin-shop-card-status');
         const badgeNode = skinCard.querySelector('.skin-shop-badge');
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
-        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false && !skinConfig.grantOnly);
+        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false && !requiresSpecialIssue);
         skinCard.classList.toggle('coming-soon', skinConfig.available === false);
 
         if (priceNode) {
             if (skinConfig.available === false) {
                 priceNode.textContent = 'Пока недоступен';
-            } else if (skinConfig.grantOnly && !isOwned) {
+            } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 priceNode.textContent = 'Только ручная выдача';
+            } else if (skinConfig.issueMode === 'starter' && !isOwned) {
+                priceNode.textContent = 'Стартовый скин';
             } else {
                 priceNode.textContent = skinConfig.price > 0 ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов` : 'Цена: бесплатно';
             }
@@ -2031,8 +2076,10 @@ function updateSkinShopUI() {
         if (statusNode) {
             if (skinConfig.available === false) {
                 statusNode.textContent = 'В разработке';
-            } else if (skinConfig.grantOnly && !isOwned) {
+            } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 statusNode.textContent = 'Этот редкий скин нельзя купить. Его можно только получить вручную.';
+            } else if (skinConfig.issueMode === 'starter' && !isOwned) {
+                statusNode.textContent = 'Этот скин автоматически получают новые игроки. Для старого аккаунта нужна выдача.';
             } else if (!userId) {
                 statusNode.textContent = 'Войдите, чтобы выбрать или купить';
             } else if (isEquipped) {
@@ -2051,9 +2098,12 @@ function updateSkinShopUI() {
             if (skinConfig.available === false) {
                 badgeNode.classList.add('coming-soon');
                 badgeNode.textContent = 'Скоро';
-            } else if (skinConfig.grantOnly && !isOwned) {
+            } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 badgeNode.classList.add('grant-only');
                 badgeNode.textContent = 'Выдача';
+            } else if (skinConfig.issueMode === 'starter' && !isOwned) {
+                badgeNode.classList.add('owned');
+                badgeNode.textContent = 'Старт';
             } else if (isEquipped) {
                 badgeNode.classList.add('equipped');
                 badgeNode.textContent = '✓ Надет';
@@ -2093,7 +2143,7 @@ function renderSkinShop() {
                 <span class="skin-shop-card-meta">
                     <span class="skin-chip rarity-${escapeHtmlText(skinConfig.rarity)}">${escapeHtmlText(getSkinRarityLabel(skinConfig.rarity))}</span>
                     <span class="skin-chip">${escapeHtmlText(getSkinCategoryLabel(skinConfig.category))}</span>
-                    ${skinConfig.grantOnly ? '<span class="skin-chip mode-grant-only">Только выдача</span>' : ''}
+                    <span class="skin-chip ${skinConfig.issueMode === 'grant_only' ? 'mode-grant-only' : ''}">${escapeHtmlText(getSkinIssueModeLabel(skinConfig.issueMode))}</span>
                 </span>
                 <span class="skin-shop-card-price"></span>
                 <span class="skin-shop-card-status"></span>
@@ -3684,8 +3734,13 @@ function buySkin(skinId) {
         return;
     }
 
-    if (skinConfig.grantOnly && !isSkinOwned(skinConfig.id)) {
+    if (skinConfig.issueMode === 'grant_only' && !isSkinOwned(skinConfig.id)) {
         showNotification('Этот скин нельзя купить. Его можно получить только через ручную выдачу.', 'error');
+        return;
+    }
+
+    if (skinConfig.issueMode === 'starter' && !isSkinOwned(skinConfig.id)) {
+        showNotification('Это стартовый скин для новых игроков. Для существующего аккаунта его нужно выдать вручную.', 'error');
         return;
     }
 

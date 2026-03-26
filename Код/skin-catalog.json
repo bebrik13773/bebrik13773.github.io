@@ -4,10 +4,11 @@
     "name": "Просто бобер",
     "price": 0,
     "image": "skins/bober.png",
-    "default_owned": true,
     "available": true,
     "rarity": "common",
     "category": "classic",
+    "issue_mode": "starter",
+    "default_owned": true,
     "grant_only": false
   },
   {
@@ -15,10 +16,11 @@
     "name": "Бумажный бобер",
     "price": 5000,
     "image": "skins/bumazny-bober.jpg",
-    "default_owned": false,
     "available": true,
     "rarity": "common",
     "category": "fun",
+    "issue_mode": "shop",
+    "default_owned": false,
     "grant_only": false
   },
   {
@@ -26,10 +28,11 @@
     "name": "Стандартный бобер",
     "price": 0,
     "image": "skins/matvey-new-bober.jpg",
-    "default_owned": true,
     "available": true,
     "rarity": "common",
     "category": "classic",
+    "issue_mode": "starter",
+    "default_owned": true,
     "grant_only": false
   },
   {
@@ -37,10 +40,11 @@
     "name": "Клубничный йогурт бобер",
     "price": 15000,
     "image": "skins/klub-smz-bober.jpg",
-    "default_owned": false,
     "available": true,
-    "rarity": "rare",
+    "rarity": "uncommon",
     "category": "food",
+    "issue_mode": "shop",
+    "default_owned": false,
     "grant_only": false
   },
   {
@@ -48,10 +52,11 @@
     "name": "Носок бобер",
     "price": 30000,
     "image": "skins/nosok-bober.jpg",
-    "default_owned": false,
     "available": true,
-    "rarity": "rare",
+    "rarity": "epic",
     "category": "fun",
+    "issue_mode": "shop",
+    "default_owned": false,
     "grant_only": false
   },
   {
@@ -59,10 +64,11 @@
     "name": "Шоколад бобер",
     "price": 50000,
     "image": "skins/Shok-upok-bober.jpg",
-    "default_owned": false,
     "available": true,
-    "rarity": "epic",
+    "rarity": "rare",
     "category": "food",
+    "issue_mode": "shop",
+    "default_owned": false,
     "grant_only": false
   },
   {
@@ -70,43 +76,23 @@
     "name": "Странный бобер",
     "price": 30000,
     "image": "skins/strany-bober.jpg",
-    "default_owned": false,
     "available": true,
-    "rarity": "epic",
+    "rarity": "rare",
     "category": "mystic",
+    "issue_mode": "shop",
+    "default_owned": false,
     "grant_only": false
-  },
-  {
-    "id": "aurora",
-    "name": "Aurora бобер",
-    "price": 0,
-    "image": "skins/aurora-beaver.svg",
-    "default_owned": false,
-    "available": true,
-    "rarity": "legendary",
-    "category": "event",
-    "grant_only": true
-  },
-  {
-    "id": "ember",
-    "name": "Ember бобер",
-    "price": 0,
-    "image": "skins/ember-beaver.svg",
-    "default_owned": false,
-    "available": true,
-    "rarity": "legendary",
-    "category": "event",
-    "grant_only": true
   },
   {
     "id": "dev",
     "name": "Dev бобер",
     "price": 90000,
     "image": "skins/dev.png",
-    "default_owned": false,
     "available": false,
-    "rarity": "legendary",
+    "rarity": "admin",
     "category": "admin",
+    "issue_mode": "grant_only",
+    "default_owned": false,
     "grant_only": true
   }
 ]

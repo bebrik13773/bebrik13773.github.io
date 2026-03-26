@@ -315,6 +315,8 @@ function ensureSkinCatalogDefaults(array $catalogItems)
 
     if (!$hasDefaultOwned) {
         $normalizedItems[0]['default_owned'] = true;
+        $normalizedItems[0]['issue_mode'] = 'starter';
+        $normalizedItems[0]['grant_only'] = false;
     }
 
     return $normalizedItems;
@@ -579,11 +581,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (requireAdminAuth($response)) {
                 $skinName = normalizeSkinDisplayName($_POST['skin_name'] ?? '');
                 $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
-                $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
                 $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
                 $rarity = bober_normalize_skin_rarity($_POST['skin_rarity'] ?? '');
                 $category = bober_normalize_skin_category($_POST['skin_category'] ?? '');
-                $grantOnly = postBooleanFlag($_POST['grant_only'] ?? '0');
+                $issueMode = bober_normalize_skin_issue_mode($_POST['skin_issue_mode'] ?? '');
+                $defaultOwned = $issueMode === 'starter';
+                $grantOnly = $issueMode === 'grant_only';
                 $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image'])
                     ? $_FILES['skin_image']
                     : null;
@@ -608,6 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'available' => $available,
                             'rarity' => $rarity,
                             'category' => $category,
+                            'issue_mode' => $issueMode,
                             'grant_only' => $grantOnly,
                         ];
 
@@ -636,6 +640,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'available' => !empty($storedItem['available']),
                                 'rarity' => (string) ($storedItem['rarity'] ?? $rarity),
                                 'category' => (string) ($storedItem['category'] ?? $category),
+                                'issue_mode' => (string) ($storedItem['issue_mode'] ?? $issueMode),
                                 'grant_only' => !empty($storedItem['grant_only']),
                             ],
                         ]);
@@ -657,11 +662,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $skinId = trim((string) ($_POST['skin_id'] ?? ''));
                 $skinName = normalizeSkinDisplayName($_POST['skin_name'] ?? '');
                 $skinPrice = max(0, (int) ($_POST['skin_price'] ?? 0));
-                $defaultOwned = postBooleanFlag($_POST['default_owned'] ?? '0');
                 $available = !array_key_exists('available', $_POST) || postBooleanFlag($_POST['available']);
                 $rarity = bober_normalize_skin_rarity($_POST['skin_rarity'] ?? '');
                 $category = bober_normalize_skin_category($_POST['skin_category'] ?? '');
-                $grantOnly = postBooleanFlag($_POST['grant_only'] ?? '0');
+                $issueMode = bober_normalize_skin_issue_mode($_POST['skin_issue_mode'] ?? '');
+                $defaultOwned = $issueMode === 'starter';
+                $grantOnly = $issueMode === 'grant_only';
                 $uploadedFile = isset($_FILES['skin_image']) && is_array($_FILES['skin_image']) ? $_FILES['skin_image'] : null;
 
                 if ($skinId === '') {
@@ -696,6 +702,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'available' => $available,
                                 'rarity' => $rarity,
                                 'category' => $category,
+                                'issue_mode' => $issueMode,
                                 'grant_only' => $grantOnly,
                             ];
 
@@ -724,6 +731,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                     'available' => !empty($updatedItem['available']),
                                     'rarity' => (string) ($updatedItem['rarity'] ?? $rarity),
                                     'category' => (string) ($updatedItem['category'] ?? $category),
+                                    'issue_mode' => (string) ($updatedItem['issue_mode'] ?? $issueMode),
                                     'grant_only' => !empty($updatedItem['grant_only']),
                                 ],
                             ]);
@@ -3998,7 +4006,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="material-icons">palette</span>
                                 Каталог скинов
                             </h2>
-                            <div class="card-subtitle">Полное управление витриной: создание, редактирование цены и названия, замена картинки и удаление.</div>
+                            <div class="card-subtitle">Полное управление витриной: создание, редкость, способ выдачи, замена картинки, редактирование и удаление.</div>
                         </div>
                         <button class="btn btn-primary" id="createSkinBtn">
                             <span class="material-icons">add_photo_alternate</span>
@@ -4407,7 +4415,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <span id="addSkinModalTitle">Новый скин</span>
                     </h3>
                     <div class="card-subtitle" id="addSkinModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
-                        Загружаете картинку, задаете имя и цену, а дальше скин сразу попадает в магазин.
+                        Загружаете картинку, задаете имя, редкость и способ выдачи, а каталог обновляется сразу.
                     </div>
                 </div>
                 <button class="action-button btn-icon" id="closeAddSkinModal">
@@ -4464,15 +4472,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <span class="form-check-label">Скин доступен игрокам сразу после сохранения</span>
                         </label>
 
-                        <label class="form-check">
-                            <input type="checkbox" id="addSkinDefaultOwnedInput">
-                            <span class="form-check-label">Выдавать этот скин по умолчанию новым игрокам</span>
-                        </label>
-
-                        <label class="form-check">
-                            <input type="checkbox" id="addSkinGrantOnlyInput">
-                            <span class="form-check-label">Только ручная выдача: в магазине виден, но купить нельзя</span>
-                        </label>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="addSkinIssueModeInput">Способ выдачи</label>
+                            <select class="form-control" id="addSkinIssueModeInput">
+                                <option value="shop">Покупка в магазине</option>
+                                <option value="grant_only">Только ручная выдача</option>
+                                <option value="starter">Стартовый для новых игроков</option>
+                            </select>
+                        </div>
                     </form>
 
                     <div class="skin-upload-card">
@@ -5031,13 +5038,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const addSkinPriceInput = document.getElementById('addSkinPriceInput');
             const addSkinImageInput = document.getElementById('addSkinImageInput');
             const addSkinAvailableInput = document.getElementById('addSkinAvailableInput');
-            const addSkinDefaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const addSkinRarityInput = document.getElementById('addSkinRarityInput');
             const addSkinCategoryInput = document.getElementById('addSkinCategoryInput');
-            const addSkinGrantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
+            const addSkinIssueModeInput = document.getElementById('addSkinIssueModeInput');
             const saveAddSkinBtn = document.getElementById('saveAddSkinBtn');
 
-            [addSkinNameInput, addSkinPriceInput, addSkinImageInput, addSkinAvailableInput, addSkinDefaultOwnedInput, addSkinRarityInput, addSkinCategoryInput, addSkinGrantOnlyInput].forEach(field => {
+            [addSkinNameInput, addSkinPriceInput, addSkinImageInput, addSkinAvailableInput, addSkinRarityInput, addSkinCategoryInput, addSkinIssueModeInput].forEach(field => {
                 if (field) {
                     field.addEventListener('input', updateAddSkinPreview);
                     field.addEventListener('change', updateAddSkinPreview);
@@ -5431,9 +5437,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 const name = String(item.name || '').toLowerCase();
                 const id = String(item.id || '').toLowerCase();
                 const rarity = String(item.rarity || '').toLowerCase();
+                const issueMode = getSkinIssueModeLabel(item.issue_mode || (item.default_owned ? 'starter' : (item.grant_only ? 'grant_only' : 'shop'))).toLowerCase();
                 return name.includes(query)
                     || id.includes(query)
                     || rarity.includes(query)
+                    || issueMode.includes(query)
                     || getSkinCategoryLabel(itemCategory).toLowerCase().includes(query);
             });
 
@@ -5504,6 +5512,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 const imageUrl = resolveAdminSkinImageUrl(item.image);
                 const rarityLabel = getSkinRarityLabel(item.rarity);
                 const categoryLabel = getSkinCategoryLabel(item.category);
+                const issueModeLabel = getSkinIssueModeLabel(item.issue_mode || (item.default_owned ? 'starter' : (item.grant_only ? 'grant_only' : 'shop')));
 
                 return `
                     <article class="skin-catalog-card" data-skin-id="${escapeHtml(item.id)}">
@@ -5520,7 +5529,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">sell</span>${priceLabel}</span>
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">workspace_premium</span>${escapeHtml(rarityLabel)}</span>
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">category</span>${escapeHtml(categoryLabel)}</span>
-                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">verified_user</span>${item.default_owned ? 'Стартовый' : (item.grant_only ? 'Только выдача' : 'Покупаемый')}</span>
+                                <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">verified_user</span>${escapeHtml(issueModeLabel)}</span>
                                 <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">image</span>${availabilityLabel}</span>
                             </div>
                             <div class="skin-catalog-card-actions">
@@ -5617,18 +5626,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const nameInput = document.getElementById('addSkinNameInput');
             const priceInput = document.getElementById('addSkinPriceInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
-            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const rarityInput = document.getElementById('addSkinRarityInput');
             const categoryInput = document.getElementById('addSkinCategoryInput');
-            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
+            const issueModeInput = document.getElementById('addSkinIssueModeInput');
 
             const skinName = nameInput ? nameInput.value.trim() : '';
             const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
             const isAvailable = !availableInput || availableInput.checked;
-            const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
             const rarityLabel = getSkinRarityLabel(rarityInput ? rarityInput.value : 'common');
             const categoryLabel = getSkinCategoryLabel(categoryInput ? categoryInput.value : 'other');
-            const isGrantOnly = Boolean(grantOnlyInput && grantOnlyInput.checked);
+            const issueMode = String(issueModeInput ? issueModeInput.value || 'shop' : 'shop');
+            const issueModeLabel = getSkinIssueModeLabel(issueMode);
 
             if (titleNode) {
                 titleNode.textContent = skinName || 'Новый скин';
@@ -5638,15 +5646,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 subtitleNode.textContent = skinEditorState.mode === 'edit'
                     ? `Редактируете скин "${skinName || skinEditorState.skinId || 'без названия'}". Можно заменить картинку, цену, редкость, категорию и статус без ручной правки файлов.`
                     : (skinName
-                        ? `Скин "${skinName}" появится в общем каталоге и будет доступен в магазине сразу после сохранения.`
-                        : 'После сохранения скин сразу подхватится магазином и будет доступен игрокам.');
+                        ? `Скин "${skinName}" появится в общем каталоге сразу после сохранения.`
+                        : 'После сохранения скин сразу подхватится каталогом, а способ выдачи определится выбранным режимом.');
             }
 
             if (priceNode) {
                 const availabilityLabel = isAvailable ? 'виден игрокам' : 'скрыт из магазина';
-                const defaultLabel = isDefaultOwned ? ' • стартовый' : '';
-                const grantOnlyLabel = isGrantOnly ? ' • только выдача' : '';
-                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов • ${rarityLabel} • ${categoryLabel} • ${availabilityLabel}${defaultLabel}${grantOnlyLabel}`;
+                priceNode.textContent = `Цена: ${formatAdminNumber(skinPrice)} коинов • ${rarityLabel} • ${categoryLabel} • ${issueModeLabel} • ${availabilityLabel}`;
             }
 
             if (previewNode) {
@@ -5679,11 +5685,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 availableInput.checked = true;
             }
 
-            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
-            if (defaultOwnedInput) {
-                defaultOwnedInput.checked = false;
-            }
-
             const rarityInput = document.getElementById('addSkinRarityInput');
             if (rarityInput) {
                 rarityInput.value = 'common';
@@ -5694,9 +5695,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 categoryInput.value = 'classic';
             }
 
-            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
-            if (grantOnlyInput) {
-                grantOnlyInput.checked = false;
+            const issueModeInput = document.getElementById('addSkinIssueModeInput');
+            if (issueModeInput) {
+                issueModeInput.value = 'shop';
             }
 
             clearAddSkinPreviewObjectUrl();
@@ -5718,10 +5719,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const nameInput = document.getElementById('addSkinNameInput');
             const priceInput = document.getElementById('addSkinPriceInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
-            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const rarityInput = document.getElementById('addSkinRarityInput');
             const categoryInput = document.getElementById('addSkinCategoryInput');
-            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
+            const issueModeInput = document.getElementById('addSkinIssueModeInput');
 
             if (mode === 'edit' && skinItem) {
                 skinEditorState = {
@@ -5748,17 +5748,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (availableInput) {
                     availableInput.checked = skinItem.available !== false;
                 }
-                if (defaultOwnedInput) {
-                    defaultOwnedInput.checked = Boolean(skinItem.default_owned || skinItem.defaultOwned);
-                }
                 if (rarityInput) {
                     rarityInput.value = String(skinItem.rarity || 'common');
                 }
                 if (categoryInput) {
                     categoryInput.value = String(skinItem.category || 'other');
                 }
-                if (grantOnlyInput) {
-                    grantOnlyInput.checked = Boolean(skinItem.grant_only || skinItem.grantOnly);
+                if (issueModeInput) {
+                    issueModeInput.value = String(skinItem.issue_mode || (skinItem.default_owned || skinItem.defaultOwned ? 'starter' : ((skinItem.grant_only || skinItem.grantOnly) ? 'grant_only' : 'shop')));
                 }
                 if (imageInput) {
                     imageInput.required = false;
@@ -5768,7 +5765,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     titleNode.textContent = 'Новый скин';
                 }
                 if (subtitleNode) {
-                    subtitleNode.textContent = 'Загружаете картинку, задаете имя и цену, а дальше скин сразу попадает в магазин.';
+                    subtitleNode.textContent = 'Загружаете картинку, задаете имя, редкость и способ выдачи. Каталог обновится сразу после сохранения.';
                 }
                 if (saveButtonText) {
                     saveButtonText.textContent = 'Добавить скин';
@@ -5792,10 +5789,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const priceInput = document.getElementById('addSkinPriceInput');
             const imageInput = document.getElementById('addSkinImageInput');
             const availableInput = document.getElementById('addSkinAvailableInput');
-            const defaultOwnedInput = document.getElementById('addSkinDefaultOwnedInput');
             const rarityInput = document.getElementById('addSkinRarityInput');
             const categoryInput = document.getElementById('addSkinCategoryInput');
-            const grantOnlyInput = document.getElementById('addSkinGrantOnlyInput');
+            const issueModeInput = document.getElementById('addSkinIssueModeInput');
             const saveButton = document.getElementById('saveAddSkinBtn');
             const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
             const loader = saveButton ? saveButton.querySelector('.loader') : null;
@@ -5804,10 +5800,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const skinPrice = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
             const imageFile = imageInput && imageInput.files ? imageInput.files[0] : null;
             const isAvailable = !availableInput || availableInput.checked;
-            const isDefaultOwned = Boolean(defaultOwnedInput && defaultOwnedInput.checked);
             const rarity = rarityInput ? String(rarityInput.value || 'common') : 'common';
             const category = categoryInput ? String(categoryInput.value || 'other') : 'other';
-            const isGrantOnly = Boolean(grantOnlyInput && grantOnlyInput.checked);
+            const issueMode = issueModeInput ? String(issueModeInput.value || 'shop') : 'shop';
 
             if (skinName.length < 2) {
                 showNotification('Введите название скина.', 'error');
@@ -5827,10 +5822,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             formData.append('skin_name', skinName);
             formData.append('skin_price', String(skinPrice));
             formData.append('available', isAvailable ? '1' : '0');
-            formData.append('default_owned', isDefaultOwned ? '1' : '0');
             formData.append('skin_rarity', rarity);
             formData.append('skin_category', category);
-            formData.append('grant_only', isGrantOnly ? '1' : '0');
+            formData.append('skin_issue_mode', issueMode);
             if (imageFile) {
                 formData.append('skin_image', imageFile);
             }
@@ -6078,6 +6072,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             };
 
             return labels[String(category || '').toLowerCase()] || 'Другое';
+        }
+
+        function getSkinIssueModeLabel(issueMode) {
+            const labels = {
+                shop: 'Покупка в магазине',
+                grant_only: 'Только ручная выдача',
+                starter: 'Стартовый для новых игроков'
+            };
+
+            return labels[String(issueMode || '').toLowerCase()] || labels.shop;
         }
 
         function getSkinRarityOrder(rarity) {

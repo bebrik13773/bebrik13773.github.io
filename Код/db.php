@@ -297,110 +297,80 @@ function bober_builtin_skin_catalog()
             'name' => 'Просто бобер',
             'price' => 0,
             'image' => 'skins/bober.png',
-            'default_owned' => true,
             'available' => true,
             'rarity' => 'common',
             'category' => 'classic',
-            'grant_only' => false,
+            'issue_mode' => 'starter',
         ],
         'paper' => [
             'id' => 'paper',
             'name' => 'Бумажный бобер',
             'price' => 5000,
             'image' => 'skins/bumazny-bober.jpg',
-            'default_owned' => false,
             'available' => true,
             'rarity' => 'common',
             'category' => 'fun',
-            'grant_only' => false,
+            'issue_mode' => 'shop',
         ],
         'standard' => [
             'id' => 'standard',
             'name' => 'Стандартный бобер',
             'price' => 0,
             'image' => 'skins/matvey-new-bober.jpg',
-            'default_owned' => true,
             'available' => true,
             'rarity' => 'common',
             'category' => 'classic',
-            'grant_only' => false,
+            'issue_mode' => 'starter',
         ],
         'strawberry' => [
             'id' => 'strawberry',
             'name' => 'Клубничный йогурт бобер',
             'price' => 15000,
             'image' => 'skins/klub-smz-bober.jpg',
-            'default_owned' => false,
             'available' => true,
             'rarity' => 'uncommon',
             'category' => 'food',
-            'grant_only' => false,
+            'issue_mode' => 'shop',
         ],
         'sock' => [
             'id' => 'sock',
             'name' => 'Носок бобер',
             'price' => 30000,
             'image' => 'skins/nosok-bober.jpg',
-            'default_owned' => false,
             'available' => true,
             'rarity' => 'epic',
             'category' => 'fun',
-            'grant_only' => false,
+            'issue_mode' => 'shop',
         ],
         'chocolate' => [
             'id' => 'chocolate',
             'name' => 'Шоколад бобер',
             'price' => 50000,
             'image' => 'skins/Shok-upok-bober.jpg',
-            'default_owned' => false,
             'available' => true,
             'rarity' => 'rare',
             'category' => 'food',
-            'grant_only' => false,
+            'issue_mode' => 'shop',
         ],
         'strange' => [
             'id' => 'strange',
             'name' => 'Странный бобер',
             'price' => 30000,
             'image' => 'skins/strany-bober.jpg',
-            'default_owned' => false,
             'available' => true,
             'rarity' => 'rare',
             'category' => 'mystic',
-            'grant_only' => false,
-        ],
-        'aurora' => [
-            'id' => 'aurora',
-            'name' => 'Северный бобер',
-            'price' => 0,
-            'image' => 'skins/aurora-beaver.svg',
-            'default_owned' => false,
-            'available' => true,
-            'rarity' => 'legendary',
-            'category' => 'event',
-            'grant_only' => true,
-        ],
-        'ember' => [
-            'id' => 'ember',
-            'name' => 'Искровый бобер',
-            'price' => 0,
-            'image' => 'skins/ember-beaver.svg',
-            'default_owned' => false,
-            'available' => true,
-            'rarity' => 'legendary',
-            'category' => 'event',
-            'grant_only' => true,
+            'issue_mode' => 'shop',
         ],
         'dev' => [
             'id' => 'dev',
             'name' => 'Dev бобер',
             'price' => 90000,
             'image' => 'skins/dev.png',
-            'default_owned' => false,
             'available' => false,
             'rarity' => 'admin',
             'category' => 'admin',
-            'grant_only' => true,
+            'issue_mode' => 'grant_only',
         ],
     ];
 }
@@ -415,6 +385,11 @@ function bober_skin_category_values()
     return ['classic', 'food', 'fun', 'mystic', 'event', 'admin', 'other'];
 }
 
+function bober_skin_issue_mode_values()
+{
+    return ['shop', 'grant_only', 'starter'];
+}
+
 function bober_normalize_skin_rarity($value)
 {
     $value = strtolower(trim((string) $value));
@@ -425,6 +400,26 @@ function bober_normalize_skin_category($value)
 {
     $value = strtolower(trim((string) $value));
     return in_array($value, bober_skin_category_values(), true) ? $value : 'other';
+}
+
+function bober_normalize_skin_issue_mode($value, $rawItem = null)
+{
+    $value = strtolower(trim((string) $value));
+    if (in_array($value, bober_skin_issue_mode_values(), true)) {
+        return $value;
+    }
+
+    if (is_array($rawItem)) {
+        if (!empty($rawItem['default_owned'])) {
+            return 'starter';
+        }
+
+        if (!empty($rawItem['grant_only'])) {
+            return 'grant_only';
+        }
+    }
+
+    return 'shop';
 }
 
 function bober_normalize_skin_catalog_item($rawItem)
@@ -441,16 +436,19 @@ function bober_normalize_skin_catalog_item($rawItem)
         return null;
     }
 
+    $issueMode = bober_normalize_skin_issue_mode($rawItem['issue_mode'] ?? ($rawItem['issueMode'] ?? ''), $rawItem);
+
     return [
         'id' => $id,
         'name' => $name !== '' ? $name : $id,
         'price' => max(0, (int) ($rawItem['price'] ?? 0)),
         'image' => $image,
-        'default_owned' => !empty($rawItem['default_owned']),
+        'default_owned' => $issueMode === 'starter',
         'available' => array_key_exists('available', $rawItem) ? (bool) $rawItem['available'] : true,
         'rarity' => bober_normalize_skin_rarity($rawItem['rarity'] ?? ''),
         'category' => bober_normalize_skin_category($rawItem['category'] ?? ''),
-        'grant_only' => !empty($rawItem['grant_only']),
+        'issue_mode' => $issueMode,
+        'grant_only' => $issueMode === 'grant_only',
     ];
 }
 
