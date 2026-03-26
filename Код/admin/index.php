@@ -509,59 +509,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (requireAdminAuth($response)) {
                 $conn = connectDB();
                 bober_ensure_project_schema($conn);
-
-                $tablesResult = $conn->query('SHOW TABLES');
-                if ($tablesResult === false) {
-                    $response['message'] = 'Не удалось получить список таблиц';
-                } else {
-                    $tables = [];
-                    while ($row = $tablesResult->fetch_array()) {
-                        $tables[] = $row[0];
-                    }
-                    $tablesResult->free();
-
-                    $totalRows = 0;
-                    foreach ($tables as $tableName) {
-                        $safeTable = normalizeTableName($tableName);
-                        $countResult = $conn->query("SELECT COUNT(*) AS total FROM `{$safeTable}`");
-                        if ($countResult instanceof mysqli_result) {
-                            $countRow = $countResult->fetch_assoc();
-                            $totalRows += (int) ($countRow['total'] ?? 0);
-                            $countResult->free();
-                        }
-                    }
-
-                    $activeBans = 0;
-                    $flyPending = 0;
-                    $usersCount = 0;
-
-                    $activeBansResult = $conn->query("SELECT COUNT(*) AS total FROM `user_bans` WHERE `lifted_at` IS NULL AND `ban_until` > CURRENT_TIMESTAMP");
-                    if ($activeBansResult instanceof mysqli_result) {
-                        $activeBans = (int) ($activeBansResult->fetch_assoc()['total'] ?? 0);
-                        $activeBansResult->free();
-                    }
-
-                    $flyPendingResult = $conn->query("SELECT COALESCE(SUM(`pending_transfer_score`), 0) AS total FROM `fly_beaver_progress`");
-                    if ($flyPendingResult instanceof mysqli_result) {
-                        $flyPending = (int) ($flyPendingResult->fetch_assoc()['total'] ?? 0);
-                        $flyPendingResult->free();
-                    }
-
-                    $usersResult = $conn->query("SELECT COUNT(*) AS total FROM `users`");
-                    if ($usersResult instanceof mysqli_result) {
-                        $usersCount = (int) ($usersResult->fetch_assoc()['total'] ?? 0);
-                        $usersResult->free();
-                    }
-
-                    $response['success'] = true;
-                    $response['stats'] = [
-                        'table_count' => count($tables),
-                        'total_rows' => $totalRows,
-                        'active_bans' => $activeBans,
-                        'fly_pending_score' => $flyPending,
-                        'users_count' => $usersCount,
-                    ];
-                }
+                $forceRefresh = !empty($_POST['forceRefresh']);
+                $response['success'] = true;
+                $response['stats'] = bober_fetch_admin_dashboard_stats($conn, [
+                    'force_refresh' => $forceRefresh,
+                    'ttl_seconds' => 60,
+                ]);
 
                 $conn->close();
             }
@@ -2750,6 +2703,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             color: var(--on-surface);
             opacity: 0.7;
         }
+
+        .stats-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .stats-toolbar-meta {
+            color: var(--on-surface);
+            opacity: 0.72;
+            font-size: 13px;
+            line-height: 1.4;
+        }
         
         /* Модальные окна */
         .modal-overlay {
@@ -3538,6 +3506,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+
+            .stats-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
             
             .notification {
                 min-width: auto;
@@ -4289,6 +4262,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
     <main class="main-content" id="mainContent">
         <div class="container">
             <!-- Панель статистики -->
+            <div class="stats-toolbar" id="statsToolbar">
+                <div class="stats-toolbar-meta" id="statsCacheMeta">Живая статистика загружается...</div>
+                <button type="button" class="btn btn-secondary btn-small" id="refreshStatsBtn">
+                    <span class="material-icons" style="font-size: 18px;">refresh</span>
+                    <span>Обновить статистику</span>
+                </button>
+            </div>
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card animated fadeIn">
                     <div class="stat-icon primary">
@@ -5135,9 +5115,42 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             localStorage.setItem('queryCount', queryCount);
         }
 
-        function loadDashboardStats() {
+        function formatStatsTimestamp(value) {
+            const normalizedValue = typeof value === 'string' ? value.trim() : '';
+            if (!normalizedValue) {
+                return 'только что';
+            }
+
+            const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
+            if (Number.isNaN(parsedDate.getTime())) {
+                return normalizedValue;
+            }
+
+            return parsedDate.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function loadDashboardStats(forceRefresh = false) {
+            const refreshButton = document.getElementById('refreshStatsBtn');
+            const cacheMetaNode = document.getElementById('statsCacheMeta');
+
+            if (refreshButton) {
+                refreshButton.disabled = true;
+            }
+            if (cacheMetaNode) {
+                cacheMetaNode.textContent = forceRefresh
+                    ? 'Принудительно пересчитываем статистику...'
+                    : 'Обновляем статистику панели...';
+            }
+
             postAction({
-                action: 'get_dashboard_stats'
+                action: 'get_dashboard_stats',
+                forceRefresh: forceRefresh ? 1 : 0
             })
             .then(data => {
                 if (!data.success || !data.stats) {
@@ -5148,9 +5161,24 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 document.getElementById('totalRows').textContent = Number(data.stats.active_bans || 0).toLocaleString('ru-RU');
                 document.getElementById('tableCount').title = `Таблиц в базе: ${Number(data.stats.table_count || 0).toLocaleString('ru-RU')}`;
                 document.getElementById('totalRows').title = `Очков в очереди из fly-beaver: ${Number(data.stats.fly_pending_score || 0).toLocaleString('ru-RU')}`;
+                if (cacheMetaNode) {
+                    const generatedAt = formatStatsTimestamp(data.stats.generated_at);
+                    const expiresAt = formatStatsTimestamp(data.stats.cache_expires_at);
+                    cacheMetaNode.textContent = data.stats.cached
+                        ? `Кэшировано: ${generatedAt}. До ${expiresAt} сервер отдаёт snapshot без полного пересчёта.`
+                        : `Обновлено: ${generatedAt}. Следующий запрос будет брать кэш до ${expiresAt}.`;
+                }
             })
             .catch(error => {
                 console.error('Error:', error);
+                if (cacheMetaNode) {
+                    cacheMetaNode.textContent = 'Не удалось загрузить статистику панели.';
+                }
+            })
+            .finally(() => {
+                if (refreshButton) {
+                    refreshButton.disabled = false;
+                }
             });
         }
 
@@ -5560,6 +5588,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 showStatistics();
                 closeSidebarForCompactViewport();
             });
+
+            const refreshStatsBtn = document.getElementById('refreshStatsBtn');
+            if (refreshStatsBtn) {
+                refreshStatsBtn.addEventListener('click', function() {
+                    loadDashboardStats(true);
+                });
+            }
             
             document.getElementById('sqlEditorBtn').addEventListener('click', function() {
                 showSqlEditor();
@@ -6066,6 +6101,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('skinsBtn');
             loadDashboardStats();
@@ -6433,6 +6469,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('accountsBtn');
             loadDashboardStats();
@@ -6449,6 +6486,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
             document.getElementById('statsGrid').style.display = 'grid';
             loadDashboardStats();
             
@@ -6463,6 +6501,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
+            document.getElementById('statsToolbar').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'none';
             
             // Обновляем активный элемент меню
@@ -8221,6 +8260,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'none';
             document.getElementById('statsGrid').style.display = 'none';
             document.querySelectorAll('.table-item').forEach(item => {
                 item.classList.toggle('active', item.dataset.table === table);

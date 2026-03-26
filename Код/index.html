@@ -2036,7 +2036,7 @@ Owner decisions:
     .skin-shop-feature-copy {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         text-align: left;
     }
 
@@ -2071,8 +2071,12 @@ Owner decisions:
 
     .skin-shop-feature-tip {
         font-size: 13px;
-        line-height: 1.5;
+        line-height: 1.35;
         color: rgba(255,255,255,0.8);
+    }
+
+    .skin-shop-feature-tip:empty {
+        display: none;
     }
 
     .footer {
@@ -2298,7 +2302,7 @@ Owner decisions:
 </style>
 </head>
 <body>
-    <!-- Контейнер уведомлений -->
+<!-- Контейнер уведомлений -->
 <div class="notification-container" id="notifications"></div>
 <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
     <div class="loading-overlay-card">
@@ -2309,6 +2313,7 @@ Owner decisions:
 </div>
 
 <!-- Функция уведомлений -->
+<script src="shared-client.js"></script>
 <script>
 function showNotification(message, type = 'success', duration = 3000) {
     const container = document.getElementById('notifications');
@@ -2793,11 +2798,12 @@ let plus = 1;
 let energy = 5000;
 let lastEnergyUpdate = Date.now();
 let energy_max = 5000;
+const SHARED_CLIENT = window.BoberSharedClient || {};
 const ENERGY_REGEN_TIME = 15 * 60 * 1000;
 let ENERGY_REGEN_PER_MS = 0;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
-const DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
+const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
 const UPGRADE_BASE_COSTS = Object.freeze({
     tapSmall: 5000,
     tapBig: 20000,
@@ -3748,8 +3754,8 @@ function updateSkinShopControls() {
     if (metaNode) {
         const ownedVisibleCount = visibleItems.filter((item) => isSkinOwned(item.id)).length;
         metaNode.textContent = userId
-            ? `Показано ${visibleItems.length} • Куплено ${ownedVisibleCount}`
-            : `Показано ${visibleItems.length} • Войдите для покупок`;
+            ? `${visibleItems.length} в подборке • ${ownedVisibleCount} куплено`
+            : `${visibleItems.length} в подборке • нужен вход`;
     }
 }
 
@@ -3803,7 +3809,7 @@ function updateSkinShopFeature(skinId = '') {
         featureNameNode.textContent = 'Скины не найдены';
         featureStatusNode.textContent = 'Пусто';
         featureMetaNode.innerHTML = '';
-        featureTipNode.textContent = 'Попробуйте сменить категорию или сортировку.';
+        featureTipNode.textContent = '';
         return;
     }
 
@@ -3819,28 +3825,28 @@ function updateSkinShopFeature(skinId = '') {
 
     if (focusedSkin.available === false) {
         featureStatusNode.textContent = 'Скоро';
-        featureTipNode.textContent = 'Этот скин ещё не открыт для покупки.';
+        featureTipNode.textContent = '';
     } else if (focusedSkin.issueMode === 'grant_only' && !owned) {
-        featureStatusNode.textContent = 'Ручная выдача';
-        featureTipNode.textContent = 'Скин выдается через админку и не покупается в магазине.';
+        featureStatusNode.textContent = 'Выдача';
+        featureTipNode.textContent = 'Только через админку.';
     } else if (focusedSkin.issueMode === 'starter' && !owned) {
         featureStatusNode.textContent = 'Стартовый';
-        featureTipNode.textContent = 'Этот скин предназначен для новых игроков.';
+        featureTipNode.textContent = '';
     } else if (!userId) {
         featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
-        featureTipNode.textContent = 'Войдите в аккаунт, чтобы покупать и устанавливать скины.';
+        featureTipNode.textContent = 'Войдите, чтобы купить.';
     } else if (equipped) {
-        featureStatusNode.textContent = 'Сейчас надет';
-        featureTipNode.textContent = 'Этот скин уже установлен на бобре.';
+        featureStatusNode.textContent = 'Надет';
+        featureTipNode.textContent = '';
     } else if (owned) {
-        featureStatusNode.textContent = 'Уже куплен';
-        featureTipNode.textContent = 'Нажмите на карточку скина, чтобы установить его.';
+        featureStatusNode.textContent = 'Куплен';
+        featureTipNode.textContent = '';
     } else if (score >= focusedSkin.price) {
         featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
-        featureTipNode.textContent = 'Средств хватает: нажмите на карточку, чтобы подтвердить покупку.';
+        featureTipNode.textContent = 'Можно купить.';
     } else {
         featureStatusNode.textContent = `${formatCompactNumber(focusedSkin.price)} коинов`;
-        featureTipNode.textContent = getSkinShortageMessage(focusedSkin.price);
+        featureTipNode.textContent = `Не хватает ${formatCompactNumber(Math.max(0, Number(focusedSkin.price || 0) - score))}.`;
     }
 }
 
@@ -4498,7 +4504,9 @@ function formatCompactNumber(value) {
 }
 
 function calculateFlyRewardCoins(scoreValue) {
-    return Math.max(0, Number(scoreValue) || 0) * 500;
+    return SHARED_CLIENT.calculateFlyRewardCoins
+        ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue)
+        : Math.max(0, Number(scoreValue) || 0) * 500;
 }
 
 function updateFlyRewardUI() {
@@ -4542,64 +4550,29 @@ function updateFlyRewardUI() {
 }
 
 function normalizeBanInfoObject(rawBanInfo) {
-    if (!rawBanInfo || typeof rawBanInfo !== 'object') {
-        return null;
-    }
-
-    const banUntil = typeof rawBanInfo.banUntil === 'string' ? rawBanInfo.banUntil.trim() : '';
-    const durationDays = Number.isFinite(Number(rawBanInfo.durationDays)) ? Math.max(0, Number(rawBanInfo.durationDays)) : 0;
-    const storedAt = Number.isFinite(Number(rawBanInfo.storedAt)) ? Math.max(0, Number(rawBanInfo.storedAt)) : 0;
-    const type = rawBanInfo.type === 'ip' ? 'ip' : 'account';
-    const isPermanent = Boolean(rawBanInfo.isPermanent) || (banUntil !== '' && String(banUntil).startsWith('2099-'));
-
-    return {
-        type,
-        reason: String(rawBanInfo.reason || (type === 'ip' ? 'Блокировка по IP' : 'Блокировка аккаунта')).trim(),
-        message: String(rawBanInfo.message || '').trim(),
-        banUntil,
-        durationDays,
-        isRepeat: Boolean(rawBanInfo.isRepeat),
-        isPermanent,
-        ipAddress: String(rawBanInfo.ipAddress || '').trim(),
-        userAgent: String(rawBanInfo.userAgent || '').trim(),
-        storedAt
-    };
+    return SHARED_CLIENT.normalizeBanInfo
+        ? SHARED_CLIENT.normalizeBanInfo(rawBanInfo)
+        : null;
 }
 
 function getStoredDeviceBanEndTimestamp(banInfo) {
-    const normalizedBan = normalizeBanInfoObject(banInfo);
-    if (!normalizedBan) {
-        return 0;
-    }
-
-    if (normalizedBan.isPermanent) {
-        return Number.POSITIVE_INFINITY;
-    }
-
-    if (normalizedBan.banUntil) {
-        const parsedBanUntil = Date.parse(String(normalizedBan.banUntil).replace(' ', 'T'));
-        if (Number.isFinite(parsedBanUntil) && parsedBanUntil > 0) {
-            return parsedBanUntil;
-        }
-    }
-
-    if (normalizedBan.durationDays > 0 && normalizedBan.storedAt > 0) {
-        return normalizedBan.storedAt + normalizedBan.durationDays * 24 * 60 * 60 * 1000;
-    }
-
-    return 0;
+    return SHARED_CLIENT.getStoredDeviceBanEndTimestamp
+        ? SHARED_CLIENT.getStoredDeviceBanEndTimestamp(banInfo)
+        : 0;
 }
 
 function isStoredDeviceBanActive(banInfo) {
-    const endTimestamp = getStoredDeviceBanEndTimestamp(banInfo);
-    if (!endTimestamp) {
-        return false;
-    }
-
-    return endTimestamp === Number.POSITIVE_INFINITY || endTimestamp > Date.now();
+    return SHARED_CLIENT.isStoredDeviceBanActive
+        ? SHARED_CLIENT.isStoredDeviceBanActive(banInfo)
+        : false;
 }
 
 function clearStoredDeviceBanInfo() {
+    if (SHARED_CLIENT.clearStoredDeviceBanInfo) {
+        SHARED_CLIENT.clearStoredDeviceBanInfo();
+        return;
+    }
+
     try {
         localStorage.removeItem(DEVICE_BAN_STORAGE_KEY);
     } catch (error) {
@@ -4608,43 +4581,16 @@ function clearStoredDeviceBanInfo() {
 }
 
 function readStoredDeviceBanInfo() {
-    try {
-        const rawBanInfo = localStorage.getItem(DEVICE_BAN_STORAGE_KEY);
-        if (!rawBanInfo) {
-            return null;
-        }
-
-        const parsedBanInfo = JSON.parse(rawBanInfo);
-        const normalizedBan = normalizeBanInfoObject(parsedBanInfo);
-        if (!normalizedBan || !isStoredDeviceBanActive(normalizedBan)) {
-            clearStoredDeviceBanInfo();
-            return null;
-        }
-
-        return normalizedBan;
-    } catch (error) {
-        console.warn('Не удалось прочитать локальную метку бана.', error);
-        clearStoredDeviceBanInfo();
-        return null;
+    if (SHARED_CLIENT.readStoredDeviceBanInfo) {
+        return SHARED_CLIENT.readStoredDeviceBanInfo();
     }
+
+    return null;
 }
 
 function persistStoredDeviceBanInfo(banInfo) {
-    const normalizedBan = normalizeBanInfoObject(banInfo);
-    if (!normalizedBan) {
-        return;
-    }
-
-    const storedBan = {
-        ...normalizedBan,
-        storedAt: Date.now(),
-        userAgent: normalizedBan.userAgent || navigator.userAgent || ''
-    };
-
-    try {
-        localStorage.setItem(DEVICE_BAN_STORAGE_KEY, JSON.stringify(storedBan));
-    } catch (error) {
-        console.warn('Не удалось записать локальную метку бана.', error);
+    if (SHARED_CLIENT.persistStoredDeviceBanInfo) {
+        SHARED_CLIENT.persistStoredDeviceBanInfo(banInfo);
     }
 }
 
@@ -4661,31 +4607,9 @@ function setBanInfo(banInfo, options = {}) {
 }
 
 function normalizeBanPayload(payload) {
-    if (!payload || typeof payload !== 'object') {
-        return null;
-    }
-
-    if (payload.ban && typeof payload.ban === 'object') {
-        return normalizeBanInfoObject({
-            ...payload.ban,
-            type: payload.ban.type || 'account'
-        });
-    }
-
-    if (payload.ipBan && typeof payload.ipBan === 'object') {
-        return normalizeBanInfoObject({
-            type: 'ip',
-            reason: payload.ipBan.reason || 'Блокировка по IP',
-            message: payload.ipBan.message || 'С этого IP временно ограничен доступ.',
-            banUntil: payload.ipBan.banUntil || '',
-            durationDays: Number(payload.ipBan.durationDays) > 0 ? Number(payload.ipBan.durationDays) : 5,
-            isRepeat: Boolean(payload.ipBan.isRepeat),
-            isPermanent: Boolean(payload.ipBan.isPermanent),
-            ipAddress: payload.ipBan.ipAddress || ''
-        });
-    }
-
-    return null;
+    return SHARED_CLIENT.extractBanPayload
+        ? SHARED_CLIENT.extractBanPayload(payload)
+        : null;
 }
 
 function tryHandleBanError(error) {
@@ -5668,26 +5592,11 @@ function renderLeaderboard(players) {
 }
 
 async function requestJson(url, options = {}) {
-    const response = await fetch(url, {
-        credentials: 'include',
-        ...options,
-    });
-    let data;
-
-    try {
-        data = await response.json();
-    } catch (error) {
-        throw new Error('Сервер вернул некорректный ответ.');
+    if (SHARED_CLIENT.requestJson) {
+        return SHARED_CLIENT.requestJson(url, options);
     }
 
-    if (!response.ok) {
-        const error = new Error(data && data.message ? data.message : `HTTP ${response.status}`);
-        error.status = response.status;
-        error.payload = data;
-        throw error;
-    }
-
-    return data;
+    throw new Error('Общий клиентский модуль не загружен.');
 }
 
 async function loadSkinCatalog() {

@@ -690,6 +690,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         </div>
     </div>
 
+    <script src="shared-client.js"></script>
     <script>
         // Получаем элементы
         const canvas = document.getElementById('game-canvas');
@@ -762,11 +763,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let cloudSaveInFlight = false;
         let isCloudPanelExpanded = false;
         let lastFrameTime = 0;
+        const SHARED_CLIENT = window.BoberSharedClient || {};
         const TARGET_FRAME_MS = 1000 / 60;
-        const DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
+        const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
         const FLY_TRANSFER_MIN_SCORE = 25;
         const FLY_CREDIT_MIN_SCORE = 15;
-        const FLY_COINS_PER_SCORE = 500;
+        const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
         let accountState = {
             userId: null,
             login: '',
@@ -817,60 +819,29 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function normalizeStoredDeviceBan(rawBan) {
-            if (!rawBan || typeof rawBan !== 'object') {
-                return null;
-            }
-
-            const banUntil = typeof rawBan.banUntil === 'string' ? rawBan.banUntil.trim() : '';
-            const durationDays = Number.isFinite(Number(rawBan.durationDays)) ? Math.max(0, Number(rawBan.durationDays)) : 0;
-            const storedAt = Number.isFinite(Number(rawBan.storedAt)) ? Math.max(0, Number(rawBan.storedAt)) : 0;
-            const type = rawBan.type === 'ip' ? 'ip' : 'account';
-            const isPermanent = Boolean(rawBan.isPermanent) || (banUntil !== '' && String(banUntil).startsWith('2099-'));
-
-            return {
-                type,
-                reason: String(rawBan.reason || (type === 'ip' ? 'Блокировка по IP' : 'Блокировка аккаунта')).trim(),
-                message: String(rawBan.message || '').trim(),
-                banUntil,
-                durationDays,
-                isPermanent,
-                isRepeat: Boolean(rawBan.isRepeat),
-                ipAddress: String(rawBan.ipAddress || '').trim(),
-                userAgent: String(rawBan.userAgent || '').trim(),
-                storedAt
-            };
+            return SHARED_CLIENT.normalizeBanInfo
+                ? SHARED_CLIENT.normalizeBanInfo(rawBan)
+                : null;
         }
 
         function getStoredDeviceBanEndTimestamp(banInfo) {
-            const normalizedBan = normalizeStoredDeviceBan(banInfo);
-            if (!normalizedBan) {
-                return 0;
-            }
-
-            if (normalizedBan.isPermanent) {
-                return Number.POSITIVE_INFINITY;
-            }
-
-            if (normalizedBan.banUntil) {
-                const parsedBanUntil = Date.parse(String(normalizedBan.banUntil).replace(' ', 'T'));
-                if (Number.isFinite(parsedBanUntil) && parsedBanUntil > 0) {
-                    return parsedBanUntil;
-                }
-            }
-
-            if (normalizedBan.durationDays > 0 && normalizedBan.storedAt > 0) {
-                return normalizedBan.storedAt + normalizedBan.durationDays * 24 * 60 * 60 * 1000;
-            }
-
-            return 0;
+            return SHARED_CLIENT.getStoredDeviceBanEndTimestamp
+                ? SHARED_CLIENT.getStoredDeviceBanEndTimestamp(banInfo)
+                : 0;
         }
 
         function isStoredDeviceBanActive(banInfo) {
-            const endTimestamp = getStoredDeviceBanEndTimestamp(banInfo);
-            return endTimestamp === Number.POSITIVE_INFINITY || endTimestamp > Date.now();
+            return SHARED_CLIENT.isStoredDeviceBanActive
+                ? SHARED_CLIENT.isStoredDeviceBanActive(banInfo)
+                : false;
         }
 
         function clearStoredDeviceBan() {
+            if (SHARED_CLIENT.clearStoredDeviceBanInfo) {
+                SHARED_CLIENT.clearStoredDeviceBanInfo();
+                return;
+            }
+
             try {
                 localStorage.removeItem(DEVICE_BAN_STORAGE_KEY);
             } catch (error) {
@@ -879,41 +850,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function readStoredDeviceBan() {
-            try {
-                const rawBan = localStorage.getItem(DEVICE_BAN_STORAGE_KEY);
-                if (!rawBan) {
-                    return null;
-                }
-
-                const parsedBan = JSON.parse(rawBan);
-                const normalizedBan = normalizeStoredDeviceBan(parsedBan);
-                if (!normalizedBan || !isStoredDeviceBanActive(normalizedBan)) {
-                    clearStoredDeviceBan();
-                    return null;
-                }
-
-                return normalizedBan;
-            } catch (error) {
-                console.warn('Не удалось прочитать локальную метку бана.', error);
-                clearStoredDeviceBan();
-                return null;
+            if (SHARED_CLIENT.readStoredDeviceBanInfo) {
+                return SHARED_CLIENT.readStoredDeviceBanInfo();
             }
+
+            return null;
         }
 
         function persistStoredDeviceBan(banInfo) {
-            const normalizedBan = normalizeStoredDeviceBan(banInfo);
-            if (!normalizedBan) {
-                return;
-            }
-
-            try {
-                localStorage.setItem(DEVICE_BAN_STORAGE_KEY, JSON.stringify({
-                    ...normalizedBan,
-                    storedAt: Date.now(),
-                    userAgent: normalizedBan.userAgent || navigator.userAgent || ''
-                }));
-            } catch (error) {
-                console.warn('Не удалось сохранить локальную метку бана.', error);
+            if (SHARED_CLIENT.persistStoredDeviceBanInfo) {
+                SHARED_CLIENT.persistStoredDeviceBanInfo(banInfo);
             }
         }
 
@@ -989,63 +935,17 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function requestJson(url, options = {}) {
-            return fetch(url, {
-                credentials: 'include',
-                ...options
-            }).then(async response => {
-                let data = null;
+            if (SHARED_CLIENT.requestJson) {
+                return SHARED_CLIENT.requestJson(url, options);
+            }
 
-                try {
-                    data = await response.json();
-                } catch (error) {
-                    throw new Error('Сервер вернул некорректный ответ.');
-                }
-
-                if (!response.ok) {
-                    const error = new Error(data && data.message ? data.message : `HTTP ${response.status}`);
-                    error.status = response.status;
-                    error.payload = data;
-                    throw error;
-                }
-
-                return data;
-            });
+            return Promise.reject(new Error('Общий клиентский модуль не загружен.'));
         }
 
         function extractCloudBanPayload(error) {
-            const payload = error && error.payload && typeof error.payload === 'object'
-                ? error.payload
+            return SHARED_CLIENT.extractBanPayload
+                ? SHARED_CLIENT.extractBanPayload(error)
                 : null;
-
-            if (!payload) {
-                return null;
-            }
-
-            if (payload.ban && typeof payload.ban === 'object') {
-                return normalizeStoredDeviceBan({
-                    type: 'account',
-                    reason: payload.ban.reason || 'Блокировка аккаунта',
-                    banUntil: payload.ban.banUntil || '',
-                    durationDays: Number(payload.ban.durationDays) > 0 ? Number(payload.ban.durationDays) : 0,
-                    isPermanent: Boolean(payload.ban.isPermanent),
-                    ipAddress: payload.ban.ipAddress || '',
-                    message: payload.ban.message || ''
-                });
-            }
-
-            if (payload.ipBan && typeof payload.ipBan === 'object') {
-                return normalizeStoredDeviceBan({
-                    type: 'ip',
-                    reason: payload.ipBan.reason || 'Блокировка по IP',
-                    banUntil: payload.ipBan.banUntil || '',
-                    durationDays: Number(payload.ipBan.durationDays) > 0 ? Number(payload.ipBan.durationDays) : 0,
-                    isPermanent: Boolean(payload.ipBan.isPermanent),
-                    ipAddress: payload.ipBan.ipAddress || '',
-                    message: payload.ipBan.message || ''
-                });
-            }
-
-            return null;
         }
 
         function extractCloudSessionEndedPayload(error) {
@@ -1082,7 +982,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function calculateFlyRewardCoins(scoreValue) {
-            return Math.max(0, Number(scoreValue) || 0) * FLY_COINS_PER_SCORE;
+            return SHARED_CLIENT.calculateFlyRewardCoins
+                ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, FLY_COINS_PER_SCORE)
+                : Math.max(0, Number(scoreValue) || 0) * FLY_COINS_PER_SCORE;
         }
 
         function setFlyLoadingOverlay(visible, title = 'Загрузка', text = 'Подготавливаем игру...') {

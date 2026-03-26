@@ -914,6 +914,20 @@ SQL;
 
     $conn->query($createAuditSql);
 
+    $createRuntimeCacheSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `runtime_cache` (
+    `cache_key` VARCHAR(120) PRIMARY KEY,
+    `payload_json` LONGTEXT NULL,
+    `expires_at` DATETIME NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createRuntimeCacheSql)) {
+        throw new RuntimeException('Не удалось создать таблицу runtime-кэша.');
+    }
+
     $configuredHash = bober_configured_admin_password_hash();
     $result = $conn->query("SELECT `id`, `password_hash` FROM `pass` ORDER BY `id` ASC LIMIT 1");
 
@@ -1009,6 +1023,189 @@ function bober_admin_log_action($conn, $actionType, $details = [])
     $stmt->bind_param('ssssis', $adminName, $actionType, $targetTable, $queryText, $affectedRows, $metaJson);
     $stmt->execute();
     $stmt->close();
+}
+
+function bober_runtime_cache_fetch($conn, $cacheKey)
+{
+    if (!($conn instanceof mysqli)) {
+        return null;
+    }
+
+    bober_ensure_admin_schema($conn);
+
+    $cacheKey = trim((string) $cacheKey);
+    if ($cacheKey === '') {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT `payload_json`, `updated_at`, `expires_at` FROM `runtime_cache` WHERE `cache_key` = ? LIMIT 1');
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('s', $cacheKey);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return null;
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    $expiresAt = isset($row['expires_at']) ? trim((string) $row['expires_at']) : '';
+    if ($expiresAt !== '') {
+        $expiresAtTs = strtotime($expiresAt);
+        if ($expiresAtTs !== false && $expiresAtTs <= time()) {
+            return null;
+        }
+    }
+
+    $payload = [];
+    if (!empty($row['payload_json']) && is_string($row['payload_json'])) {
+        $decoded = json_decode($row['payload_json'], true);
+        if (is_array($decoded)) {
+            $payload = $decoded;
+        }
+    }
+
+    return [
+        'payload' => $payload,
+        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+        'expiresAt' => $expiresAt !== '' ? $expiresAt : null,
+    ];
+}
+
+function bober_runtime_cache_store($conn, $cacheKey, $payload, $ttlSeconds = 60)
+{
+    if (!($conn instanceof mysqli)) {
+        return false;
+    }
+
+    bober_ensure_admin_schema($conn);
+
+    $cacheKey = trim((string) $cacheKey);
+    if ($cacheKey === '') {
+        return false;
+    }
+
+    $ttlSeconds = max(1, (int) $ttlSeconds);
+    $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($payloadJson === false) {
+        return false;
+    }
+
+    $expiresAt = date('Y-m-d H:i:s', time() + $ttlSeconds);
+    $stmt = $conn->prepare('INSERT INTO `runtime_cache` (`cache_key`, `payload_json`, `expires_at`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `payload_json` = VALUES(`payload_json`), `expires_at` = VALUES(`expires_at`), `updated_at` = CURRENT_TIMESTAMP');
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('sss', $cacheKey, $payloadJson, $expiresAt);
+    $success = $stmt->execute();
+    $stmt->close();
+
+    return $success;
+}
+
+function bober_collect_admin_dashboard_stats($conn)
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для статистики админки.');
+    }
+
+    bober_ensure_project_schema($conn);
+
+    $tablesResult = $conn->query('SHOW TABLES');
+    if ($tablesResult === false) {
+        throw new RuntimeException('Не удалось получить список таблиц.');
+    }
+
+    $tables = [];
+    while ($row = $tablesResult->fetch_array()) {
+        if (!empty($row[0])) {
+            $tables[] = bober_require_identifier($row[0], 'Имя таблицы');
+        }
+    }
+    $tablesResult->free();
+
+    $totalRows = 0;
+    foreach ($tables as $tableName) {
+        $countResult = $conn->query("SELECT COUNT(*) AS total FROM `{$tableName}`");
+        if ($countResult instanceof mysqli_result) {
+            $countRow = $countResult->fetch_assoc();
+            $totalRows += (int) ($countRow['total'] ?? 0);
+            $countResult->free();
+        }
+    }
+
+    $activeBans = 0;
+    $flyPending = 0;
+    $usersCount = 0;
+
+    $activeBansResult = $conn->query("SELECT COUNT(*) AS total FROM `user_bans` WHERE `lifted_at` IS NULL AND `ban_until` > CURRENT_TIMESTAMP");
+    if ($activeBansResult instanceof mysqli_result) {
+        $activeBans = (int) ($activeBansResult->fetch_assoc()['total'] ?? 0);
+        $activeBansResult->free();
+    }
+
+    $flyPendingResult = $conn->query("SELECT COALESCE(SUM(`pending_transfer_score`), 0) AS total FROM `fly_beaver_progress`");
+    if ($flyPendingResult instanceof mysqli_result) {
+        $flyPending = (int) ($flyPendingResult->fetch_assoc()['total'] ?? 0);
+        $flyPendingResult->free();
+    }
+
+    $usersResult = $conn->query("SELECT COUNT(*) AS total FROM `users`");
+    if ($usersResult instanceof mysqli_result) {
+        $usersCount = (int) ($usersResult->fetch_assoc()['total'] ?? 0);
+        $usersResult->free();
+    }
+
+    return [
+        'table_count' => count($tables),
+        'total_rows' => $totalRows,
+        'active_bans' => $activeBans,
+        'fly_pending_score' => $flyPending,
+        'users_count' => $usersCount,
+        'generated_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function bober_fetch_admin_dashboard_stats($conn, $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для статистики админки.');
+    }
+
+    $forceRefresh = !empty($options['force_refresh']);
+    $ttlSeconds = max(1, (int) ($options['ttl_seconds'] ?? 60));
+
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, 'admin_dashboard_stats');
+        if (is_array($cached) && is_array($cached['payload'] ?? null)) {
+            return array_merge($cached['payload'], [
+                'cached' => true,
+                'cache_updated_at' => $cached['updatedAt'] ?? null,
+                'cache_expires_at' => $cached['expiresAt'] ?? null,
+            ]);
+        }
+    }
+
+    $stats = bober_collect_admin_dashboard_stats($conn);
+    bober_runtime_cache_store($conn, 'admin_dashboard_stats', $stats, $ttlSeconds);
+
+    return array_merge($stats, [
+        'cached' => false,
+        'cache_updated_at' => $stats['generated_at'],
+        'cache_expires_at' => date('Y-m-d H:i:s', time() + $ttlSeconds),
+    ]);
 }
 
 function bober_log_user_activity($conn, $userId, $actionType, $details = [])
