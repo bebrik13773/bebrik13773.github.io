@@ -633,7 +633,9 @@ Owner decisions:
 			padding: 8px 16px;
 			font-size: 16px;
 			font-weight: 700;
-			display: none;
+			display: inline-flex;
+			align-items: center;
+			justify-content: flex-start;
 			box-shadow: 0 10px 22px rgba(14, 15, 35, 0.18);
 		}
 		#skinShop {
@@ -941,13 +943,14 @@ Owner decisions:
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        gap: 14px;
-        margin-bottom: 14px;
+        gap: 16px;
+        margin-bottom: 16px;
     }
 
     .auth-modal-head-copy {
         flex: 1;
         min-width: 0;
+        padding-top: 2px;
     }
 
     .auth-modal-kicker {
@@ -1282,8 +1285,8 @@ Owner decisions:
         .auth-modal-head {
             align-items: stretch;
             flex-direction: column;
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 12px;
+            margin-bottom: 14px;
         }
 
         .auth-modal-close {
@@ -1797,6 +1800,9 @@ Owner decisions:
     #sessionsButton {
         width: 100%;
         margin: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
         background: rgba(255, 255, 255, 0.05);
         color: #f8fbff;
         text-align: left;
