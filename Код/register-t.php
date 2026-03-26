@@ -60,13 +60,14 @@ try {
     $upgradeTapSmallCount = 0;
     $upgradeTapBigCount = 0;
     $upgradeEnergyCount = 0;
+    $upgradeTapHugeCount = 0;
 
-    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('ssisisiiiii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount);
+    $stmt->bind_param('ssisisiiiiii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount);
 
     if (!$stmt->execute()) {
         $stmt->close();
@@ -107,6 +108,7 @@ try {
             'tapSmall' => $upgradeTapSmallCount,
             'tapBig' => $upgradeTapBigCount,
             'energy' => $upgradeEnergyCount,
+            'tapHuge' => $upgradeTapHugeCount,
         ],
         'flyBeaver' => $flyBeaver,
     ]);

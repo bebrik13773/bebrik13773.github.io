@@ -33,11 +33,12 @@ try {
     $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
     $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
     $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
+    $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
 
     $conn = bober_db_connect();
     bober_enforce_runtime_access_rules($conn, $userId);
 
-    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count FROM users WHERE id = ? LIMIT 1');
+    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count FROM users WHERE id = ? LIMIT 1');
     if (!$currentStmt) {
         throw new RuntimeException('Ошибка подготовки чтения текущего состояния.');
     }
@@ -55,12 +56,12 @@ try {
     }
     $currentStmt->close();
 
-    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ? WHERE id = ?');
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('iisisiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $userId);
+    $stmt->bind_param('iisisiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $userId);
 
     if (!$stmt->execute()) {
         $stmt->close();
@@ -76,6 +77,7 @@ try {
         $previousTapSmall = max(0, (int) ($currentRow['upgrade_tap_small_count'] ?? 0));
         $previousTapBig = max(0, (int) ($currentRow['upgrade_tap_big_count'] ?? 0));
         $previousEnergyPurchases = max(0, (int) ($currentRow['upgrade_energy_count'] ?? 0));
+        $previousTapHuge = max(0, (int) ($currentRow['upgrade_tap_huge_count'] ?? 0));
         $previousSkinState = bober_decode_skin_state((string) ($currentRow['skin'] ?? ''));
         $nextSkinState = bober_decode_skin_state($skin);
 
@@ -126,6 +128,23 @@ try {
                     'next_count' => $upgradeEnergyCount,
                     'previous_energy_max' => $previousEnergyMax,
                     'next_energy_max' => $energyMax,
+                ],
+            ]);
+        }
+
+        if ($upgradeTapHugeCount > $previousTapHuge) {
+            bober_log_user_activity($conn, $userId, 'upgrade_tap_huge_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение +100 к тапу.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousTapHuge,
+                    'next_count' => $upgradeTapHugeCount,
+                    'previous_plus' => $previousPlus,
+                    'next_plus' => $plus,
                 ],
             ]);
         }

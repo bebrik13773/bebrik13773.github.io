@@ -156,8 +156,7 @@ Owner decisions:
             transform: scale(1.11);
         }
         #loginForm, #registerForm {
-            display: none;
-            margin: 20px;
+            margin: 0;
         }
         #loginForm input,
         #registerForm input {
@@ -261,7 +260,7 @@ Owner decisions:
 			background-position: center;
 			color: #fff;
 			cursor: pointer;
-			min-height: 224px;
+			min-height: 272px;
 			padding: 14px;
 			display: flex;
 			flex-direction: column;
@@ -283,7 +282,7 @@ Owner decisions:
 			content: '';
 			position: absolute;
 			inset: 0;
-			background: linear-gradient(180deg, rgba(12, 10, 24, 0.02), rgba(12, 10, 24, 0.38) 58%, rgba(12, 10, 24, 0.64));
+			background: linear-gradient(180deg, rgba(12, 10, 24, 0.01), rgba(12, 10, 24, 0.08) 52%, rgba(12, 10, 24, 0.26) 80%, rgba(12, 10, 24, 0.4));
 			pointer-events: none;
 		}
 		.skin-shop-card > * {
@@ -313,10 +312,10 @@ Owner decisions:
 		.skin-shop-card-footer {
 			display: flex;
 			flex-direction: column;
-			gap: 8px;
-			padding: 12px;
+			gap: 6px;
+			padding: 9px 10px;
 			border-radius: 16px;
-			background: rgba(7, 12, 27, 0.34);
+			background: linear-gradient(180deg, rgba(6, 10, 24, 0.08), rgba(6, 10, 24, 0.34));
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -412,15 +411,15 @@ Owner decisions:
 				gap: 12px;
 			}
 			.skin-shop-card {
-				min-height: 170px;
+				min-height: 208px;
 				padding: 12px;
 			}
 			.skin-shop-card-name {
 				font-size: 16px;
 			}
 			.skin-shop-card-footer {
-				padding: 10px;
-				gap: 6px;
+				padding: 9px 10px;
+				gap: 5px;
 			}
 		}
 		#upgradeSection {
@@ -483,6 +482,11 @@ Owner decisions:
 			background:
 				radial-gradient(circle at top right, rgba(255, 223, 120, 0.3), transparent 42%),
 				linear-gradient(145deg, rgba(74, 53, 10, 0.96), rgba(34, 21, 5, 0.98));
+		}
+		.upgrade-card.tap-huge {
+			background:
+				radial-gradient(circle at top right, rgba(255, 154, 89, 0.34), transparent 42%),
+				linear-gradient(145deg, rgba(110, 37, 18, 0.97), rgba(46, 15, 7, 0.99));
 		}
 		.upgrade-card.locked {
 			filter: saturate(0.88);
@@ -928,6 +932,127 @@ Owner decisions:
         animation: skinModalIn 0.18s ease;
     }
 
+    .auth-modal {
+        width: min(100%, 560px);
+        padding: 24px 24px 20px;
+    }
+
+    .auth-modal-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .auth-modal-head-copy {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .auth-modal-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(126, 241, 255, 0.12);
+        border: 1px solid rgba(126, 241, 255, 0.16);
+        color: #d9ffff;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .auth-modal-close {
+        min-width: 0;
+        padding: 11px 14px;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: #f7fdff;
+        box-shadow: none;
+    }
+
+    .auth-modal-close:hover {
+        box-shadow: none;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .auth-modal-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        margin-bottom: 12px;
+        padding: 6px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .auth-modal-tab {
+        appearance: none;
+        border: none;
+        flex: 1;
+        min-width: 0;
+        border-radius: 14px;
+        padding: 11px 14px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .auth-modal-tab.active {
+        background: linear-gradient(180deg, rgba(80, 142, 255, 0.9), rgba(40, 90, 192, 0.96));
+        color: #fff;
+        box-shadow: 0 12px 24px rgba(5, 10, 28, 0.18);
+    }
+
+    .auth-modal .auth-panel {
+        display: none;
+        width: 100%;
+        margin: 0;
+        padding: 18px 0 0;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .auth-modal .auth-panel.is-active {
+        display: block;
+    }
+
+    .auth-modal .auth-panel h2 {
+        display: none;
+    }
+
+    .settings-modal {
+        width: min(100%, 480px);
+    }
+
+    .settings-modal-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    .settings-modal-item {
+        padding: 11px 13px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 14px;
+        line-height: 1.45;
+    }
+
     @keyframes skinModalIn {
         from {
             opacity: 0;
@@ -1154,6 +1279,22 @@ Owner decisions:
             max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
             overflow-y: auto;
             overscroll-behavior: contain;
+        }
+
+        .auth-modal {
+            width: min(100%, 440px);
+            padding: 18px 16px 16px;
+        }
+
+        .auth-modal-head {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .auth-modal-close {
+            width: 100%;
         }
 
         .skin-action-modal-title {
@@ -1457,7 +1598,60 @@ Owner decisions:
         width: min(100%, 620px);
         display: flex;
         justify-content: flex-end;
+        gap: 10px;
         margin: 0 auto 12px;
+    }
+
+    .top-utility-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .utility-glass-button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        background: rgba(8, 14, 31, 0.34);
+        color: #f4fbff;
+        min-height: 58px;
+        padding: 12px 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .utility-glass-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(126, 241, 255, 0.42);
+        background: rgba(8, 14, 31, 0.48);
+        box-shadow: 0 18px 28px rgba(5, 10, 28, 0.24);
+    }
+
+    .utility-glass-button:active {
+        transform: scale(0.97);
+    }
+
+    .utility-glass-button.settings {
+        min-width: 58px;
+        padding: 12px;
+        color: #d8ffff;
+        background: linear-gradient(180deg, rgba(19, 23, 53, 0.84), rgba(10, 13, 31, 0.88));
+    }
+
+    .utility-glass-icon {
+        font-size: 18px;
+        line-height: 1;
     }
 
     .profile-menu-shell {
@@ -1940,17 +2134,17 @@ Owner decisions:
     }
 
     .skin-shop-card {
-        min-height: 210px;
+        min-height: 236px;
     }
 
     .skin-shop-card::after {
-        background: linear-gradient(180deg, rgba(12, 10, 24, 0.01), rgba(12, 10, 24, 0.18) 54%, rgba(12, 10, 24, 0.42));
+        background: linear-gradient(180deg, rgba(12, 10, 24, 0.01), rgba(12, 10, 24, 0.08) 54%, rgba(12, 10, 24, 0.28));
     }
 
     .skin-shop-card-footer {
         gap: 6px;
-        padding: 9px 10px;
-        background: rgba(7, 12, 27, 0.18);
+        padding: 8px 9px;
+        background: rgba(7, 12, 27, 0.14);
     }
 
     .skin-shop-card-name {
@@ -2139,14 +2333,14 @@ Owner decisions:
 
     .skin-shop-feature {
         display: grid;
-        grid-template-columns: 120px minmax(0, 1fr);
-        gap: 14px;
+        grid-template-columns: 138px minmax(0, 1fr);
+        gap: 16px;
         align-items: center;
         margin-top: 12px;
     }
 
     .skin-shop-feature-preview {
-        min-height: 132px;
+        min-height: 152px;
         border-radius: 18px;
         background:
             linear-gradient(180deg, rgba(10, 10, 25, 0.06), rgba(10, 10, 25, 0.28)),
@@ -2272,6 +2466,15 @@ Owner decisions:
             margin-bottom: 10px;
         }
 
+        .top-utility-actions {
+            gap: 8px;
+        }
+
+        .utility-glass-button.settings {
+            min-width: 52px;
+            min-height: 52px;
+        }
+
         #shop {
             padding:
                 var(--mobile-top-clearance)
@@ -2340,13 +2543,13 @@ Owner decisions:
         }
 
         .skin-shop-card {
-            min-height: 138px;
-            padding: 9px;
+            min-height: 220px;
+            padding: 10px;
         }
 
         .skin-shop-card-footer {
             gap: 4px;
-            padding: 7px 8px;
+            padding: 8px 9px;
         }
 
         .skin-shop-card-name {
@@ -2372,7 +2575,7 @@ Owner decisions:
         }
 
         .upgrade-card {
-            min-height: 142px;
+            min-height: 132px;
             padding: 14px 12px;
         }
 
@@ -2420,7 +2623,7 @@ Owner decisions:
         }
 
         .skin-shop-feature-preview {
-            min-height: 156px;
+            min-height: 176px;
         }
 
         .skin-shop-feature-head {
@@ -2490,22 +2693,27 @@ function showNotification(message, type = 'success', duration = 3000) {
 <div id="clicerMex">
     <h1>БОБЕР 🦫 КЛИКЕР 2</h1>
     <div class="top-utility-bar">
-        <div class="profile-menu-shell" id="profileMenuShell" hidden>
-            <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true">
-                <span class="profile-menu-avatar">🦫</span>
-                <span class="profile-menu-text">
-                    <span class="profile-menu-label">Профиль</span>
-                    <span class="profile-menu-login" id="profileMenuLogin">Игрок</span>
-                </span>
-                <span class="profile-menu-chevron">▼</span>
+        <div class="top-utility-actions">
+            <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки">
+                <span class="utility-glass-icon">⚙️</span>
             </button>
-            <div class="profile-menu-dropdown" id="profileMenuDropdown">
-                <div class="profile-menu-summary">
-                    <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
-                    <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
+            <div class="profile-menu-shell" id="profileMenuShell" hidden>
+                <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true">
+                    <span class="profile-menu-avatar">🦫</span>
+                    <span class="profile-menu-text">
+                        <span class="profile-menu-label">Профиль</span>
+                        <span class="profile-menu-login" id="profileMenuLogin">Игрок</span>
+                    </span>
+                    <span class="profile-menu-chevron">▼</span>
+                </button>
+                <div class="profile-menu-dropdown" id="profileMenuDropdown">
+                    <div class="profile-menu-summary">
+                        <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
+                        <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
+                    </div>
+                    <button id="sessionsButton" type="button">Мои сессии</button>
+                    <button id="logoutButton" type="button">Выйти</button>
                 </div>
-                <button id="sessionsButton" type="button">Мои сессии</button>
-                <button id="logoutButton" type="button">Выйти</button>
             </div>
         </div>
     </div>
@@ -2545,22 +2753,6 @@ function showNotification(message, type = 'success', duration = 3000) {
 	    <h2> Admin </h2>
 		<button onclick="score = score +1000;">+1000</button>
 	</div>
-    <div id="loginForm" class="auth-panel">
-        <h2>Форма входа</h2>
-        <p class="auth-panel-subtitle">Быстрый вход в облачное сохранение, магазин и синхронизацию сессии между устройствами.</p>
-        <input type="text" id="login" placeholder="Логин" autocomplete="username">
-        <input type="password" id="password" placeholder="Пароль">
-        <button id="submitLogin">Войти</button>
-    </div>
-
-    <div id="registerForm" class="auth-panel">
-        <h2>Форма регистрации</h2>
-        <p class="auth-panel-subtitle">Новый аккаунт создаётся сразу с автовходом и облачным сохранением прогресса.</p>
-        <input type="text" id="regLogin" placeholder="Логин" maxlength="10" pattern="[A-Za-z0-9_-]{3,10}" title="3-10 символов: английские буквы, цифры, - и _" autocomplete="username">
-        <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
-        <div class="auth-panel-rule">Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</div>
-        <button id="submitRegister">Зарегистрироваться</button>
-    </div>
 <br>
 <button id="shopButton" onclick="shopShow()">Магазин</button>
 <br>
@@ -2606,6 +2798,17 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-badge">⚡</span>
         <span class="upgrade-card-title">Запас энергии</span>
         <span class="upgrade-card-meta">Увеличивает максимум энергии на 1000.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
+<button class="upgrade-card tap-huge" id="upgradeTap100Button" onclick="buyUpgradeHuge()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">+100</span>
+        <span class="upgrade-card-title">Мега-тап</span>
+        <span class="upgrade-card-meta">Большой скачок силы: каждое нажатие даёт на 100 коинов больше.</span>
     </span>
     <span class="upgrade-card-footer">
         <span class="upgrade-card-price"></span>
@@ -2731,6 +2934,53 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="session-conflict-list" id="sessionConflictList"></div>
         <div class="session-conflict-actions">
             <button type="button" class="skin-modal-cancel" id="sessionConflictCancel">Отмена</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="authModal" aria-hidden="true">
+    <div class="skin-action-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <div class="auth-modal-head">
+            <div class="auth-modal-head-copy">
+                <div class="auth-modal-kicker">Облачный аккаунт</div>
+                <div class="skin-action-modal-title" id="authModalTitle">Давай войдем в аккаунт!</div>
+                <div class="skin-action-modal-text" id="authModalText">Так откроются облачное сохранение, магазин, синхронизация между устройствами и профиль.</div>
+            </div>
+            <button type="button" class="auth-modal-close" id="authModalLater">Позже</button>
+        </div>
+        <div class="auth-modal-tabs">
+            <button type="button" class="auth-modal-tab active" id="authTabLogin">Войти</button>
+            <button type="button" class="auth-modal-tab" id="authTabRegister">Регистрация</button>
+        </div>
+        <div id="loginForm" class="auth-panel is-active">
+            <h2>Форма входа</h2>
+            <p class="auth-panel-subtitle">Быстрый вход в облачное сохранение, магазин и синхронизацию сессии между устройствами.</p>
+            <input type="text" id="login" placeholder="Логин" autocomplete="username">
+            <input type="password" id="password" placeholder="Пароль">
+            <button id="submitLogin">Войти</button>
+        </div>
+
+        <div id="registerForm" class="auth-panel">
+            <h2>Форма регистрации</h2>
+            <p class="auth-panel-subtitle">Новый аккаунт создаётся сразу с автовходом и облачным сохранением прогресса.</p>
+            <input type="text" id="regLogin" placeholder="Логин" maxlength="10" pattern="[A-Za-z0-9_-]{3,10}" title="3-10 символов: английские буквы, цифры, - и _" autocomplete="username">
+            <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
+            <div class="auth-panel-rule">Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</div>
+            <button id="submitRegister">Зарегистрироваться</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+    <div class="skin-action-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <div class="skin-action-modal-title" id="settingsModalTitle">Настройки скоро появятся</div>
+        <div class="skin-action-modal-text">Здесь будет отдельный экран с удобными переключателями и персональными опциями игры.</div>
+        <div class="settings-modal-list">
+            <div class="settings-modal-item">Звук и уведомления</div>
+            <div class="settings-modal-item">Вибрация и анимации</div>
+            <div class="settings-modal-item">Интенсивность визуальных эффектов</div>
+            <div class="settings-modal-item">Очистка локального кэша и управление сессиями</div>
+        </div>
+        <div class="skin-action-modal-buttons" style="margin-top: 18px;">
+            <button type="button" class="skin-modal-confirm install" id="settingsModalClose">Понятно</button>
         </div>
     </div>
 </div>
@@ -2960,7 +3210,8 @@ const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_de
 const UPGRADE_BASE_COSTS = Object.freeze({
     tapSmall: 5000,
     tapBig: 20000,
-    energy: 10000
+    energy: 10000,
+    tapHuge: 2500000
 });
 const SKIN_RARITY_ORDER = Object.freeze({
     common: 0,
@@ -3217,6 +3468,11 @@ const upgradeActionState = {
     type: '',
     quantity: 1
 };
+const authModalState = {
+    isOpen: false,
+    activeTab: 'login',
+    hasShownGuestPrompt: false
+};
 
 function getClientLogDeviceId() {
     if (!CLIENT_LOG_MANAGER) {
@@ -3350,7 +3606,9 @@ function syncGlobalOverlayState() {
     const hasOpenModal = [
         document.getElementById('skinActionModal'),
         document.getElementById('upgradeActionModal'),
-        document.getElementById('sessionConflictModal')
+        document.getElementById('sessionConflictModal'),
+        document.getElementById('authModal'),
+        document.getElementById('settingsModal')
     ].some((node) => node && node.classList.contains('show'));
     const loadingVisible = Boolean(document.getElementById('loadingOverlay') && document.getElementById('loadingOverlay').classList.contains('show'));
     document.body.classList.toggle('modal-open', hasOpenModal || loadingVisible);
@@ -3440,6 +3698,113 @@ function updateProfileMenuUI() {
     }
 }
 
+function setAuthModalTab(tab) {
+    const nextTab = tab === 'register' ? 'register' : 'login';
+    authModalState.activeTab = nextTab;
+    const loginTab = document.getElementById('authTabLogin');
+    const registerTab = document.getElementById('authTabRegister');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+
+    if (loginTab) {
+        loginTab.classList.toggle('active', nextTab === 'login');
+    }
+
+    if (registerTab) {
+        registerTab.classList.toggle('active', nextTab === 'register');
+    }
+
+    if (loginForm) {
+        loginForm.classList.toggle('is-active', nextTab === 'login');
+    }
+
+    if (registerForm) {
+        registerForm.classList.toggle('is-active', nextTab === 'register');
+    }
+}
+
+function openAuthModal(tab = 'login', options = {}) {
+    const modal = document.getElementById('authModal');
+    const titleNode = document.getElementById('authModalTitle');
+    const textNode = document.getElementById('authModalText');
+    const laterButton = document.getElementById('authModalLater');
+
+    if (!modal) {
+        return;
+    }
+
+    closeProfileMenu();
+    authModalState.isOpen = true;
+    setAuthModalTab(tab);
+
+    if (titleNode) {
+        titleNode.textContent = options.title || 'Давай войдем в аккаунт!';
+    }
+
+    if (textNode) {
+        textNode.textContent = options.text || 'Так откроются облачное сохранение, магазин, синхронизация между устройствами и профиль.';
+    }
+
+    if (laterButton) {
+        laterButton.textContent = options.laterLabel || 'Позже';
+        laterButton.hidden = options.allowLater === false;
+    }
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    window.requestAnimationFrame(() => {
+        const focusNode = document.getElementById(authModalState.activeTab === 'register' ? 'regLogin' : 'login');
+        if (focusNode && typeof focusNode.focus === 'function') {
+            focusNode.focus();
+        }
+    });
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (!modal) {
+        return;
+    }
+
+    authModalState.isOpen = false;
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+}
+
+function requestAuthModal(tab = 'login', options = {}) {
+    if (userId) {
+        return true;
+    }
+
+    openAuthModal(tab, options);
+    return false;
+}
+
+function openSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) {
+        return;
+    }
+
+    closeProfileMenu();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+}
+
 function getDefaultSkinState() {
     return {
         version: 2,
@@ -3494,7 +3859,8 @@ function getDefaultUpgradePurchaseCounts() {
     return {
         tapSmall: 0,
         tapBig: 0,
-        energy: 0
+        energy: 0,
+        tapHuge: 0
     };
 }
 
@@ -3569,14 +3935,14 @@ function updateRegenRate() {
 }
 
 function updateScoreUI() {
-    document.getElementById('score').innerText = 'Счет: ' + score;
+    document.getElementById('score').innerText = 'Счет: ' + formatCompactNumber(score);
     if (document.getElementById('shop').style.display === 'block') {
         updateSkinShopUI();
     }
 }
 
 function updateEnergyUI() {
-    document.getElementById('energy').innerText = Math.floor(energy);
+    document.getElementById('energy').innerText = formatCompactNumber(Math.floor(energy));
 }
 
 function skinLoad() {
@@ -3747,7 +4113,7 @@ function updateSkinShopUI() {
             } else if (!userId) {
                 statusNode.textContent = 'Нужен вход';
             } else if (isEquipped) {
-                statusNode.textContent = 'Установлен';
+                statusNode.textContent = 'Надет';
             } else if (isOwned) {
                 statusNode.textContent = 'Установить';
             } else if (score >= skinConfig.price) {
@@ -3770,7 +4136,7 @@ function updateSkinShopUI() {
                 badgeNode.textContent = '● Старт';
             } else if (isEquipped) {
                 badgeNode.classList.add('equipped');
-                badgeNode.textContent = '✓ Одет';
+                badgeNode.textContent = '✓ Надет';
             } else if (isOwned) {
                 badgeNode.classList.add('owned');
                 badgeNode.textContent = '◆ Куплен';
@@ -3953,6 +4319,13 @@ function getUpgradeDescriptor(type) {
             effectStep: 1000,
             purchaseCount: upgradePurchaseCounts.energy,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy)
+        },
+        tapHuge: {
+            title: 'Мега-тап',
+            effect: '+100 коинов за нажатие',
+            effectStep: 100,
+            purchaseCount: upgradePurchaseCounts.tapHuge,
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapHuge, upgradePurchaseCounts.tapHuge)
         }
     };
 
@@ -4002,7 +4375,7 @@ function normalizeUpgradeModalQuantity(type, quantity) {
     }
 
     const maxAffordable = Math.max(1, calculateMaxAffordableUpgradeQuantity(
-        type === 'tapSmall' ? UPGRADE_BASE_COSTS.tapSmall : (type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy),
+        getUpgradeBaseCost(type),
         descriptor.purchaseCount,
         score
     ));
@@ -4017,9 +4390,7 @@ function updateUpgradeActionModalView() {
         return;
     }
 
-    const baseCost = upgradeActionState.type === 'tapSmall'
-        ? UPGRADE_BASE_COSTS.tapSmall
-        : (upgradeActionState.type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+    const baseCost = getUpgradeBaseCost(upgradeActionState.type);
     const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score);
     const quantity = normalizeUpgradeModalQuantity(upgradeActionState.type, upgradeActionState.quantity);
     const totalPrice = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, quantity);
@@ -4134,12 +4505,10 @@ function performUpgradePurchase(type, quantity = 1) {
     }
 
     const safeQuantity = normalizeUpgradeModalQuantity(type, quantity);
-    const baseCost = type === 'tapSmall'
-        ? UPGRADE_BASE_COSTS.tapSmall
-        : (type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+    const baseCost = getUpgradeBaseCost(type);
     const currentCost = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, safeQuantity);
     if (score < currentCost) {
-        showNotification(getUpgradeShortageMessage(currentCost), 'error');
+        showUpgradeActionModal(type);
         return;
     }
 
@@ -4153,6 +4522,9 @@ function performUpgradePurchase(type, quantity = 1) {
         energy_max += 1000 * safeQuantity;
         upgradePurchaseCounts.energy += safeQuantity;
         updateRegenRate();
+    } else if (type === 'tapHuge') {
+        plus += 100 * safeQuantity;
+        upgradePurchaseCounts.tapHuge += safeQuantity;
     }
 
     score -= currentCost;
@@ -4170,7 +4542,7 @@ function performUpgradePurchase(type, quantity = 1) {
         description: 'Клиент зафиксировал покупку улучшения.'
     });
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
-    if (type === 'tapSmall' || type === 'tapBig') {
+    if (type === 'tapSmall' || type === 'tapBig' || type === 'tapHuge') {
         saveplus();
     }
 
@@ -4210,7 +4582,9 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
             source: 'skin_shop',
             description: 'Не хватило коинов на покупку скина.'
         });
-        showNotification(getSkinShortageMessage(skinConfig.price), 'error');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Не хватает коинов'
+        });
         return false;
     }
 
@@ -4274,6 +4648,7 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
         normalized.tapSmall = Math.max(0, Math.floor(Number(rawCounts.tapSmall) || 0));
         normalized.tapBig = Math.max(0, Math.floor(Number(rawCounts.tapBig) || 0));
         normalized.energy = Math.max(0, Math.floor(Number(rawCounts.energy) || 0));
+        normalized.tapHuge = Math.max(0, Math.floor(Number(rawCounts.tapHuge) || 0));
     }
 
     const resolvedPlus = Math.max(1, Math.floor(Number(options.plus) || 1));
@@ -4297,10 +4672,15 @@ function calculateUpgradeCost(baseCost, purchaseCount) {
     return baseCost * Math.pow(2, exponent);
 }
 
+function getUpgradeBaseCost(type) {
+    return UPGRADE_BASE_COSTS[type] || UPGRADE_BASE_COSTS.tapSmall;
+}
+
 function updateUpgradeShopUI() {
     const upgradeTap1Button = document.getElementById('upgradeTap1Button');
     const upgradeTap5Button = document.getElementById('upgradeTap5Button');
     const upgradeEnergyButton = document.getElementById('upgradeEnergyButton');
+    const upgradeTap100Button = document.getElementById('upgradeTap100Button');
     const cards = [
         {
             button: upgradeTap1Button,
@@ -4322,6 +4702,13 @@ function updateUpgradeShopUI() {
             purchaseCount: upgradePurchaseCounts.energy,
             affordableText: 'Можно расширить запас энергии',
             lockedText: 'Нужно больше коинов для энергии'
+        },
+        {
+            button: upgradeTap100Button,
+            baseCost: UPGRADE_BASE_COSTS.tapHuge,
+            purchaseCount: upgradePurchaseCounts.tapHuge,
+            affordableText: 'Мега-тап уже можно брать',
+            lockedText: 'Нужно накопить на мега-тап'
         }
     ];
 
@@ -4360,7 +4747,7 @@ function updateUpgradeShopUI() {
 }
 
 function formatCompactNumber(value) {
-    return Number(value || 0).toLocaleString('ru-RU');
+    return Number(value || 0).toLocaleString('ru-RU').replace(/[\u00A0\u202F]/g, ' ');
 }
 
 function calculateFlyRewardCoins(scoreValue) {
@@ -4762,8 +5149,9 @@ async function checkAuthenticatedSessionConflict() {
 }
 
 async function openSessionManagerModal() {
-    if (!userId) {
-        showNotification('Сначала войдите в аккаунт.', 'error');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы управлять активными сессиями и устройствами.'
+    })) {
         return;
     }
 
@@ -4964,6 +5352,65 @@ if (sessionConflictCancelButton) {
     });
 }
 
+const authModalNode = document.getElementById('authModal');
+if (authModalNode) {
+    authModalNode.addEventListener('click', (event) => {
+        if (event.target === authModalNode) {
+            closeAuthModal();
+        }
+    });
+}
+
+const authModalLaterButton = document.getElementById('authModalLater');
+if (authModalLaterButton) {
+    authModalLaterButton.addEventListener('click', () => {
+        closeAuthModal();
+    });
+}
+
+const authTabLoginButton = document.getElementById('authTabLogin');
+if (authTabLoginButton) {
+    authTabLoginButton.addEventListener('click', () => {
+        setAuthModalTab('login');
+    });
+}
+
+const authTabRegisterButton = document.getElementById('authTabRegister');
+if (authTabRegisterButton) {
+    authTabRegisterButton.addEventListener('click', () => {
+        setAuthModalTab('register');
+    });
+}
+
+const settingsModalNode = document.getElementById('settingsModal');
+if (settingsModalNode) {
+    settingsModalNode.addEventListener('click', (event) => {
+        if (event.target === settingsModalNode) {
+            closeSettingsModal();
+        }
+    });
+}
+
+const settingsModalCloseButton = document.getElementById('settingsModalClose');
+if (settingsModalCloseButton) {
+    settingsModalCloseButton.addEventListener('click', () => {
+        closeSettingsModal();
+    });
+}
+
+const settingsButtonNode = document.getElementById('settingsButton');
+if (settingsButtonNode) {
+    settingsButtonNode.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы позже открыть экран настроек и персональных параметров.'
+        })) {
+            return;
+        }
+
+        openSettingsModal();
+    });
+}
+
 const skinActionModalNode = document.getElementById('skinActionModal');
 if (skinActionModalNode) {
     skinActionModalNode.addEventListener('click', (event) => {
@@ -5058,9 +5505,7 @@ document.querySelectorAll('.upgrade-quantity-preset').forEach((button) => {
                 return;
             }
 
-            const baseCost = upgradeActionState.type === 'tapSmall'
-                ? UPGRADE_BASE_COSTS.tapSmall
-                : (upgradeActionState.type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+            const baseCost = getUpgradeBaseCost(upgradeActionState.type);
             upgradeActionState.quantity = Math.max(1, calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score));
         } else {
             upgradeActionState.quantity = Math.max(1, Math.floor(Number(rawQuantity) || 1));
@@ -5103,13 +5548,13 @@ function setAuthenticatedUI(isAuthenticated) {
     const profileMenuShell = document.getElementById('profileMenuShell');
     document.getElementById('loginButton').style.display = isAuthenticated ? 'none' : 'inline-block';
     document.getElementById('registerButton').style.display = isAuthenticated ? 'none' : 'inline-block';
-    document.getElementById('loginForm').style.display = 'none';
-    document.getElementById('registerForm').style.display = 'none';
     if (profileMenuShell) {
         profileMenuShell.hidden = !isAuthenticated;
     }
     if (!isAuthenticated) {
         closeProfileMenu();
+    } else {
+        closeAuthModal();
     }
     updateProfileMenuUI();
 }
@@ -5229,11 +5674,17 @@ function restoreLocalDraftIfAvailable() {
         plus: draft.payload.plus,
         energyMax: draft.payload.ENERGY_MAX
     });
-    if (draftUpgradePurchases.tapSmall > upgradePurchaseCounts.tapSmall || draftUpgradePurchases.tapBig > upgradePurchaseCounts.tapBig || draftUpgradePurchases.energy > upgradePurchaseCounts.energy) {
+    if (
+        draftUpgradePurchases.tapSmall > upgradePurchaseCounts.tapSmall ||
+        draftUpgradePurchases.tapBig > upgradePurchaseCounts.tapBig ||
+        draftUpgradePurchases.energy > upgradePurchaseCounts.energy ||
+        draftUpgradePurchases.tapHuge > upgradePurchaseCounts.tapHuge
+    ) {
         upgradePurchaseCounts = {
             tapSmall: Math.max(upgradePurchaseCounts.tapSmall, draftUpgradePurchases.tapSmall),
             tapBig: Math.max(upgradePurchaseCounts.tapBig, draftUpgradePurchases.tapBig),
-            energy: Math.max(upgradePurchaseCounts.energy, draftUpgradePurchases.energy)
+            energy: Math.max(upgradePurchaseCounts.energy, draftUpgradePurchases.energy),
+            tapHuge: Math.max(upgradePurchaseCounts.tapHuge, draftUpgradePurchases.tapHuge)
         };
         restored = true;
     }
@@ -5264,6 +5715,8 @@ function resetUserState() {
     hideSessionConflictModal();
     hideSkinActionModal();
     hideUpgradeActionModal();
+    closeAuthModal();
+    closeSettingsModal();
     userId = null;
     score = 0;
     plus = 1;
@@ -5362,7 +5815,7 @@ function escapeHtmlText(value) {
 
 function formatLeaderboardScore(scoreValue) {
     const scoreNumber = Number(scoreValue);
-    return Number.isFinite(scoreNumber) ? Math.max(0, scoreNumber).toLocaleString('ru-RU') : '0';
+    return Number.isFinite(scoreNumber) ? Math.max(0, scoreNumber).toLocaleString('ru-RU').replace(/[\u00A0\u202F]/g, ' ') : '0';
 }
 
 function renderLeaderboard(players) {
@@ -5622,7 +6075,8 @@ function buildSaveStatePayload() {
         upgradePurchases: {
             tapSmall: Math.max(0, Math.floor(upgradePurchaseCounts.tapSmall || 0)),
             tapBig: Math.max(0, Math.floor(upgradePurchaseCounts.tapBig || 0)),
-            energy: Math.max(0, Math.floor(upgradePurchaseCounts.energy || 0))
+            energy: Math.max(0, Math.floor(upgradePurchaseCounts.energy || 0)),
+            tapHuge: Math.max(0, Math.floor(upgradePurchaseCounts.tapHuge || 0))
         }
     };
 }
@@ -5947,18 +6401,15 @@ function buySkin(skinId) {
             source: 'skin_shop',
             description: 'Игрок открыл недоступный скин.'
         });
-        showNotification('Этот скин пока в разработке. Если хотите, напишите в поддержку и добавим его быстрее.', 'success');
         showSkinActionModal(skinConfig, 'buy', {
             disabledReason: 'Скин скрыт из магазина'
         });
         return;
     }
 
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
-        showSkinActionModal(skinConfig, 'buy', {
-            disabledReason: 'Сначала войдите в аккаунт'
-        });
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать скины, хранить коллекцию в облаке и надевать образы на всех устройствах.'
+    })) {
         return;
     }
 
@@ -5970,7 +6421,6 @@ function buySkin(skinId) {
             source: 'skin_shop',
             description: 'Игрок открыл скин, доступный только через ручную выдачу.'
         });
-        showNotification('Этот скин нельзя купить. Его можно получить только через ручную выдачу.', 'error');
         showSkinActionModal(skinConfig, 'buy', {
             disabledReason: 'Только ручная выдача'
         });
@@ -5985,7 +6435,6 @@ function buySkin(skinId) {
             source: 'skin_shop',
             description: 'Игрок открыл стартовый скин вне сценария нового аккаунта.'
         });
-        showNotification('Это стартовый скин для новых игроков. Для существующего аккаунта его нужно выдать вручную.', 'error');
         showSkinActionModal(skinConfig, 'buy', {
             disabledReason: 'Стартовый скин для новых'
         });
@@ -6001,7 +6450,6 @@ function buySkin(skinId) {
                 source: 'skin_shop',
                 description: 'Игрок нажал на уже установленный скин.'
             });
-            showNotification('Этот скин уже установлен.', 'success');
             return;
         }
 
@@ -6019,7 +6467,6 @@ function buySkin(skinId) {
             source: 'skin_shop',
             description: 'Не хватило коинов для покупки скина.'
         });
-        showNotification(getSkinShortageMessage(skinConfig.price), 'error');
         showSkinActionModal(skinConfig, 'buy', {
             disabledReason: 'Не хватает коинов'
         });
@@ -6030,8 +6477,9 @@ function buySkin(skinId) {
 }
 
 document.getElementById('clicker').addEventListener('touchstart', function(e) {
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы кликать, сохранять прогресс и покупать улучшения.'
+    })) {
         return;
     }
 
@@ -6083,13 +6531,11 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
 }, { passive: false });
 
 document.getElementById('loginButton').onclick = function() {
-    document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('registerForm').style.display = 'none';
+    openAuthModal('login');
 };
 
 document.getElementById('registerButton').onclick = function() {
-    document.getElementById('registerForm').style.display = 'block';
-    document.getElementById('loginForm').style.display = 'none';
+    openAuthModal('register');
 };
 
 document.getElementById('sessionsButton').onclick = function() {
@@ -6149,8 +6595,9 @@ if (skinSortSelect) {
 }
 
 document.getElementById('clicker').onclick = function(e) {
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы кликать, сохранять прогресс и покупать улучшения.'
+    })) {
         return;
     }
 
@@ -6291,6 +6738,14 @@ function shopShow() {
     document.getElementById('shopExit').style.bottom = '20px';
     document.getElementById('shopExit').style.right = '20px';
     document.getElementById('shopExit').style.zIndex = '1000';
+    window.requestAnimationFrame(() => {
+        const titleNode = document.getElementById('shopTitle');
+        if (titleNode && typeof titleNode.scrollIntoView === 'function') {
+            titleNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
 }
 
 function shopClose() {
@@ -6352,14 +6807,16 @@ async function Save() {
         markProgressDirty({ delayMs: 0 });
         await flushAutosave({ reason: 'manual', silent: false });
     } else {
-        showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+        requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы сохранять прогресс в облаке.'
+        });
     }
 }
 
 function buyUpgrade1() {
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в систему!', 'error');
-        showUpgradeActionModal('tapSmall');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
         return;
     }
 
@@ -6373,7 +6830,6 @@ function buyUpgrade1() {
             source: 'upgrade_shop',
             description: 'Не хватило коинов на покупку улучшения +1 к тапу.'
         });
-        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         showUpgradeActionModal('tapSmall');
         return;
     }
@@ -6381,9 +6837,9 @@ function buyUpgrade1() {
 }
 
 function buyUpgrade2() {
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в систему!', 'error');
-        showUpgradeActionModal('tapBig');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
         return;
     }
 
@@ -6397,7 +6853,6 @@ function buyUpgrade2() {
             source: 'upgrade_shop',
             description: 'Не хватило коинов на покупку улучшения +5 к тапу.'
         });
-        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         showUpgradeActionModal('tapBig');
         return;
     }
@@ -6405,9 +6860,9 @@ function buyUpgrade2() {
 }
 
 function buyEnergyUpgrade() {
-    if (!userId) {
-        showNotification('Пожалуйста, войдите в систему!', 'error');
-        showUpgradeActionModal('energy');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
         return;
     }
 
@@ -6421,11 +6876,33 @@ function buyEnergyUpgrade() {
             source: 'upgrade_shop',
             description: 'Не хватило коинов на покупку улучшения энергии.'
         });
-        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         showUpgradeActionModal('energy');
         return;
     }
     showUpgradeActionModal('energy');
+}
+
+function buyUpgradeHuge() {
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
+        return;
+    }
+
+    const descriptor = getUpgradeDescriptor('tapHuge');
+    if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'tapHuge',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения +100 к тапу.'
+        });
+        showUpgradeActionModal('tapHuge');
+        return;
+    }
+    showUpgradeActionModal('tapHuge');
 }
 
 function saveplus() {
@@ -6582,8 +7059,9 @@ document.getElementById('logoutButton').onclick = async function() {
 document.getElementById('flyRewardButton').onclick = async function() {
     const rewardButton = document.getElementById('flyRewardButton');
 
-    if (!userId) {
-        showNotification('Войдите в аккаунт, чтобы забрать награду.', 'error');
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы переводить очки из Летающего бобра в основной кликер.'
+    })) {
         return;
     }
 
@@ -6658,11 +7136,18 @@ startEnergyTimer();
 window.addEventListener('load', async function() {
     setLoadingOverlay(true, 'Загрузка', 'Восстанавливаем сессию, магазин и последние данные...');
     try {
-        await Promise.all([
+        const [sessionRestored] = await Promise.all([
             restoreSession(),
             loadSkinCatalog()
         ]);
         loadLeaderboard();
+        if (!sessionRestored && !window.__boberBanInfo && !authModalState.hasShownGuestPrompt) {
+            authModalState.hasShownGuestPrompt = true;
+            openAuthModal('login', {
+                title: 'Давай войдем в аккаунт!',
+                text: 'Без аккаунта можно посмотреть страницу, но для кликов, магазина, облачного сохранения и профиля нужен вход.'
+            });
+        }
     } finally {
         setLoadingOverlay(false);
     }

@@ -21,7 +21,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
 
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Летающий Бобер</title>
     <style>
         * {
@@ -44,9 +44,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             align-items: center;
             min-height: 100vh;
             background:
-                radial-gradient(circle at top, rgba(168, 239, 255, 0.24), transparent 34%),
-                radial-gradient(circle at bottom, rgba(60, 142, 92, 0.22), transparent 36%),
-                linear-gradient(180deg, #18314a 0%, #12263a 40%, #0a1a22 100%);
+                radial-gradient(circle at top, rgba(210, 241, 219, 0.18), transparent 34%),
+                radial-gradient(circle at bottom, rgba(93, 124, 68, 0.22), transparent 36%),
+                linear-gradient(180deg, #182c24 0%, #10211b 42%, #081310 100%);
             font-family: 'Trebuchet MS', 'Verdana', sans-serif;
             overflow: hidden;
             padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
@@ -60,9 +60,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             max-height: 640px;
             overflow: hidden;
             box-shadow: 0 30px 60px rgba(2, 6, 23, 0.62);
-            border: 4px solid rgba(176, 255, 216, 0.26);
+            border: 4px solid rgba(187, 236, 177, 0.22);
             border-radius: 24px;
-            background: linear-gradient(180deg, #bdeeff 0%, #76bddf 45%, #30596e 100%);
+            background: linear-gradient(180deg, #cce8da 0%, #6e9485 48%, #233b36 100%);
         }
 
         #game-container::before {
@@ -175,7 +175,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: linear-gradient(180deg, rgba(8, 18, 22, 0.78), rgba(7, 13, 18, 0.94));
+            background: linear-gradient(180deg, rgba(8, 24, 20, 0.8), rgba(7, 15, 14, 0.94));
             color: white;
             z-index: 20;
             text-align: center;
@@ -194,7 +194,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         h1 {
             font-size: 34px;
             margin-bottom: 16px;
-            color: #fff0b4;
+            color: #edf8d1;
             text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
             font-weight: bold;
             letter-spacing: 0.08em;
@@ -212,14 +212,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         button {
             padding: 12px 24px;
             font-size: 18px;
-            background: linear-gradient(180deg, #9ce06f 0%, #3ea655 100%);
-            color: #08200e;
+            background: linear-gradient(180deg, #b6d871 0%, #5a9a49 100%);
+            color: #11210f;
             border: none;
             border-radius: 14px;
             cursor: pointer;
             margin-top: 18px;
             font-weight: bold;
-            box-shadow: 0 8px 0 #266539, 0 14px 20px rgba(0,0,0,0.28);
+            box-shadow: 0 8px 0 #36612a, 0 14px 20px rgba(0,0,0,0.28);
             transition: all 0.1s;
             min-width: 160px;
             border: 1px solid rgba(255, 255, 255, 0.24);
@@ -227,12 +227,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         button:hover {
             transform: translateY(2px);
-            box-shadow: 0 6px 0 #266539, 0 10px 12px rgba(0,0,0,0.28);
+            box-shadow: 0 6px 0 #36612a, 0 10px 12px rgba(0,0,0,0.28);
         }
-        
+
         button:active {
             transform: translateY(4px);
-            box-shadow: 0 4px 0 #266539, 0 6px 8px rgba(0,0,0,0.22);
+            box-shadow: 0 4px 0 #36612a, 0 6px 8px rgba(0,0,0,0.22);
         }
         
         .controls {
@@ -338,8 +338,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             width: min(168px, 44vw);
             z-index: 1;
             pointer-events: auto;
-            background: rgba(11, 24, 26, 0.74);
-            border: 1px solid rgba(176, 255, 216, 0.24);
+            background: rgba(14, 28, 22, 0.78);
+            border: 1px solid rgba(186, 226, 178, 0.2);
             border-radius: 16px;
             padding: 8px 9px;
             color: #f5fbff;
@@ -374,7 +374,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.02em;
-            color: #b8ffd7;
+            color: #d9f8c6;
             margin-bottom: 0;
         }
 
@@ -418,9 +418,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             padding: 0;
             border-radius: 50%;
             font-size: 16px;
-            background: linear-gradient(180deg, #45c8ff 0%, #2563eb 100%);
-            color: #f8fcff;
-            box-shadow: 0 5px 0 #194ab7, 0 10px 16px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(180deg, #b6d871 0%, #5a9a49 100%);
+            color: #11210f;
+            box-shadow: 0 5px 0 #36612a, 0 10px 16px rgba(0, 0, 0, 0.2);
         }
 
         .cloud-action {
@@ -430,9 +430,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             display: none;
             padding: 10px 14px;
             font-size: 14px;
-            background: linear-gradient(180deg, #38bdf8 0%, #2563eb 100%);
-            color: #f8fcff;
-            box-shadow: 0 6px 0 #1d4ed8, 0 8px 10px rgba(0,0,0,0.35);
+            background: linear-gradient(180deg, #d7bb72 0%, #ac7832 100%);
+            color: #1f1308;
+            box-shadow: 0 6px 0 #7a4b1e, 0 8px 10px rgba(0,0,0,0.35);
         }
 
         #exit-button,
@@ -648,7 +648,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         <div id="start-screen" class="screen">
             <h1>ЛЕТАЮЩИЙ БОБЕР</h1>
-            <div class="subtitle">Помоги бобру пролететь через брёвна!</div>
+            <div class="subtitle">Пролети над болотом, обойди брёвна и не свались в трясину!</div>
             <button id="start-button">НАЧАТЬ</button>
             <button id="start-back-button" class="menu-secondary-btn">ВЕРНУТЬСЯ</button>
             <div class="controls">
@@ -761,6 +761,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 ground: 0
             },
             pollen: [],
+            treeBelts: {
+                back: { items: [], loopWidth: 0 },
+                front: { items: [], loopWidth: 0 }
+            },
             lastSizeKey: ''
         };
         
@@ -1328,6 +1332,49 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             sceneState.lastSizeKey = sizeKey;
             sceneState.pollen = Array.from({ length: isMobile ? 14 : 24 }, (_, index) => createPollenParticle(index));
+            const createTreeBelt = (layerKey, options = {}) => {
+                const loopWidth = Math.max(canvas.width + (options.extraWidth || 420), 900);
+                const count = Math.max(10, Math.round((canvas.width / (options.spacing || 72)) + (options.countBoost || 0)));
+                const items = [];
+
+                for (let index = 0; index < count; index += 1) {
+                    const seed = seededNoise(index + (options.seedOffset || 0));
+                    const offsetSeed = seededNoise(index + (options.seedOffset || 0) + 15.7);
+                    const typeSeed = seededNoise(index + (options.seedOffset || 0) + 29.4);
+                    const typeOptions = options.types || ['pine', 'birch', 'willow', 'snag'];
+                    const type = typeOptions[Math.min(typeOptions.length - 1, Math.floor(typeSeed * typeOptions.length))] || typeOptions[0];
+                    items.push({
+                        x: (loopWidth / count) * index + (offsetSeed - 0.5) * (options.jitter || 46),
+                        scale: (options.minScale || 0.8) + seed * ((options.maxScale || 1.4) - (options.minScale || 0.8)),
+                        sway: seededNoise(index + (options.seedOffset || 0) + 41.2) * 0.6 + 0.25,
+                        type,
+                        tint: seededNoise(index + (options.seedOffset || 0) + 52.3)
+                    });
+                }
+
+                sceneState.treeBelts[layerKey] = { items, loopWidth };
+            };
+
+            createTreeBelt('back', {
+                extraWidth: 520,
+                spacing: 82,
+                countBoost: 2,
+                minScale: 0.86,
+                maxScale: 1.18,
+                jitter: 54,
+                seedOffset: 12,
+                types: ['pine', 'birch', 'willow']
+            });
+            createTreeBelt('front', {
+                extraWidth: 620,
+                spacing: 68,
+                countBoost: 4,
+                minScale: 0.98,
+                maxScale: 1.42,
+                jitter: 62,
+                seedOffset: 46,
+                types: ['pine', 'birch', 'willow', 'snag']
+            });
         }
 
         function updateAmbientParticles(deltaFactor = 1) {
@@ -1369,126 +1416,257 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
         function drawSkyBackdrop() {
             const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            skyGradient.addColorStop(0, '#c8f0ff');
-            skyGradient.addColorStop(0.28, '#88d2e8');
-            skyGradient.addColorStop(0.66, '#4f8a8b');
-            skyGradient.addColorStop(1, '#15343a');
+            skyGradient.addColorStop(0, '#d6f2ea');
+            skyGradient.addColorStop(0.26, '#8ab7aa');
+            skyGradient.addColorStop(0.58, '#4d6b63');
+            skyGradient.addColorStop(1, '#17302d');
             ctx.fillStyle = skyGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const sunGlow = ctx.createRadialGradient(canvas.width * 0.78, canvas.height * 0.18, 10, canvas.width * 0.78, canvas.height * 0.18, canvas.width * 0.4);
-            sunGlow.addColorStop(0, 'rgba(255, 245, 205, 0.48)');
-            sunGlow.addColorStop(0.35, 'rgba(255, 220, 145, 0.24)');
-            sunGlow.addColorStop(1, 'rgba(255, 220, 145, 0)');
+            const sunGlow = ctx.createRadialGradient(canvas.width * 0.78, canvas.height * 0.14, 12, canvas.width * 0.78, canvas.height * 0.14, canvas.width * 0.34);
+            sunGlow.addColorStop(0, 'rgba(255, 241, 195, 0.4)');
+            sunGlow.addColorStop(0.38, 'rgba(255, 205, 116, 0.18)');
+            sunGlow.addColorStop(1, 'rgba(255, 205, 116, 0)');
             ctx.fillStyle = sunGlow;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const horizonGlow = ctx.createLinearGradient(0, canvas.height * 0.45, 0, canvas.height * 0.85);
-            horizonGlow.addColorStop(0, 'rgba(189, 244, 214, 0)');
-            horizonGlow.addColorStop(1, 'rgba(189, 244, 214, 0.12)');
-            ctx.fillStyle = horizonGlow;
-            ctx.fillRect(0, canvas.height * 0.4, canvas.width, canvas.height * 0.5);
+            const mistGradient = ctx.createLinearGradient(0, canvas.height * 0.28, 0, canvas.height * 0.7);
+            mistGradient.addColorStop(0, 'rgba(206, 247, 229, 0)');
+            mistGradient.addColorStop(0.6, 'rgba(206, 247, 229, 0.1)');
+            mistGradient.addColorStop(1, 'rgba(141, 206, 182, 0.18)');
+            ctx.fillStyle = mistGradient;
+            ctx.fillRect(0, canvas.height * 0.24, canvas.width, canvas.height * 0.56);
         }
 
-        function drawMountainRibbon(offset, baseY, amplitude, fillColor, shadowColor) {
+        function drawSwampRidge(offset, baseY, amplitude, fillColor, shadowColor) {
             ctx.beginPath();
-            ctx.moveTo(-80, canvas.height);
+            ctx.moveTo(-120, canvas.height);
 
-            for (let x = -80; x <= canvas.width + 80; x += 26) {
+            for (let x = -120; x <= canvas.width + 120; x += 18) {
                 const worldX = x + offset;
                 const y = baseY
-                    + Math.sin(worldX * 0.008) * amplitude
-                    + Math.sin(worldX * 0.017 + 0.9) * amplitude * 0.42;
+                    + Math.sin(worldX * 0.006) * amplitude
+                    + Math.sin(worldX * 0.014 + 0.8) * amplitude * 0.38
+                    + Math.cos(worldX * 0.021) * amplitude * 0.14;
                 ctx.lineTo(x, y);
             }
 
-            ctx.lineTo(canvas.width + 80, canvas.height);
+            ctx.lineTo(canvas.width + 120, canvas.height);
+            ctx.lineTo(-120, canvas.height);
             ctx.closePath();
             ctx.fillStyle = fillColor;
             ctx.fill();
 
             ctx.save();
-            ctx.globalAlpha = 0.22;
+            ctx.globalAlpha = 0.2;
             ctx.strokeStyle = shadowColor;
-            ctx.lineWidth = 18;
+            ctx.lineWidth = 14;
             ctx.stroke();
             ctx.restore();
         }
 
-        function drawForestLayer(offset, baseY, scale, trunkColor, canopyColor, highlightColor, opacity) {
-            const spacing = 26 * scale;
-            const normalizedOffset = offset % spacing;
-            const firstIndex = Math.floor(offset / spacing) - 2;
-            const visibleCount = Math.ceil(canvas.width / spacing) + 6;
+        function drawMistBands(offset, baseY, opacity) {
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            for (let band = 0; band < 3; band += 1) {
+                ctx.beginPath();
+                const bandOffset = offset * (0.18 + band * 0.07);
+                const yBase = baseY + band * 18;
+                ctx.moveTo(-80, yBase);
+                for (let x = -80; x <= canvas.width + 80; x += 20) {
+                    const worldX = x + bandOffset;
+                    const y = yBase + Math.sin(worldX * 0.009 + band) * (4 + band * 1.5);
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(canvas.width + 80, canvas.height);
+                ctx.lineTo(-80, canvas.height);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(214, 247, 229, ${0.08 - band * 0.018})`;
+                ctx.fill();
+            }
+            ctx.restore();
+        }
 
+        function drawTreeAt(x, baseY, scale, type, palette = {}) {
+            const trunkColor = palette.trunk || '#2f2418';
+            const leafColor = palette.leaf || '#355b3b';
+            const accentColor = palette.accent || '#79b67d';
+            const trunkWidth = 5 * scale;
+            const trunkHeight = 36 * scale;
+            const crownY = baseY - trunkHeight;
+
+            ctx.fillStyle = trunkColor;
+            ctx.fillRect(x - trunkWidth * 0.5, baseY - trunkHeight, trunkWidth, trunkHeight);
+
+            if (type === 'pine') {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.moveTo(x, crownY - 26 * scale);
+                ctx.lineTo(x - 15 * scale, crownY + 12 * scale);
+                ctx.lineTo(x + 15 * scale, crownY + 12 * scale);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(x, crownY - 8 * scale);
+                ctx.lineTo(x - 18 * scale, crownY + 22 * scale);
+                ctx.lineTo(x + 18 * scale, crownY + 22 * scale);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(x, crownY + 10 * scale);
+                ctx.lineTo(x - 21 * scale, crownY + 34 * scale);
+                ctx.lineTo(x + 21 * scale, crownY + 34 * scale);
+                ctx.closePath();
+                ctx.fill();
+            } else if (type === 'birch') {
+                ctx.fillStyle = '#d7e9d7';
+                ctx.fillRect(x - trunkWidth * 0.8, baseY - trunkHeight * 1.08, trunkWidth * 1.6, trunkHeight * 1.08);
+                ctx.fillStyle = '#514437';
+                for (let stripe = 0; stripe < 5; stripe += 1) {
+                    ctx.fillRect(x - trunkWidth * 0.8, baseY - trunkHeight * (0.96 - stripe * 0.16), trunkWidth * 1.6, 2);
+                }
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.arc(x - 10 * scale, crownY + 4 * scale, 15 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 5 * scale, crownY - 5 * scale, 18 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 18 * scale, crownY + 8 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'willow') {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.ellipse(x, crownY + 4 * scale, 22 * scale, 16 * scale, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = accentColor;
+                ctx.lineWidth = 2.4 * scale;
+                ctx.lineCap = 'round';
+                for (let strand = -2; strand <= 2; strand += 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + strand * 8 * scale, crownY + 6 * scale);
+                    ctx.lineTo(x + strand * 10 * scale, crownY + 24 * scale);
+                    ctx.stroke();
+                }
+            } else {
+                ctx.strokeStyle = trunkColor;
+                ctx.lineWidth = 5 * scale;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x, baseY);
+                ctx.lineTo(x, crownY - 16 * scale);
+                ctx.moveTo(x, crownY - 6 * scale);
+                ctx.lineTo(x - 11 * scale, crownY + 8 * scale);
+                ctx.moveTo(x, crownY - 1 * scale);
+                ctx.lineTo(x + 12 * scale, crownY + 10 * scale);
+                ctx.stroke();
+            }
+        }
+
+        function drawTreeBelt(layerKey, offset, baseY, opacity) {
+            const belt = sceneState.treeBelts[layerKey];
+            if (!belt || !Array.isArray(belt.items) || belt.items.length === 0 || !belt.loopWidth) {
+                return;
+            }
+
+            const normalizedOffset = offset % belt.loopWidth;
             ctx.save();
             ctx.globalAlpha = opacity;
 
-            for (let index = 0; index < visibleCount; index += 1) {
-                const treeIndex = firstIndex + index;
-                const seed = seededNoise(treeIndex + scale * 10);
-                const x = treeIndex * spacing - normalizedOffset;
-                const trunkWidth = 5 * scale + seed * 3 * scale;
-                const trunkHeight = 20 * scale + seed * 14 * scale;
-                const canopyRadius = 12 * scale + seed * 11 * scale;
-                const canopyY = baseY - trunkHeight - canopyRadius * 0.25;
+            belt.items.forEach((tree) => {
+                const tintFactor = 0.75 + tree.tint * 0.35;
+                const palette = layerKey === 'back'
+                    ? {
+                        trunk: '#314436',
+                        leaf: `rgba(${Math.round(57 * tintFactor)}, ${Math.round(92 * tintFactor)}, ${Math.round(64 * tintFactor)}, 1)`,
+                        accent: '#9fd0a0'
+                    }
+                    : {
+                        trunk: '#2a1e18',
+                        leaf: `rgba(${Math.round(46 * tintFactor)}, ${Math.round(86 * tintFactor)}, ${Math.round(50 * tintFactor)}, 1)`,
+                        accent: '#8fd48f'
+                    };
 
-                ctx.fillStyle = trunkColor;
-                ctx.fillRect(x - trunkWidth * 0.5, baseY - trunkHeight, trunkWidth, trunkHeight);
+                const drawWrapped = (xBase) => {
+                    if (xBase < -120 || xBase > canvas.width + 120) {
+                        return;
+                    }
+                    drawTreeAt(xBase, baseY, tree.scale * (layerKey === 'back' ? 0.92 : 1), tree.type, palette);
+                };
 
-                ctx.fillStyle = canopyColor;
-                ctx.beginPath();
-                ctx.arc(x, canopyY, canopyRadius, 0, Math.PI * 2);
-                ctx.arc(x - canopyRadius * 0.7, canopyY + canopyRadius * 0.2, canopyRadius * 0.78, 0, Math.PI * 2);
-                ctx.arc(x + canopyRadius * 0.78, canopyY + canopyRadius * 0.1, canopyRadius * 0.72, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = highlightColor;
-                ctx.beginPath();
-                ctx.arc(x - canopyRadius * 0.25, canopyY - canopyRadius * 0.22, canopyRadius * 0.44, 0, Math.PI * 2);
-                ctx.fill();
-            }
+                drawWrapped(tree.x - normalizedOffset);
+                drawWrapped(tree.x - normalizedOffset + belt.loopWidth);
+            });
 
             ctx.restore();
         }
 
-        function drawGroundGrass(topY) {
+        function drawBogWater(topY) {
+            const waterGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
+            waterGradient.addColorStop(0, 'rgba(72, 121, 109, 0.9)');
+            waterGradient.addColorStop(0.24, 'rgba(42, 76, 70, 0.92)');
+            waterGradient.addColorStop(1, 'rgba(16, 36, 36, 0.98)');
+            ctx.fillStyle = waterGradient;
+            ctx.fillRect(0, topY, canvas.width, canvas.height - topY);
+
+            ctx.save();
+            ctx.globalAlpha = 0.28;
+            ctx.strokeStyle = 'rgba(214, 247, 236, 0.36)';
+            ctx.lineWidth = 2;
+            for (let line = 0; line < 4; line += 1) {
+                const yBase = topY + 14 + line * 16;
+                ctx.beginPath();
+                ctx.moveTo(-24, yBase);
+                for (let x = -24; x <= canvas.width + 24; x += 14) {
+                    const y = yBase + Math.sin((x + sceneState.offsets.ground * (0.8 + line * 0.18)) * 0.03) * (2 + line * 0.3);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawReedField(offset, topY, density = 1, opacity = 1) {
+            const spacing = 18 / density;
+            const normalizedOffset = offset % spacing;
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.lineCap = 'round';
+            for (let x = -spacing; x <= canvas.width + spacing; x += spacing) {
+                const reedHeight = 12 + (Math.sin((x + offset) * 0.06) + 1) * 6;
+                ctx.strokeStyle = 'rgba(104, 148, 82, 0.92)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - normalizedOffset, topY + 8);
+                ctx.lineTo(x - normalizedOffset + Math.sin((x + offset) * 0.025) * 4, topY - reedHeight);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawGroundMarsh(topY) {
+            drawBogWater(topY - 56);
+            drawReedField(sceneState.offsets.ground * 0.7, topY - 8, isMobile ? 0.85 : 1, 0.92);
+
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(0, topY + 8);
-
             for (let x = 0; x <= canvas.width + 20; x += 18) {
                 const y = topY + 7 + Math.sin((x + sceneState.offsets.ground) * 0.035) * 3;
                 ctx.lineTo(x, y);
             }
-
             ctx.lineTo(canvas.width, canvas.height);
             ctx.lineTo(0, canvas.height);
             ctx.closePath();
             const soilGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
-            soilGradient.addColorStop(0, '#5f4825');
-            soilGradient.addColorStop(0.24, '#423018');
-            soilGradient.addColorStop(1, '#25180b');
+            soilGradient.addColorStop(0, '#5f4b2c');
+            soilGradient.addColorStop(0.24, '#45331d');
+            soilGradient.addColorStop(1, '#25190f');
             ctx.fillStyle = soilGradient;
             ctx.fill();
 
-            ctx.fillStyle = '#79c45e';
-            ctx.fillRect(0, topY, canvas.width, 12);
-
-            ctx.strokeStyle = 'rgba(214, 255, 179, 0.44)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for (let x = -10; x <= canvas.width + 14; x += 14) {
-                ctx.moveTo(x, topY + 10);
-                ctx.lineTo(x + 3, topY + 2);
-                ctx.lineTo(x + 6, topY + 10);
-            }
-            ctx.stroke();
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-            for (let x = 0; x < canvas.width; x += 28) {
-                ctx.fillRect(x, topY + 18, 10, 2);
-                ctx.fillRect(x + 9, topY + 28, 6, 2);
+            ctx.fillStyle = '#87bb62';
+            ctx.fillRect(0, topY, canvas.width, 10);
+            ctx.fillStyle = 'rgba(180, 228, 120, 0.48)';
+            for (let x = 0; x <= canvas.width + 20; x += 28) {
+                ctx.fillRect(x, topY + 11, 8, 3);
             }
             ctx.restore();
         }
@@ -1497,18 +1675,19 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             update: function(deltaFactor = 1) {
                 const pace = (gameRunning ? currentGameSpeed : 0.7) * deltaFactor;
                 sceneState.offsets.mountainsFar += pace * 0.08;
-                sceneState.offsets.mountainsNear += pace * 0.14;
-                sceneState.offsets.forestBack += pace * 0.26;
-                sceneState.offsets.forestFront += pace * 0.46;
+                sceneState.offsets.mountainsNear += pace * 0.12;
+                sceneState.offsets.forestBack += pace * 0.2;
+                sceneState.offsets.forestFront += pace * 0.34;
                 sceneState.offsets.ground += pace * 0.52;
                 updateAmbientParticles(deltaFactor);
             },
             draw: function() {
                 drawSkyBackdrop();
-                drawMountainRibbon(sceneState.offsets.mountainsFar, canvas.height * 0.47, 36, '#5f7f8e', '#2d4f57');
-                drawMountainRibbon(sceneState.offsets.mountainsNear, canvas.height * 0.57, 22, '#426a64', '#21463d');
-                drawForestLayer(sceneState.offsets.forestBack, canvas.height * 0.64, 1.05, '#33513f', '#3c6f48', '#86d189', 0.92);
-                drawForestLayer(sceneState.offsets.forestFront, canvas.height * 0.72, 1.22, '#274132', '#27543f', '#78bf7a', 1);
+                drawSwampRidge(sceneState.offsets.mountainsFar, canvas.height * 0.49, 26, '#49645c', '#27453f');
+                drawMistBands(sceneState.offsets.mountainsFar, canvas.height * 0.52, 0.92);
+                drawSwampRidge(sceneState.offsets.mountainsNear, canvas.height * 0.6, 18, '#324941', '#1c2f28');
+                drawTreeBelt('back', sceneState.offsets.forestBack, canvas.height * 0.66, 0.78);
+                drawTreeBelt('front', sceneState.offsets.forestFront, canvas.height * 0.74, 0.98);
                 drawAmbientParticles();
             }
         };
@@ -1629,7 +1808,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             
             draw: function() {
                 const topY = canvas.height - this.height;
-                drawGroundGrass(topY);
+                drawGroundMarsh(topY);
             }
         };
         

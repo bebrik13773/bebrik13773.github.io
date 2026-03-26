@@ -923,6 +923,7 @@ SELECT
     `u`.`upgrade_tap_small_count`,
     `u`.`upgrade_tap_big_count`,
     `u`.`upgrade_energy_count`,
+    `u`.`upgrade_tap_huge_count`,
     `u`.`created_at`,
     `u`.`updated_at`,
     GREATEST(
@@ -1113,6 +1114,7 @@ SQL;
                                 'tapSmall' => max(0, (int) ($row['upgrade_tap_small_count'] ?? 0)),
                                 'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
                                 'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
+                                'tapHuge' => max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0)),
                             ],
                             'activeBan' => !empty($row['active_ban_id']) ? [
                                 'id' => (int) $row['active_ban_id'],
@@ -1215,6 +1217,7 @@ SQL;
                         $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
                         $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
                         $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
+                        $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
                         $newPassword = (string) ($data['newPassword'] ?? '');
                         $confirmPassword = (string) ($data['confirmPassword'] ?? '');
                         $fly = is_array($data['flyBeaver'] ?? null) ? $data['flyBeaver'] : [];
@@ -1269,6 +1272,7 @@ SQL;
                                 "`upgrade_tap_small_count` = " . sqlValueForQuery($conn, $upgradeTapSmallCount),
                                 "`upgrade_tap_big_count` = " . sqlValueForQuery($conn, $upgradeTapBigCount),
                                 "`upgrade_energy_count` = " . sqlValueForQuery($conn, $upgradeEnergyCount),
+                                "`upgrade_tap_huge_count` = " . sqlValueForQuery($conn, $upgradeTapHugeCount),
                             ];
 
                             $passwordChanged = false;
@@ -1316,6 +1320,7 @@ SQL;
                                         'tapSmall' => $upgradeTapSmallCount,
                                         'tapBig' => $upgradeTapBigCount,
                                         'energy' => $upgradeEnergyCount,
+                                        'tapHuge' => $upgradeTapHugeCount,
                                     ],
                                 ],
                             ]);
@@ -1330,6 +1335,7 @@ SQL;
                                         'tapSmall' => $upgradeTapSmallCount,
                                         'tapBig' => $upgradeTapBigCount,
                                         'energy' => $upgradeEnergyCount,
+                                        'tapHuge' => $upgradeTapHugeCount,
                                     ],
                                 ],
                             ]);
@@ -7768,7 +7774,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 upgradePurchases: {
                     tapSmall: Number((payload.upgradePurchases || {}).tapSmall || 0),
                     tapBig: Number((payload.upgradePurchases || {}).tapBig || 0),
-                    energy: Number((payload.upgradePurchases || {}).energy || 0)
+                    energy: Number((payload.upgradePurchases || {}).energy || 0),
+                    tapHuge: Number((payload.upgradePurchases || {}).tapHuge || 0)
                 },
                 newPassword: String(payload.newPassword || ''),
                 confirmPassword: String(payload.confirmPassword || ''),
@@ -7821,6 +7828,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 'adminUpgradeTapSmall',
                 'adminUpgradeTapBig',
                 'adminUpgradeEnergy',
+                'adminUpgradeTapHuge',
                 'adminUserNewPassword',
                 'adminUserConfirmPassword',
                 'flyBestScore',
@@ -7976,6 +7984,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <div class="form-group">
                                 <label class="form-label" for="adminUpgradeEnergy">Покупки энергии</label>
                                 <input class="form-control" id="adminUpgradeEnergy" type="number" min="0" value="${Number((user.upgradePurchases || {}).energy || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeTapHuge">Покупки +100</label>
+                                <input class="form-control" id="adminUpgradeTapHuge" type="number" min="0" value="${Number((user.upgradePurchases || {}).tapHuge || 0)}">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="adminUserNewPassword">Новый пароль</label>
@@ -8377,7 +8389,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 upgradePurchases: {
                     tapSmall: Number(document.getElementById('adminUpgradeTapSmall').value || 0),
                     tapBig: Number(document.getElementById('adminUpgradeTapBig').value || 0),
-                    energy: Number(document.getElementById('adminUpgradeEnergy').value || 0)
+                    energy: Number(document.getElementById('adminUpgradeEnergy').value || 0),
+                    tapHuge: Number(document.getElementById('adminUpgradeTapHuge').value || 0)
                 },
                 newPassword: document.getElementById('adminUserNewPassword').value,
                 confirmPassword: document.getElementById('adminUserConfirmPassword').value,
