@@ -5174,6 +5174,9 @@ async function checkAuthenticatedSessionConflict() {
         showSessionConflictModal(conflictPayload);
         return true;
     } catch (error) {
+        if (tryHandleSessionConflictError(error)) {
+            return true;
+        }
         if (tryHandleSessionEndedError(error)) {
             return false;
         }
@@ -5203,7 +5206,18 @@ async function openSessionManagerModal() {
             throw new Error('Не удалось загрузить список сессий.');
         }
 
-        showSessionConflictModal({
+        const normalizedPayload = normalizeSessionConflictPayload({
+            ...data,
+            authenticatedConflict: true,
+            sessionConflict: Array.isArray(data.sessions) && data.sessions.length > 0,
+            currentSession: data.currentSession || null
+        });
+
+        showSessionConflictModal(normalizedPayload ? {
+            ...normalizedPayload,
+            context: 'manager',
+            message: data.message || normalizedPayload.message || 'Здесь можно завершить лишние игровые сессии на других устройствах.'
+        } : {
             mode: 'authenticated',
             context: 'manager',
             message: data.message || 'Здесь можно завершить лишние игровые сессии на других устройствах.',
@@ -5211,6 +5225,9 @@ async function openSessionManagerModal() {
             incomingSession: data.currentSession || null
         });
     } catch (error) {
+        if (tryHandleSessionConflictError(error)) {
+            return;
+        }
         if (tryHandleSessionEndedError(error)) {
             return;
         }
@@ -5284,9 +5301,11 @@ async function continueLoginWithSessionTermination(sessionId) {
             source: 'session_conflict_modal',
             description: 'Клиент подтвердил успешный вход после завершения другой сессии.'
         });
-        await checkAuthenticatedSessionConflict();
-        showNotification('Старая сессия завершена. Вход выполнен.', 'success');
         loadLeaderboard();
+        const sessionConflictShown = await checkAuthenticatedSessionConflict();
+        if (!sessionConflictShown) {
+            showNotification('Старая сессия завершена. Вход выполнен.', 'success');
+        }
     } catch (error) {
         if (tryHandleSessionConflictError(error, {
             login: sessionConflictState.login,
@@ -6723,10 +6742,11 @@ document.getElementById('submitLogin').onclick = async function() {
             source: 'login_form',
             description: 'Клиент подтвердил успешный вход в аккаунт.'
         });
-        await checkAuthenticatedSessionConflict();
-
-        showNotification('Успешный вход!', 'success');
         loadLeaderboard();
+        const sessionConflictShown = await checkAuthenticatedSessionConflict();
+        if (!sessionConflictShown) {
+            showNotification('Успешный вход!', 'success');
+        }
     } catch (error) {
         if (tryHandleSessionConflictError(error, {
             login: loginValue,

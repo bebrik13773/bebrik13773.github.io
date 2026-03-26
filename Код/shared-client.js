@@ -241,14 +241,27 @@
     }
 
     function normalizeSessionConflictPayload(payload) {
-        if (!payload || typeof payload !== 'object' || payload.sessionConflict !== true || !Array.isArray(payload.sessions)) {
+        if (!payload || typeof payload !== 'object' || !Array.isArray(payload.sessions)) {
             return null;
         }
 
-        var isAuthenticatedConflict = payload.authenticatedConflict === true;
+        var hasSessions = payload.sessions.length > 0;
+        var hasCurrentSession = payload.currentSession && typeof payload.currentSession === 'object';
+        var hasIncomingSession = payload.incomingSession && typeof payload.incomingSession === 'object';
+        var explicitConflict = payload.sessionConflict === true || payload.authenticatedConflict === true;
+
+        if (!explicitConflict && !hasSessions) {
+            return null;
+        }
+
+        if (!explicitConflict && !hasCurrentSession && !hasIncomingSession) {
+            return null;
+        }
+
+        var isAuthenticatedConflict = payload.authenticatedConflict === true || (hasCurrentSession && !hasIncomingSession);
         var currentOrIncomingSession = isAuthenticatedConflict
-            ? (payload.currentSession && typeof payload.currentSession === 'object' ? payload.currentSession : null)
-            : (payload.incomingSession && typeof payload.incomingSession === 'object' ? payload.incomingSession : null);
+            ? (hasCurrentSession ? payload.currentSession : null)
+            : (hasIncomingSession ? payload.incomingSession : null);
 
         return {
             message: String(payload.message || 'Аккаунт уже открыт на другом устройстве.').trim(),
