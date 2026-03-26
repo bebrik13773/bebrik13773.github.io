@@ -967,17 +967,10 @@ Owner decisions:
     }
 
     .auth-modal-close {
-        min-width: 0;
-        padding: 11px 14px;
+        min-width: 140px;
+        padding: 12px 18px;
         margin: 0;
-        background: rgba(255, 255, 255, 0.08);
-        color: #f7fdff;
-        box-shadow: none;
-    }
-
-    .auth-modal-close:hover {
-        box-shadow: none;
-        background: rgba(255, 255, 255, 0.12);
+        align-self: flex-start;
     }
 
     .auth-modal-tabs {
@@ -2945,7 +2938,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                 <div class="skin-action-modal-title" id="authModalTitle">Давай войдем в аккаунт!</div>
                 <div class="skin-action-modal-text" id="authModalText">Так откроются облачное сохранение, магазин, синхронизация между устройствами и профиль.</div>
             </div>
-            <button type="button" class="auth-modal-close" id="authModalLater">Позже</button>
+            <button type="button" class="skin-modal-cancel auth-modal-close" id="authModalLater">Позже</button>
         </div>
         <div class="auth-modal-tabs">
             <button type="button" class="auth-modal-tab active" id="authTabLogin">Войти</button>
