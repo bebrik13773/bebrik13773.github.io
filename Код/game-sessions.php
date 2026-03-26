@@ -46,6 +46,16 @@ try {
             $conn->close();
             bober_json_response(['success' => false, 'message' => 'Не удалось завершить выбранную сессию. Обновите список и попробуйте снова.'], 409);
         }
+
+        bober_log_user_activity($conn, $userId, 'terminate_other_session', [
+            'action_group' => 'sessions',
+            'source' => 'session_management',
+            'login' => $_SESSION['game_login'] ?? '',
+            'description' => 'Пользователь завершил одну из своих других игровых сессий.',
+            'meta' => [
+                'terminated_session_id' => $terminateSessionId,
+            ],
+        ]);
     }
 
     $otherSessions = bober_fetch_user_active_game_sessions($conn, $userId, [

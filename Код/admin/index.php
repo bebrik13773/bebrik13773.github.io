@@ -1103,6 +1103,42 @@ SQL;
                             $ipBanStmt->close();
                         }
 
+                        $activityHistory = [];
+                        $activityStmt = $conn->prepare('SELECT `id`, `action_group`, `action_type`, `source`, `description`, `score_delta`, `coins_delta`, `meta_json`, `ip_address`, `user_agent`, `created_at` FROM `user_activity_log` WHERE `user_id` = ? ORDER BY `created_at` DESC LIMIT 120');
+                        if ($activityStmt) {
+                            $activityStmt->bind_param('i', $userId);
+                            if ($activityStmt->execute()) {
+                                $activityResult = $activityStmt->get_result();
+                                if ($activityResult instanceof mysqli_result) {
+                                    while ($activityRow = $activityResult->fetch_assoc()) {
+                                        $meta = [];
+                                        if (!empty($activityRow['meta_json'])) {
+                                            $decodedMeta = json_decode((string) $activityRow['meta_json'], true);
+                                            if (is_array($decodedMeta)) {
+                                                $meta = $decodedMeta;
+                                            }
+                                        }
+
+                                        $activityHistory[] = [
+                                            'id' => (int) ($activityRow['id'] ?? 0),
+                                            'group' => (string) ($activityRow['action_group'] ?? 'general'),
+                                            'type' => (string) ($activityRow['action_type'] ?? ''),
+                                            'source' => (string) ($activityRow['source'] ?? 'runtime'),
+                                            'description' => (string) ($activityRow['description'] ?? ''),
+                                            'scoreDelta' => (int) ($activityRow['score_delta'] ?? 0),
+                                            'coinsDelta' => (int) ($activityRow['coins_delta'] ?? 0),
+                                            'ipAddress' => (string) ($activityRow['ip_address'] ?? ''),
+                                            'userAgent' => (string) ($activityRow['user_agent'] ?? ''),
+                                            'createdAt' => isset($activityRow['created_at']) ? (string) $activityRow['created_at'] : null,
+                                            'meta' => $meta,
+                                        ];
+                                    }
+                                    $activityResult->free();
+                                }
+                            }
+                            $activityStmt->close();
+                        }
+
                         $response['success'] = true;
                         $activeSessions = bober_fetch_user_active_game_sessions($conn, $userId);
                         $response['user'] = [
@@ -1144,6 +1180,7 @@ SQL;
                             'ipHistory' => $ipHistory,
                             'ipBans' => $ipBans,
                             'activeSessions' => $activeSessions,
+                            'activityHistory' => $activityHistory,
                         ];
                     }
 
@@ -1299,6 +1336,20 @@ SQL;
                                     ],
                                 ],
                             ]);
+                            bober_log_user_activity($conn, $userId, 'admin_profile_edit', [
+                                'action_group' => 'admin',
+                                'source' => 'admin_panel',
+                                'login' => $login,
+                                'description' => 'Администратор изменил карточку пользователя.',
+                                'meta' => [
+                                    'password_changed' => $passwordChanged,
+                                    'upgrade_purchases' => [
+                                        'tapSmall' => $upgradeTapSmallCount,
+                                        'tapBig' => $upgradeTapBigCount,
+                                        'energy' => $upgradeEnergyCount,
+                                    ],
+                                ],
+                            ]);
 
                             $response['success'] = true;
                             $response['message'] = $passwordChanged
@@ -1341,6 +1392,17 @@ SQL;
                             'equip_skin' => $equipSkin,
                         ],
                     ]);
+                    bober_log_user_activity($conn, $userId, 'admin_grant_skin', [
+                        'action_group' => 'admin',
+                        'source' => 'admin_panel',
+                        'description' => $equipSkin
+                            ? 'Администратор выдал скин и сразу установил его.'
+                            : 'Администратор выдал скин пользователю.',
+                        'meta' => [
+                            'skin_id' => $skinId,
+                            'equip_skin' => $equipSkin,
+                        ],
+                    ]);
 
                     $conn->close();
                 }
@@ -1370,6 +1432,14 @@ SQL;
                             'affected_rows' => 1,
                             'meta' => [
                                 'user_id' => $userId,
+                                'session_id' => $sessionId,
+                            ],
+                        ]);
+                        bober_log_user_activity($conn, $userId, 'admin_terminate_session', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'description' => 'Администратор завершил игровую сессию пользователя.',
+                            'meta' => [
                                 'session_id' => $sessionId,
                             ],
                         ]);
@@ -1615,6 +1685,15 @@ SQL;
                                 'is_permanent' => !empty($ban['isPermanent']),
                             ],
                         ]);
+                        bober_log_user_activity($conn, $userId, 'admin_ban', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'login' => (string) ($userRow['login'] ?? ''),
+                            'description' => 'Администратор выдал бан аккаунту.',
+                            'meta' => [
+                                'ban' => $ban,
+                            ],
+                        ]);
                     }
 
                     $conn->close();
@@ -1670,6 +1749,16 @@ SQL;
                             'meta' => [
                                 'user_id' => $userId,
                                 'login' => $userRow['login'] ?? '',
+                                'lifted_user_bans' => $liftedUserBans,
+                                'lifted_ip_bans' => $liftedIpBans,
+                            ],
+                        ]);
+                        bober_log_user_activity($conn, $userId, 'admin_unban', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'login' => (string) ($userRow['login'] ?? ''),
+                            'description' => 'Администратор снял бан пользователя и связанные IP-баны.',
+                            'meta' => [
                                 'lifted_user_bans' => $liftedUserBans,
                                 'lifted_ip_bans' => $liftedIpBans,
                             ],
@@ -1748,6 +1837,16 @@ SQL;
                                 'reason' => (string) ($ipBanRow['reason'] ?? ''),
                             ],
                         ]);
+                        bober_log_user_activity($conn, (int) ($ipBanRow['source_user_id'] ?? 0), 'admin_lift_single_ip_ban', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'description' => 'Администратор точечно снял IP-бан.',
+                            'meta' => [
+                                'ip_ban_id' => $ipBanId,
+                                'ip_address' => (string) ($ipBanRow['ip_address'] ?? ''),
+                                'reason' => (string) ($ipBanRow['reason'] ?? ''),
+                            ],
+                        ]);
                     }
 
                     $conn->close();
@@ -1787,6 +1886,8 @@ SQL;
                         $response['message'] = 'Пользователь не найден';
                     } else {
                         $deleteMeta = [
+                            'user_sessions' => 0,
+                            'user_activity_log' => 0,
                             'fly_beaver_runs' => 0,
                             'fly_beaver_progress' => 0,
                             'user_ip_history' => 0,
@@ -1799,6 +1900,8 @@ SQL;
 
                         try {
                             $deleteQueries = [
+                                'user_sessions' => 'DELETE FROM `user_sessions` WHERE `user_id` = ?',
+                                'user_activity_log' => 'DELETE FROM `user_activity_log` WHERE `user_id` = ?',
                                 'fly_beaver_runs' => 'DELETE FROM `fly_beaver_runs` WHERE `user_id` = ?',
                                 'fly_beaver_progress' => 'DELETE FROM `fly_beaver_progress` WHERE `user_id` = ?',
                                 'user_ip_history' => 'DELETE FROM `user_ip_history` WHERE `user_id` = ?',
@@ -3720,6 +3823,79 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             margin-top: 12px;
         }
 
+        .activity-toolbar {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .activity-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 580px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .activity-card {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 14px 16px;
+            background: var(--stack-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .activity-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .activity-card-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--on-surface);
+        }
+
+        .activity-card-subtitle {
+            font-size: 12px;
+            color: var(--muted-text);
+            margin-top: 4px;
+        }
+
+        .activity-card-meta {
+            color: var(--muted-text);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .activity-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .activity-meta-json {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: var(--field-bg);
+            border: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            color: var(--muted-text);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .inline-actions {
             display: flex;
             gap: 10px;
@@ -3746,10 +3922,73 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         @media (max-width: 768px) {
+            .card-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .accounts-summary {
+                gap: 8px;
+            }
+
+            .summary-chip {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
             .account-list-toolbar,
             .account-detail-head,
             .account-head-actions,
             .account-list-foot {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .activity-toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .accounts-shell {
+                gap: 14px;
+            }
+
+            .account-list {
+                max-height: 38vh;
+                padding-right: 0;
+            }
+
+            .account-list-item,
+            .detail-section,
+            .stack-item,
+            .activity-card {
+                padding: 13px;
+            }
+
+            .account-head-actions .btn,
+            .account-list-toolbar .btn,
+            .account-list-toolbar .form-control,
+            .account-list-toolbar .search-box,
+            .stack-item-actions .btn,
+            .inline-actions .btn {
+                width: 100%;
+            }
+
+            .account-list-stats,
+            .inline-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            .detail-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .inline-actions,
+            .stack-item-title,
+            .activity-card-head {
                 flex-direction: column;
                 align-items: stretch;
             }
@@ -3760,6 +3999,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             .account-hero {
                 align-items: flex-start;
+            }
+
+            .account-subline {
+                line-height: 1.55;
             }
 
             .account-avatar {
@@ -4026,6 +4269,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <option value="fun">Фан</option>
                             <option value="mystic">Мистика</option>
                             <option value="event">Ивент</option>
+                            <option value="nature">Природа</option>
+                            <option value="neon">Неон</option>
+                            <option value="seasonal">Сезон</option>
+                            <option value="pixel">Пиксель</option>
                             <option value="admin">Админ</option>
                             <option value="other">Другое</option>
                         </select>
@@ -4462,6 +4709,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <option value="fun">Фан</option>
                                 <option value="mystic">Мистика</option>
                                 <option value="event">Ивент</option>
+                                <option value="nature">Природа</option>
+                                <option value="neon">Неон</option>
+                                <option value="seasonal">Сезон</option>
+                                <option value="pixel">Пиксель</option>
                                 <option value="admin">Админ</option>
                                 <option value="other">Другое</option>
                             </select>
@@ -4566,6 +4817,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let lastAccountSearch = '';
         let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
         let currentAccountFilter = localStorage.getItem('admin_account_filter') || 'all';
+        let selectedAccountActivityFilter = 'all';
+        let selectedAccountActivitySearch = '';
         let skinCatalogItems = [];
         let skinCatalogSearch = '';
         let skinCatalogCategoryFilter = localStorage.getItem('admin_skin_category_filter') || 'all';
@@ -6067,6 +6320,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 fun: 'Фан',
                 mystic: 'Мистика',
                 event: 'Ивент',
+                nature: 'Природа',
+                neon: 'Неон',
+                seasonal: 'Сезон',
+                pixel: 'Пиксель',
                 admin: 'Админ',
                 other: 'Другое'
             };
@@ -6082,6 +6339,48 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             };
 
             return labels[String(issueMode || '').toLowerCase()] || labels.shop;
+        }
+
+        function getActivityGroupLabel(group) {
+            const labels = {
+                all: 'Все события',
+                auth: 'Вход и аккаунт',
+                progress: 'Прогресс',
+                skins: 'Скины',
+                fly_beaver: 'Летающий бобер',
+                security: 'Безопасность',
+                sessions: 'Сессии',
+                admin: 'Действия администратора',
+                general: 'Общее'
+            };
+
+            return labels[String(group || '').toLowerCase()] || 'Общее';
+        }
+
+        function getActivityTypeLabel(type) {
+            const labels = {
+                login_success: 'Успешный вход',
+                register_success: 'Регистрация',
+                logout: 'Выход',
+                upgrade_tap_small_purchase: 'Покупка +1 к тапу',
+                upgrade_tap_big_purchase: 'Покупка +5 к тапу',
+                upgrade_energy_purchase: 'Покупка энергии',
+                equip_skin: 'Установка скина',
+                unlock_skin: 'Получение скина',
+                fly_run_saved: 'Сохранение забега',
+                fly_run_duplicate: 'Повторная отправка забега',
+                fly_reward_claim: 'Перевод награды',
+                autoclicker_ban: 'Бан античитом',
+                terminate_other_session: 'Завершение другой сессии',
+                admin_profile_edit: 'Правка профиля админом',
+                admin_grant_skin: 'Выдача скина админом',
+                admin_terminate_session: 'Завершение сессии админом',
+                admin_ban: 'Ручной бан админом',
+                admin_unban: 'Разбан админом',
+                admin_lift_single_ip_ban: 'Снятие одного IP-бана'
+            };
+
+            return labels[String(type || '').toLowerCase()] || String(type || 'Событие');
         }
 
         function getSkinRarityOrder(rarity) {
@@ -6264,6 +6563,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             selectedAccountBaselineSnapshot = '';
             selectedAccountDirty = false;
+            selectedAccountActivityFilter = 'all';
+            selectedAccountActivitySearch = '';
             markActiveAccountInList();
             document.getElementById('accountDetailEmpty').style.display = 'none';
             document.getElementById('accountDetailContainer').style.display = 'block';
@@ -6360,6 +6661,72 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 const label = skinItem ? skinItem.name : skinId;
                 const extra = skinItem ? ` • ${getSkinRarityLabel(skinItem.rarity)}` : '';
                 return `<span class="mini-chip">${escapeHtml(label)}${equippedSkinId === skinId ? ' • надет' : ''}${extra}</span>`;
+            }).join('')}</div>`;
+        }
+
+        function buildActivityHistoryHtml(activityHistory) {
+            const normalizedItems = Array.isArray(activityHistory) ? activityHistory : [];
+            const normalizedSearch = String(selectedAccountActivitySearch || '').trim().toLowerCase();
+            const filteredItems = normalizedItems.filter(item => {
+                const itemGroup = String(item.group || 'general').toLowerCase();
+                if (selectedAccountActivityFilter !== 'all' && itemGroup !== selectedAccountActivityFilter) {
+                    return false;
+                }
+
+                if (!normalizedSearch) {
+                    return true;
+                }
+
+                const searchHaystack = [
+                    getActivityGroupLabel(item.group),
+                    getActivityTypeLabel(item.type),
+                    item.description || '',
+                    item.source || '',
+                    item.ipAddress || '',
+                    item.userAgent || '',
+                    JSON.stringify(item.meta || {})
+                ].join(' ').toLowerCase();
+
+                return searchHaystack.includes(normalizedSearch);
+            });
+
+            if (filteredItems.length === 0) {
+                return '<div class="empty-list">По текущим фильтрам действия не найдены.</div>';
+            }
+
+            return `<div class="activity-log">${filteredItems.map(item => {
+                const metaJson = item.meta && Object.keys(item.meta).length > 0
+                    ? `<div class="activity-meta-json">${escapeHtml(JSON.stringify(item.meta, null, 2))}</div>`
+                    : '';
+                const scoreChip = Number(item.scoreDelta || 0) !== 0
+                    ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">add_chart</span>${Number(item.scoreDelta) > 0 ? '+' : ''}${formatAdminNumber(item.scoreDelta)}</span>`
+                    : '';
+                const coinsChip = Number(item.coinsDelta || 0) !== 0
+                    ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">toll</span>${Number(item.coinsDelta) > 0 ? '+' : ''}${formatAdminNumber(item.coinsDelta)}</span>`
+                    : '';
+                return `
+                    <div class="activity-card">
+                        <div class="activity-card-head">
+                            <div>
+                                <div class="activity-card-title">${escapeHtml(getActivityTypeLabel(item.type))}</div>
+                                <div class="activity-card-subtitle">${escapeHtml(formatAdminDateTime(item.createdAt))}</div>
+                            </div>
+                            <div class="status-pill active">${escapeHtml(getActivityGroupLabel(item.group))}</div>
+                        </div>
+                        <div class="activity-card-meta">
+                            ${escapeHtml(item.description || 'Описание события отсутствует.')}<br>
+                            Источник: ${escapeHtml(String(item.source || 'runtime'))}
+                            ${item.ipAddress ? `<br>IP: ${escapeHtml(item.ipAddress)}` : ''}
+                            ${item.userAgent ? `<br>User-Agent: ${escapeHtml(item.userAgent)}` : ''}
+                        </div>
+                        <div class="activity-chip-row">
+                            ${scoreChip}
+                            ${coinsChip}
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">label</span>${escapeHtml(String(item.type || 'event'))}</span>
+                        </div>
+                        ${metaJson}
+                    </div>
+                `;
             }).join('')}</div>`;
         }
 
@@ -6733,6 +7100,30 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             </div>
                         `)}
                     </section>
+
+                    <section class="detail-section wide">
+                        <div class="detail-section-title">
+                            <span class="material-icons">history</span>
+                            История действий игрока
+                        </div>
+                        <div class="activity-toolbar">
+                            <input class="form-control" id="accountActivitySearchInput" type="search" placeholder="Поиск по описанию, IP, типу события или JSON..." value="${escapeHtml(selectedAccountActivitySearch)}">
+                            <select class="form-control" id="accountActivityFilterSelect">
+                                <option value="all"${selectedAccountActivityFilter === 'all' ? ' selected' : ''}>Все события</option>
+                                <option value="auth"${selectedAccountActivityFilter === 'auth' ? ' selected' : ''}>Вход и аккаунт</option>
+                                <option value="progress"${selectedAccountActivityFilter === 'progress' ? ' selected' : ''}>Прогресс</option>
+                                <option value="skins"${selectedAccountActivityFilter === 'skins' ? ' selected' : ''}>Скины</option>
+                                <option value="fly_beaver"${selectedAccountActivityFilter === 'fly_beaver' ? ' selected' : ''}>Летающий бобер</option>
+                                <option value="sessions"${selectedAccountActivityFilter === 'sessions' ? ' selected' : ''}>Сессии</option>
+                                <option value="security"${selectedAccountActivityFilter === 'security' ? ' selected' : ''}>Безопасность</option>
+                                <option value="admin"${selectedAccountActivityFilter === 'admin' ? ' selected' : ''}>Админ-действия</option>
+                            </select>
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom: 12px;">
+                            Показаны последние ${formatAdminNumber(Array.isArray(user.activityHistory) ? user.activityHistory.length : 0)} событий. Можно фильтровать по типу и искать по IP, описанию или JSON.
+                        </div>
+                        <div id="accountActivityHistoryContainer">${buildActivityHistoryHtml(user.activityHistory || [])}</div>
+                    </section>
                 </div>
             `;
 
@@ -6768,6 +7159,26 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     terminateSelectedUserSession(Number(this.dataset.sessionId || 0));
                 });
             });
+            const activityFilterSelect = document.getElementById('accountActivityFilterSelect');
+            if (activityFilterSelect) {
+                activityFilterSelect.addEventListener('change', function() {
+                    selectedAccountActivityFilter = String(this.value || 'all');
+                    const container = document.getElementById('accountActivityHistoryContainer');
+                    if (container) {
+                        container.innerHTML = buildActivityHistoryHtml((selectedAccountProfile && selectedAccountProfile.activityHistory) || []);
+                    }
+                });
+            }
+            const activitySearchInput = document.getElementById('accountActivitySearchInput');
+            if (activitySearchInput) {
+                activitySearchInput.addEventListener('input', function() {
+                    selectedAccountActivitySearch = String(this.value || '');
+                    const container = document.getElementById('accountActivityHistoryContainer');
+                    if (container) {
+                        container.innerHTML = buildActivityHistoryHtml((selectedAccountProfile && selectedAccountProfile.activityHistory) || []);
+                    }
+                });
+            }
         }
 
         function collectSelectedAccountPayload() {

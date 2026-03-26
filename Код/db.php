@@ -382,7 +382,7 @@ function bober_skin_rarity_values()
 
 function bober_skin_category_values()
 {
-    return ['classic', 'food', 'fun', 'mystic', 'event', 'admin', 'other'];
+    return ['classic', 'food', 'fun', 'mystic', 'event', 'nature', 'neon', 'seasonal', 'pixel', 'admin', 'other'];
 }
 
 function bober_skin_issue_mode_values()
@@ -1011,6 +1011,58 @@ function bober_admin_log_action($conn, $actionType, $details = [])
     $stmt->close();
 }
 
+function bober_log_user_activity($conn, $userId, $actionType, $details = [])
+{
+    if (!($conn instanceof mysqli)) {
+        return false;
+    }
+
+    $userId = max(0, (int) $userId);
+    $actionType = trim((string) $actionType);
+    if ($userId < 1 || $actionType === '') {
+        return false;
+    }
+
+    try {
+        bober_ensure_security_schema($conn);
+    } catch (Throwable $error) {
+        return false;
+    }
+
+    $actionGroup = trim((string) ($details['action_group'] ?? 'general'));
+    if ($actionGroup === '') {
+        $actionGroup = 'general';
+    }
+
+    $source = trim((string) ($details['source'] ?? 'runtime'));
+    if ($source === '') {
+        $source = 'runtime';
+    }
+
+    $description = isset($details['description']) ? trim((string) $details['description']) : null;
+    $loginSnapshot = isset($details['login']) ? trim((string) $details['login']) : '';
+    $sessionHash = trim((string) ($details['session_hash'] ?? bober_current_session_hash()));
+    $scoreDelta = (int) ($details['score_delta'] ?? 0);
+    $coinsDelta = (int) ($details['coins_delta'] ?? 0);
+    $meta = is_array($details['meta'] ?? null) ? $details['meta'] : [];
+    $meta['ip'] = $meta['ip'] ?? bober_get_client_ip();
+    $meta['user_agent'] = $meta['user_agent'] ?? bober_get_client_user_agent();
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $ipAddress = trim((string) ($meta['ip'] ?? ''));
+    $userAgent = trim((string) ($meta['user_agent'] ?? ''));
+
+    $stmt = $conn->prepare('INSERT INTO `user_activity_log` (`user_id`, `login_snapshot`, `session_hash`, `action_group`, `action_type`, `source`, `description`, `score_delta`, `coins_delta`, `meta_json`, `ip_address`, `user_agent`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('issssssiisss', $userId, $loginSnapshot, $sessionHash, $actionGroup, $actionType, $source, $description, $scoreDelta, $coinsDelta, $metaJson, $ipAddress, $userAgent);
+    $success = $stmt->execute();
+    $stmt->close();
+
+    return $success;
+}
+
 function bober_ensure_security_schema($conn)
 {
     $createUserBansSql = <<<SQL
@@ -1155,6 +1207,41 @@ SQL;
 
     if (!bober_index_exists($conn, 'user_sessions', 'idx_user_sessions_last_seen') && !$conn->query("CREATE INDEX `idx_user_sessions_last_seen` ON `user_sessions` (`last_seen_at`)")) {
         throw new RuntimeException('Не удалось создать индекс актуальности игровых сессий.');
+    }
+
+    $createUserActivityLogSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_activity_log` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `login_snapshot` VARCHAR(100) NOT NULL DEFAULT '',
+    `session_hash` CHAR(64) NULL DEFAULT NULL,
+    `action_group` VARCHAR(50) NOT NULL DEFAULT 'general',
+    `action_type` VARCHAR(100) NOT NULL,
+    `source` VARCHAR(50) NOT NULL DEFAULT 'runtime',
+    `description` VARCHAR(255) NULL DEFAULT NULL,
+    `score_delta` BIGINT NOT NULL DEFAULT 0,
+    `coins_delta` BIGINT NOT NULL DEFAULT 0,
+    `meta_json` LONGTEXT NULL,
+    `ip_address` VARCHAR(64) NULL DEFAULT NULL,
+    `user_agent` VARCHAR(255) NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserActivityLogSql)) {
+        throw new RuntimeException('Не удалось создать таблицу истории действий игроков.');
+    }
+
+    if (!bober_index_exists($conn, 'user_activity_log', 'idx_user_activity_user_created') && !$conn->query("CREATE INDEX `idx_user_activity_user_created` ON `user_activity_log` (`user_id`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории действий по пользователю.');
+    }
+
+    if (!bober_index_exists($conn, 'user_activity_log', 'idx_user_activity_group_created') && !$conn->query("CREATE INDEX `idx_user_activity_group_created` ON `user_activity_log` (`action_group`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории действий по группе.');
+    }
+
+    if (!bober_index_exists($conn, 'user_activity_log', 'idx_user_activity_action_created') && !$conn->query("CREATE INDEX `idx_user_activity_action_created` ON `user_activity_log` (`action_type`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории действий по типу.');
     }
 }
 

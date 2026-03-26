@@ -109,6 +109,17 @@ try {
         'source' => 'login',
     ]);
     bober_record_user_ip($conn, (int) $id);
+    bober_log_user_activity($conn, (int) $id, 'login_success', [
+        'action_group' => 'auth',
+        'source' => 'login',
+        'login' => $login,
+        'description' => $terminateSessionId > 0
+            ? 'Вход выполнен после завершения другой активной сессии.'
+            : 'Пользователь вошел в аккаунт.',
+        'meta' => [
+            'terminated_session_id' => $terminateSessionId > 0 ? $terminateSessionId : null,
+        ],
+    ]);
 
     $normalizedSkin = bober_normalize_skin_json($skin);
     if ($normalizedSkin !== $skin) {

@@ -117,6 +117,25 @@ try {
     $scoreStmt->close();
 
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    bober_log_user_activity($conn, $userId, 'fly_reward_claim', [
+        'action_group' => 'fly_beaver',
+        'source' => 'fly_claim_reward',
+        'login' => $_SESSION['game_login'] ?? '',
+        'description' => $awardedCoins > 0
+            ? 'Очки Летающего бобра переведены в основной кликер.'
+            : 'Попытка перевести очки Летающего бобра без фактической выдачи.',
+        'score_delta' => $awardedScore,
+        'coins_delta' => $awardedCoins,
+        'meta' => [
+            'awarded_score' => $awardedScore,
+            'awarded_coins' => $awardedCoins,
+            'pending_score_before' => $pendingScore,
+            'minimum_transfer_score' => $minimumTransferScore,
+            'hourly_limit' => $hourlyCoinsLimit,
+            'hourly_used_after' => $currentWindowCoins,
+            'hourly_remaining_after' => $hourlyRemainingCoins,
+        ],
+    ]);
 
     $conn->commit();
     $conn->close();

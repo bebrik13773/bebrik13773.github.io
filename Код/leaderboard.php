@@ -15,6 +15,7 @@ try {
             AND b.ban_until > CURRENT_TIMESTAMP
         WHERE u.login IS NOT NULL
             AND u.login <> ''
+            AND LOWER(TRIM(u.login)) <> 'test'
             AND b.id IS NULL
         GROUP BY u.id, u.login
         ORDER BY score DESC

@@ -38,6 +38,17 @@ try {
         'detected_by' => 'client',
         'meta' => $meta,
     ]);
+    bober_log_user_activity($conn, $userId, 'autoclicker_ban', [
+        'action_group' => 'security',
+        'source' => 'anti_cheat_report',
+        'login' => $_SESSION['game_login'] ?? '',
+        'description' => 'Игрок заблокирован античитом.',
+        'meta' => [
+            'reason' => $reason,
+            'ban' => $ban,
+            'detector_meta' => $meta,
+        ],
+    ]);
 
     bober_logout_user();
     $conn->close();

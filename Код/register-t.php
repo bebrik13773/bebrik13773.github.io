@@ -84,6 +84,12 @@ try {
     ]);
     bober_record_user_ip($conn, $newUserId);
     $flyBeaver = bober_ensure_fly_progress_row($conn, $newUserId);
+    bober_log_user_activity($conn, $newUserId, 'register_success', [
+        'action_group' => 'auth',
+        'source' => 'register',
+        'login' => $login,
+        'description' => 'Создан новый аккаунт и выполнен автоматический вход.',
+    ]);
     $conn->close();
 
     bober_json_response([

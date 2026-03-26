@@ -61,6 +61,22 @@ try {
     }
 
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    bober_log_user_activity($conn, $userId, $isDuplicate ? 'fly_run_duplicate' : 'fly_run_saved', [
+        'action_group' => 'fly_beaver',
+        'source' => 'fly_save_run',
+        'login' => $_SESSION['game_login'] ?? '',
+        'description' => $isDuplicate
+            ? 'Повторная отправка уже сохраненного забега.'
+            : 'Сохранен забег Летающего бобра.',
+        'score_delta' => $creditedScore,
+        'meta' => [
+            'run_token' => $runToken,
+            'score' => $score,
+            'level' => $level,
+            'credited_score' => $creditedScore,
+            'minimum_credited_score' => $minimumCreditedScore,
+        ],
+    ]);
     $conn->commit();
     $conn->close();
 
