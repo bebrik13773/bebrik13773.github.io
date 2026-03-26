@@ -1975,12 +1975,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Bober Admin</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
+            --safe-top: max(0px, env(safe-area-inset-top));
+            --safe-right: max(0px, env(safe-area-inset-right));
+            --safe-bottom: max(0px, env(safe-area-inset-bottom));
+            --safe-left: max(0px, env(safe-area-inset-left));
+            --header-height: calc(64px + var(--safe-top));
             --primary-color: #11d2ff;
             --primary-dark: #08a8cf;
             --primary-light: #dffbff;
@@ -2090,6 +2095,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             line-height: 1.6;
             overflow-x: hidden;
             min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        body.sidebar-open {
+            overflow: hidden;
         }
         
         /* Анимации */
@@ -2121,7 +2131,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         .app-header {
             background: var(--header-gradient);
             border-bottom: 1px solid var(--border);
-            padding: 0 24px;
+            padding: var(--safe-top) calc(var(--safe-right) + 24px) 0 calc(var(--safe-left) + 24px);
             box-shadow: var(--shadow);
             display: flex;
             justify-content: space-between;
@@ -2130,7 +2140,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             top: 0;
             left: 0;
             right: 0;
-            height: 64px;
+            min-height: var(--header-height);
             z-index: 1000;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
@@ -2142,13 +2152,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             justify-content: space-between;
             width: 100%;
             max-width: 1400px;
+            min-height: 64px;
             margin: 0 auto;
+            gap: 12px;
         }
         
         .logo-area {
             display: flex;
             align-items: center;
             gap: 16px;
+            min-width: 0;
         }
         
         .menu-toggle {
@@ -2173,6 +2186,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             display: flex;
             align-items: center;
             gap: 12px;
+            min-width: 0;
+        }
+
+        .logo-text {
+            min-width: 0;
         }
         
         .logo-icon {
@@ -2185,6 +2203,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             font-weight: 600;
             color: var(--primary-color);
             line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         /* Улучшенный заголовок действий */
@@ -2193,6 +2214,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             align-items: center;
             gap: 12px;
             position: relative;
+            flex-shrink: 0;
         }
         
         .action-button {
@@ -2241,6 +2263,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             margin-top: 8px;
             border: 1px solid var(--border);
             display: none;
+            width: min(280px, calc(100vw - var(--safe-left) - var(--safe-right) - 24px));
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
         }
@@ -2271,12 +2294,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         /* Боковая панель */
         .sidebar {
-            width: 320px;
+            width: min(320px, calc(100vw - var(--safe-left) - var(--safe-right) - 12px));
             background: var(--sidebar-gradient);
-            height: calc(100vh - 64px);
+            height: calc(100dvh - var(--header-height));
             position: fixed;
             left: 0;
-            top: 64px;
+            top: var(--header-height);
             overflow-y: auto;
             z-index: 900;
             border-right: 1px solid var(--border);
@@ -2284,10 +2307,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
+            padding-bottom: calc(var(--safe-bottom) + 12px);
+            box-shadow: var(--shadow-heavy);
         }
         
         .sidebar.active {
             transform: translateX(0);
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 8, 17, 0.44);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.22s ease, visibility 0.22s ease;
+            z-index: 850;
+        }
+
+        .sidebar-backdrop.active {
+            opacity: 1;
+            visibility: visible;
         }
         
         .sidebar-section {
@@ -2374,9 +2416,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         /* Основной контент */
         .main-content {
             margin-left: 0;
-            margin-top: 64px;
-            padding: 24px;
-            min-height: calc(100vh - 64px);
+            margin-top: var(--header-height);
+            padding: 24px calc(var(--safe-right) + 24px) calc(var(--safe-bottom) + 24px) calc(var(--safe-left) + 24px);
+            min-height: calc(100dvh - var(--header-height));
             transition: margin-left 0.3s;
         }
         
@@ -2689,6 +2731,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             left: 0;
             right: 0;
             bottom: 0;
+            padding: 16px;
             background-color: var(--overlay-bg);
             z-index: 1100;
             display: flex;
@@ -2711,7 +2754,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             border-radius: var(--radius);
             width: min(94vw, 640px);
             max-width: 640px;
-            max-height: 92vh;
+            max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 32px);
             overflow-y: auto;
             box-shadow: var(--shadow-heavy);
             transform: translateY(20px) scale(0.97);
@@ -3195,8 +3238,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         /* Уведомления */
         .notification-container {
             position: fixed;
-            top: 80px;
-            right: 20px;
+            top: calc(var(--header-height) + 16px);
+            right: calc(var(--safe-right) + 20px);
             z-index: 1200;
             display: flex;
             flex-direction: column;
@@ -3415,11 +3458,27 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         @media (max-width: 768px) {
             .app-header {
-                padding: 0 16px;
+                padding: var(--safe-top) calc(var(--safe-right) + 14px) 0 calc(var(--safe-left) + 14px);
+            }
+
+            .header-content {
+                gap: 10px;
+            }
+
+            .logo-area {
+                gap: 10px;
             }
             
             .logo-text h1 {
                 font-size: 18px;
+            }
+
+            .theme-toggle {
+                gap: 6px;
+            }
+
+            .theme-toggle > .material-icons {
+                display: none;
             }
             
             .action-button.with-text span:not(.material-icons) {
@@ -3429,9 +3488,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .action-button.with-text {
                 padding: 8px;
             }
+
+            .user-dropdown {
+                margin-top: 10px;
+                right: 0;
+            }
+
+            .sidebar {
+                width: min(86vw, 360px);
+                border-top-right-radius: 22px;
+                border-bottom-right-radius: 22px;
+            }
             
             .main-content {
-                padding: 16px;
+                padding: 16px calc(var(--safe-right) + 14px) calc(var(--safe-bottom) + 18px) calc(var(--safe-left) + 14px);
             }
             
             .card {
@@ -3444,7 +3514,39 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             
             .notification {
                 min-width: auto;
-                width: calc(100vw - 40px);
+                width: min(360px, calc(100vw - var(--safe-left) - var(--safe-right) - 28px));
+            }
+
+            .notification-container {
+                right: calc(var(--safe-right) + 14px);
+            }
+
+            .modal-overlay {
+                align-items: flex-start;
+                overflow-y: auto;
+                padding: calc(var(--safe-top) + 10px) calc(var(--safe-right) + 10px) calc(var(--safe-bottom) + 10px) calc(var(--safe-left) + 10px);
+            }
+
+            .modal-content {
+                width: 100%;
+                max-width: none;
+                margin: 0 auto;
+                max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px);
+                border-radius: 20px;
+            }
+
+            .modal-body {
+                padding: 16px !important;
+            }
+
+            .modal-footer {
+                padding: 16px !important;
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+
+            .modal-footer .btn {
+                width: 100%;
             }
         }
         
@@ -3955,7 +4057,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .account-list {
-                max-height: 38vh;
+                max-height: none;
+                overflow: visible;
                 padding-right: 0;
             }
 
@@ -3976,7 +4079,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .account-list-stats,
-            .inline-actions {
+            .stack-item-actions {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 8px;
@@ -3987,10 +4090,25 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .inline-actions,
+            .stack-item-actions,
+            .skin-catalog-toolbar,
             .stack-item-title,
             .activity-card-head {
+                display: flex;
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            .inline-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .activity-log {
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
             }
 
             .account-title {
@@ -4013,6 +4131,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             .account-sort-select {
                 min-width: 0;
+                width: 100%;
+            }
+
+            .skin-catalog-toolbar .btn,
+            .skin-catalog-toolbar .form-control,
+            .skin-catalog-toolbar .search-box {
                 width: 100%;
             }
         }
@@ -4132,6 +4256,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span>SQL Редактор</span>
         </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     
     <!-- Основной контент -->
     <main class="main-content" id="mainContent">
@@ -4992,12 +5117,49 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 console.error('Error:', error);
             });
         }
+
+        function isCompactAdminViewport() {
+            return window.matchMedia('(max-width: 1200px)').matches;
+        }
+
+        function setSidebarState(isOpen) {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+            const overlayMode = isCompactAdminViewport();
+
+            if (!sidebar || !sidebarBackdrop) {
+                return;
+            }
+
+            sidebar.classList.toggle('active', Boolean(isOpen));
+            sidebarBackdrop.classList.toggle('active', Boolean(isOpen) && overlayMode);
+            document.body.classList.toggle('sidebar-open', Boolean(isOpen) && overlayMode);
+        }
+
+        function closeSidebarForCompactViewport() {
+            if (isCompactAdminViewport()) {
+                setSidebarState(false);
+            }
+        }
         
         // Функция инициализации элементов UI
         function initUIElements() {
             // Кнопка меню для мобильных устройств
             document.getElementById('menuToggle').addEventListener('click', function() {
-                document.getElementById('sidebar').classList.toggle('active');
+                const sidebar = document.getElementById('sidebar');
+                setSidebarState(!(sidebar && sidebar.classList.contains('active')));
+            });
+
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.addEventListener('click', function() {
+                    setSidebarState(false);
+                });
+            }
+
+            window.addEventListener('resize', function() {
+                const sidebar = document.getElementById('sidebar');
+                setSidebarState(Boolean(sidebar && sidebar.classList.contains('active')));
             });
             
             // Меню пользователя
@@ -5350,18 +5512,22 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             document.getElementById('accountsBtn').addEventListener('click', function() {
                 showAccountsView();
+                closeSidebarForCompactViewport();
             });
 
             document.getElementById('skinsBtn').addEventListener('click', function() {
                 showSkinsView();
+                closeSidebarForCompactViewport();
             });
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
                 showStatistics();
+                closeSidebarForCompactViewport();
             });
             
             document.getElementById('sqlEditorBtn').addEventListener('click', function() {
                 showSqlEditor();
+                closeSidebarForCompactViewport();
             });
             
             // Закрытие модального окна настроек профиля
