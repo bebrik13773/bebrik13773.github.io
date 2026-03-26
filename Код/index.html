@@ -1803,6 +1803,143 @@ Owner decisions:
         color: rgba(255,255,255,0.74);
     }
 
+    .upgrade-quantity-panel {
+        margin-bottom: 16px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .upgrade-quantity-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.84);
+        margin-bottom: 10px;
+    }
+
+    .upgrade-quantity-main {
+        display: grid;
+        grid-template-columns: 54px minmax(0, 1fr) 54px;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .upgrade-quantity-stepper,
+    .upgrade-quantity-preset {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        background: rgba(255,255,255,0.08);
+        color: #f8fbff;
+        font-size: 16px;
+        font-weight: 700;
+        min-height: 46px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+
+    .upgrade-quantity-input {
+        width: 100%;
+        min-height: 46px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(7, 12, 27, 0.34);
+        color: #fff;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 800;
+        padding: 10px 12px;
+    }
+
+    .upgrade-quantity-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .upgrade-quantity-preset {
+        padding: 10px 12px;
+        min-height: 40px;
+        font-size: 13px;
+    }
+
+    .upgrade-quantity-preset.active {
+        background: rgba(93, 240, 217, 0.2);
+        border-color: rgba(220, 255, 250, 0.28);
+        color: #dfffff;
+    }
+
+    .upgrade-quantity-note {
+        margin-top: 10px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: rgba(255,255,255,0.72);
+    }
+
+    .skin-shop-feature {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        margin-top: 12px;
+    }
+
+    .skin-shop-feature-preview {
+        min-height: 132px;
+        border-radius: 18px;
+        background:
+            linear-gradient(180deg, rgba(10, 10, 25, 0.06), rgba(10, 10, 25, 0.28)),
+            var(--skin-shop-feature-image, linear-gradient(135deg, #5f38d4, #33c5c7));
+        background-size: cover;
+        background-position: center;
+        border: 1px solid rgba(255,255,255,0.14);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .skin-shop-feature-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .skin-shop-feature-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .skin-shop-feature-name {
+        font-size: 20px;
+        font-weight: 800;
+        color: #fff;
+    }
+
+    .skin-shop-feature-status {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.08);
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .skin-shop-feature-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .skin-shop-feature-tip {
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(255,255,255,0.8);
+    }
+
     .footer {
         margin-top: 34px;
         padding: 28px 18px 22px;
@@ -1957,6 +2094,27 @@ Owner decisions:
 
         .upgrade-action-summary {
             grid-template-columns: 1fr;
+        }
+
+        .upgrade-quantity-main {
+            grid-template-columns: 48px minmax(0, 1fr) 48px;
+        }
+
+        .upgrade-quantity-presets {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .skin-shop-feature {
+            grid-template-columns: 1fr;
+        }
+
+        .skin-shop-feature-preview {
+            min-height: 156px;
+        }
+
+        .skin-shop-feature-head {
+            flex-direction: column;
         }
 
         .footer {
@@ -2129,6 +2287,17 @@ function showNotification(message, type = 'success', duration = 3000) {
     <div class="skin-shop-panel">
         <div class="skin-shop-panel-title">Каталог скинов</div>
         <div class="skin-shop-panel-subtitle" id="skinShopMeta">Фильтруйте скины и выбирайте образ для бобра.</div>
+        <div class="skin-shop-feature" id="skinShopFeature">
+            <div class="skin-shop-feature-preview" id="skinShopFeaturePreview"></div>
+            <div class="skin-shop-feature-copy">
+                <div class="skin-shop-feature-head">
+                    <div class="skin-shop-feature-name" id="skinShopFeatureName">Скин не выбран</div>
+                    <div class="skin-shop-feature-status" id="skinShopFeatureStatus">Витрина</div>
+                </div>
+                <div class="skin-shop-feature-meta" id="skinShopFeatureMeta"></div>
+                <div class="skin-shop-feature-tip" id="skinShopFeatureTip">Нажмите на карточку, чтобы купить или установить скин.</div>
+            </div>
+        </div>
     </div>
     <div class="skin-shop-panel skin-shop-filter">
         <label for="skinCategorySelect">Категория</label>
@@ -2199,6 +2368,21 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="skin-action-modal-meta">
             <span id="upgradeActionModalPurchasedCount">Куплено: 0</span>
             <span id="upgradeActionModalEffect">Эффект: +0</span>
+        </div>
+        <div class="upgrade-quantity-panel">
+            <label class="upgrade-quantity-label" for="upgradeActionModalQuantityInput">Сколько купить сразу</label>
+            <div class="upgrade-quantity-main">
+                <button type="button" class="upgrade-quantity-stepper" id="upgradeActionModalMinus">-</button>
+                <input type="number" min="1" step="1" value="1" class="upgrade-quantity-input" id="upgradeActionModalQuantityInput" inputmode="numeric">
+                <button type="button" class="upgrade-quantity-stepper" id="upgradeActionModalPlus">+</button>
+            </div>
+            <div class="upgrade-quantity-presets">
+                <button type="button" class="upgrade-quantity-preset" data-quantity="1">x1</button>
+                <button type="button" class="upgrade-quantity-preset" data-quantity="5">x5</button>
+                <button type="button" class="upgrade-quantity-preset" data-quantity="10">x10</button>
+                <button type="button" class="upgrade-quantity-preset" data-quantity="max">MAX</button>
+            </div>
+            <div class="upgrade-quantity-note" id="upgradeActionModalQuantityNote">Можно выбрать количество перед покупкой.</div>
         </div>
         <div class="skin-action-modal-buttons">
             <button type="button" class="skin-modal-cancel" id="upgradeActionModalCancel">Отмена</button>
@@ -2470,7 +2654,8 @@ let DEFAULT_SKIN_ID = 'classic';
 let DEFAULT_OWNED_SKIN_IDS = [];
 const skinShopViewState = {
     category: localStorage.getItem('skin_shop_category') || 'all',
-    sort: localStorage.getItem('skin_shop_sort') || 'manual'
+    sort: localStorage.getItem('skin_shop_sort') || 'manual',
+    focusSkinId: ''
 };
 
 function normalizeSkinRarity(value) {
@@ -2681,7 +2866,8 @@ const skinActionState = {
     mode: ''
 };
 const upgradeActionState = {
-    type: ''
+    type: '',
+    quantity: 1
 };
 
 function syncGlobalOverlayState() {
@@ -2941,7 +3127,101 @@ function updateSkinShopControls() {
     }
 
     if (metaNode) {
-        metaNode.textContent = `Показано ${visibleItems.length} • ${skinShopViewState.category === 'all' ? 'Все категории' : getSkinCategoryLabel(skinShopViewState.category)}`;
+        const ownedVisibleCount = visibleItems.filter((item) => isSkinOwned(item.id)).length;
+        metaNode.textContent = userId
+            ? `Показано ${visibleItems.length} • Куплено ${ownedVisibleCount}`
+            : `Показано ${visibleItems.length} • Войдите для покупок`;
+    }
+}
+
+function getSkinShortageMessage(price) {
+    const safePrice = Math.max(0, Number(price) || 0);
+    const shortage = Math.max(0, safePrice - score);
+    return `Недостаточно средств: сейчас ${formatCompactNumber(score)}, нужно ${formatCompactNumber(safePrice)}. Не хватает ${formatCompactNumber(shortage)}.`;
+}
+
+function getSkinShopFocusedConfig() {
+    const visibleItems = getVisibleSkinCatalog();
+    if (visibleItems.length === 0) {
+        return null;
+    }
+
+    const preferredOrder = [
+        String(skinShopViewState.focusSkinId || '').trim(),
+        String((skin && skin.equippedSkinId) || '').trim(),
+        DEFAULT_SKIN_ID,
+        String(visibleItems[0].id || '').trim()
+    ].filter(Boolean);
+
+    for (const skinId of preferredOrder) {
+        const match = visibleItems.find((item) => item.id === skinId);
+        if (match) {
+            return match;
+        }
+    }
+
+    return visibleItems[0];
+}
+
+function updateSkinShopFeature(skinId = '') {
+    if (skinId) {
+        skinShopViewState.focusSkinId = String(skinId || '').trim();
+    }
+
+    const featurePreviewNode = document.getElementById('skinShopFeaturePreview');
+    const featureNameNode = document.getElementById('skinShopFeatureName');
+    const featureStatusNode = document.getElementById('skinShopFeatureStatus');
+    const featureMetaNode = document.getElementById('skinShopFeatureMeta');
+    const featureTipNode = document.getElementById('skinShopFeatureTip');
+    const focusedSkin = getSkinShopFocusedConfig();
+
+    if (!featurePreviewNode || !featureNameNode || !featureStatusNode || !featureMetaNode || !featureTipNode) {
+        return;
+    }
+
+    if (!focusedSkin) {
+        featurePreviewNode.style.setProperty('--skin-shop-feature-image', "linear-gradient(135deg, #5f38d4, #33c5c7)");
+        featureNameNode.textContent = 'Скины не найдены';
+        featureStatusNode.textContent = 'Пусто';
+        featureMetaNode.innerHTML = '';
+        featureTipNode.textContent = 'Попробуйте сменить категорию или сортировку.';
+        return;
+    }
+
+    const owned = isSkinOwned(focusedSkin.id);
+    const equipped = owned && skin.equippedSkinId === focusedSkin.id;
+    featurePreviewNode.style.setProperty('--skin-shop-feature-image', `url('${focusedSkin.image}')`);
+    featureNameNode.textContent = focusedSkin.name;
+    featureMetaNode.innerHTML = `
+        <span class="skin-chip rarity-${escapeHtmlText(focusedSkin.rarity)}">${escapeHtmlText(getSkinRarityLabel(focusedSkin.rarity))}</span>
+        <span class="skin-chip">${escapeHtmlText(getSkinCategoryLabel(focusedSkin.category))}</span>
+        ${focusedSkin.issueMode === 'shop' ? '' : `<span class="skin-chip ${focusedSkin.issueMode === 'grant_only' ? 'mode-grant-only' : ''}">${escapeHtmlText(getSkinIssueModeLabel(focusedSkin.issueMode))}</span>`}
+    `;
+
+    if (focusedSkin.available === false) {
+        featureStatusNode.textContent = 'Скоро';
+        featureTipNode.textContent = 'Этот скин ещё не открыт для покупки.';
+    } else if (focusedSkin.issueMode === 'grant_only' && !owned) {
+        featureStatusNode.textContent = 'Ручная выдача';
+        featureTipNode.textContent = 'Скин выдается через админку и не покупается в магазине.';
+    } else if (focusedSkin.issueMode === 'starter' && !owned) {
+        featureStatusNode.textContent = 'Стартовый';
+        featureTipNode.textContent = 'Этот скин предназначен для новых игроков.';
+    } else if (!userId) {
+        featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
+        featureTipNode.textContent = 'Войдите в аккаунт, чтобы покупать и устанавливать скины.';
+    } else if (equipped) {
+        featureStatusNode.textContent = 'Сейчас надет';
+        featureTipNode.textContent = 'Этот скин уже установлен на бобре.';
+    } else if (owned) {
+        featureStatusNode.textContent = 'Уже куплен';
+        featureTipNode.textContent = 'Нажмите на карточку скина, чтобы установить его.';
+    } else if (score >= focusedSkin.price) {
+        featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
+        featureTipNode.textContent = 'Средств хватает: нажмите на карточку, чтобы подтвердить покупку.';
+    } else {
+        featureStatusNode.textContent = `${formatCompactNumber(focusedSkin.price)} коинов`;
+        featureTipNode.textContent = getSkinShortageMessage(focusedSkin.price);
     }
 }
 
@@ -3024,6 +3304,8 @@ function updateSkinShopUI() {
             }
         }
     });
+
+    updateSkinShopFeature();
 }
 
 function renderSkinShop() {
@@ -3036,6 +3318,7 @@ function renderSkinShop() {
     if (visibleSkins.length === 0) {
         skinsContainer.innerHTML = '<div class="skin-shop-panel">По этим фильтрам скины не найдены. Попробуйте другую категорию или сортировку.</div>';
         updateSkinShopControls();
+        updateSkinShopFeature('');
         return;
     }
 
@@ -3061,12 +3344,20 @@ function renderSkinShop() {
     `).join('');
 
     skinsContainer.querySelectorAll('.skin-shop-card').forEach((skinCard) => {
+        skinCard.addEventListener('mouseenter', () => {
+            updateSkinShopFeature(skinCard.dataset.skinId || '');
+        });
+        skinCard.addEventListener('focus', () => {
+            updateSkinShopFeature(skinCard.dataset.skinId || '');
+        });
         skinCard.addEventListener('click', () => {
+            updateSkinShopFeature(skinCard.dataset.skinId || '');
             buySkin(skinCard.dataset.skinId || '');
         });
     });
 
     updateSkinShopUI();
+    updateSkinShopFeature();
 }
 
 function hideSkinActionModal() {
@@ -3142,6 +3433,7 @@ function hideUpgradeActionModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     upgradeActionState.type = '';
+    upgradeActionState.quantity = 1;
     syncGlobalOverlayState();
 }
 
@@ -3150,24 +3442,155 @@ function getUpgradeDescriptor(type) {
         tapSmall: {
             title: 'Усилить тап',
             effect: '+1 коин за нажатие',
+            effectStep: 1,
             purchaseCount: upgradePurchaseCounts.tapSmall,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall)
         },
         tapBig: {
             title: 'Сильный тап',
             effect: '+5 коинов за нажатие',
+            effectStep: 5,
             purchaseCount: upgradePurchaseCounts.tapBig,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig)
         },
         energy: {
             title: 'Запас энергии',
             effect: '+1000 к максимуму энергии',
+            effectStep: 1000,
             purchaseCount: upgradePurchaseCounts.energy,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy)
         }
     };
 
     return descriptors[type] || null;
+}
+
+function calculateUpgradeBundleCost(baseCost, purchaseCount, quantity) {
+    let total = 0;
+    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+
+    for (let index = 0; index < safeQuantity; index += 1) {
+        total += calculateUpgradeCost(baseCost, safePurchaseCount + index);
+    }
+
+    return total;
+}
+
+function calculateMaxAffordableUpgradeQuantity(baseCost, purchaseCount, balance) {
+    let total = 0;
+    let quantity = 0;
+    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+    const safeBalance = Math.max(0, Math.floor(Number(balance) || 0));
+
+    while (quantity < 250) {
+        const nextCost = calculateUpgradeCost(baseCost, safePurchaseCount + quantity);
+        if (total + nextCost > safeBalance) {
+            break;
+        }
+        total += nextCost;
+        quantity += 1;
+    }
+
+    return quantity;
+}
+
+function getUpgradeShortageMessage(price) {
+    const safePrice = Math.max(0, Number(price) || 0);
+    const shortage = Math.max(0, safePrice - score);
+    return `Недостаточно средств: сейчас ${formatCompactNumber(score)}, нужно ${formatCompactNumber(safePrice)}. Не хватает ${formatCompactNumber(shortage)}.`;
+}
+
+function normalizeUpgradeModalQuantity(type, quantity) {
+    const descriptor = getUpgradeDescriptor(type);
+    if (!descriptor) {
+        return 1;
+    }
+
+    const maxAffordable = Math.max(1, calculateMaxAffordableUpgradeQuantity(
+        type === 'tapSmall' ? UPGRADE_BASE_COSTS.tapSmall : (type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy),
+        descriptor.purchaseCount,
+        score
+    ));
+
+    return Math.max(1, Math.min(maxAffordable, Math.floor(Number(quantity) || 1)));
+}
+
+function updateUpgradeActionModalView() {
+    const descriptor = getUpgradeDescriptor(upgradeActionState.type);
+    const modal = document.getElementById('upgradeActionModal');
+    if (!descriptor || !modal) {
+        return;
+    }
+
+    const baseCost = upgradeActionState.type === 'tapSmall'
+        ? UPGRADE_BASE_COSTS.tapSmall
+        : (upgradeActionState.type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+    const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score);
+    const quantity = normalizeUpgradeModalQuantity(upgradeActionState.type, upgradeActionState.quantity);
+    const totalPrice = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, quantity);
+    const nextBalance = Math.max(0, score - totalPrice);
+    const nextSinglePrice = calculateUpgradeCost(baseCost, descriptor.purchaseCount + quantity);
+    const quantityInputNode = document.getElementById('upgradeActionModalQuantityInput');
+    const currentBalanceNode = document.getElementById('upgradeActionModalCurrentBalance');
+    const priceNode = document.getElementById('upgradeActionModalPrice');
+    const nextBalanceNode = document.getElementById('upgradeActionModalNextBalance');
+    const purchasedCountNode = document.getElementById('upgradeActionModalPurchasedCount');
+    const effectNode = document.getElementById('upgradeActionModalEffect');
+    const textNode = document.getElementById('upgradeActionModalText');
+    const confirmNode = document.getElementById('upgradeActionModalConfirm');
+    const quantityNoteNode = document.getElementById('upgradeActionModalQuantityNote');
+    const presetButtons = document.querySelectorAll('.upgrade-quantity-preset');
+
+    upgradeActionState.quantity = quantity;
+
+    if (quantityInputNode) {
+        quantityInputNode.value = String(quantity);
+    }
+
+    if (textNode) {
+        textNode.textContent = maxAffordableQuantity > 0
+            ? 'Можно купить сразу несколько уровней. Стоимость пересчитается автоматически.'
+            : getUpgradeShortageMessage(descriptor.price);
+    }
+
+    if (currentBalanceNode) {
+        currentBalanceNode.textContent = formatCompactNumber(score);
+    }
+
+    if (priceNode) {
+        priceNode.textContent = formatCompactNumber(totalPrice);
+    }
+
+    if (nextBalanceNode) {
+        nextBalanceNode.textContent = formatCompactNumber(nextBalance);
+    }
+
+    if (purchasedCountNode) {
+        purchasedCountNode.textContent = `Куплено: ${formatCompactNumber(descriptor.purchaseCount)} -> ${formatCompactNumber(descriptor.purchaseCount + quantity)}`;
+    }
+
+    if (effectNode) {
+        effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${upgradeActionState.type === 'energy' ? 'к энергии' : 'к тапу'}`;
+    }
+
+    if (quantityNoteNode) {
+        quantityNoteNode.textContent = maxAffordableQuantity > 0
+            ? `Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. Следующая цена после покупки: ${formatCompactNumber(nextSinglePrice)}.`
+            : getUpgradeShortageMessage(descriptor.price);
+    }
+
+    if (confirmNode) {
+        confirmNode.textContent = `Купить x${formatCompactNumber(quantity)} за ${formatCompactNumber(totalPrice)}`;
+        confirmNode.disabled = !userId || maxAffordableQuantity < 1 || score < totalPrice;
+    }
+
+    presetButtons.forEach((button) => {
+        const rawValue = String(button.dataset.quantity || '');
+        const targetQuantity = rawValue === 'max' ? Math.max(1, maxAffordableQuantity) : Math.max(1, Math.floor(Number(rawValue) || 1));
+        button.classList.toggle('active', targetQuantity === quantity || (rawValue === 'max' && maxAffordableQuantity > 0 && quantity === maxAffordableQuantity));
+        button.disabled = rawValue === 'max' ? maxAffordableQuantity < 1 : targetQuantity > Math.max(1, maxAffordableQuantity);
+    });
 }
 
 function showUpgradeActionModal(type) {
@@ -3178,77 +3601,44 @@ function showUpgradeActionModal(type) {
     }
 
     upgradeActionState.type = type;
-
-    const price = descriptor.price;
-    const nextBalance = Math.max(0, score - price);
+    upgradeActionState.quantity = 1;
     const titleNode = document.getElementById('upgradeActionModalTitle');
-    const textNode = document.getElementById('upgradeActionModalText');
-    const currentBalanceNode = document.getElementById('upgradeActionModalCurrentBalance');
-    const priceNode = document.getElementById('upgradeActionModalPrice');
-    const nextBalanceNode = document.getElementById('upgradeActionModalNextBalance');
-    const purchasedCountNode = document.getElementById('upgradeActionModalPurchasedCount');
-    const effectNode = document.getElementById('upgradeActionModalEffect');
-    const confirmNode = document.getElementById('upgradeActionModalConfirm');
 
     if (titleNode) {
         titleNode.textContent = descriptor.title;
     }
 
-    if (textNode) {
-        textNode.textContent = `Подтвердите покупку улучшения. После оплаты баланс уменьшится, а эффект применится сразу.`;
-    }
-
-    if (currentBalanceNode) {
-        currentBalanceNode.textContent = formatCompactNumber(score);
-    }
-
-    if (priceNode) {
-        priceNode.textContent = formatCompactNumber(price);
-    }
-
-    if (nextBalanceNode) {
-        nextBalanceNode.textContent = formatCompactNumber(nextBalance);
-    }
-
-    if (purchasedCountNode) {
-        purchasedCountNode.textContent = `Куплено: ${formatCompactNumber(descriptor.purchaseCount)}`;
-    }
-
-    if (effectNode) {
-        effectNode.textContent = `Эффект: ${descriptor.effect}`;
-    }
-
-    if (confirmNode) {
-        confirmNode.textContent = `Купить за ${formatCompactNumber(price)}`;
-        confirmNode.disabled = !userId || score < price;
-    }
-
+    updateUpgradeActionModalView();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
 }
 
-function performUpgradePurchase(type) {
+function performUpgradePurchase(type, quantity = 1) {
     const descriptor = getUpgradeDescriptor(type);
     if (!descriptor) {
         return;
     }
 
-    const currentCost = descriptor.price;
+    const safeQuantity = normalizeUpgradeModalQuantity(type, quantity);
+    const baseCost = type === 'tapSmall'
+        ? UPGRADE_BASE_COSTS.tapSmall
+        : (type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+    const currentCost = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, safeQuantity);
     if (score < currentCost) {
-        showNotification(`Недостаточно средств! Нужно ${currentCost}.`, 'error');
+        showNotification(getUpgradeShortageMessage(currentCost), 'error');
         return;
     }
 
     if (type === 'tapSmall') {
-        plus += 1;
-        upgradePurchaseCounts.tapSmall += 1;
+        plus += safeQuantity;
+        upgradePurchaseCounts.tapSmall += safeQuantity;
     } else if (type === 'tapBig') {
-        plus += 5;
-        upgradePurchaseCounts.tapBig += 1;
+        plus += 5 * safeQuantity;
+        upgradePurchaseCounts.tapBig += safeQuantity;
     } else if (type === 'energy') {
-        energy_max += 1000;
-        upgradePurchaseCounts.energy += 1;
+        energy_max += 1000 * safeQuantity;
+        upgradePurchaseCounts.energy += safeQuantity;
         updateRegenRate();
     }
 
@@ -3264,8 +3654,8 @@ function performUpgradePurchase(type) {
     hideUpgradeActionModal();
     showNotification(
         type === 'energy'
-            ? `Успешная покупка улучшения! Новый максимум: ${energy_max}`
-            : 'Успешная покупка улучшения!',
+            ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый максимум: ${formatCompactNumber(energy_max)}`
+            : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
         'success'
     );
 }
@@ -3281,7 +3671,7 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
     }
 
     if (score < skinConfig.price) {
-        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
+        showNotification(getSkinShortageMessage(skinConfig.price), 'error');
         return false;
     }
 
@@ -3304,8 +3694,9 @@ function confirmSkinAction() {
         return;
     }
 
-    applySkinPurchaseOrEquip(skinConfig, skinActionState.mode);
-    hideSkinActionModal();
+    if (applySkinPurchaseOrEquip(skinConfig, skinActionState.mode)) {
+        hideSkinActionModal();
+    }
 }
 
 function validateRegisterLogin(loginValue) {
@@ -3397,11 +3788,12 @@ function updateUpgradeShopUI() {
         const priceNode = button.querySelector('.upgrade-card-price');
         const statusNode = button.querySelector('.upgrade-card-status');
         const isAffordable = Boolean(userId) && score >= currentCost;
+        const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(cardConfig.baseCost, cardConfig.purchaseCount, score);
 
         button.classList.toggle('affordable', isAffordable);
         button.classList.toggle('locked', !isAffordable);
         button.title = userId
-            ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`
+            ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}. Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт.`
             : 'Войдите в аккаунт, чтобы покупать улучшения.';
 
         if (priceNode) {
@@ -3412,9 +3804,9 @@ function updateUpgradeShopUI() {
             if (!userId) {
                 statusNode.textContent = 'Сначала войдите в аккаунт';
             } else if (isAffordable) {
-                statusNode.textContent = `${cardConfig.affordableText} • Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`;
+                statusNode.textContent = `${cardConfig.affordableText} • До ${formatCompactNumber(maxAffordableQuantity)} шт.`;
             } else {
-                statusNode.textContent = `${cardConfig.lockedText} • Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}`;
+                statusNode.textContent = `${cardConfig.lockedText} • ${formatCompactNumber(currentCost)} нужно`;
             }
         }
     });
@@ -4157,10 +4549,68 @@ const upgradeActionConfirmButton = document.getElementById('upgradeActionModalCo
 if (upgradeActionConfirmButton) {
     upgradeActionConfirmButton.addEventListener('click', () => {
         if (upgradeActionState.type) {
-            performUpgradePurchase(upgradeActionState.type);
+            performUpgradePurchase(upgradeActionState.type, upgradeActionState.quantity);
         }
     });
 }
+
+const upgradeActionMinusButton = document.getElementById('upgradeActionModalMinus');
+if (upgradeActionMinusButton) {
+    upgradeActionMinusButton.addEventListener('click', () => {
+        if (!upgradeActionState.type) {
+            return;
+        }
+        upgradeActionState.quantity = Math.max(1, (Number(upgradeActionState.quantity) || 1) - 1);
+        updateUpgradeActionModalView();
+    });
+}
+
+const upgradeActionPlusButton = document.getElementById('upgradeActionModalPlus');
+if (upgradeActionPlusButton) {
+    upgradeActionPlusButton.addEventListener('click', () => {
+        if (!upgradeActionState.type) {
+            return;
+        }
+        upgradeActionState.quantity = (Number(upgradeActionState.quantity) || 1) + 1;
+        updateUpgradeActionModalView();
+    });
+}
+
+const upgradeActionQuantityInput = document.getElementById('upgradeActionModalQuantityInput');
+if (upgradeActionQuantityInput) {
+    upgradeActionQuantityInput.addEventListener('input', () => {
+        if (!upgradeActionState.type) {
+            return;
+        }
+        upgradeActionState.quantity = Math.max(1, Math.floor(Number(upgradeActionQuantityInput.value) || 1));
+        updateUpgradeActionModalView();
+    });
+}
+
+document.querySelectorAll('.upgrade-quantity-preset').forEach((button) => {
+    button.addEventListener('click', () => {
+        if (!upgradeActionState.type) {
+            return;
+        }
+
+        const rawQuantity = String(button.dataset.quantity || '1');
+        if (rawQuantity === 'max') {
+            const descriptor = getUpgradeDescriptor(upgradeActionState.type);
+            if (!descriptor) {
+                return;
+            }
+
+            const baseCost = upgradeActionState.type === 'tapSmall'
+                ? UPGRADE_BASE_COSTS.tapSmall
+                : (upgradeActionState.type === 'tapBig' ? UPGRADE_BASE_COSTS.tapBig : UPGRADE_BASE_COSTS.energy);
+            upgradeActionState.quantity = Math.max(1, calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score));
+        } else {
+            upgradeActionState.quantity = Math.max(1, Math.floor(Number(rawQuantity) || 1));
+        }
+
+        updateUpgradeActionModalView();
+    });
+});
 
 const flyBeaverOpenButton = document.getElementById('flyBeaverOpenButton');
 if (flyBeaverOpenButton) {
@@ -4852,7 +5302,7 @@ function buySkin(skinId) {
     }
 
     if (score < skinConfig.price) {
-        showNotification(`Недостаточно средств! Нужно ${formatCompactNumber(skinConfig.price)}.`, 'error');
+        showNotification(getSkinShortageMessage(skinConfig.price), 'error');
         return;
     }
 
@@ -5106,6 +5556,12 @@ function buyUpgrade1() {
         showNotification('Пожалуйста, войдите в систему!', 'error');
         return;
     }
+
+    const descriptor = getUpgradeDescriptor('tapSmall');
+    if (descriptor && score < descriptor.price) {
+        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
+        return;
+    }
     showUpgradeActionModal('tapSmall');
 }
 
@@ -5114,12 +5570,24 @@ function buyUpgrade2() {
         showNotification('Пожалуйста, войдите в систему!', 'error');
         return;
     }
+
+    const descriptor = getUpgradeDescriptor('tapBig');
+    if (descriptor && score < descriptor.price) {
+        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
+        return;
+    }
     showUpgradeActionModal('tapBig');
 }
 
 function buyEnergyUpgrade() {
     if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        return;
+    }
+
+    const descriptor = getUpgradeDescriptor('energy');
+    if (descriptor && score < descriptor.price) {
+        showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         return;
     }
     showUpgradeActionModal('energy');
