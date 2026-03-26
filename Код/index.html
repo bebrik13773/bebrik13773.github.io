@@ -2986,8 +2986,7 @@ let DEFAULT_SKIN_ID = 'classic';
 let DEFAULT_OWNED_SKIN_IDS = [];
 const skinShopViewState = {
     category: localStorage.getItem('skin_shop_category') || 'all',
-    sort: localStorage.getItem('skin_shop_sort') || 'manual',
-    focusSkinId: ''
+    sort: localStorage.getItem('skin_shop_sort') || 'manual'
 };
 
 function normalizeSkinRarity(value) {
@@ -3618,33 +3617,31 @@ function getSkinShortageMessage(price) {
 }
 
 function getSkinShopFocusedConfig() {
-    const visibleItems = getVisibleSkinCatalog();
-    if (visibleItems.length === 0) {
+    const featuredItems = sortSkinCatalogForDisplay(SKIN_CATALOG.filter((item) => {
+        return item.available !== false || isSkinOwned(item.id);
+    }));
+
+    if (featuredItems.length === 0) {
         return null;
     }
 
     const preferredOrder = [
-        String(skinShopViewState.focusSkinId || '').trim(),
         String((skin && skin.equippedSkinId) || '').trim(),
         DEFAULT_SKIN_ID,
-        String(visibleItems[0].id || '').trim()
+        String(featuredItems[0].id || '').trim()
     ].filter(Boolean);
 
     for (const skinId of preferredOrder) {
-        const match = visibleItems.find((item) => item.id === skinId);
+        const match = featuredItems.find((item) => item.id === skinId);
         if (match) {
             return match;
         }
     }
 
-    return visibleItems[0];
+    return featuredItems[0];
 }
 
-function updateSkinShopFeature(skinId = '') {
-    if (skinId) {
-        skinShopViewState.focusSkinId = String(skinId || '').trim();
-    }
-
+function updateSkinShopFeature() {
     const featurePreviewNode = document.getElementById('skinShopFeaturePreview');
     const featureNameNode = document.getElementById('skinShopFeatureName');
     const featureStatusNode = document.getElementById('skinShopFeatureStatus');
@@ -3796,7 +3793,7 @@ function renderSkinShop() {
     if (visibleSkins.length === 0) {
         skinsContainer.innerHTML = '<div class="skin-shop-panel">По этим фильтрам скины не найдены. Попробуйте другую категорию или сортировку.</div>';
         updateSkinShopControls();
-        updateSkinShopFeature('');
+        updateSkinShopFeature();
         return;
     }
 
@@ -3822,14 +3819,7 @@ function renderSkinShop() {
     `).join('');
 
     skinsContainer.querySelectorAll('.skin-shop-card').forEach((skinCard) => {
-        skinCard.addEventListener('mouseenter', () => {
-            updateSkinShopFeature(skinCard.dataset.skinId || '');
-        });
-        skinCard.addEventListener('focus', () => {
-            updateSkinShopFeature(skinCard.dataset.skinId || '');
-        });
         skinCard.addEventListener('click', () => {
-            updateSkinShopFeature(skinCard.dataset.skinId || '');
             buySkin(skinCard.dataset.skinId || '');
         });
     });
