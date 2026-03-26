@@ -3554,6 +3554,9 @@ function showSkinActionModal(skinConfig, mode) {
     const priceNode = document.getElementById('skinActionModalPrice');
     const balanceNode = document.getElementById('skinActionModalBalance');
     const confirmNode = document.getElementById('skinActionModalConfirm');
+    const metaNode = priceNode && priceNode.parentElement && priceNode.parentElement.classList.contains('skin-action-modal-meta')
+        ? priceNode.parentElement
+        : null;
 
     if (!modal || !skinConfig || !confirmNode) {
         return;
@@ -3585,6 +3588,11 @@ function showSkinActionModal(skinConfig, mode) {
 
     if (balanceNode) {
         balanceNode.textContent = `Ваш счет: ${formatCompactNumber(score)}`;
+        balanceNode.style.display = mode === 'install' ? 'none' : 'inline-flex';
+    }
+
+    if (metaNode) {
+        metaNode.style.display = mode === 'install' ? 'none' : 'flex';
     }
 
     confirmNode.textContent = mode === 'install'
