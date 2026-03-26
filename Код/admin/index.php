@@ -1189,6 +1189,31 @@ SQL;
             }
         }
 
+        if ($action === 'get_user_client_log') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $logData = bober_fetch_user_client_event_log($conn, $userId, [
+                        'group' => (string) ($_POST['group'] ?? 'all'),
+                        'type' => (string) ($_POST['type'] ?? ''),
+                        'source' => (string) ($_POST['source'] ?? 'all'),
+                        'search' => (string) ($_POST['search'] ?? ''),
+                        'limit' => (int) ($_POST['limit'] ?? 200),
+                    ]);
+
+                    $response['success'] = true;
+                    $response['log'] = $logData;
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'save_user_profile') {
             if (requireAdminAuth($response)) {
                 $userId = max(0, (int) ($_POST['user_id'] ?? 0));
@@ -1888,6 +1913,7 @@ SQL;
                         $deleteMeta = [
                             'user_sessions' => 0,
                             'user_activity_log' => 0,
+                            'user_client_event_log' => 0,
                             'fly_beaver_runs' => 0,
                             'fly_beaver_progress' => 0,
                             'user_ip_history' => 0,
@@ -1902,6 +1928,7 @@ SQL;
                             $deleteQueries = [
                                 'user_sessions' => 'DELETE FROM `user_sessions` WHERE `user_id` = ?',
                                 'user_activity_log' => 'DELETE FROM `user_activity_log` WHERE `user_id` = ?',
+                                'user_client_event_log' => 'DELETE FROM `user_client_event_log` WHERE `user_id` = ?',
                                 'fly_beaver_runs' => 'DELETE FROM `fly_beaver_runs` WHERE `user_id` = ?',
                                 'fly_beaver_progress' => 'DELETE FROM `fly_beaver_progress` WHERE `user_id` = ?',
                                 'user_ip_history' => 'DELETE FROM `user_ip_history` WHERE `user_id` = ?',
@@ -4939,11 +4966,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let selectedAccountDirty = false;
         let currentAdminView = 'accounts';
         let accountSearchDebounce = null;
+        let accountClientLogSearchDebounce = null;
         let lastAccountSearch = '';
         let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
         let currentAccountFilter = localStorage.getItem('admin_account_filter') || 'all';
         let selectedAccountActivityFilter = 'all';
         let selectedAccountActivitySearch = '';
+        let selectedAccountClientLogItems = [];
+        let selectedAccountClientLogFilter = 'all';
+        let selectedAccountClientLogTypeFilter = 'all';
+        let selectedAccountClientLogSourceFilter = 'all';
+        let selectedAccountClientLogSearch = '';
+        let selectedAccountClientLogViewMode = 'pretty';
+        let selectedAccountClientLogLimit = 200;
+        let selectedAccountClientLogHasMore = false;
         let skinCatalogItems = [];
         let skinCatalogSearch = '';
         let skinCatalogCategoryFilter = localStorage.getItem('admin_skin_category_filter') || 'all';
@@ -6636,6 +6672,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     selectedAccountProfile = null;
                     selectedAccountBaselineSnapshot = '';
                     selectedAccountDirty = false;
+                    selectedAccountClientLogItems = [];
+                    selectedAccountClientLogHasMore = false;
                     document.getElementById('accountDetailContainer').style.display = 'none';
                     document.getElementById('accountDetailEmpty').style.display = 'flex';
                 }
@@ -6731,6 +6769,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             selectedAccountDirty = false;
             selectedAccountActivityFilter = 'all';
             selectedAccountActivitySearch = '';
+            selectedAccountClientLogItems = [];
+            selectedAccountClientLogFilter = 'all';
+            selectedAccountClientLogTypeFilter = 'all';
+            selectedAccountClientLogSourceFilter = 'all';
+            selectedAccountClientLogSearch = '';
+            selectedAccountClientLogViewMode = 'pretty';
+            selectedAccountClientLogLimit = 200;
+            selectedAccountClientLogHasMore = false;
             markActiveAccountInList();
             document.getElementById('accountDetailEmpty').style.display = 'none';
             document.getElementById('accountDetailContainer').style.display = 'block';
@@ -6760,6 +6806,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 selectedAccountProfile = null;
                 selectedAccountBaselineSnapshot = '';
                 selectedAccountDirty = false;
+                selectedAccountClientLogItems = [];
+                selectedAccountClientLogHasMore = false;
                 document.getElementById('accountDetailContainer').innerHTML = `
                     <div class="account-empty">
                         <div>
@@ -6894,6 +6942,297 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     </div>
                 `;
             }).join('')}</div>`;
+        }
+
+        function getClientLogGroupLabel(group) {
+            const labels = {
+                all: 'Все группы',
+                auth: 'Авторизация',
+                clicks: 'Клики',
+                progress: 'Прогресс',
+                save: 'Сохранения',
+                shop: 'Магазин',
+                skins: 'Скины',
+                security: 'Безопасность',
+                session: 'Сессии',
+                ui: 'Интерфейс',
+                general: 'Общее'
+            };
+
+            return labels[String(group || '').toLowerCase()] || 'Общее';
+        }
+
+        function getClientLogTypeLabel(type) {
+            const labels = {
+                click_success: 'Успешный клик',
+                tap_success: 'Успешный тап',
+                click_no_energy: 'Клик без энергии',
+                tap_no_energy: 'Тап без энергии',
+                login_attempt: 'Попытка входа',
+                login_success_client: 'Клиент подтвердил вход',
+                login_failed_client: 'Ошибка входа на клиенте',
+                register_attempt: 'Попытка регистрации',
+                register_success_client: 'Клиент подтвердил регистрацию',
+                register_failed_client: 'Ошибка регистрации на клиенте',
+                session_restore_success: 'Автовосстановление сессии',
+                logout_request: 'Запрошен выход',
+                shop_open: 'Открыт магазин',
+                shop_close: 'Закрыт магазин',
+                skin_filter_change: 'Смена фильтра скинов',
+                skin_sort_change: 'Смена сортировки скинов',
+                skin_purchase_modal_open: 'Открыта покупка скина',
+                skin_install_modal_open: 'Открыта установка скина',
+                skin_install_client: 'Скин установлен',
+                skin_purchase_client: 'Скин куплен',
+                skin_purchase_shortage: 'Не хватает коинов на скин',
+                skin_unavailable_open: 'Открыт недоступный скин',
+                skin_grant_only_open: 'Открыт скин ручной выдачи',
+                skin_starter_locked_open: 'Открыт стартовый скин',
+                skin_already_equipped_open: 'Нажат уже надетый скин',
+                upgrade_modal_open: 'Открыто улучшение',
+                upgrade_purchase_client: 'Улучшение куплено',
+                upgrade_shortage: 'Не хватает коинов на улучшение',
+                open_fly_beaver: 'Открыт Летающий бобер',
+                save_attempt: 'Попытка сохранения',
+                save_success: 'Сохранение успешно',
+                save_failed: 'Сохранение с ошибкой',
+                save_beacon_queued: 'Beacon-сохранение поставлено в очередь',
+                anti_cheat_warning: 'Предупреждение античита',
+                anti_cheat_ban_report: 'Отправка бан-репорта',
+                anti_cheat_ban_confirmed: 'Бан подтвержден сервером',
+                anti_cheat_ban_failed: 'Ошибка бан-репорта',
+                terminate_other_session_request: 'Запрос завершения другой сессии'
+            };
+
+            const normalizedType = String(type || '').toLowerCase();
+            if (labels[normalizedType]) {
+                return labels[normalizedType];
+            }
+
+            return String(type || 'event').replace(/_/g, ' ');
+        }
+
+        function formatClientLogEventTime(item) {
+            const clientTs = Number(item && item.clientTs ? item.clientTs : 0);
+            if (clientTs > 0) {
+                return formatAdminDateTime(new Date(clientTs).toISOString());
+            }
+
+            return formatAdminDateTime(item && item.receivedAt ? item.receivedAt : null);
+        }
+
+        function buildClientLogPrettyHtml(items) {
+            const normalizedItems = Array.isArray(items) ? items : [];
+            if (normalizedItems.length === 0) {
+                return '<div class="empty-list">По текущим фильтрам подробный клиентский лог пуст.</div>';
+            }
+
+            return `<div class="activity-log">${normalizedItems.map(item => {
+                const payloadJson = item.payload && Object.keys(item.payload).length > 0
+                    ? `<div class="activity-meta-json">${escapeHtml(JSON.stringify(item.payload, null, 2))}</div>`
+                    : '';
+                const chips = [
+                    `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">schedule</span>#${formatAdminNumber(item.sequence || 0)}</span>`,
+                    `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">toll</span>${formatAdminNumber(item.scoreSnapshot || 0)}</span>`,
+                    `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">bolt</span>${formatAdminNumber(item.energySnapshot || 0)}</span>`,
+                    `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">touch_app</span>+${formatAdminNumber(item.plusSnapshot || 0)}</span>`
+                ].join('');
+
+                return `
+                    <div class="activity-card">
+                        <div class="activity-card-head">
+                            <div>
+                                <div class="activity-card-title">${escapeHtml(getClientLogTypeLabel(item.type))}</div>
+                                <div class="activity-card-subtitle">${escapeHtml(formatClientLogEventTime(item))}</div>
+                            </div>
+                            <div class="status-pill active">${escapeHtml(getClientLogGroupLabel(item.group))}</div>
+                        </div>
+                        <div class="activity-card-meta">
+                            ${escapeHtml(item.description || 'Описание события отсутствует.')}<br>
+                            Источник: ${escapeHtml(String(item.source || 'client'))}
+                            ${item.page ? `<br>Страница: ${escapeHtml(String(item.page || 'main_clicker'))}` : ''}
+                            ${item.deviceId ? `<br>Устройство: ${escapeHtml(String(item.deviceId || ''))}` : ''}
+                            ${item.clientSessionId ? `<br>Клиентская сессия: ${escapeHtml(String(item.clientSessionId || ''))}` : ''}
+                            ${item.ipAddress ? `<br>IP: ${escapeHtml(String(item.ipAddress || ''))}` : ''}
+                        </div>
+                        <div class="activity-chip-row">
+                            ${chips}
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">label</span>${escapeHtml(String(item.type || 'event'))}</span>
+                        </div>
+                        ${payloadJson}
+                    </div>
+                `;
+            }).join('')}</div>`;
+        }
+
+        function buildClientLogRawHtml(items) {
+            const normalizedItems = Array.isArray(items) ? items : [];
+            if (normalizedItems.length === 0) {
+                return '<div class="empty-list">По текущим фильтрам подробный клиентский лог пуст.</div>';
+            }
+
+            return `<pre class="code-block" style="margin: 0; white-space: pre-wrap;">${escapeHtml(JSON.stringify(normalizedItems, null, 2))}</pre>`;
+        }
+
+        function renderSelectedAccountClientLog() {
+            const container = document.getElementById('accountClientLogContainer');
+            const subtitle = document.getElementById('accountClientLogMeta');
+            if (!container || !subtitle) {
+                return;
+            }
+
+            const totalLoaded = Array.isArray(selectedAccountClientLogItems) ? selectedAccountClientLogItems.length : 0;
+            subtitle.textContent = selectedAccountClientLogHasMore
+                ? `Показаны последние ${formatAdminNumber(totalLoaded)} событий по текущим фильтрам. Ниже не весь лог, но выгрузка скачает больше.`
+                : `Показаны ${formatAdminNumber(totalLoaded)} событий по текущим фильтрам.`;
+
+            container.innerHTML = selectedAccountClientLogViewMode === 'raw'
+                ? buildClientLogRawHtml(selectedAccountClientLogItems)
+                : buildClientLogPrettyHtml(selectedAccountClientLogItems);
+        }
+
+        function buildSelectedAccountClientLogParams(limitOverride = null) {
+            return {
+                action: 'get_user_client_log',
+                user_id: String(selectedAccountId || 0),
+                group: String(selectedAccountClientLogFilter || 'all'),
+                type: String(selectedAccountClientLogTypeFilter || 'all'),
+                source: String(selectedAccountClientLogSourceFilter || 'all'),
+                search: String(selectedAccountClientLogSearch || ''),
+                limit: String(limitOverride || selectedAccountClientLogLimit || 200)
+            };
+        }
+
+        function loadSelectedAccountClientLog(options = {}) {
+            if (!selectedAccountId) {
+                return Promise.resolve();
+            }
+
+            const container = document.getElementById('accountClientLogContainer');
+            const silent = Boolean(options.silent);
+            const limitOverride = options.limitOverride || null;
+
+            if (container && !silent) {
+                container.innerHTML = `
+                    <div class="empty-list">
+                        <div class="loader" style="margin-right: 10px;"></div>
+                        Загружаю подробный клиентский лог...
+                    </div>
+                `;
+            }
+
+            return postAction(buildSelectedAccountClientLogParams(limitOverride))
+                .then(data => {
+                    if (!data.success || !data.log) {
+                        throw new Error(data.message || 'Не удалось загрузить подробный клиентский лог');
+                    }
+
+                    selectedAccountClientLogItems = Array.isArray(data.log.items) ? data.log.items : [];
+                    selectedAccountClientLogHasMore = Boolean(data.log.hasMore);
+                    renderSelectedAccountClientLog();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (container) {
+                        container.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки подробного клиентского лога')}</div>`;
+                    }
+                    showNotification(error.message || 'Ошибка загрузки подробного клиентского лога', 'error');
+                });
+        }
+
+        function escapeCsvCell(value) {
+            const rawValue = String(value ?? '');
+            if (/[",\n;]/.test(rawValue)) {
+                return `"${rawValue.replace(/"/g, '""')}"`;
+            }
+
+            return rawValue;
+        }
+
+        function downloadTextFile(fileName, content, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 300);
+        }
+
+        function exportSelectedAccountClientLog(format) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            const exportFormat = String(format || 'json').toLowerCase();
+            postAction(buildSelectedAccountClientLogParams(5000))
+                .then(data => {
+                    if (!data.success || !data.log) {
+                        throw new Error(data.message || 'Не удалось подготовить экспорт подробного клиентского лога');
+                    }
+
+                    const items = Array.isArray(data.log.items) ? data.log.items : [];
+                    if (items.length === 0) {
+                        showNotification('По текущим фильтрам нет событий для выгрузки.', 'warning');
+                        return;
+                    }
+
+                    const fileBase = `user-${selectedAccountId}-client-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+                    if (exportFormat === 'csv') {
+                        const header = ['receivedAt', 'clientTs', 'group', 'type', 'source', 'page', 'sequence', 'scoreSnapshot', 'energySnapshot', 'plusSnapshot', 'deviceId', 'clientSessionId', 'description', 'payload'];
+                        const rows = items.map(item => [
+                            item.receivedAt || '',
+                            item.clientTs || '',
+                            item.group || '',
+                            item.type || '',
+                            item.source || '',
+                            item.page || '',
+                            item.sequence || 0,
+                            item.scoreSnapshot || 0,
+                            item.energySnapshot || 0,
+                            item.plusSnapshot || 0,
+                            item.deviceId || '',
+                            item.clientSessionId || '',
+                            item.description || '',
+                            JSON.stringify(item.payload || {})
+                        ]);
+                        const csvContent = [header, ...rows]
+                            .map(row => row.map(escapeCsvCell).join(';'))
+                            .join('\n');
+                        downloadTextFile(`${fileBase}.csv`, csvContent, 'text/csv;charset=utf-8');
+                        showNotification('CSV-выгрузка подробного клиентского лога готова.', 'success');
+                        return;
+                    }
+
+                    if (exportFormat === 'txt') {
+                        const txtContent = items.map(item => {
+                            return [
+                                `[${formatClientLogEventTime(item)}] ${getClientLogGroupLabel(item.group)} / ${getClientLogTypeLabel(item.type)}`,
+                                `type=${item.type} source=${item.source} page=${item.page} seq=${item.sequence}`,
+                                `score=${item.scoreSnapshot} energy=${item.energySnapshot} plus=${item.plusSnapshot}`,
+                                item.description ? `description=${item.description}` : '',
+                                Object.keys(item.payload || {}).length > 0 ? `payload=${JSON.stringify(item.payload)}` : '',
+                                item.deviceId ? `device=${item.deviceId}` : '',
+                                item.clientSessionId ? `clientSession=${item.clientSessionId}` : '',
+                                item.ipAddress ? `ip=${item.ipAddress}` : '',
+                                ''
+                            ].filter(Boolean).join('\n');
+                        }).join('\n');
+                        downloadTextFile(`${fileBase}.txt`, txtContent, 'text/plain;charset=utf-8');
+                        showNotification('TXT-выгрузка подробного клиентского лога готова.', 'success');
+                        return;
+                    }
+
+                    downloadTextFile(`${fileBase}.json`, JSON.stringify(items, null, 2), 'application/json;charset=utf-8');
+                    showNotification('JSON-выгрузка подробного клиентского лога готова.', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка экспорта подробного клиентского лога', 'error');
+                });
         }
 
         function normalizeSelectedAccountPayload(payload) {
@@ -7290,6 +7629,94 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         </div>
                         <div id="accountActivityHistoryContainer">${buildActivityHistoryHtml(user.activityHistory || [])}</div>
                     </section>
+
+                    <section class="detail-section wide">
+                        <div class="detail-section-title">
+                            <span class="material-icons">receipt_long</span>
+                            Подробный клиентский лог
+                        </div>
+                        <div class="activity-toolbar">
+                            <input class="form-control" id="accountClientLogSearchInput" type="search" placeholder="Поиск по типу, описанию, payload, IP, deviceId..." value="${escapeHtml(selectedAccountClientLogSearch)}">
+                            <select class="form-control" id="accountClientLogGroupSelect">
+                                <option value="all"${selectedAccountClientLogFilter === 'all' ? ' selected' : ''}>Все группы</option>
+                                <option value="auth"${selectedAccountClientLogFilter === 'auth' ? ' selected' : ''}>Авторизация</option>
+                                <option value="clicks"${selectedAccountClientLogFilter === 'clicks' ? ' selected' : ''}>Клики</option>
+                                <option value="progress"${selectedAccountClientLogFilter === 'progress' ? ' selected' : ''}>Прогресс</option>
+                                <option value="save"${selectedAccountClientLogFilter === 'save' ? ' selected' : ''}>Сохранения</option>
+                                <option value="shop"${selectedAccountClientLogFilter === 'shop' ? ' selected' : ''}>Магазин</option>
+                                <option value="skins"${selectedAccountClientLogFilter === 'skins' ? ' selected' : ''}>Скины</option>
+                                <option value="security"${selectedAccountClientLogFilter === 'security' ? ' selected' : ''}>Безопасность</option>
+                                <option value="session"${selectedAccountClientLogFilter === 'session' ? ' selected' : ''}>Сессии</option>
+                                <option value="ui"${selectedAccountClientLogFilter === 'ui' ? ' selected' : ''}>Интерфейс</option>
+                            </select>
+                            <select class="form-control" id="accountClientLogTypeSelect">
+                                <option value="all"${selectedAccountClientLogTypeFilter === 'all' ? ' selected' : ''}>Все типы</option>
+                                <option value="click_success"${selectedAccountClientLogTypeFilter === 'click_success' ? ' selected' : ''}>Успешный клик</option>
+                                <option value="tap_success"${selectedAccountClientLogTypeFilter === 'tap_success' ? ' selected' : ''}>Успешный тап</option>
+                                <option value="login_attempt"${selectedAccountClientLogTypeFilter === 'login_attempt' ? ' selected' : ''}>Попытка входа</option>
+                                <option value="login_success_client"${selectedAccountClientLogTypeFilter === 'login_success_client' ? ' selected' : ''}>Успешный вход</option>
+                                <option value="save_attempt"${selectedAccountClientLogTypeFilter === 'save_attempt' ? ' selected' : ''}>Попытка сохранения</option>
+                                <option value="save_success"${selectedAccountClientLogTypeFilter === 'save_success' ? ' selected' : ''}>Успешное сохранение</option>
+                                <option value="save_failed"${selectedAccountClientLogTypeFilter === 'save_failed' ? ' selected' : ''}>Ошибка сохранения</option>
+                                <option value="skin_purchase_client"${selectedAccountClientLogTypeFilter === 'skin_purchase_client' ? ' selected' : ''}>Покупка скина</option>
+                                <option value="skin_install_client"${selectedAccountClientLogTypeFilter === 'skin_install_client' ? ' selected' : ''}>Установка скина</option>
+                                <option value="upgrade_purchase_client"${selectedAccountClientLogTypeFilter === 'upgrade_purchase_client' ? ' selected' : ''}>Покупка улучшения</option>
+                                <option value="anti_cheat_warning"${selectedAccountClientLogTypeFilter === 'anti_cheat_warning' ? ' selected' : ''}>Предупреждение античита</option>
+                                <option value="anti_cheat_ban_report"${selectedAccountClientLogTypeFilter === 'anti_cheat_ban_report' ? ' selected' : ''}>Репорт на бан</option>
+                            </select>
+                            <select class="form-control" id="accountClientLogSourceSelect">
+                                <option value="all"${selectedAccountClientLogSourceFilter === 'all' ? ' selected' : ''}>Все источники</option>
+                                <option value="click"${selectedAccountClientLogSourceFilter === 'click' ? ' selected' : ''}>click</option>
+                                <option value="touchstart"${selectedAccountClientLogSourceFilter === 'touchstart' ? ' selected' : ''}>touchstart</option>
+                                <option value="login_form"${selectedAccountClientLogSourceFilter === 'login_form' ? ' selected' : ''}>login_form</option>
+                                <option value="register_form"${selectedAccountClientLogSourceFilter === 'register_form' ? ' selected' : ''}>register_form</option>
+                                <option value="session_restore"${selectedAccountClientLogSourceFilter === 'session_restore' ? ' selected' : ''}>session_restore</option>
+                                <option value="manual_save"${selectedAccountClientLogSourceFilter === 'manual_save' ? ' selected' : ''}>manual_save</option>
+                                <option value="autosave"${selectedAccountClientLogSourceFilter === 'autosave' ? ' selected' : ''}>autosave</option>
+                                <option value="beacon"${selectedAccountClientLogSourceFilter === 'beacon' ? ' selected' : ''}>beacon</option>
+                                <option value="skin_shop"${selectedAccountClientLogSourceFilter === 'skin_shop' ? ' selected' : ''}>skin_shop</option>
+                                <option value="upgrade_shop"${selectedAccountClientLogSourceFilter === 'upgrade_shop' ? ' selected' : ''}>upgrade_shop</option>
+                                <option value="anti_cheat"${selectedAccountClientLogSourceFilter === 'anti_cheat' ? ' selected' : ''}>anti_cheat</option>
+                                <option value="profile_menu"${selectedAccountClientLogSourceFilter === 'profile_menu' ? ' selected' : ''}>profile_menu</option>
+                                <option value="session_conflict_modal"${selectedAccountClientLogSourceFilter === 'session_conflict_modal' ? ' selected' : ''}>session_conflict_modal</option>
+                                <option value="shop_button"${selectedAccountClientLogSourceFilter === 'shop_button' ? ' selected' : ''}>shop_button</option>
+                            </select>
+                        </div>
+                        <div class="activity-toolbar" style="margin-top: 12px;">
+                            <select class="form-control" id="accountClientLogViewSelect">
+                                <option value="pretty"${selectedAccountClientLogViewMode === 'pretty' ? ' selected' : ''}>Красивый вид</option>
+                                <option value="raw"${selectedAccountClientLogViewMode === 'raw' ? ' selected' : ''}>Сырой JSON</option>
+                            </select>
+                            <select class="form-control" id="accountClientLogLimitSelect">
+                                <option value="100"${selectedAccountClientLogLimit === 100 ? ' selected' : ''}>100 событий</option>
+                                <option value="200"${selectedAccountClientLogLimit === 200 ? ' selected' : ''}>200 событий</option>
+                                <option value="500"${selectedAccountClientLogLimit === 500 ? ' selected' : ''}>500 событий</option>
+                                <option value="1000"${selectedAccountClientLogLimit === 1000 ? ' selected' : ''}>1000 событий</option>
+                            </select>
+                            <select class="form-control" id="accountClientLogExportSelect">
+                                <option value="json">JSON</option>
+                                <option value="csv">CSV</option>
+                                <option value="txt">TXT</option>
+                            </select>
+                            <button class="btn btn-outline" type="button" id="refreshAccountClientLogBtn">
+                                <span class="material-icons">refresh</span>
+                                Обновить
+                            </button>
+                            <button class="btn btn-primary" type="button" id="downloadAccountClientLogBtn">
+                                <span class="material-icons">download</span>
+                                Скачать
+                            </button>
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom: 12px;" id="accountClientLogMeta">
+                            Загружаю подробный клиентский лог...
+                        </div>
+                        <div id="accountClientLogContainer">
+                            <div class="empty-list">
+                                <div class="loader" style="margin-right: 10px;"></div>
+                                Загружаю подробный клиентский лог...
+                            </div>
+                        </div>
+                    </section>
                 </div>
             `;
 
@@ -7345,6 +7772,76 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     }
                 });
             }
+
+            const clientLogGroupSelect = document.getElementById('accountClientLogGroupSelect');
+            if (clientLogGroupSelect) {
+                clientLogGroupSelect.addEventListener('change', function() {
+                    selectedAccountClientLogFilter = String(this.value || 'all');
+                    loadSelectedAccountClientLog();
+                });
+            }
+
+            const clientLogTypeSelect = document.getElementById('accountClientLogTypeSelect');
+            if (clientLogTypeSelect) {
+                clientLogTypeSelect.addEventListener('change', function() {
+                    selectedAccountClientLogTypeFilter = String(this.value || 'all');
+                    loadSelectedAccountClientLog();
+                });
+            }
+
+            const clientLogSourceSelect = document.getElementById('accountClientLogSourceSelect');
+            if (clientLogSourceSelect) {
+                clientLogSourceSelect.addEventListener('change', function() {
+                    selectedAccountClientLogSourceFilter = String(this.value || 'all');
+                    loadSelectedAccountClientLog();
+                });
+            }
+
+            const clientLogSearchInput = document.getElementById('accountClientLogSearchInput');
+            if (clientLogSearchInput) {
+                clientLogSearchInput.addEventListener('input', function() {
+                    selectedAccountClientLogSearch = String(this.value || '');
+                    if (accountClientLogSearchDebounce) {
+                        clearTimeout(accountClientLogSearchDebounce);
+                    }
+                    accountClientLogSearchDebounce = setTimeout(() => {
+                        loadSelectedAccountClientLog({ silent: true });
+                    }, 220);
+                });
+            }
+
+            const clientLogViewSelect = document.getElementById('accountClientLogViewSelect');
+            if (clientLogViewSelect) {
+                clientLogViewSelect.addEventListener('change', function() {
+                    selectedAccountClientLogViewMode = String(this.value || 'pretty');
+                    renderSelectedAccountClientLog();
+                });
+            }
+
+            const clientLogLimitSelect = document.getElementById('accountClientLogLimitSelect');
+            if (clientLogLimitSelect) {
+                clientLogLimitSelect.addEventListener('change', function() {
+                    selectedAccountClientLogLimit = Math.max(100, Number(this.value || 200));
+                    loadSelectedAccountClientLog();
+                });
+            }
+
+            const refreshClientLogButton = document.getElementById('refreshAccountClientLogBtn');
+            if (refreshClientLogButton) {
+                refreshClientLogButton.addEventListener('click', function() {
+                    loadSelectedAccountClientLog();
+                });
+            }
+
+            const downloadClientLogButton = document.getElementById('downloadAccountClientLogBtn');
+            if (downloadClientLogButton) {
+                downloadClientLogButton.addEventListener('click', function() {
+                    const formatSelect = document.getElementById('accountClientLogExportSelect');
+                    exportSelectedAccountClientLog(formatSelect ? formatSelect.value : 'json');
+                });
+            }
+
+            loadSelectedAccountClientLog();
         }
 
         function collectSelectedAccountPayload() {

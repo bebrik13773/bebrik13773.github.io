@@ -3022,6 +3022,25 @@ const autosaveState = {
     lastBeaconRevision: -1,
     lastError: ''
 };
+const CLIENT_EVENT_LOG_CONFIG = {
+    dbName: 'bober_main_client_log',
+    storeName: 'pending_events',
+    dbVersion: 1,
+    batchSize: 250,
+    summaryStorageKey: 'bober_client_log_summary',
+    deviceIdStorageKey: 'bober_client_log_device_id'
+};
+const clientLogState = {
+    supported: typeof indexedDB !== 'undefined',
+    dbPromise: null,
+    readyPromise: null,
+    memoryQueue: [],
+    memoryIndex: new Set(),
+    deviceId: '',
+    clientSessionId: '',
+    sequence: 0,
+    lastBatchNumber: 0
+};
 const sessionConflictState = {
     visible: false,
     mode: 'login',
@@ -3042,6 +3061,433 @@ const upgradeActionState = {
     type: '',
     quantity: 1
 };
+
+function getClientLogDeviceId() {
+    if (clientLogState.deviceId) {
+        return clientLogState.deviceId;
+    }
+
+    try {
+        const storedId = localStorage.getItem(CLIENT_EVENT_LOG_CONFIG.deviceIdStorageKey);
+        if (storedId) {
+            clientLogState.deviceId = storedId;
+            return storedId;
+        }
+    } catch (error) {
+        console.warn('Не удалось прочитать deviceId клиентского лога.', error);
+    }
+
+    const generatedId = createClientLogRandomId('device');
+    clientLogState.deviceId = generatedId;
+
+    try {
+        localStorage.setItem(CLIENT_EVENT_LOG_CONFIG.deviceIdStorageKey, generatedId);
+    } catch (error) {
+        console.warn('Не удалось сохранить deviceId клиентского лога.', error);
+    }
+
+    return generatedId;
+}
+
+function getClientLogSessionId() {
+    if (!clientLogState.clientSessionId) {
+        clientLogState.clientSessionId = createClientLogRandomId('session');
+    }
+
+    return clientLogState.clientSessionId;
+}
+
+function createClientLogRandomId(prefix = 'evt') {
+    const safePrefix = String(prefix || 'evt').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase() || 'evt';
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return `${safePrefix}-${window.crypto.randomUUID()}`;
+    }
+
+    const randomChunk = Math.random().toString(36).slice(2, 10);
+    return `${safePrefix}-${Date.now().toString(36)}-${randomChunk}`;
+}
+
+function updateClientLogSummaryDraft() {
+    try {
+        const pendingCount = clientLogState.memoryQueue.length;
+        if (pendingCount < 1) {
+            localStorage.removeItem(CLIENT_EVENT_LOG_CONFIG.summaryStorageKey);
+            return;
+        }
+
+        const lastItem = clientLogState.memoryQueue[clientLogState.memoryQueue.length - 1] || null;
+        localStorage.setItem(CLIENT_EVENT_LOG_CONFIG.summaryStorageKey, JSON.stringify({
+            pendingCount,
+            lastEventTs: lastItem ? Number(lastItem.clientTs || lastItem.createdAt || Date.now()) : Date.now()
+        }));
+    } catch (error) {
+        console.warn('Не удалось обновить сводку клиентского лога.', error);
+    }
+}
+
+function rememberClientLogEventInMemory(eventItem) {
+    if (!eventItem || !eventItem.eventUid || clientLogState.memoryIndex.has(eventItem.eventUid)) {
+        return;
+    }
+
+    clientLogState.memoryQueue.push(eventItem);
+    clientLogState.memoryIndex.add(eventItem.eventUid);
+    updateClientLogSummaryDraft();
+}
+
+function forgetClientLogEventsInMemory(eventUids) {
+    const uidSet = new Set(Array.isArray(eventUids) ? eventUids.filter(Boolean) : []);
+    if (uidSet.size === 0) {
+        return;
+    }
+
+    clientLogState.memoryQueue = clientLogState.memoryQueue.filter((eventItem) => !uidSet.has(eventItem.eventUid));
+    uidSet.forEach((eventUid) => {
+        clientLogState.memoryIndex.delete(eventUid);
+    });
+    updateClientLogSummaryDraft();
+}
+
+function openClientLogDatabase() {
+    if (!clientLogState.supported) {
+        return Promise.resolve(null);
+    }
+
+    if (clientLogState.dbPromise) {
+        return clientLogState.dbPromise;
+    }
+
+    clientLogState.dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(CLIENT_EVENT_LOG_CONFIG.dbName, CLIENT_EVENT_LOG_CONFIG.dbVersion);
+
+        request.onupgradeneeded = function() {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(CLIENT_EVENT_LOG_CONFIG.storeName)) {
+                const store = db.createObjectStore(CLIENT_EVENT_LOG_CONFIG.storeName, { keyPath: 'eventUid' });
+                store.createIndex('userIdHint', 'userIdHint', { unique: false });
+                store.createIndex('createdAt', 'createdAt', { unique: false });
+            }
+        };
+
+        request.onsuccess = function() {
+            resolve(request.result);
+        };
+
+        request.onerror = function() {
+            reject(request.error || new Error('Не удалось открыть IndexedDB для клиентского лога.'));
+        };
+    }).catch((error) => {
+        console.warn('IndexedDB для клиентского лога недоступна, работаем без устойчивой очереди.', error);
+        clientLogState.supported = false;
+        return null;
+    });
+
+    return clientLogState.dbPromise;
+}
+
+function readAllClientLogEventsFromDb(db) {
+    if (!db) {
+        return Promise.resolve([]);
+    }
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readonly');
+        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
+
+        if (typeof store.getAll === 'function') {
+            const request = store.getAll();
+            request.onsuccess = function() {
+                resolve(Array.isArray(request.result) ? request.result : []);
+            };
+            request.onerror = function() {
+                reject(request.error || new Error('Не удалось прочитать клиентский лог из IndexedDB.'));
+            };
+            return;
+        }
+
+        const items = [];
+        const cursorRequest = store.openCursor();
+        cursorRequest.onsuccess = function() {
+            const cursor = cursorRequest.result;
+            if (!cursor) {
+                resolve(items);
+                return;
+            }
+
+            items.push(cursor.value);
+            cursor.continue();
+        };
+        cursorRequest.onerror = function() {
+            reject(cursorRequest.error || new Error('Не удалось пройтись по IndexedDB клиентского лога.'));
+        };
+    });
+}
+
+async function ensureClientLogReady() {
+    if (clientLogState.readyPromise) {
+        return clientLogState.readyPromise;
+    }
+
+    clientLogState.readyPromise = (async () => {
+        getClientLogDeviceId();
+        getClientLogSessionId();
+
+        if (!clientLogState.supported) {
+            updateClientLogSummaryDraft();
+            return true;
+        }
+
+        const db = await openClientLogDatabase();
+        const storedItems = await readAllClientLogEventsFromDb(db);
+        storedItems
+            .sort((left, right) => {
+                const leftSequence = Number(left.sequence || 0);
+                const rightSequence = Number(right.sequence || 0);
+                if (leftSequence !== rightSequence) {
+                    return leftSequence - rightSequence;
+                }
+
+                return Number(left.createdAt || 0) - Number(right.createdAt || 0);
+            })
+            .forEach((eventItem) => {
+                rememberClientLogEventInMemory(eventItem);
+            });
+
+        return true;
+    })();
+
+    return clientLogState.readyPromise;
+}
+
+async function persistClientLogEvent(eventItem) {
+    const db = await openClientLogDatabase();
+    if (!db) {
+        return false;
+    }
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readwrite');
+        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
+        const request = store.put(eventItem);
+
+        request.onsuccess = function() {
+            resolve(true);
+        };
+        request.onerror = function() {
+            reject(request.error || new Error('Не удалось сохранить событие клиентского лога.'));
+        };
+    });
+}
+
+async function removeClientLogEventsFromDb(eventUids) {
+    const db = await openClientLogDatabase();
+    if (!db) {
+        return false;
+    }
+
+    const normalizedUids = Array.isArray(eventUids) ? eventUids.filter(Boolean) : [];
+    if (normalizedUids.length === 0) {
+        return true;
+    }
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readwrite');
+        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
+
+        normalizedUids.forEach((eventUid) => {
+            store.delete(eventUid);
+        });
+
+        transaction.oncomplete = function() {
+            resolve(true);
+        };
+        transaction.onerror = function() {
+            reject(transaction.error || new Error('Не удалось удалить отправленные события клиентского лога.'));
+        };
+    });
+}
+
+function createClientLogEvent(group, type, payload = {}, options = {}) {
+    const nextSequence = Math.max(1, clientLogState.sequence + 1);
+    clientLogState.sequence = nextSequence;
+
+    const resolvedPayload = payload && typeof payload === 'object' ? payload : {};
+    const eventLoginHint = String(options.loginHint ?? (userId ? currentLogin : '') ?? '').trim();
+    const eventUserIdHint = Math.max(0, Number(options.userIdHint ?? userId) || 0);
+    const scoreSnapshot = Math.max(0, Math.floor(Number(options.scoreSnapshot ?? score) || 0));
+    const energySnapshot = Math.max(0, Math.floor(Number(options.energySnapshot ?? energy) || 0));
+    const plusSnapshot = Math.max(0, Math.floor(Number(options.plusSnapshot ?? plus) || 0));
+
+    return {
+        eventUid: `${getClientLogDeviceId()}-${getClientLogSessionId()}-${nextSequence}-${Date.now().toString(36)}`,
+        createdAt: Date.now(),
+        deviceId: getClientLogDeviceId(),
+        clientSessionId: getClientLogSessionId(),
+        userIdHint: eventUserIdHint,
+        loginHint: eventLoginHint,
+        sequence: nextSequence,
+        clientTs: Math.max(0, Number(options.clientTs || Date.now()) || Date.now()),
+        page: String(options.page || 'main_clicker'),
+        group: String(group || 'general'),
+        type: String(type || 'event'),
+        source: String(options.source || 'client'),
+        description: typeof options.description === 'string' ? options.description : '',
+        scoreSnapshot,
+        energySnapshot,
+        plusSnapshot,
+        payload: resolvedPayload
+    };
+}
+
+function logClientEvent(group, type, payload = {}, options = {}) {
+    const eventItem = createClientLogEvent(group, type, payload, options);
+    rememberClientLogEventInMemory(eventItem);
+
+    if (clientLogState.supported) {
+        persistClientLogEvent(eventItem).catch((error) => {
+            console.warn('Не удалось записать событие клиентского лога в IndexedDB.', error);
+        });
+    }
+
+    return eventItem;
+}
+
+function getClientLogEligibleEvents(mode = 'auth', loginValue = '') {
+    const normalizedLogin = String(loginValue || currentLogin || '').trim().toLowerCase();
+    const currentUserId = Math.max(0, Number(userId) || 0);
+
+    return [...clientLogState.memoryQueue]
+        .sort((left, right) => {
+            const leftSequence = Number(left.sequence || 0);
+            const rightSequence = Number(right.sequence || 0);
+            if (leftSequence !== rightSequence) {
+                return leftSequence - rightSequence;
+            }
+
+            return Number(left.createdAt || 0) - Number(right.createdAt || 0);
+        })
+        .filter((eventItem) => {
+            const eventUserId = Math.max(0, Number(eventItem.userIdHint || 0));
+            const eventLogin = String(eventItem.loginHint || '').trim().toLowerCase();
+
+            if (mode === 'login') {
+                return eventUserId === 0 && (normalizedLogin === '' || eventLogin === '' || eventLogin === normalizedLogin);
+            }
+
+            if (currentUserId < 1) {
+                return false;
+            }
+
+            if (eventUserId > 0) {
+                return eventUserId === currentUserId;
+            }
+
+            return normalizedLogin === '' || eventLogin === '' || eventLogin === normalizedLogin;
+        });
+}
+
+function prepareClientLogBatchFromMemory(options = {}) {
+    const mode = String(options.mode || 'auth');
+    const loginValue = String(options.login || currentLogin || '');
+    const limit = Math.max(1, Math.min(1000, Number(options.limit || CLIENT_EVENT_LOG_CONFIG.batchSize) || CLIENT_EVENT_LOG_CONFIG.batchSize));
+    const eligibleEvents = getClientLogEligibleEvents(mode, loginValue);
+    if (eligibleEvents.length === 0) {
+        return null;
+    }
+
+    const selectedEvents = eligibleEvents.slice(0, limit);
+    clientLogState.lastBatchNumber += 1;
+
+    return {
+        eventUids: selectedEvents.map((eventItem) => eventItem.eventUid),
+        hasMore: eligibleEvents.length > selectedEvents.length,
+        payload: {
+            deviceId: getClientLogDeviceId(),
+            clientSessionId: getClientLogSessionId(),
+            batchId: `${getClientLogDeviceId()}-batch-${clientLogState.lastBatchNumber}-${Date.now().toString(36)}`,
+            events: selectedEvents.map((eventItem) => ({
+                eventUid: eventItem.eventUid,
+                deviceId: eventItem.deviceId,
+                clientSessionId: eventItem.clientSessionId,
+                sequence: Number(eventItem.sequence || 0),
+                clientTs: Number(eventItem.clientTs || 0),
+                page: String(eventItem.page || 'main_clicker'),
+                group: String(eventItem.group || 'general'),
+                type: String(eventItem.type || 'event'),
+                source: String(eventItem.source || 'client'),
+                description: String(eventItem.description || ''),
+                scoreSnapshot: Math.max(0, Number(eventItem.scoreSnapshot || 0)),
+                energySnapshot: Math.max(0, Number(eventItem.energySnapshot || 0)),
+                plusSnapshot: Math.max(0, Number(eventItem.plusSnapshot || 0)),
+                payload: eventItem.payload && typeof eventItem.payload === 'object' ? eventItem.payload : {}
+            }))
+        }
+    };
+}
+
+async function prepareClientLogBatch(options = {}) {
+    await ensureClientLogReady();
+    return prepareClientLogBatchFromMemory(options);
+}
+
+async function acknowledgeClientLogBatch(preparedBatch) {
+    if (!preparedBatch || !Array.isArray(preparedBatch.eventUids) || preparedBatch.eventUids.length === 0) {
+        return false;
+    }
+
+    forgetClientLogEventsInMemory(preparedBatch.eventUids);
+    if (!clientLogState.supported) {
+        return true;
+    }
+
+    try {
+        await removeClientLogEventsFromDb(preparedBatch.eventUids);
+        return true;
+    } catch (error) {
+        console.warn('Не удалось удалить уже отправленные события клиентского лога из IndexedDB.', error);
+        return false;
+    }
+}
+
+async function buildSaveStateTransportPayload(reason = 'save_state') {
+    const payload = buildSaveStatePayload();
+    const clientLogBatch = await prepareClientLogBatch({
+        mode: 'auth',
+        login: currentLogin,
+        limit: CLIENT_EVENT_LOG_CONFIG.batchSize
+    });
+
+    if (clientLogBatch && clientLogBatch.payload) {
+        payload.clientLogBatch = clientLogBatch.payload;
+    }
+
+    return {
+        payload,
+        clientLogBatch
+    };
+}
+
+function buildSaveStateBeaconTransportPayload(reason = 'beacon') {
+    const payload = buildSaveStatePayload();
+    const clientLogBatch = prepareClientLogBatchFromMemory({
+        mode: 'auth',
+        login: currentLogin,
+        limit: CLIENT_EVENT_LOG_CONFIG.batchSize
+    });
+
+    if (clientLogBatch && clientLogBatch.payload) {
+        payload.clientLogBatch = clientLogBatch.payload;
+    }
+
+    return {
+        payload,
+        clientLogBatch
+    };
+}
+
+ensureClientLogReady().catch((error) => {
+    console.warn('Не удалось инициализировать клиентский лог.', error);
+});
 
 function syncGlobalOverlayState() {
     const hasOpenModal = [
@@ -3564,6 +4010,17 @@ function showSkinActionModal(skinConfig, mode) {
 
     skinActionState.skinId = skinConfig.id;
     skinActionState.mode = mode;
+    logClientEvent('skins', mode === 'install' ? 'skin_install_modal_open' : 'skin_purchase_modal_open', {
+        skinId: skinConfig.id,
+        skinName: skinConfig.name,
+        price: Number(skinConfig.price || 0),
+        mode: mode
+    }, {
+        source: 'skin_shop',
+        description: mode === 'install'
+            ? 'Открыто подтверждение установки скина.'
+            : 'Открыто подтверждение покупки скина.'
+    });
 
     if (titleNode) {
         titleNode.textContent = mode === 'install' ? 'Установить скин?' : 'Купить скин?';
@@ -3789,6 +4246,15 @@ function showUpgradeActionModal(type) {
         titleNode.textContent = descriptor.title;
     }
 
+    logClientEvent('progress', 'upgrade_modal_open', {
+        upgradeType: type,
+        price: Number(descriptor.price || 0),
+        purchaseCount: Number(descriptor.purchaseCount || 0)
+    }, {
+        source: 'upgrade_shop',
+        description: `Открыто окно подтверждения покупки улучшения "${descriptor.title}".`
+    });
+
     updateUpgradeActionModalView();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -3827,6 +4293,16 @@ function performUpgradePurchase(type, quantity = 1) {
     updateScoreUI();
     updateEnergyUI();
     updateUpgradeShopUI();
+    logClientEvent('progress', 'upgrade_purchase_client', {
+        upgradeType: type,
+        quantity: safeQuantity,
+        totalCost: currentCost,
+        nextPlus: plus,
+        nextEnergyMax: energy_max
+    }, {
+        source: 'upgrade_shop',
+        description: 'Клиент зафиксировал покупку улучшения.'
+    });
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
     if (type === 'tapSmall' || type === 'tapBig') {
         saveplus();
@@ -3846,12 +4322,28 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
         skin.equippedSkinId = skinConfig.id;
         skinLoad();
         updateSkinShopUI();
+        logClientEvent('skins', 'skin_install_client', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name
+        }, {
+            source: 'skin_shop',
+            description: 'Клиент установил купленный скин.'
+        });
         saveskin();
         showNotification('Скин успешно установлен!', 'success');
         return true;
     }
 
     if (score < skinConfig.price) {
+        logClientEvent('skins', 'skin_purchase_shortage', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name,
+            price: Number(skinConfig.price || 0),
+            balance: score
+        }, {
+            source: 'skin_shop',
+            description: 'Не хватило коинов на покупку скина.'
+        });
         showNotification(getSkinShortageMessage(skinConfig.price), 'error');
         return false;
     }
@@ -3862,6 +4354,14 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
     skinLoad();
     updateScoreUI();
     updateSkinShopUI();
+    logClientEvent('skins', 'skin_purchase_client', {
+        skinId: skinConfig.id,
+        skinName: skinConfig.name,
+        price: Number(skinConfig.price || 0)
+    }, {
+        source: 'skin_shop',
+        description: 'Клиент купил и сразу установил новый скин.'
+    });
     saveskin();
     showNotification('Успешная покупка скина!', 'success');
     return true;
@@ -4456,18 +4956,32 @@ async function submitLoginRequest(loginValue, passwordValue, terminateSessionId 
         login: loginValue,
         password: passwordValue
     };
+    const clientLogBatch = await prepareClientLogBatch({
+        mode: 'login',
+        login: loginValue,
+        limit: CLIENT_EVENT_LOG_CONFIG.batchSize
+    });
 
     if (terminateSessionId > 0) {
         payload.terminateSessionId = terminateSessionId;
     }
 
-    return requestJson('https://bober-api.gt.tc/login-t.php', {
+    if (clientLogBatch && clientLogBatch.payload) {
+        payload.clientLogBatch = clientLogBatch.payload;
+    }
+
+    const data = await requestJson('https://bober-api.gt.tc/login-t.php', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
     });
+
+    if (data && data.success) {
+        await acknowledgeClientLogBatch(clientLogBatch);
+    }
+    return data;
 }
 
 async function terminateAuthenticatedSession(sessionId) {
@@ -4571,6 +5085,13 @@ async function continueLoginWithSessionTermination(sessionId) {
 
     try {
         if (isAuthenticatedConflict) {
+            logClientEvent('session', 'terminate_other_session_request', {
+                sessionId: sessionId,
+                mode: 'authenticated'
+            }, {
+                source: 'session_conflict_modal',
+                description: 'Игрок завершает другую активную сессию из модального окна конфликта.'
+            });
             const data = await terminateAuthenticatedSession(sessionId);
             const remainingConflict = normalizeSessionConflictPayload(data);
 
@@ -4585,11 +5106,30 @@ async function continueLoginWithSessionTermination(sessionId) {
             return;
         }
 
+        logClientEvent('auth', 'login_attempt', {
+            login: sessionConflictState.login,
+            hasPassword: Boolean(sessionConflictState.password),
+            conflictRetry: true,
+            terminateSessionId: sessionId
+        }, {
+            source: 'session_conflict_modal',
+            loginHint: sessionConflictState.login,
+            userIdHint: 0,
+            description: 'Игрок повторил вход после выбора завершаемой сессии.'
+        });
         const data = await submitLoginRequest(sessionConflictState.login, sessionConflictState.password, sessionId);
 
         hideSessionConflictModal();
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : fallbackLogin;
         applyAuthenticatedState(data);
+        logClientEvent('auth', 'login_success_client', {
+            login: currentLogin,
+            conflictRetry: true,
+            terminatedSessionId: sessionId
+        }, {
+            source: 'session_conflict_modal',
+            description: 'Клиент подтвердил успешный вход после завершения другой сессии.'
+        });
         await checkAuthenticatedSessionConflict();
         showNotification('Старая сессия завершена. Вход выполнен.', 'success');
         loadLeaderboard();
@@ -4610,6 +5150,16 @@ async function continueLoginWithSessionTermination(sessionId) {
             return;
         }
 
+        logClientEvent('auth', 'login_failed_client', {
+            login: sessionConflictState.login,
+            conflictRetry: true,
+            message: error.message || 'Не удалось завершить выбранную сессию.'
+        }, {
+            source: 'session_conflict_modal',
+            loginHint: sessionConflictState.login,
+            userIdHint: 0,
+            description: 'Клиент получил ошибку при повторном входе через модал конфликта сессий.'
+        });
         console.error('Ошибка завершения конфликтной сессии:', error);
         showNotification(error.message || 'Не удалось завершить выбранную сессию.', 'error');
     } finally {
@@ -5224,7 +5774,7 @@ function markProgressDirty(options = {}) {
     scheduleAutosave(options.delayMs ?? AUTOSAVE_CONFIG.idleDelayMs);
 }
 
-async function saveStateToServer() {
+async function saveStateToServer(reason = 'auto') {
     if (!userId) {
         return {
             success: false,
@@ -5233,15 +5783,17 @@ async function saveStateToServer() {
     }
 
     try {
+        const transport = await buildSaveStateTransportPayload(reason);
         const data = await requestJson('https://bober-api.gt.tc/save-state.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(buildSaveStatePayload())
+            body: JSON.stringify(transport.payload)
         });
 
         if (data && data.success) {
+            await acknowledgeClientLogBatch(transport.clientLogBatch);
             return {
                 success: true,
                 message: data.message || 'Прогресс сохранен.'
@@ -5281,6 +5833,14 @@ async function flushAutosave(options = {}) {
 
     autosaveState.inFlight = true;
     setSaveStatus('saving', reason === 'manual' ? 'Сохраняем прогресс...' : 'Автосохранение...');
+    logClientEvent('save', 'save_attempt', {
+        reason: reason,
+        dirtyRevision: autosaveState.revision,
+        beacon: false
+    }, {
+        source: reason === 'manual' ? 'manual_save' : 'autosave',
+        description: reason === 'manual' ? 'Игрок инициировал сохранение прогресса.' : 'Запущено сохранение прогресса.'
+    });
 
     if (autosaveState.timer) {
         clearTimeout(autosaveState.timer);
@@ -5288,7 +5848,7 @@ async function flushAutosave(options = {}) {
     }
 
     const revisionAtStart = autosaveState.revision;
-    const result = await saveStateToServer();
+    const result = await saveStateToServer(reason);
 
     autosaveState.inFlight = false;
 
@@ -5315,6 +5875,14 @@ async function flushAutosave(options = {}) {
             }
         }
 
+        logClientEvent('save', 'save_success', {
+            reason: reason,
+            revision: revisionAtStart
+        }, {
+            source: reason === 'manual' ? 'manual_save' : 'autosave',
+            description: reason === 'manual' ? 'Ручное сохранение завершилось успешно.' : 'Автосохранение завершилось успешно.'
+        });
+
         return true;
     }
 
@@ -5326,6 +5894,14 @@ async function flushAutosave(options = {}) {
 
     scheduleAutosave(AUTOSAVE_CONFIG.retryDelayMs);
     setSaveStatus('error', 'Сбой сети, локальный черновик сохранен');
+    logClientEvent('save', 'save_failed', {
+        reason: reason,
+        revision: revisionAtStart,
+        message: result.message || 'Не удалось сохранить прогресс.'
+    }, {
+        source: reason === 'manual' ? 'manual_save' : 'autosave',
+        description: 'Сохранение прогресса завершилось ошибкой.'
+    });
 
     if (!silent && reason === 'manual') {
         showNotification('Не удалось сохранить прогресс. Повторим автоматически.', 'error');
@@ -5363,7 +5939,14 @@ function flushAutosaveWithBeacon() {
 
     try {
         saveLocalDraft();
-        const payload = JSON.stringify(buildSaveStatePayload());
+        logClientEvent('save', 'save_beacon_queued', {
+            dirtyRevision: autosaveState.revision
+        }, {
+            source: 'beacon',
+            description: 'Фоновое beacon-сохранение было поставлено в очередь браузера.'
+        });
+        const transport = buildSaveStateBeaconTransportPayload('beacon');
+        const payload = JSON.stringify(transport.payload);
         const blob = new Blob([payload], { type: 'application/json' });
         const queued = navigator.sendBeacon('https://bober-api.gt.tc/save-state.php', blob);
 
@@ -5388,6 +5971,12 @@ async function restoreSession() {
 
         if (data && data.success) {
             applyAuthenticatedState(data);
+            logClientEvent('auth', 'session_restore_success', {
+                login: data.login || currentLogin || ''
+            }, {
+                source: 'session_restore',
+                description: 'Сессия была автоматически восстановлена после открытия страницы.'
+            });
             await checkAuthenticatedSessionConflict();
             return true;
         }
@@ -5453,6 +6042,13 @@ function buySkin(skinId) {
     }
 
     if (skinConfig.available === false) {
+        logClientEvent('skins', 'skin_unavailable_open', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name
+        }, {
+            source: 'skin_shop',
+            description: 'Игрок открыл недоступный скин.'
+        });
         showNotification('Этот скин пока в разработке. Если хотите, напишите в поддержку и добавим его быстрее.', 'success');
         return;
     }
@@ -5463,17 +6059,38 @@ function buySkin(skinId) {
     }
 
     if (skinConfig.issueMode === 'grant_only' && !isSkinOwned(skinConfig.id)) {
+        logClientEvent('skins', 'skin_grant_only_open', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name
+        }, {
+            source: 'skin_shop',
+            description: 'Игрок открыл скин, доступный только через ручную выдачу.'
+        });
         showNotification('Этот скин нельзя купить. Его можно получить только через ручную выдачу.', 'error');
         return;
     }
 
     if (skinConfig.issueMode === 'starter' && !isSkinOwned(skinConfig.id)) {
+        logClientEvent('skins', 'skin_starter_locked_open', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name
+        }, {
+            source: 'skin_shop',
+            description: 'Игрок открыл стартовый скин вне сценария нового аккаунта.'
+        });
         showNotification('Это стартовый скин для новых игроков. Для существующего аккаунта его нужно выдать вручную.', 'error');
         return;
     }
 
     if (isSkinOwned(skinConfig.id)) {
         if (skin.equippedSkinId === skinConfig.id) {
+            logClientEvent('skins', 'skin_already_equipped_open', {
+                skinId: skinConfig.id,
+                skinName: skinConfig.name
+            }, {
+                source: 'skin_shop',
+                description: 'Игрок нажал на уже установленный скин.'
+            });
             showNotification('Этот скин уже установлен.', 'success');
             return;
         }
@@ -5483,6 +6100,15 @@ function buySkin(skinId) {
     }
 
     if (score < skinConfig.price) {
+        logClientEvent('skins', 'skin_purchase_shortage', {
+            skinId: skinConfig.id,
+            skinName: skinConfig.name,
+            price: Number(skinConfig.price || 0),
+            balance: score
+        }, {
+            source: 'skin_shop',
+            description: 'Не хватило коинов для покупки скина.'
+        });
         showNotification(getSkinShortageMessage(skinConfig.price), 'error');
         return;
     }
@@ -5509,8 +6135,20 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
+        const primaryTouch = e.touches && e.touches[0] ? e.touches[0] : null;
+        logClientEvent('clicks', 'tap_success', {
+            touchCount: touches,
+            addedScore: totalCost,
+            x: primaryTouch ? primaryTouch.clientX : 0,
+            y: primaryTouch ? primaryTouch.clientY : 0,
+            trusted: e.isTrusted !== false
+        }, {
+            source: 'touchstart',
+            description: touches > 1
+                ? `Успешный мультитач по бобру на ${touches} пальца.`
+                : 'Успешный тап по бобру.'
+        });
         if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
-            const primaryTouch = e.touches && e.touches[0] ? e.touches[0] : null;
             window.clickDetector.recordInteraction({
                 source: 'touchstart',
                 x: primaryTouch ? primaryTouch.clientX : 0,
@@ -5520,6 +6158,13 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
             });
         }
     } else {
+        logClientEvent('clicks', 'tap_no_energy', {
+            touchCount: touches,
+            requestedCost: totalCost
+        }, {
+            source: 'touchstart',
+            description: 'Тап по бобру без достаточного запаса энергии.'
+        });
         showNotification('Недостаточно энергии!', 'error');
     }
 }, { passive: false });
@@ -5564,6 +6209,12 @@ if (skinCategorySelect) {
     skinCategorySelect.addEventListener('change', function() {
         skinShopViewState.category = String(this.value || 'all');
         localStorage.setItem('skin_shop_category', skinShopViewState.category);
+        logClientEvent('shop', 'skin_filter_change', {
+            category: skinShopViewState.category
+        }, {
+            source: 'skin_filter',
+            description: 'Игрок сменил категорию фильтра в каталоге скинов.'
+        });
         renderSkinShop();
     });
 }
@@ -5574,6 +6225,12 @@ if (skinSortSelect) {
     skinSortSelect.addEventListener('change', function() {
         skinShopViewState.sort = String(this.value || 'manual');
         localStorage.setItem('skin_shop_sort', skinShopViewState.sort);
+        logClientEvent('shop', 'skin_sort_change', {
+            sort: skinShopViewState.sort
+        }, {
+            source: 'skin_sort',
+            description: 'Игрок сменил сортировку каталога скинов.'
+        });
         renderSkinShop();
     });
 }
@@ -5592,6 +6249,15 @@ document.getElementById('clicker').onclick = function(e) {
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
+        logClientEvent('clicks', 'click_success', {
+            addedScore: plus,
+            x: e && typeof e.clientX === 'number' ? e.clientX : 0,
+            y: e && typeof e.clientY === 'number' ? e.clientY : 0,
+            trusted: !e || e.isTrusted !== false
+        }, {
+            source: 'click',
+            description: 'Успешный клик по бобру.'
+        });
         if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
             window.clickDetector.recordInteraction({
                 source: 'click',
@@ -5602,6 +6268,12 @@ document.getElementById('clicker').onclick = function(e) {
             });
         }
     } else {
+        logClientEvent('clicks', 'click_no_energy', {
+            requestedCost: plus
+        }, {
+            source: 'click',
+            description: 'Клик по бобру без достаточного запаса энергии.'
+        });
         showNotification('Недостаточно энергии!', 'error');
     }
 };
@@ -5624,6 +6296,16 @@ document.getElementById('submitLogin').onclick = async function() {
 
     loginBtn.disabled = true;
     setLoadingOverlay(true, 'Вход', 'Проверяем логин, пароль и активные сессии...');
+    logClientEvent('auth', 'login_attempt', {
+        login: loginValue,
+        hasPassword: Boolean(passwordValue),
+        conflictRetry: false
+    }, {
+        source: 'login_form',
+        loginHint: loginValue,
+        userIdHint: 0,
+        description: 'Игрок попытался войти в аккаунт через форму входа.'
+    });
 
     try {
         const data = await submitLoginRequest(loginValue, passwordValue);
@@ -5635,6 +6317,13 @@ document.getElementById('submitLogin').onclick = async function() {
 
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : loginValue;
         applyAuthenticatedState(data);
+        logClientEvent('auth', 'login_success_client', {
+            login: currentLogin,
+            conflictRetry: false
+        }, {
+            source: 'login_form',
+            description: 'Клиент подтвердил успешный вход в аккаунт.'
+        });
         await checkAuthenticatedSessionConflict();
 
         showNotification('Успешный вход!', 'success');
@@ -5653,6 +6342,15 @@ document.getElementById('submitLogin').onclick = async function() {
             resetUserState();
             return;
         }
+        logClientEvent('auth', 'login_failed_client', {
+            login: loginValue,
+            message: error.message || 'Ошибка входа.'
+        }, {
+            source: 'login_form',
+            loginHint: loginValue,
+            userIdHint: 0,
+            description: 'Клиент получил ошибку при входе в аккаунт.'
+        });
         console.error('Ошибка входа:', error);
         showNotification(error.message || 'Ошибка сети при входе.', 'error');
     } finally {
@@ -5665,6 +6363,12 @@ function shopShow() {
     loadSkinCatalog();
     updateSkinShopUI();
     closeProfileMenu();
+    logClientEvent('shop', 'shop_open', {
+        from: 'main_page'
+    }, {
+        source: 'shop_button',
+        description: 'Игрок открыл магазин.'
+    });
     document.getElementById('shop').style.display = 'block';
     document.getElementById('shopButton').style.display = 'none';
     document.getElementById('shopExit').style.display = 'block';
@@ -5677,6 +6381,12 @@ function shopShow() {
 }
 
 function shopClose() {
+    logClientEvent('shop', 'shop_close', {
+        from: 'shop_view'
+    }, {
+        source: 'shop_button',
+        description: 'Игрок закрыл магазин.'
+    });
     document.getElementById('shop').style.display = 'none';
     document.getElementById('shopButton').style.display = 'block';
     document.getElementById('shopExit').style.display = 'none';
@@ -5697,6 +6407,12 @@ async function openFlyBeaverGame() {
     setLoadingOverlay(true, 'Летающий бобер', userId
         ? 'Сначала сохраняем ваш прогресс, потом откроем мини-игру...'
         : 'Открываем мини-игру...');
+    logClientEvent('ui', 'open_fly_beaver', {
+        authenticated: Boolean(userId)
+    }, {
+        source: 'fly_beaver_button',
+        description: 'Игрок открыл мини-игру Летающий бобер.'
+    });
 
     try {
         if (userId) {
@@ -5735,6 +6451,14 @@ function buyUpgrade1() {
 
     const descriptor = getUpgradeDescriptor('tapSmall');
     if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'tapSmall',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения +1 к тапу.'
+        });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         return;
     }
@@ -5749,6 +6473,14 @@ function buyUpgrade2() {
 
     const descriptor = getUpgradeDescriptor('tapBig');
     if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'tapBig',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения +5 к тапу.'
+        });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         return;
     }
@@ -5763,6 +6495,14 @@ function buyEnergyUpgrade() {
 
     const descriptor = getUpgradeDescriptor('energy');
     if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'energy',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения энергии.'
+        });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
         return;
     }
@@ -5806,6 +6546,15 @@ document.getElementById('submitRegister').onclick = async function() {
 
     registerBtn.disabled = true;
     setLoadingOverlay(true, 'Регистрация', 'Создаем аккаунт и сразу выполняем вход...');
+    logClientEvent('auth', 'register_attempt', {
+        login: regLogin,
+        hasPassword: Boolean(regPassword)
+    }, {
+        source: 'register_form',
+        loginHint: regLogin,
+        userIdHint: 0,
+        description: 'Игрок отправил форму регистрации.'
+    });
 
     try {
         const data = await requestJson('https://bober-api.gt.tc/register-t.php', {
@@ -5823,6 +6572,12 @@ document.getElementById('submitRegister').onclick = async function() {
 
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : regLogin;
         applyAuthenticatedState(data);
+        logClientEvent('auth', 'register_success_client', {
+            login: currentLogin
+        }, {
+            source: 'register_form',
+            description: 'Клиент подтвердил успешную регистрацию и автовход.'
+        });
         await checkAuthenticatedSessionConflict();
         document.getElementById('regLogin').value = '';
         document.getElementById('regPassword').value = '';
@@ -5838,6 +6593,15 @@ document.getElementById('submitRegister').onclick = async function() {
             resetUserState();
             return;
         }
+        logClientEvent('auth', 'register_failed_client', {
+            login: regLogin,
+            message: error.message || 'Ошибка регистрации.'
+        }, {
+            source: 'register_form',
+            loginHint: regLogin,
+            userIdHint: 0,
+            description: 'Клиент получил ошибку при регистрации.'
+        });
         console.error('Ошибка регистрации:', error);
         showNotification(error.message || 'Ошибка сети при регистрации.', 'error');
     } finally {
@@ -5856,6 +6620,12 @@ document.getElementById('logoutButton').onclick = async function() {
     logoutBtn.disabled = true;
     closeProfileMenu();
     setLoadingOverlay(true, 'Выход', 'Сохраняем прогресс и завершаем игровую сессию...');
+    logClientEvent('auth', 'logout_request', {
+        login: currentLogin || ''
+    }, {
+        source: 'profile_menu',
+        description: 'Игрок инициировал выход из аккаунта.'
+    });
 
     try {
         const savedBeforeLogout = await flushAutosave({ reason: 'logout', silent: true });
@@ -6517,6 +7287,18 @@ class AutoClickerDetector {
     }
 
     showWarning(title, text, reason, strong = false) {
+        logClientEvent('security', 'anti_cheat_warning', {
+            title: title,
+            text: text,
+            reason: reason,
+            strong: Boolean(strong),
+            warningCount: this.warningCount
+        }, {
+            source: 'anti_cheat',
+            description: strong
+                ? 'Античит показал последнее предупреждение.'
+                : 'Античит показал предупреждение о подозрительном ритме.'
+        });
         const existingWarning = document.getElementById('autoClickerWarning');
         if (existingWarning) {
             existingWarning.remove();
@@ -6589,6 +7371,20 @@ class AutoClickerDetector {
         this.banRequestInFlight = true;
 
         try {
+            logClientEvent('security', 'anti_cheat_ban_report', {
+                reason: reason || 'Подозрение на автокликер',
+                metrics: metrics || null,
+                mobile: this.isMobile,
+                warningCount: this.warningCount + 1
+            }, {
+                source: 'anti_cheat',
+                description: 'Клиент отправил серверный репорт для античит-бана.'
+            });
+            const clientLogBatch = await prepareClientLogBatch({
+                mode: 'auth',
+                login: currentLogin,
+                limit: CLIENT_EVENT_LOG_CONFIG.batchSize
+            });
             const data = await requestJson('https://bober-api.gt.tc/anti-cheat-report.php', {
                 method: 'POST',
                 headers: {
@@ -6609,12 +7405,23 @@ class AutoClickerDetector {
                     medianInterval: metrics && typeof metrics.medianInterval === 'number' ? metrics.medianInterval : null,
                     intervalStdDev: metrics && typeof metrics.intervalStdDev === 'number' ? metrics.intervalStdDev : null,
                     longestStreak: metrics && typeof metrics.longestStableStreak === 'number' ? metrics.longestStableStreak : null,
-                    heat: this.heat
+                    heat: this.heat,
+                    clientLogBatch: clientLogBatch ? clientLogBatch.payload : null
                 })
             });
 
+            await acknowledgeClientLogBatch(clientLogBatch);
+
             const reportedBan = normalizeBanPayload(data);
             if (reportedBan) {
+                logClientEvent('security', 'anti_cheat_ban_confirmed', {
+                    reason: reportedBan.reason || reason || 'Подозрение на автокликер',
+                    durationDays: Number(reportedBan.durationDays || 0),
+                    banUntil: reportedBan.banUntil || ''
+                }, {
+                    source: 'anti_cheat',
+                    description: 'Сервер подтвердил бан пользователя античитом.'
+                });
                 setBanInfo(reportedBan);
                 resetUserState();
                 this.showBanScreen(reportedBan);
@@ -6629,6 +7436,13 @@ class AutoClickerDetector {
                 return;
             }
 
+            logClientEvent('security', 'anti_cheat_ban_failed', {
+                reason: reason || 'Подозрение на автокликер',
+                message: error.message || 'Не удалось отправить серверный бан.'
+            }, {
+                source: 'anti_cheat',
+                description: 'Отправка серверного античит-репорта завершилась ошибкой.'
+            });
             console.error('Не удалось отправить серверный бан:', error);
         } finally {
             this.banRequestInFlight = false;

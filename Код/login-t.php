@@ -11,6 +11,7 @@ try {
 
     $login = trim((string) ($data['login'] ?? ''));
     $password = (string) ($data['password'] ?? '');
+    $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
 
     if ($login === '' || $password === '') {
         bober_json_response(['success' => false, 'message' => 'Введите логин и пароль.'], 400);
@@ -121,6 +122,23 @@ try {
         ],
     ]);
 
+    $clientLogResult = null;
+    if (is_array($clientLogBatch)) {
+        try {
+            $clientLogResult = bober_store_client_log_batch($conn, (int) $id, $clientLogBatch, [
+                'login' => $login,
+            ]);
+        } catch (Throwable $logError) {
+            $clientLogResult = [
+                'received' => 0,
+                'accepted' => 0,
+                'inserted' => 0,
+                'duplicates' => 0,
+                'warning' => bober_exception_message($logError),
+            ];
+        }
+    }
+
     $normalizedSkin = bober_normalize_skin_json($skin);
     if ($normalizedSkin !== $skin) {
         $updateStmt = $conn->prepare('UPDATE users SET skin = ? WHERE id = ?');
@@ -152,6 +170,7 @@ try {
             'energy' => max(0, (int) $upgradeEnergyCount),
         ],
         'flyBeaver' => $flyBeaver,
+        'clientLog' => $clientLogResult,
     ];
 
     $conn->close();

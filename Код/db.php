@@ -1063,6 +1063,341 @@ function bober_log_user_activity($conn, $userId, $actionType, $details = [])
     return $success;
 }
 
+function bober_limit_text_value($value, $maxLength)
+{
+    $value = trim((string) $value);
+    $maxLength = max(0, (int) $maxLength);
+
+    if ($maxLength === 0 || $value === '') {
+        return $maxLength === 0 ? '' : $value;
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($value, 0, $maxLength, 'UTF-8');
+    }
+
+    return substr($value, 0, $maxLength);
+}
+
+function bober_bind_dynamic_params($stmt, $types, array &$values)
+{
+    $types = (string) $types;
+    if ($types === '') {
+        return true;
+    }
+
+    $bindArgs = [$types];
+    foreach (array_keys($values) as $index) {
+        $bindArgs[] = &$values[$index];
+    }
+
+    return call_user_func_array([$stmt, 'bind_param'], $bindArgs);
+}
+
+function bober_normalize_client_log_event($rawEvent, $defaults = [])
+{
+    if (!is_array($rawEvent)) {
+        return null;
+    }
+
+    $eventUid = bober_limit_text_value($rawEvent['eventUid'] ?? $rawEvent['event_uid'] ?? '', 128);
+    $actionType = bober_limit_text_value($rawEvent['type'] ?? $rawEvent['actionType'] ?? $rawEvent['action_type'] ?? '', 100);
+    if ($eventUid === '' || $actionType === '') {
+        return null;
+    }
+
+    $payload = is_array($rawEvent['payload'] ?? null) ? $rawEvent['payload'] : [];
+    $description = bober_limit_text_value(
+        $rawEvent['description']
+            ?? $payload['description']
+            ?? $payload['message']
+            ?? '',
+        255
+    );
+
+    return [
+        'eventUid' => $eventUid,
+        'batchId' => bober_limit_text_value($rawEvent['batchId'] ?? $rawEvent['batch_id'] ?? ($defaults['batchId'] ?? ''), 100),
+        'deviceId' => bober_limit_text_value($rawEvent['deviceId'] ?? $rawEvent['device_id'] ?? ($defaults['deviceId'] ?? ''), 100),
+        'clientSessionId' => bober_limit_text_value($rawEvent['clientSessionId'] ?? $rawEvent['client_session_id'] ?? ($defaults['clientSessionId'] ?? ''), 100),
+        'sequenceNo' => max(0, (int) ($rawEvent['sequence'] ?? $rawEvent['sequenceNo'] ?? $rawEvent['sequence_no'] ?? 0)),
+        'clientTs' => max(0, (int) ($rawEvent['clientTs'] ?? $rawEvent['client_ts'] ?? 0)),
+        'page' => bober_limit_text_value($rawEvent['page'] ?? 'main_clicker', 64) ?: 'main_clicker',
+        'actionGroup' => bober_limit_text_value($rawEvent['group'] ?? $rawEvent['actionGroup'] ?? $rawEvent['action_group'] ?? 'general', 50) ?: 'general',
+        'actionType' => $actionType,
+        'source' => bober_limit_text_value($rawEvent['source'] ?? 'client', 50) ?: 'client',
+        'description' => $description !== '' ? $description : null,
+        'scoreSnapshot' => max(0, (int) ($rawEvent['scoreSnapshot'] ?? $rawEvent['score_snapshot'] ?? 0)),
+        'energySnapshot' => max(0, (int) ($rawEvent['energySnapshot'] ?? $rawEvent['energy_snapshot'] ?? 0)),
+        'plusSnapshot' => max(0, (int) ($rawEvent['plusSnapshot'] ?? $rawEvent['plus_snapshot'] ?? 0)),
+        'payload' => $payload,
+    ];
+}
+
+function bober_store_client_log_batch($conn, $userId, $rawBatch, $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        return [
+            'received' => 0,
+            'accepted' => 0,
+            'inserted' => 0,
+            'duplicates' => 0,
+        ];
+    }
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1 || !is_array($rawBatch)) {
+        return [
+            'received' => 0,
+            'accepted' => 0,
+            'inserted' => 0,
+            'duplicates' => 0,
+        ];
+    }
+
+    $events = is_array($rawBatch['events'] ?? null) ? array_values($rawBatch['events']) : [];
+    if (count($events) === 0) {
+        return [
+            'received' => 0,
+            'accepted' => 0,
+            'inserted' => 0,
+            'duplicates' => 0,
+        ];
+    }
+
+    bober_ensure_security_schema($conn);
+
+    $batchDefaults = [
+        'batchId' => bober_limit_text_value($rawBatch['batchId'] ?? $rawBatch['batch_id'] ?? '', 100),
+        'deviceId' => bober_limit_text_value($rawBatch['deviceId'] ?? $rawBatch['device_id'] ?? '', 100),
+        'clientSessionId' => bober_limit_text_value($rawBatch['clientSessionId'] ?? $rawBatch['client_session_id'] ?? '', 100),
+    ];
+    $loginSnapshot = bober_limit_text_value($options['login'] ?? ($_SESSION['game_login'] ?? ''), 100);
+    $ipAddress = bober_limit_text_value($options['ip_address'] ?? bober_get_client_ip(), 64);
+    $userAgent = bober_limit_text_value($options['user_agent'] ?? bober_get_client_user_agent(), 255);
+
+    $stmt = $conn->prepare(
+        'INSERT IGNORE INTO `user_client_event_log`
+        (`user_id`, `login_snapshot`, `event_uid`, `batch_id`, `device_id`, `client_session_id`, `sequence_no`, `client_ts`, `page`, `action_group`, `action_type`, `source`, `description`, `score_snapshot`, `energy_snapshot`, `plus_snapshot`, `payload_json`, `ip_address`, `user_agent`)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение подробного клиентского лога.');
+    }
+
+    $received = count($events);
+    $accepted = 0;
+    $inserted = 0;
+
+    foreach ($events as $rawEvent) {
+        $event = bober_normalize_client_log_event($rawEvent, $batchDefaults);
+        if ($event === null) {
+            continue;
+        }
+
+        $payloadJson = json_encode($event['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($payloadJson)) {
+            $payloadJson = '{}';
+        }
+
+        $sequenceNo = (int) $event['sequenceNo'];
+        $clientTs = (int) $event['clientTs'];
+        $scoreSnapshot = (int) $event['scoreSnapshot'];
+        $energySnapshot = (int) $event['energySnapshot'];
+        $plusSnapshot = (int) $event['plusSnapshot'];
+        $description = $event['description'];
+        $page = $event['page'];
+        $actionGroup = $event['actionGroup'];
+        $actionType = $event['actionType'];
+        $source = $event['source'];
+        $eventUid = $event['eventUid'];
+        $batchId = $event['batchId'];
+        $deviceId = $event['deviceId'];
+        $clientSessionId = $event['clientSessionId'];
+
+        $stmt->bind_param(
+            'isssssiisssssiiisss',
+            $userId,
+            $loginSnapshot,
+            $eventUid,
+            $batchId,
+            $deviceId,
+            $clientSessionId,
+            $sequenceNo,
+            $clientTs,
+            $page,
+            $actionGroup,
+            $actionType,
+            $source,
+            $description,
+            $scoreSnapshot,
+            $energySnapshot,
+            $plusSnapshot,
+            $payloadJson,
+            $ipAddress,
+            $userAgent
+        );
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось сохранить подробный клиентский лог.');
+        }
+
+        $accepted++;
+        if ((int) $stmt->affected_rows > 0) {
+            $inserted++;
+        }
+    }
+
+    $stmt->close();
+
+    return [
+        'received' => $received,
+        'accepted' => $accepted,
+        'inserted' => $inserted,
+        'duplicates' => max(0, $accepted - $inserted),
+    ];
+}
+
+function bober_fetch_user_client_event_log($conn, $userId, $options = [])
+{
+    bober_ensure_security_schema($conn);
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [
+            'items' => [],
+            'hasMore' => false,
+            'limit' => 0,
+        ];
+    }
+
+    $group = bober_limit_text_value($options['group'] ?? 'all', 50);
+    $type = bober_limit_text_value($options['type'] ?? '', 100);
+    $source = bober_limit_text_value($options['source'] ?? 'all', 50);
+    $search = trim((string) ($options['search'] ?? ''));
+    $limit = max(10, min(5000, (int) ($options['limit'] ?? 200)));
+    $queryLimit = $limit + 1;
+
+    $sql = 'SELECT `id`, `login_snapshot`, `event_uid`, `batch_id`, `device_id`, `client_session_id`, `sequence_no`, `client_ts`, `page`, `action_group`, `action_type`, `source`, `description`, `score_snapshot`, `energy_snapshot`, `plus_snapshot`, `payload_json`, `ip_address`, `user_agent`, `received_at`
+        FROM `user_client_event_log`
+        WHERE `user_id` = ?';
+    $types = 'i';
+    $params = [$userId];
+
+    if ($group !== '' && $group !== 'all') {
+        $sql .= ' AND `action_group` = ?';
+        $types .= 's';
+        $params[] = $group;
+    }
+
+    if ($type !== '' && $type !== 'all') {
+        $sql .= ' AND `action_type` = ?';
+        $types .= 's';
+        $params[] = $type;
+    }
+
+    if ($source !== '' && $source !== 'all') {
+        $sql .= ' AND `source` = ?';
+        $types .= 's';
+        $params[] = $source;
+    }
+
+    if ($search !== '') {
+        $likeSearch = '%' . $search . '%';
+        $sql .= ' AND (
+            `action_type` LIKE ?
+            OR `description` LIKE ?
+            OR `page` LIKE ?
+            OR `payload_json` LIKE ?
+            OR `ip_address` LIKE ?
+            OR `user_agent` LIKE ?
+            OR `device_id` LIKE ?
+            OR `client_session_id` LIKE ?
+        )';
+        $types .= 'ssssssss';
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+        $params[] = $likeSearch;
+    }
+
+    $sql .= ' ORDER BY `received_at` DESC, `id` DESC LIMIT ?';
+    $types .= 'i';
+    $params[] = $queryLimit;
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение подробного клиентского лога.');
+    }
+
+    if (!bober_bind_dynamic_params($stmt, $types, $params)) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось привязать параметры подробного клиентского лога.');
+    }
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось загрузить подробный клиентский лог.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+
+    if ($result instanceof mysqli_result) {
+        while ($row = $result->fetch_assoc()) {
+            $payload = [];
+            if (!empty($row['payload_json'])) {
+                $decodedPayload = json_decode((string) $row['payload_json'], true);
+                if (is_array($decodedPayload)) {
+                    $payload = $decodedPayload;
+                }
+            }
+
+            $items[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'login' => (string) ($row['login_snapshot'] ?? ''),
+                'eventUid' => (string) ($row['event_uid'] ?? ''),
+                'batchId' => (string) ($row['batch_id'] ?? ''),
+                'deviceId' => (string) ($row['device_id'] ?? ''),
+                'clientSessionId' => (string) ($row['client_session_id'] ?? ''),
+                'sequence' => max(0, (int) ($row['sequence_no'] ?? 0)),
+                'clientTs' => max(0, (int) ($row['client_ts'] ?? 0)),
+                'page' => (string) ($row['page'] ?? 'main_clicker'),
+                'group' => (string) ($row['action_group'] ?? 'general'),
+                'type' => (string) ($row['action_type'] ?? ''),
+                'source' => (string) ($row['source'] ?? 'client'),
+                'description' => (string) ($row['description'] ?? ''),
+                'scoreSnapshot' => max(0, (int) ($row['score_snapshot'] ?? 0)),
+                'energySnapshot' => max(0, (int) ($row['energy_snapshot'] ?? 0)),
+                'plusSnapshot' => max(0, (int) ($row['plus_snapshot'] ?? 0)),
+                'ipAddress' => (string) ($row['ip_address'] ?? ''),
+                'userAgent' => (string) ($row['user_agent'] ?? ''),
+                'receivedAt' => isset($row['received_at']) ? (string) $row['received_at'] : null,
+                'payload' => $payload,
+            ];
+        }
+        $result->free();
+    }
+
+    $stmt->close();
+
+    $hasMore = count($items) > $limit;
+    if ($hasMore) {
+        $items = array_slice($items, 0, $limit);
+    }
+
+    return [
+        'items' => $items,
+        'hasMore' => $hasMore,
+        'limit' => $limit,
+    ];
+}
+
 function bober_ensure_security_schema($conn)
 {
     $createUserBansSql = <<<SQL
@@ -1242,6 +1577,52 @@ SQL;
 
     if (!bober_index_exists($conn, 'user_activity_log', 'idx_user_activity_action_created') && !$conn->query("CREATE INDEX `idx_user_activity_action_created` ON `user_activity_log` (`action_type`, `created_at`)")) {
         throw new RuntimeException('Не удалось создать индекс истории действий по типу.');
+    }
+
+    $createUserClientEventLogSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_client_event_log` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `login_snapshot` VARCHAR(100) NOT NULL DEFAULT '',
+    `event_uid` VARCHAR(128) NOT NULL,
+    `batch_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `device_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `client_session_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `sequence_no` BIGINT NOT NULL DEFAULT 0,
+    `client_ts` BIGINT NOT NULL DEFAULT 0,
+    `page` VARCHAR(64) NOT NULL DEFAULT 'main_clicker',
+    `action_group` VARCHAR(50) NOT NULL DEFAULT 'general',
+    `action_type` VARCHAR(100) NOT NULL DEFAULT '',
+    `source` VARCHAR(50) NOT NULL DEFAULT 'client',
+    `description` VARCHAR(255) NULL DEFAULT NULL,
+    `score_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `energy_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `plus_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `payload_json` LONGTEXT NULL,
+    `ip_address` VARCHAR(64) NULL DEFAULT NULL,
+    `user_agent` VARCHAR(255) NULL DEFAULT NULL,
+    `received_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserClientEventLogSql)) {
+        throw new RuntimeException('Не удалось создать таблицу подробного клиентского лога.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log', 'uniq_user_client_event_uid') && !$conn->query("CREATE UNIQUE INDEX `uniq_user_client_event_uid` ON `user_client_event_log` (`event_uid`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс подробного клиентского лога.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log', 'idx_user_client_event_user_received') && !$conn->query("CREATE INDEX `idx_user_client_event_user_received` ON `user_client_event_log` (`user_id`, `received_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс подробного клиентского лога по пользователю.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log', 'idx_user_client_event_user_client_ts') && !$conn->query("CREATE INDEX `idx_user_client_event_user_client_ts` ON `user_client_event_log` (`user_id`, `client_ts`)")) {
+        throw new RuntimeException('Не удалось создать индекс подробного клиентского лога по времени клиента.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log', 'idx_user_client_event_group_received') && !$conn->query("CREATE INDEX `idx_user_client_event_group_received` ON `user_client_event_log` (`user_id`, `action_group`, `received_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс подробного клиентского лога по группе.');
     }
 }
 

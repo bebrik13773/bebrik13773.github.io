@@ -29,6 +29,7 @@ try {
     $energy = min($energyMax, max(0, (int) ($data['energy'] ?? 0)));
     $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
     $upgradePurchases = is_array($data['upgradePurchases'] ?? null) ? $data['upgradePurchases'] : [];
+    $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
     $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
     $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
     $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
@@ -160,9 +161,30 @@ try {
         }
     }
 
+    $clientLogResult = null;
+    if (is_array($clientLogBatch)) {
+        try {
+            $clientLogResult = bober_store_client_log_batch($conn, $userId, $clientLogBatch, [
+                'login' => $_SESSION['game_login'] ?? '',
+            ]);
+        } catch (Throwable $logError) {
+            $clientLogResult = [
+                'received' => 0,
+                'accepted' => 0,
+                'inserted' => 0,
+                'duplicates' => 0,
+                'warning' => bober_exception_message($logError),
+            ];
+        }
+    }
+
     $conn->close();
 
-    bober_json_response(['success' => true, 'message' => 'Прогресс сохранен.']);
+    bober_json_response([
+        'success' => true,
+        'message' => 'Прогресс сохранен.',
+        'clientLog' => $clientLogResult,
+    ]);
 } catch (Throwable $error) {
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
 }

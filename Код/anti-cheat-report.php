@@ -13,6 +13,7 @@ try {
         bober_json_response(['success' => false, 'message' => 'Некорректный JSON.'], 400);
     }
 
+    $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
     $reason = trim((string) ($data['reason'] ?? 'Подозрение на автокликер'));
     $meta = [
         'cps' => isset($data['cps']) ? (float) $data['cps'] : null,
@@ -50,6 +51,23 @@ try {
         ],
     ]);
 
+    $clientLogResult = null;
+    if (is_array($clientLogBatch)) {
+        try {
+            $clientLogResult = bober_store_client_log_batch($conn, $userId, $clientLogBatch, [
+                'login' => $_SESSION['game_login'] ?? '',
+            ]);
+        } catch (Throwable $logError) {
+            $clientLogResult = [
+                'received' => 0,
+                'accepted' => 0,
+                'inserted' => 0,
+                'duplicates' => 0,
+                'warning' => bober_exception_message($logError),
+            ];
+        }
+    }
+
     bober_logout_user();
     $conn->close();
 
@@ -57,6 +75,7 @@ try {
         'success' => true,
         'message' => $ban['message'],
         'ban' => $ban,
+        'clientLog' => $clientLogResult,
     ]);
 } catch (Throwable $error) {
     if (isset($conn) && $conn instanceof mysqli) {
