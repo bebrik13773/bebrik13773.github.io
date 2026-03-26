@@ -1130,10 +1130,24 @@ Owner decisions:
     }
 
     @media (max-width: 768px) {
+        .modal-backdrop {
+            align-items: flex-start;
+            overflow-y: auto;
+            padding:
+                calc(var(--safe-top) + 10px)
+                calc(var(--safe-right) + 12px)
+                calc(var(--safe-bottom) + 12px)
+                calc(var(--safe-left) + 12px);
+        }
+
         .skin-action-modal {
             width: min(100%, 430px);
             padding: 20px 18px 18px;
             border-radius: 20px;
+            margin: 0 auto;
+            max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 22px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
         }
 
         .skin-action-modal-title {
@@ -1146,6 +1160,68 @@ Owner decisions:
 
         .skin-action-modal-buttons {
             flex-direction: column;
+        }
+
+        .upgrade-action-modal {
+            width: min(100%, 420px);
+            padding: 18px 16px 16px;
+        }
+
+        .upgrade-action-modal .skin-action-modal-title {
+            font-size: 20px;
+            margin-bottom: 6px;
+        }
+
+        .upgrade-action-modal .skin-action-modal-text {
+            font-size: 14px;
+            line-height: 1.45;
+            margin-bottom: 12px;
+        }
+
+        .upgrade-action-chip {
+            padding: 10px;
+            border-radius: 14px;
+        }
+
+        .upgrade-action-chip strong {
+            font-size: 16px;
+        }
+
+        .upgrade-action-chip span {
+            font-size: 11px;
+        }
+
+        .upgrade-action-modal .skin-action-modal-meta {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        .upgrade-quantity-panel {
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 16px;
+        }
+
+        .upgrade-quantity-label {
+            margin-bottom: 8px;
+        }
+
+        .upgrade-quantity-main {
+            margin-bottom: 8px;
+        }
+
+        .upgrade-action-modal .skin-action-modal-buttons {
+            position: sticky;
+            bottom: -1px;
+            margin-top: 10px;
+            padding-top: 10px;
+            padding-bottom: calc(var(--safe-bottom) + 2px);
+            background: linear-gradient(180deg, rgba(16, 10, 34, 0), rgba(16, 10, 34, 0.94) 22%);
+        }
+
+        .upgrade-action-modal .skin-action-modal-buttons button {
+            min-height: 48px;
         }
 
         .session-conflict-modal {
