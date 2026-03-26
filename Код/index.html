@@ -49,6 +49,7 @@ Owner decisions:
             --safe-right: max(0px, env(safe-area-inset-right));
             --safe-bottom: max(0px, env(safe-area-inset-bottom));
             --safe-left: max(0px, env(safe-area-inset-left));
+            --mobile-top-clearance: calc(var(--safe-top) + 14px);
         }
         
         body {
@@ -1131,11 +1132,15 @@ Owner decisions:
     }
 
     @media (max-width: 768px) {
+        :root {
+            --mobile-top-clearance: max(calc(var(--safe-top) + 14px), 52px);
+        }
+
         .modal-backdrop {
             align-items: flex-start;
             overflow-y: auto;
             padding:
-                calc(var(--safe-top) + 10px)
+                var(--mobile-top-clearance)
                 calc(var(--safe-right) + 12px)
                 calc(var(--safe-bottom) + 12px)
                 calc(var(--safe-left) + 12px);
@@ -1146,7 +1151,7 @@ Owner decisions:
             padding: 20px 18px 18px;
             border-radius: 20px;
             margin: 0 auto;
-            max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 22px);
+            max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
             overflow-y: auto;
             overscroll-behavior: contain;
         }
@@ -1166,6 +1171,7 @@ Owner decisions:
         .upgrade-action-modal {
             width: min(100%, 420px);
             padding: 18px 16px 16px;
+            max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
         }
 
         .upgrade-action-modal .skin-action-modal-title {
@@ -1229,6 +1235,9 @@ Owner decisions:
             width: min(100%, 460px);
             padding: 20px 16px 18px;
             border-radius: 22px;
+            max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
         }
 
         .session-conflict-title {
@@ -2237,14 +2246,14 @@ Owner decisions:
 
     @media (max-width: 768px) {
         .notification-container {
-            top: calc(var(--safe-top) + 15px);
+            top: var(--mobile-top-clearance);
             right: calc(var(--safe-right) + 15px);
             max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 30px);
         }
 
         #clicerMex {
             padding:
-                calc(var(--safe-top) + 18px)
+                var(--mobile-top-clearance)
                 calc(var(--safe-right) + 12px)
                 calc(var(--safe-bottom) + 12px)
                 calc(var(--safe-left) + 12px);
@@ -2265,7 +2274,7 @@ Owner decisions:
 
         #shop {
             padding:
-                calc(var(--safe-top) + 8px)
+                var(--mobile-top-clearance)
                 calc(var(--safe-right) + 12px)
                 calc(var(--safe-bottom) + 18px)
                 calc(var(--safe-left) + 12px);
@@ -2425,6 +2434,21 @@ Owner decisions:
                 calc(var(--safe-right) + 14px)
                 calc(var(--safe-bottom) + 18px)
                 calc(var(--safe-left) + 14px);
+        }
+
+        .loading-overlay {
+            align-items: flex-start;
+            padding:
+                var(--mobile-top-clearance)
+                calc(var(--safe-right) + 14px)
+                calc(var(--safe-bottom) + 18px)
+                calc(var(--safe-left) + 14px);
+        }
+
+        .loading-overlay-card {
+            margin: 0 auto;
+            max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 18px);
+            overflow-y: auto;
         }
     }
 </style>
