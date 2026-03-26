@@ -1115,6 +1115,62 @@ function bober_runtime_cache_store($conn, $cacheKey, $payload, $ttlSeconds = 60)
     return $success;
 }
 
+function bober_runtime_cache_delete($conn, $cacheKey)
+{
+    if (!($conn instanceof mysqli)) {
+        return false;
+    }
+
+    bober_ensure_admin_schema($conn);
+
+    $cacheKey = trim((string) $cacheKey);
+    if ($cacheKey === '') {
+        return false;
+    }
+
+    $stmt = $conn->prepare('DELETE FROM `runtime_cache` WHERE `cache_key` = ?');
+    if (!$stmt) {
+        return false;
+    }
+
+    $stmt->bind_param('s', $cacheKey);
+    $success = $stmt->execute();
+    $stmt->close();
+
+    return $success;
+}
+
+function bober_runtime_cache_purge_prefix($conn, $prefix)
+{
+    if (!($conn instanceof mysqli)) {
+        return 0;
+    }
+
+    bober_ensure_admin_schema($conn);
+
+    $prefix = trim((string) $prefix);
+    if ($prefix === '') {
+        return 0;
+    }
+
+    $likePrefix = $prefix . '%';
+    $stmt = $conn->prepare('DELETE FROM `runtime_cache` WHERE `cache_key` LIKE ?');
+    if (!$stmt) {
+        return 0;
+    }
+
+    $stmt->bind_param('s', $likePrefix);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return 0;
+    }
+
+    $affected = (int) $stmt->affected_rows;
+    $stmt->close();
+
+    return max(0, $affected);
+}
+
 function bober_collect_admin_dashboard_stats($conn)
 {
     if (!($conn instanceof mysqli)) {
@@ -1204,6 +1260,271 @@ function bober_fetch_admin_dashboard_stats($conn, $options = [])
     return array_merge($stats, [
         'cached' => false,
         'cache_updated_at' => $stats['generated_at'],
+        'cache_expires_at' => date('Y-m-d H:i:s', time() + $ttlSeconds),
+    ]);
+}
+
+function bober_collect_admin_users_overview($conn, $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для списка аккаунтов.');
+    }
+
+    bober_ensure_project_schema($conn);
+
+    $search = trim((string) ($options['search'] ?? ''));
+    $sort = trim((string) ($options['sort'] ?? 'activity_desc'));
+    $filter = trim((string) ($options['filter'] ?? 'all'));
+    $searchLike = '%' . $search . '%';
+    $sortMap = [
+        'activity_desc' => '`is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC',
+        'score_desc' => '`is_banned` DESC, `u`.`score` DESC, `last_activity_at` DESC, `u`.`id` DESC',
+        'score_asc' => '`is_banned` DESC, `u`.`score` ASC, `last_activity_at` DESC, `u`.`id` DESC',
+        'created_desc' => '`is_banned` DESC, `u`.`created_at` DESC, `u`.`id` DESC',
+        'created_asc' => '`is_banned` DESC, `u`.`created_at` ASC, `u`.`id` ASC',
+        'login_asc' => '`is_banned` DESC, `u`.`login` ASC, `u`.`id` ASC',
+    ];
+    $filterSqlMap = [
+        'all' => '',
+        'banned' => ' AND EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
+        'active' => ' AND NOT EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
+        'has_sessions' => ' AND EXISTS(SELECT 1 FROM `user_sessions` `usf` WHERE `usf`.`user_id` = `u`.`id` AND `usf`.`revoked_at` IS NULL)',
+    ];
+    $orderBySql = $sortMap[$sort] ?? $sortMap['activity_desc'];
+    $sort = isset($sortMap[$sort]) ? $sort : 'activity_desc';
+    $filter = isset($filterSqlMap[$filter]) ? $filter : 'all';
+    $filterSql = $filterSqlMap[$filter];
+
+    $sql = <<<SQL
+SELECT
+    `u`.`id`,
+    `u`.`login`,
+    `u`.`score`,
+    `u`.`plus`,
+    `u`.`energy`,
+    `u`.`ENERGY_MAX`,
+    `u`.`created_at`,
+    `u`.`updated_at`,
+    GREATEST(
+        COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
+        COALESCE(`f`.`last_played_at`, '1970-01-01 00:00:00'),
+        COALESCE((
+            SELECT MAX(`iph`.`last_seen_at`)
+            FROM `user_ip_history` `iph`
+            WHERE `iph`.`user_id` = `u`.`id`
+        ), '1970-01-01 00:00:00')
+    ) AS `last_activity_at`,
+    COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
+    COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_score`,
+    (
+        SELECT COUNT(*)
+        FROM `user_sessions` `us`
+        WHERE `us`.`user_id` = `u`.`id`
+          AND `us`.`revoked_at` IS NULL
+    ) AS `active_session_count`,
+    EXISTS(
+        SELECT 1
+        FROM `user_bans` `ub`
+        WHERE `ub`.`user_id` = `u`.`id`
+          AND `ub`.`lifted_at` IS NULL
+          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
+        LIMIT 1
+    ) AS `is_banned`,
+    (
+        SELECT `ub2`.`ban_until`
+        FROM `user_bans` `ub2`
+        WHERE `ub2`.`user_id` = `u`.`id`
+          AND `ub2`.`lifted_at` IS NULL
+          AND `ub2`.`ban_until` > CURRENT_TIMESTAMP
+        ORDER BY `ub2`.`ban_until` DESC
+        LIMIT 1
+    ) AS `ban_until`
+FROM `users` `u`
+LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
+WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)
+{$filterSql}
+ORDER BY {$orderBySql}
+LIMIT 200
+SQL;
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить список пользователей.');
+    }
+
+    $stmt->bind_param('ss', $searchLike, $searchLike);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось загрузить список пользователей.');
+    }
+
+    $result = $stmt->get_result();
+    $users = [];
+
+    while ($row = $result->fetch_assoc()) {
+        $users[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'login' => (string) ($row['login'] ?? ''),
+            'score' => max(0, (int) ($row['score'] ?? 0)),
+            'plus' => max(1, (int) ($row['plus'] ?? 1)),
+            'energy' => max(0, (int) ($row['energy'] ?? 0)),
+            'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
+            'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : null,
+            'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+            'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
+            'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
+            'flyPendingScore' => max(0, (int) ($row['fly_pending_score'] ?? 0)),
+            'activeSessionCount' => max(0, (int) ($row['active_session_count'] ?? 0)),
+            'isBanned' => (int) ($row['is_banned'] ?? 0) === 1,
+            'banUntil' => isset($row['ban_until']) ? (string) $row['ban_until'] : null,
+        ];
+    }
+
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    $countSql = 'SELECT COUNT(*) AS total FROM `users` `u` WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)' . $filterSql;
+    $countStmt = $conn->prepare($countSql);
+    if (!$countStmt) {
+        throw new RuntimeException('Не удалось получить число пользователей.');
+    }
+
+    $countStmt->bind_param('ss', $searchLike, $searchLike);
+    if (!$countStmt->execute()) {
+        $countStmt->close();
+        throw new RuntimeException('Не удалось получить число пользователей.');
+    }
+
+    $countResult = $countStmt->get_result();
+    $countRow = $countResult ? $countResult->fetch_assoc() : null;
+    $total = (int) ($countRow['total'] ?? 0);
+    if ($countResult instanceof mysqli_result) {
+        $countResult->free();
+    }
+    $countStmt->close();
+
+    return [
+        'users' => $users,
+        'returned' => count($users),
+        'total' => $total,
+        'search' => $search,
+        'sort' => $sort,
+        'filter' => $filter,
+        'generated_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function bober_fetch_admin_users_overview($conn, $options = [])
+{
+    $search = trim((string) ($options['search'] ?? ''));
+    $sort = trim((string) ($options['sort'] ?? 'activity_desc'));
+    $filter = trim((string) ($options['filter'] ?? 'all'));
+    $forceRefresh = !empty($options['force_refresh']);
+    $ttlSeconds = max(5, (int) ($options['ttl_seconds'] ?? 20));
+    $cacheKey = 'admin_accounts_overview_' . hash('sha256', json_encode([
+        'search' => $search,
+        'sort' => $sort,
+        'filter' => $filter,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, $cacheKey);
+        if (is_array($cached) && is_array($cached['payload'] ?? null)) {
+            return array_merge($cached['payload'], [
+                'cached' => true,
+                'cache_updated_at' => $cached['updatedAt'] ?? null,
+                'cache_expires_at' => $cached['expiresAt'] ?? null,
+            ]);
+        }
+    }
+
+    $data = bober_collect_admin_users_overview($conn, [
+        'search' => $search,
+        'sort' => $sort,
+        'filter' => $filter,
+    ]);
+    bober_runtime_cache_store($conn, $cacheKey, $data, $ttlSeconds);
+
+    return array_merge($data, [
+        'cached' => false,
+        'cache_updated_at' => $data['generated_at'],
+        'cache_expires_at' => date('Y-m-d H:i:s', time() + $ttlSeconds),
+    ]);
+}
+
+function bober_collect_admin_maintenance_snapshot($conn)
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для экрана обслуживания.');
+    }
+
+    bober_ensure_project_schema($conn);
+
+    $snapshot = [
+        'activeClientLogRows' => 0,
+        'archivedClientLogRows' => 0,
+        'oldestActiveClientLogAt' => null,
+        'oldestArchivedClientLogAt' => null,
+        'newestActiveClientLogAt' => null,
+        'newestArchivedClientLogAt' => null,
+        'adminCacheKeys' => 0,
+        'adminCacheLastUpdateAt' => null,
+        'generated_at' => date('Y-m-d H:i:s'),
+    ];
+
+    $activeResult = $conn->query('SELECT COUNT(*) AS total, MIN(`received_at`) AS oldest_at, MAX(`received_at`) AS newest_at FROM `user_client_event_log`');
+    if ($activeResult instanceof mysqli_result) {
+        $row = $activeResult->fetch_assoc();
+        $snapshot['activeClientLogRows'] = max(0, (int) ($row['total'] ?? 0));
+        $snapshot['oldestActiveClientLogAt'] = isset($row['oldest_at']) ? (string) $row['oldest_at'] : null;
+        $snapshot['newestActiveClientLogAt'] = isset($row['newest_at']) ? (string) $row['newest_at'] : null;
+        $activeResult->free();
+    }
+
+    $archiveResult = $conn->query('SELECT COUNT(*) AS total, MIN(`received_at`) AS oldest_at, MAX(`received_at`) AS newest_at FROM `user_client_event_log_archive`');
+    if ($archiveResult instanceof mysqli_result) {
+        $row = $archiveResult->fetch_assoc();
+        $snapshot['archivedClientLogRows'] = max(0, (int) ($row['total'] ?? 0));
+        $snapshot['oldestArchivedClientLogAt'] = isset($row['oldest_at']) ? (string) $row['oldest_at'] : null;
+        $snapshot['newestArchivedClientLogAt'] = isset($row['newest_at']) ? (string) $row['newest_at'] : null;
+        $archiveResult->free();
+    }
+
+    $cacheResult = $conn->query("SELECT COUNT(*) AS total, MAX(`updated_at`) AS latest_update FROM `runtime_cache` WHERE `cache_key` LIKE 'admin_%'");
+    if ($cacheResult instanceof mysqli_result) {
+        $row = $cacheResult->fetch_assoc();
+        $snapshot['adminCacheKeys'] = max(0, (int) ($row['total'] ?? 0));
+        $snapshot['adminCacheLastUpdateAt'] = isset($row['latest_update']) ? (string) $row['latest_update'] : null;
+        $cacheResult->free();
+    }
+
+    return $snapshot;
+}
+
+function bober_fetch_admin_maintenance_snapshot($conn, $options = [])
+{
+    $forceRefresh = !empty($options['force_refresh']);
+    $ttlSeconds = max(5, (int) ($options['ttl_seconds'] ?? 45));
+
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, 'admin_maintenance_snapshot');
+        if (is_array($cached) && is_array($cached['payload'] ?? null)) {
+            return array_merge($cached['payload'], [
+                'cached' => true,
+                'cache_updated_at' => $cached['updatedAt'] ?? null,
+                'cache_expires_at' => $cached['expiresAt'] ?? null,
+            ]);
+        }
+    }
+
+    $snapshot = bober_collect_admin_maintenance_snapshot($conn);
+    bober_runtime_cache_store($conn, 'admin_maintenance_snapshot', $snapshot, $ttlSeconds);
+
+    return array_merge($snapshot, [
+        'cached' => false,
+        'cache_updated_at' => $snapshot['generated_at'],
         'cache_expires_at' => date('Y-m-d H:i:s', time() + $ttlSeconds),
     ]);
 }
@@ -1595,6 +1916,360 @@ function bober_fetch_user_client_event_log($conn, $userId, $options = [])
     ];
 }
 
+function bober_fetch_cached_user_client_event_log($conn, $userId, $options = [])
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [
+            'items' => [],
+            'hasMore' => false,
+            'limit' => 0,
+            'cached' => false,
+            'cache_updated_at' => null,
+            'cache_expires_at' => null,
+        ];
+    }
+
+    $normalizedOptions = [
+        'group' => bober_limit_text_value($options['group'] ?? 'all', 50),
+        'type' => bober_limit_text_value($options['type'] ?? 'all', 100),
+        'source' => bober_limit_text_value($options['source'] ?? 'all', 50),
+        'search' => trim((string) ($options['search'] ?? '')),
+        'limit' => max(10, min(5000, (int) ($options['limit'] ?? 200))),
+    ];
+    $forceRefresh = !empty($options['force_refresh']);
+    $ttlSeconds = max(5, (int) ($options['ttl_seconds'] ?? 15));
+    $cacheKey = 'admin_user_client_log_' . $userId . '_' . hash('sha256', json_encode($normalizedOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, $cacheKey);
+        if (is_array($cached) && is_array($cached['payload'] ?? null)) {
+            return array_merge($cached['payload'], [
+                'cached' => true,
+                'cache_updated_at' => $cached['updatedAt'] ?? null,
+                'cache_expires_at' => $cached['expiresAt'] ?? null,
+            ]);
+        }
+    }
+
+    $data = bober_fetch_user_client_event_log($conn, $userId, $normalizedOptions);
+    $data['generated_at'] = date('Y-m-d H:i:s');
+    bober_runtime_cache_store($conn, $cacheKey, $data, $ttlSeconds);
+
+    return array_merge($data, [
+        'cached' => false,
+        'cache_updated_at' => $data['generated_at'],
+        'cache_expires_at' => date('Y-m-d H:i:s', time() + $ttlSeconds),
+    ]);
+}
+
+function bober_archive_user_client_event_log($conn, $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для архивации forensic-логов.');
+    }
+
+    bober_ensure_security_schema($conn);
+
+    $olderThanDays = max(1, (int) ($options['older_than_days'] ?? 30));
+    $limit = max(50, min(5000, (int) ($options['limit'] ?? 1000)));
+    $archiveReason = bober_limit_text_value($options['archive_reason'] ?? 'retention_policy', 100);
+    $cutoffDate = date('Y-m-d H:i:s', time() - ($olderThanDays * 24 * 60 * 60));
+
+    $selectStmt = $conn->prepare(
+        'SELECT `id`, `user_id`, `login_snapshot`, `event_uid`, `batch_id`, `device_id`, `client_session_id`, `sequence_no`, `client_ts`, `page`, `action_group`, `action_type`, `source`, `description`, `score_snapshot`, `energy_snapshot`, `plus_snapshot`, `payload_json`, `ip_address`, `user_agent`, `received_at`
+         FROM `user_client_event_log`
+         WHERE `received_at` < ?
+         ORDER BY `id` ASC
+         LIMIT ?'
+    );
+    if (!$selectStmt) {
+        throw new RuntimeException('Не удалось подготовить архивную выборку forensic-логов.');
+    }
+
+    $selectStmt->bind_param('si', $cutoffDate, $limit);
+    if (!$selectStmt->execute()) {
+        $selectStmt->close();
+        throw new RuntimeException('Не удалось выбрать forensic-логи для архивации.');
+    }
+
+    $result = $selectStmt->get_result();
+    $rows = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $rows[] = $row;
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $selectStmt->close();
+
+    if (count($rows) === 0) {
+        return [
+            'selected' => 0,
+            'archived' => 0,
+            'deleted' => 0,
+            'cutoff_date' => $cutoffDate,
+            'older_than_days' => $olderThanDays,
+            'limit' => $limit,
+        ];
+    }
+
+    $conn->begin_transaction();
+
+    try {
+        $insertStmt = $conn->prepare(
+            'INSERT IGNORE INTO `user_client_event_log_archive`
+            (`user_id`, `login_snapshot`, `event_uid`, `batch_id`, `device_id`, `client_session_id`, `sequence_no`, `client_ts`, `page`, `action_group`, `action_type`, `source`, `description`, `score_snapshot`, `energy_snapshot`, `plus_snapshot`, `payload_json`, `ip_address`, `user_agent`, `received_at`, `archive_reason`)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if (!$insertStmt) {
+            throw new RuntimeException('Не удалось подготовить запись forensic-архива.');
+        }
+
+        $archived = 0;
+        $selectedIds = [];
+
+        foreach ($rows as $row) {
+            $selectedIds[] = (int) ($row['id'] ?? 0);
+            $userId = (int) ($row['user_id'] ?? 0);
+            $loginSnapshot = (string) ($row['login_snapshot'] ?? '');
+            $eventUid = (string) ($row['event_uid'] ?? '');
+            $batchId = (string) ($row['batch_id'] ?? '');
+            $deviceId = (string) ($row['device_id'] ?? '');
+            $clientSessionId = (string) ($row['client_session_id'] ?? '');
+            $sequenceNo = (int) ($row['sequence_no'] ?? 0);
+            $clientTs = (int) ($row['client_ts'] ?? 0);
+            $page = (string) ($row['page'] ?? 'main_clicker');
+            $actionGroup = (string) ($row['action_group'] ?? 'general');
+            $actionType = (string) ($row['action_type'] ?? '');
+            $source = (string) ($row['source'] ?? 'client');
+            $description = isset($row['description']) ? (string) $row['description'] : null;
+            $scoreSnapshot = (int) ($row['score_snapshot'] ?? 0);
+            $energySnapshot = (int) ($row['energy_snapshot'] ?? 0);
+            $plusSnapshot = (int) ($row['plus_snapshot'] ?? 0);
+            $payloadJson = isset($row['payload_json']) ? (string) $row['payload_json'] : null;
+            $ipAddress = isset($row['ip_address']) ? (string) $row['ip_address'] : null;
+            $userAgent = isset($row['user_agent']) ? (string) $row['user_agent'] : null;
+            $receivedAt = isset($row['received_at']) ? (string) $row['received_at'] : null;
+
+            $insertStmt->bind_param(
+                'isssssiisssssiiisssss',
+                $userId,
+                $loginSnapshot,
+                $eventUid,
+                $batchId,
+                $deviceId,
+                $clientSessionId,
+                $sequenceNo,
+                $clientTs,
+                $page,
+                $actionGroup,
+                $actionType,
+                $source,
+                $description,
+                $scoreSnapshot,
+                $energySnapshot,
+                $plusSnapshot,
+                $payloadJson,
+                $ipAddress,
+                $userAgent,
+                $receivedAt,
+                $archiveReason
+            );
+
+            if (!$insertStmt->execute()) {
+                $insertStmt->close();
+                throw new RuntimeException('Не удалось сохранить forensic-лог в архив.');
+            }
+
+            if ((int) $insertStmt->affected_rows > 0) {
+                $archived++;
+            }
+        }
+
+        $insertStmt->close();
+
+        $deleteIds = array_values(array_filter($selectedIds, function ($value) {
+            return (int) $value > 0;
+        }));
+        $deleted = 0;
+
+        if (count($deleteIds) > 0) {
+            $placeholders = implode(',', array_fill(0, count($deleteIds), '?'));
+            $deleteSql = 'DELETE FROM `user_client_event_log` WHERE `id` IN (' . $placeholders . ')';
+            $deleteStmt = $conn->prepare($deleteSql);
+            if (!$deleteStmt) {
+                throw new RuntimeException('Не удалось подготовить очистку активного forensic-лога после архивации.');
+            }
+
+            $deleteTypes = str_repeat('i', count($deleteIds));
+            if (!bober_bind_dynamic_params($deleteStmt, $deleteTypes, $deleteIds)) {
+                $deleteStmt->close();
+                throw new RuntimeException('Не удалось привязать идентификаторы forensic-логов для удаления.');
+            }
+
+            if (!$deleteStmt->execute()) {
+                $deleteStmt->close();
+                throw new RuntimeException('Не удалось очистить активный forensic-лог после архивации.');
+            }
+
+            $deleted = max(0, (int) $deleteStmt->affected_rows);
+            $deleteStmt->close();
+        }
+
+        $conn->commit();
+
+        return [
+            'selected' => count($rows),
+            'archived' => $archived,
+            'deleted' => $deleted,
+            'cutoff_date' => $cutoffDate,
+            'older_than_days' => $olderThanDays,
+            'limit' => $limit,
+        ];
+    } catch (Throwable $error) {
+        $conn->rollback();
+        throw $error;
+    }
+}
+
+function bober_export_forensic_log_dump($conn, $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        throw new RuntimeException('Нет подключения к базе данных для forensic-выгрузки.');
+    }
+
+    bober_ensure_security_schema($conn);
+
+    $source = trim((string) ($options['source'] ?? 'all'));
+    $userId = max(0, (int) ($options['user_id'] ?? 0));
+    $search = trim((string) ($options['search'] ?? ''));
+    $limit = max(100, min(10000, (int) ($options['limit'] ?? 2000)));
+    $tableNames = [];
+
+    if ($source === 'active') {
+        $tableNames = ['user_client_event_log'];
+    } elseif ($source === 'archive') {
+        $tableNames = ['user_client_event_log_archive'];
+    } else {
+        $tableNames = ['user_client_event_log', 'user_client_event_log_archive'];
+        $source = 'all';
+    }
+
+    $items = [];
+
+    foreach ($tableNames as $tableName) {
+        $safeTable = bober_require_identifier($tableName, 'Таблица forensic-выгрузки');
+        $sql = 'SELECT `id`, `user_id`, `login_snapshot`, `event_uid`, `batch_id`, `device_id`, `client_session_id`, `sequence_no`, `client_ts`, `page`, `action_group`, `action_type`, `source`, `description`, `score_snapshot`, `energy_snapshot`, `plus_snapshot`, `payload_json`, `ip_address`, `user_agent`, `received_at`'
+            . ($safeTable === 'user_client_event_log_archive' ? ', `archived_at`, `archive_reason`' : ", NULL AS `archived_at`, '' AS `archive_reason`")
+            . ' FROM `' . $safeTable . '` WHERE 1=1';
+        $types = '';
+        $params = [];
+
+        if ($userId > 0) {
+            $sql .= ' AND `user_id` = ?';
+            $types .= 'i';
+            $params[] = $userId;
+        }
+
+        if ($search !== '') {
+            $likeSearch = '%' . $search . '%';
+            $sql .= ' AND (`action_type` LIKE ? OR `description` LIKE ? OR `payload_json` LIKE ? OR `login_snapshot` LIKE ? OR `ip_address` LIKE ? OR `device_id` LIKE ?)';
+            $types .= 'ssssss';
+            $params[] = $likeSearch;
+            $params[] = $likeSearch;
+            $params[] = $likeSearch;
+            $params[] = $likeSearch;
+            $params[] = $likeSearch;
+            $params[] = $likeSearch;
+        }
+
+        $sql .= ' ORDER BY `received_at` DESC, `id` DESC LIMIT ?';
+        $types .= 'i';
+        $params[] = $limit;
+
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить forensic-выгрузку.');
+        }
+
+        if (!bober_bind_dynamic_params($stmt, $types, $params)) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось привязать параметры forensic-выгрузки.');
+        }
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось выполнить forensic-выгрузку.');
+        }
+
+        $result = $stmt->get_result();
+        if ($result instanceof mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $payload = [];
+                if (!empty($row['payload_json'])) {
+                    $decodedPayload = json_decode((string) $row['payload_json'], true);
+                    if (is_array($decodedPayload)) {
+                        $payload = $decodedPayload;
+                    }
+                }
+
+                $items[] = [
+                    'table' => $safeTable,
+                    'id' => (int) ($row['id'] ?? 0),
+                    'userId' => max(0, (int) ($row['user_id'] ?? 0)),
+                    'loginSnapshot' => (string) ($row['login_snapshot'] ?? ''),
+                    'eventUid' => (string) ($row['event_uid'] ?? ''),
+                    'batchId' => (string) ($row['batch_id'] ?? ''),
+                    'deviceId' => (string) ($row['device_id'] ?? ''),
+                    'clientSessionId' => (string) ($row['client_session_id'] ?? ''),
+                    'sequence' => (int) ($row['sequence_no'] ?? 0),
+                    'clientTs' => (int) ($row['client_ts'] ?? 0),
+                    'page' => (string) ($row['page'] ?? ''),
+                    'group' => (string) ($row['action_group'] ?? ''),
+                    'type' => (string) ($row['action_type'] ?? ''),
+                    'source' => (string) ($row['source'] ?? ''),
+                    'description' => (string) ($row['description'] ?? ''),
+                    'scoreSnapshot' => (int) ($row['score_snapshot'] ?? 0),
+                    'energySnapshot' => (int) ($row['energy_snapshot'] ?? 0),
+                    'plusSnapshot' => (int) ($row['plus_snapshot'] ?? 0),
+                    'payload' => $payload,
+                    'ipAddress' => (string) ($row['ip_address'] ?? ''),
+                    'userAgent' => (string) ($row['user_agent'] ?? ''),
+                    'receivedAt' => isset($row['received_at']) ? (string) $row['received_at'] : null,
+                    'archivedAt' => isset($row['archived_at']) ? (string) $row['archived_at'] : null,
+                    'archiveReason' => (string) ($row['archive_reason'] ?? ''),
+                ];
+            }
+            $result->free();
+        }
+        $stmt->close();
+    }
+
+    usort($items, function ($left, $right) {
+        $leftTs = strtotime((string) ($left['receivedAt'] ?? '')) ?: 0;
+        $rightTs = strtotime((string) ($right['receivedAt'] ?? '')) ?: 0;
+        if ($leftTs !== $rightTs) {
+            return $rightTs <=> $leftTs;
+        }
+
+        return ((int) ($right['id'] ?? 0)) <=> ((int) ($left['id'] ?? 0));
+    });
+
+    if (count($items) > $limit) {
+        $items = array_slice($items, 0, $limit);
+    }
+
+    return [
+        'items' => $items,
+        'source' => $source,
+        'userId' => $userId,
+        'search' => $search,
+        'limit' => $limit,
+        'generated_at' => date('Y-m-d H:i:s'),
+    ];
+}
+
 function bober_ensure_security_schema($conn)
 {
     $createUserBansSql = <<<SQL
@@ -1820,6 +2495,50 @@ SQL;
 
     if (!bober_index_exists($conn, 'user_client_event_log', 'idx_user_client_event_group_received') && !$conn->query("CREATE INDEX `idx_user_client_event_group_received` ON `user_client_event_log` (`user_id`, `action_group`, `received_at`)")) {
         throw new RuntimeException('Не удалось создать индекс подробного клиентского лога по группе.');
+    }
+
+    $createUserClientEventLogArchiveSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_client_event_log_archive` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `login_snapshot` VARCHAR(100) NOT NULL DEFAULT '',
+    `event_uid` VARCHAR(128) NOT NULL,
+    `batch_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `device_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `client_session_id` VARCHAR(100) NOT NULL DEFAULT '',
+    `sequence_no` BIGINT NOT NULL DEFAULT 0,
+    `client_ts` BIGINT NOT NULL DEFAULT 0,
+    `page` VARCHAR(64) NOT NULL DEFAULT 'main_clicker',
+    `action_group` VARCHAR(50) NOT NULL DEFAULT 'general',
+    `action_type` VARCHAR(100) NOT NULL DEFAULT '',
+    `source` VARCHAR(50) NOT NULL DEFAULT 'client',
+    `description` VARCHAR(255) NULL DEFAULT NULL,
+    `score_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `energy_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `plus_snapshot` BIGINT NOT NULL DEFAULT 0,
+    `payload_json` LONGTEXT NULL,
+    `ip_address` VARCHAR(64) NULL DEFAULT NULL,
+    `user_agent` VARCHAR(255) NULL DEFAULT NULL,
+    `received_at` TIMESTAMP NULL DEFAULT NULL,
+    `archived_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `archive_reason` VARCHAR(100) NOT NULL DEFAULT 'retention_policy'
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createUserClientEventLogArchiveSql)) {
+        throw new RuntimeException('Не удалось создать архив подробного клиентского лога.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log_archive', 'uniq_user_client_event_archive_uid') && !$conn->query("CREATE UNIQUE INDEX `uniq_user_client_event_archive_uid` ON `user_client_event_log_archive` (`event_uid`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс архива клиентского лога.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log_archive', 'idx_user_client_event_archive_user_received') && !$conn->query("CREATE INDEX `idx_user_client_event_archive_user_received` ON `user_client_event_log_archive` (`user_id`, `received_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс архива клиентского лога по пользователю.');
+    }
+
+    if (!bober_index_exists($conn, 'user_client_event_log_archive', 'idx_user_client_event_archive_archived_at') && !$conn->query("CREATE INDEX `idx_user_client_event_archive_archived_at` ON `user_client_event_log_archive` (`archived_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс архива клиентского лога по дате архивации.');
     }
 }
 

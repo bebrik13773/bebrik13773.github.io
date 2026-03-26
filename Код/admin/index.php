@@ -50,6 +50,15 @@ function requireAdminAuth(&$response)
     return true;
 }
 
+function invalidateAdminRuntimeCaches($conn)
+{
+    if (!($conn instanceof mysqli)) {
+        return 0;
+    }
+
+    return bober_runtime_cache_purge_prefix($conn, 'admin_');
+}
+
 function normalizeTableName($table)
 {
     $table = trim((string) $table);
@@ -520,6 +529,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_maintenance_snapshot') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                $forceRefresh = !empty($_POST['forceRefresh']);
+                $response['success'] = true;
+                $response['snapshot'] = bober_fetch_admin_maintenance_snapshot($conn, [
+                    'force_refresh' => $forceRefresh,
+                    'ttl_seconds' => 45,
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'refresh_admin_runtime_caches') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                $purgedCount = invalidateAdminRuntimeCaches($conn);
+                $stats = bober_fetch_admin_dashboard_stats($conn, [
+                    'force_refresh' => true,
+                    'ttl_seconds' => 60,
+                ]);
+                $snapshot = bober_fetch_admin_maintenance_snapshot($conn, [
+                    'force_refresh' => true,
+                    'ttl_seconds' => 45,
+                ]);
+
+                $response['success'] = true;
+                $response['message'] = 'Runtime-кэш админки обновлен.';
+                $response['purgedKeys'] = max(0, (int) $purgedCount);
+                $response['stats'] = $stats;
+                $response['snapshot'] = $snapshot;
+
+                bober_admin_log_action($conn, 'refresh_admin_runtime_caches', [
+                    'target_table' => 'runtime_cache',
+                    'query_text' => 'PURGE admin_* runtime cache',
+                    'affected_rows' => max(0, (int) $purgedCount),
+                    'meta' => [
+                        'purged_keys' => max(0, (int) $purgedCount),
+                    ],
+                ]);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'archive_client_event_logs') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                $archiveResult = bober_archive_user_client_event_log($conn, [
+                    'older_than_days' => (int) ($_POST['olderThanDays'] ?? 30),
+                    'limit' => (int) ($_POST['limit'] ?? 1000),
+                    'archive_reason' => 'admin_maintenance_archive',
+                ]);
+                invalidateAdminRuntimeCaches($conn);
+
+                $response['success'] = true;
+                $response['message'] = $archiveResult['archived'] > 0
+                    ? 'Старые forensic-логи перенесены в архив.'
+                    : 'Для архивации не найдено старых forensic-логов.';
+                $response['result'] = $archiveResult;
+                $response['snapshot'] = bober_fetch_admin_maintenance_snapshot($conn, [
+                    'force_refresh' => true,
+                    'ttl_seconds' => 45,
+                ]);
+
+                bober_admin_log_action($conn, 'archive_client_event_logs', [
+                    'target_table' => 'user_client_event_log',
+                    'query_text' => 'ARCHIVE forensic logs',
+                    'affected_rows' => max(0, (int) ($archiveResult['archived'] ?? 0)),
+                    'meta' => $archiveResult,
+                ]);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'export_forensic_log_dump') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                $exportData = bober_export_forensic_log_dump($conn, [
+                    'source' => (string) ($_POST['sourceScope'] ?? 'all'),
+                    'user_id' => (int) ($_POST['userId'] ?? 0),
+                    'search' => (string) ($_POST['search'] ?? ''),
+                    'limit' => (int) ($_POST['limit'] ?? 2000),
+                ]);
+
+                $response['success'] = true;
+                $response['message'] = 'Forensic-выгрузка подготовлена.';
+                $response['export'] = $exportData;
+
+                bober_admin_log_action($conn, 'export_forensic_log_dump', [
+                    'target_table' => 'user_client_event_log',
+                    'query_text' => 'EXPORT forensic log dump',
+                    'affected_rows' => max(0, count($exportData['items'] ?? [])),
+                    'meta' => [
+                        'source' => $exportData['source'] ?? 'all',
+                        'user_id' => $exportData['userId'] ?? 0,
+                        'search' => $exportData['search'] ?? '',
+                        'limit' => $exportData['limit'] ?? 0,
+                    ],
+                ]);
+
+                $conn->close();
+            }
+        }
+
         if ($action === 'get_skin_catalog') {
             if (requireAdminAuth($response)) {
                 $catalogItems = ensureSkinCatalogDefaults(bober_skin_catalog_list());
@@ -579,6 +698,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $response['message'] = 'Скин добавлен и сразу доступен в магазине.';
                         $response['skin'] = $storedItem;
                         $response['catalog_count'] = count($catalogItems);
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'create_skin_catalog_item', [
                             'target_table' => 'skin_catalog',
@@ -668,6 +788,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $response['success'] = true;
                             $response['message'] = 'Скин обновлен.';
                             $response['skin'] = $updatedItem;
+                            invalidateAdminRuntimeCaches($conn);
 
                             bober_admin_log_action($conn, 'update_skin_catalog_item', [
                                 'target_table' => 'skin_catalog',
@@ -729,6 +850,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $response['message'] = 'Скин удален из каталога.';
                         $response['deleted_skin_id'] = $skinId;
                         $response['catalog_count'] = count($catalogItems);
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'delete_skin_catalog_item', [
                             'target_table' => 'skin_catalog',
@@ -752,146 +874,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $search = trim((string) ($_POST['search'] ?? ''));
                 $sort = trim((string) ($_POST['sort'] ?? 'activity_desc'));
                 $filter = trim((string) ($_POST['filter'] ?? 'all'));
-                $searchLike = '%' . $search . '%';
-                $sortMap = [
-                    'activity_desc' => '`is_banned` DESC, `last_activity_at` DESC, `u`.`score` DESC, `u`.`id` DESC',
-                    'score_desc' => '`is_banned` DESC, `u`.`score` DESC, `last_activity_at` DESC, `u`.`id` DESC',
-                    'score_asc' => '`is_banned` DESC, `u`.`score` ASC, `last_activity_at` DESC, `u`.`id` DESC',
-                    'created_desc' => '`is_banned` DESC, `u`.`created_at` DESC, `u`.`id` DESC',
-                    'created_asc' => '`is_banned` DESC, `u`.`created_at` ASC, `u`.`id` ASC',
-                    'login_asc' => '`is_banned` DESC, `u`.`login` ASC, `u`.`id` ASC',
-                ];
-                $filterSqlMap = [
-                    'all' => '',
-                    'banned' => ' AND EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
-                    'active' => ' AND NOT EXISTS(SELECT 1 FROM `user_bans` `ubf` WHERE `ubf`.`user_id` = `u`.`id` AND `ubf`.`lifted_at` IS NULL AND `ubf`.`ban_until` > CURRENT_TIMESTAMP)',
-                    'has_sessions' => ' AND EXISTS(SELECT 1 FROM `user_sessions` `usf` WHERE `usf`.`user_id` = `u`.`id` AND `usf`.`revoked_at` IS NULL)',
-                ];
-                $orderBySql = $sortMap[$sort] ?? $sortMap['activity_desc'];
-                $sort = isset($sortMap[$sort]) ? $sort : 'activity_desc';
-                $filter = isset($filterSqlMap[$filter]) ? $filter : 'all';
-                $filterSql = $filterSqlMap[$filter];
-
                 $conn = connectDB();
                 bober_ensure_project_schema($conn);
 
-                $sql = <<<SQL
-SELECT
-    `u`.`id`,
-    `u`.`login`,
-    `u`.`score`,
-    `u`.`plus`,
-    `u`.`energy`,
-    `u`.`ENERGY_MAX`,
-    `u`.`created_at`,
-    `u`.`updated_at`,
-    GREATEST(
-        COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
-        COALESCE(`f`.`last_played_at`, '1970-01-01 00:00:00'),
-        COALESCE((
-            SELECT MAX(`iph`.`last_seen_at`)
-            FROM `user_ip_history` `iph`
-            WHERE `iph`.`user_id` = `u`.`id`
-        ), '1970-01-01 00:00:00')
-    ) AS `last_activity_at`,
-    COALESCE(`f`.`best_score`, 0) AS `fly_best_score`,
-    COALESCE(`f`.`pending_transfer_score`, 0) AS `fly_pending_score`,
-    (
-        SELECT COUNT(*)
-        FROM `user_sessions` `us`
-        WHERE `us`.`user_id` = `u`.`id`
-          AND `us`.`revoked_at` IS NULL
-    ) AS `active_session_count`,
-    EXISTS(
-        SELECT 1
-        FROM `user_bans` `ub`
-        WHERE `ub`.`user_id` = `u`.`id`
-          AND `ub`.`lifted_at` IS NULL
-          AND `ub`.`ban_until` > CURRENT_TIMESTAMP
-        LIMIT 1
-    ) AS `is_banned`,
-    (
-        SELECT `ub2`.`ban_until`
-        FROM `user_bans` `ub2`
-        WHERE `ub2`.`user_id` = `u`.`id`
-          AND `ub2`.`lifted_at` IS NULL
-          AND `ub2`.`ban_until` > CURRENT_TIMESTAMP
-        ORDER BY `ub2`.`ban_until` DESC
-        LIMIT 1
-    ) AS `ban_until`
-FROM `users` `u`
-LEFT JOIN `fly_beaver_progress` `f` ON `f`.`user_id` = `u`.`id`
-WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)
-{$filterSql}
-ORDER BY {$orderBySql}
-LIMIT 200
-SQL;
-
-                $stmt = $conn->prepare($sql);
-                if (!$stmt) {
-                    throw new RuntimeException('Не удалось подготовить список пользователей.');
-                }
-
-                $stmt->bind_param('ss', $searchLike, $searchLike);
-                if (!$stmt->execute()) {
-                    $stmt->close();
-                    throw new RuntimeException('Не удалось загрузить список пользователей.');
-                }
-
-                $result = $stmt->get_result();
-                $users = [];
-
-                while ($row = $result->fetch_assoc()) {
-                    $users[] = [
-                        'id' => (int) ($row['id'] ?? 0),
-                        'login' => (string) ($row['login'] ?? ''),
-                        'score' => max(0, (int) ($row['score'] ?? 0)),
-                        'plus' => max(1, (int) ($row['plus'] ?? 1)),
-                        'energy' => max(0, (int) ($row['energy'] ?? 0)),
-                        'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 1)),
-                        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : null,
-                        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : null,
-                        'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
-                        'flyBestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
-                        'flyPendingScore' => max(0, (int) ($row['fly_pending_score'] ?? 0)),
-                        'activeSessionCount' => max(0, (int) ($row['active_session_count'] ?? 0)),
-                        'isBanned' => (int) ($row['is_banned'] ?? 0) === 1,
-                        'banUntil' => isset($row['ban_until']) ? (string) $row['ban_until'] : null,
-                    ];
-                }
-
-                if ($result instanceof mysqli_result) {
-                    $result->free();
-                }
-                $stmt->close();
-
-                $countSql = 'SELECT COUNT(*) AS total FROM `users` `u` WHERE (`u`.`login` LIKE ? OR CAST(`u`.`id` AS CHAR) LIKE ?)' . $filterSql;
-                $countStmt = $conn->prepare($countSql);
-                if (!$countStmt) {
-                    throw new RuntimeException('Не удалось получить число пользователей.');
-                }
-
-                $countStmt->bind_param('ss', $searchLike, $searchLike);
-                if (!$countStmt->execute()) {
-                    $countStmt->close();
-                    throw new RuntimeException('Не удалось получить число пользователей.');
-                }
-
-                $countResult = $countStmt->get_result();
-                $countRow = $countResult ? $countResult->fetch_assoc() : null;
-                $total = (int) ($countRow['total'] ?? 0);
-                if ($countResult instanceof mysqli_result) {
-                    $countResult->free();
-                }
-                $countStmt->close();
+                $overview = bober_fetch_admin_users_overview($conn, [
+                    'search' => $search,
+                    'sort' => $sort,
+                    'filter' => $filter,
+                    'ttl_seconds' => 20,
+                    'force_refresh' => !empty($_POST['forceRefresh']),
+                ]);
 
                 $response['success'] = true;
-                $response['users'] = $users;
-                $response['returned'] = count($users);
-                $response['total'] = $total;
-                $response['search'] = $search;
-                $response['sort'] = $sort;
-                $response['filter'] = $filter;
+                $response['users'] = $overview['users'] ?? [];
+                $response['returned'] = (int) ($overview['returned'] ?? count($response['users']));
+                $response['total'] = (int) ($overview['total'] ?? count($response['users']));
+                $response['search'] = (string) ($overview['search'] ?? $search);
+                $response['sort'] = (string) ($overview['sort'] ?? $sort);
+                $response['filter'] = (string) ($overview['filter'] ?? $filter);
+                $response['cached'] = !empty($overview['cached']);
+                $response['cacheUpdatedAt'] = $overview['cache_updated_at'] ?? null;
+                $response['cacheExpiresAt'] = $overview['cache_expires_at'] ?? null;
 
                 $conn->close();
             }
@@ -1152,12 +1155,14 @@ SQL;
                     $conn = connectDB();
                     bober_ensure_project_schema($conn);
 
-                    $logData = bober_fetch_user_client_event_log($conn, $userId, [
+                    $logData = bober_fetch_cached_user_client_event_log($conn, $userId, [
                         'group' => (string) ($_POST['group'] ?? 'all'),
                         'type' => (string) ($_POST['type'] ?? ''),
                         'source' => (string) ($_POST['source'] ?? 'all'),
                         'search' => (string) ($_POST['search'] ?? ''),
                         'limit' => (int) ($_POST['limit'] ?? 200),
+                        'ttl_seconds' => 15,
+                        'force_refresh' => !empty($_POST['forceRefresh']),
                     ]);
 
                     $response['success'] = true;
@@ -1333,6 +1338,7 @@ SQL;
                             $response['message'] = $passwordChanged
                                 ? 'Карточка пользователя и пароль сохранены'
                                 : 'Карточка пользователя сохранена';
+                            invalidateAdminRuntimeCaches($conn);
                         }
                     }
 
@@ -1359,6 +1365,7 @@ SQL;
                         ? 'Скин выдан и сразу установлен.'
                         : 'Скин выдан пользователю.';
                     $response['skin'] = $nextSkinState;
+                    invalidateAdminRuntimeCaches($conn);
 
                     bober_admin_log_action($conn, 'grant_skin_to_user', [
                         'target_table' => 'users',
@@ -1404,6 +1411,7 @@ SQL;
                     } else {
                         $response['success'] = true;
                         $response['message'] = 'Сессия завершена.';
+                        invalidateAdminRuntimeCaches($conn);
                         bober_admin_log_action($conn, 'terminate_user_session', [
                             'target_table' => 'user_sessions',
                             'query_text' => 'TERMINATE SESSION ' . $sessionId,
@@ -1515,6 +1523,7 @@ SQL;
                             $response['success'] = true;
                             $response['message'] = 'Строка успешно обновлена';
                             $response['affected_rows'] = $conn->affected_rows;
+                            invalidateAdminRuntimeCaches($conn);
                             bober_admin_log_action($conn, 'update_row', [
                                 'target_table' => $table,
                                 'query_text' => $sql,
@@ -1554,6 +1563,7 @@ SQL;
                         $response['success'] = true;
                         $response['message'] = 'Строка успешно добавлена';
                         $response['affected_rows'] = $conn->affected_rows;
+                        invalidateAdminRuntimeCaches($conn);
                         bober_admin_log_action($conn, 'insert_row', [
                             'target_table' => $table,
                             'query_text' => $sql,
@@ -1585,6 +1595,7 @@ SQL;
                         $response['success'] = true;
                         $response['message'] = 'Строка успешно удалена';
                         $response['affected_rows'] = $conn->affected_rows;
+                        invalidateAdminRuntimeCaches($conn);
                         bober_admin_log_action($conn, 'delete_row', [
                             'target_table' => $table,
                             'query_text' => $sql,
@@ -1650,6 +1661,7 @@ SQL;
                         $response['success'] = true;
                         $response['ban'] = $ban;
                         $response['message'] = $ban['message'] ?? 'Пользователь забанен';
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'ban_user_account', [
                             'target_table' => 'users',
@@ -1719,6 +1731,7 @@ SQL;
                             ? 'Бан пользователя и связанные IP-баны сняты'
                             : 'Активных банов для этого пользователя не найдено';
                         $response['lifted'] = $liftResult;
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'unban_user_account', [
                             'target_table' => 'users',
@@ -1803,6 +1816,7 @@ SQL;
                         $response['message'] = $affectedRows > 0
                             ? 'IP-бан снят точечно'
                             : 'IP-бан уже был снят';
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'lift_single_ip_ban', [
                             'target_table' => 'ip_bans',
@@ -1867,6 +1881,7 @@ SQL;
                             'user_sessions' => 0,
                             'user_activity_log' => 0,
                             'user_client_event_log' => 0,
+                            'user_client_event_log_archive' => 0,
                             'fly_beaver_runs' => 0,
                             'fly_beaver_progress' => 0,
                             'user_ip_history' => 0,
@@ -1882,6 +1897,7 @@ SQL;
                                 'user_sessions' => 'DELETE FROM `user_sessions` WHERE `user_id` = ?',
                                 'user_activity_log' => 'DELETE FROM `user_activity_log` WHERE `user_id` = ?',
                                 'user_client_event_log' => 'DELETE FROM `user_client_event_log` WHERE `user_id` = ?',
+                                'user_client_event_log_archive' => 'DELETE FROM `user_client_event_log_archive` WHERE `user_id` = ?',
                                 'fly_beaver_runs' => 'DELETE FROM `fly_beaver_runs` WHERE `user_id` = ?',
                                 'fly_beaver_progress' => 'DELETE FROM `fly_beaver_progress` WHERE `user_id` = ?',
                                 'user_ip_history' => 'DELETE FROM `user_ip_history` WHERE `user_id` = ?',
@@ -1915,6 +1931,7 @@ SQL;
                         $response['success'] = true;
                         $response['message'] = 'Аккаунт и связанные данные удалены';
                         $response['deleted'] = $deleteMeta;
+                        invalidateAdminRuntimeCaches($conn);
 
                         bober_admin_log_action($conn, 'delete_user_account', [
                             'target_table' => 'users',
@@ -3507,6 +3524,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 grid-template-columns: 1fr;
             }
 
+            .maintenance-shell,
+            .maintenance-form-row {
+                grid-template-columns: 1fr;
+            }
+
             .stats-toolbar {
                 flex-direction: column;
                 align-items: stretch;
@@ -3645,6 +3667,67 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         .account-list-panel,
         .account-detail-panel {
             background: var(--panel-gradient);
+        }
+
+        .maintenance-panel {
+            background: var(--panel-gradient);
+        }
+
+        .maintenance-shell {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .maintenance-card {
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 18px;
+            background: var(--panel-soft-bg);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .maintenance-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--on-surface);
+            margin: 0;
+        }
+
+        .maintenance-card p {
+            margin: 0;
+            color: var(--muted-text);
+            line-height: 1.55;
+            font-size: 14px;
+        }
+
+        .maintenance-form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .maintenance-log {
+            min-height: 92px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: rgba(8, 18, 34, 0.38);
+            color: var(--muted-text);
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+
+        .maintenance-inline-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .account-list-toolbar {
@@ -4250,6 +4333,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">analytics</span>
             <span>Статистика</span>
         </div>
+
+        <div class="sidebar-item" id="maintenanceBtn">
+            <span class="material-icons">build_circle</span>
+            <span>Обслуживание</span>
+        </div>
         
         <div class="sidebar-item" id="sqlEditorBtn">
             <span class="material-icons">code</span>
@@ -4424,6 +4512,104 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <div class="skin-catalog-meta" id="skinCatalogMeta">Загрузка каталога скинов...</div>
                     <div class="skin-catalog-grid" id="skinCatalogGrid"></div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="maintenanceView" style="display: none;">
+                <div class="card maintenance-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">build_circle</span>
+                                Обслуживание
+                            </h2>
+                            <div class="card-subtitle">Тяжёлые работы админки: принудительное обновление кэша, архивация forensic-логов и большие выгрузки.</div>
+                        </div>
+                        <button class="btn btn-outline" id="refreshMaintenanceBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить экран
+                        </button>
+                    </div>
+
+                    <div class="maintenance-shell">
+                        <section class="maintenance-card">
+                            <h3>Runtime-кэш админки</h3>
+                            <p>Форсирует пересчёт карточек статистики и сбрасывает короткоживущий кэш тяжёлых списков.</p>
+                            <div class="maintenance-inline-actions">
+                                <button class="btn btn-primary" id="refreshAllCachesBtn">
+                                    <span class="material-icons">bolt</span>
+                                    Обновить кэш сейчас
+                                </button>
+                            </div>
+                            <div class="maintenance-log" id="maintenanceCacheLog">Ожидает запуска.</div>
+                        </section>
+
+                        <section class="maintenance-card">
+                            <h3>Архивация forensic-логов</h3>
+                            <p>Переносит старые записи из `user_client_event_log` в архив, чтобы активная таблица не разрасталась бесконтрольно.</p>
+                            <div class="maintenance-form-row">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceArchiveDaysInput">Старше дней</label>
+                                    <input class="form-control" id="maintenanceArchiveDaysInput" type="number" min="1" value="30">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceArchiveLimitInput">Лимит за запуск</label>
+                                    <input class="form-control" id="maintenanceArchiveLimitInput" type="number" min="50" max="5000" step="50" value="1000">
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" id="archiveForensicLogsBtn">
+                                <span class="material-icons">inventory_2</span>
+                                Архивировать
+                            </button>
+                            <div class="maintenance-log" id="maintenanceArchiveLog">Ожидает запуска.</div>
+                        </section>
+
+                        <section class="maintenance-card">
+                            <h3>Большая forensic-выгрузка</h3>
+                            <p>Собирает свежий дамп из активного и архивного forensic-лога. Можно ограничить выгрузку одним пользователем и поиском.</p>
+                            <div class="maintenance-form-row">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceExportSource">Источник</label>
+                                    <select class="form-control" id="maintenanceExportSource">
+                                        <option value="all">Активный + архив</option>
+                                        <option value="active">Только активный</option>
+                                        <option value="archive">Только архив</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceExportFormat">Формат</label>
+                                    <select class="form-control" id="maintenanceExportFormat">
+                                        <option value="json">JSON</option>
+                                        <option value="csv">CSV</option>
+                                        <option value="txt">TXT</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceExportUserId">ID игрока</label>
+                                    <input class="form-control" id="maintenanceExportUserId" type="number" min="0" placeholder="0 = все">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="maintenanceExportLimit">Лимит</label>
+                                    <input class="form-control" id="maintenanceExportLimit" type="number" min="100" max="10000" step="100" value="2000">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" for="maintenanceExportSearch">Поиск</label>
+                                <input class="form-control" id="maintenanceExportSearch" type="search" placeholder="payload, IP, login_snapshot, deviceId...">
+                            </div>
+                            <button class="btn btn-primary" id="exportForensicDumpBtn">
+                                <span class="material-icons">download</span>
+                                Скачать дамп
+                            </button>
+                            <div class="maintenance-log" id="maintenanceExportLog">Ожидает выгрузки.</div>
+                        </section>
+
+                        <section class="maintenance-card">
+                            <h3>Сводка</h3>
+                            <p>Короткая картина по forensic-логам и runtime-кэшу панели. Обновляется с TTL и может принудительно пересчитываться.</p>
+                            <div class="maintenance-log" id="maintenanceSnapshotLog">Загрузка сведений...</div>
+                        </section>
+                    </div>
                 </div>
             </div>
             
@@ -5182,6 +5368,248 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function formatMaintenanceSnapshot(snapshot) {
+            if (!snapshot || typeof snapshot !== 'object') {
+                return 'Не удалось прочитать snapshot обслуживания.';
+            }
+
+            return [
+                `Активный forensic-лог: ${formatAdminNumber(snapshot.activeClientLogRows || 0)} строк`,
+                `Архив forensic-лога: ${formatAdminNumber(snapshot.archivedClientLogRows || 0)} строк`,
+                `Самая старая активная запись: ${formatAdminDateTime(snapshot.oldestActiveClientLogAt)}`,
+                `Самая новая активная запись: ${formatAdminDateTime(snapshot.newestActiveClientLogAt)}`,
+                `Самая старая архивная запись: ${formatAdminDateTime(snapshot.oldestArchivedClientLogAt)}`,
+                `Самая новая архивная запись: ${formatAdminDateTime(snapshot.newestArchivedClientLogAt)}`,
+                `Ключей admin_* в runtime-кэше: ${formatAdminNumber(snapshot.adminCacheKeys || 0)}`,
+                `Последнее обновление admin-кэша: ${formatAdminDateTime(snapshot.adminCacheLastUpdateAt)}`,
+                `Снимок построен: ${formatAdminDateTime(snapshot.generated_at)}${snapshot.cached ? ' (из кэша)' : ''}`
+            ].join('\n');
+        }
+
+        function setMaintenanceLog(elementId, text) {
+            const node = document.getElementById(elementId);
+            if (node) {
+                node.textContent = String(text || '');
+            }
+        }
+
+        function loadMaintenanceSnapshot(forceRefresh = false) {
+            const refreshButton = document.getElementById('refreshMaintenanceBtn');
+            if (refreshButton) {
+                refreshButton.disabled = true;
+            }
+
+            setMaintenanceLog('maintenanceSnapshotLog', forceRefresh ? 'Принудительно обновляем snapshot обслуживания...' : 'Обновляем snapshot обслуживания...');
+
+            return postAction({
+                action: 'get_maintenance_snapshot',
+                forceRefresh: forceRefresh ? 1 : 0
+            })
+                .then(data => {
+                    if (!data.success || !data.snapshot) {
+                        throw new Error(data.message || 'Не удалось получить snapshot обслуживания');
+                    }
+
+                    setMaintenanceLog('maintenanceSnapshotLog', formatMaintenanceSnapshot(data.snapshot));
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setMaintenanceLog('maintenanceSnapshotLog', error.message || 'Ошибка загрузки snapshot обслуживания.');
+                    showNotification(error.message || 'Ошибка загрузки экрана обслуживания', 'error');
+                })
+                .finally(() => {
+                    if (refreshButton) {
+                        refreshButton.disabled = false;
+                    }
+                });
+        }
+
+        function refreshAdminRuntimeCaches() {
+            const button = document.getElementById('refreshAllCachesBtn');
+            if (button) {
+                button.disabled = true;
+            }
+
+            setMaintenanceLog('maintenanceCacheLog', 'Сбрасываем admin_* runtime-кэш и пересчитываем snapshot...');
+
+            postAction({
+                action: 'refresh_admin_runtime_caches'
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось обновить runtime-кэш админки');
+                    }
+
+                    setMaintenanceLog(
+                        'maintenanceCacheLog',
+                        [
+                            `Сброшено ключей: ${formatAdminNumber(data.purgedKeys || 0)}`,
+                            `Статистика пересчитана: ${formatAdminDateTime(data.stats && data.stats.generated_at ? data.stats.generated_at : null)}`,
+                            data.snapshot ? `Сервисный snapshot: ${formatAdminDateTime(data.snapshot.generated_at)}` : ''
+                        ].filter(Boolean).join('\n')
+                    );
+                    loadDashboardStats(true);
+                    loadMaintenanceSnapshot(true);
+                    showNotification(data.message || 'Runtime-кэш админки обновлен', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setMaintenanceLog('maintenanceCacheLog', error.message || 'Ошибка обновления runtime-кэша.');
+                    showNotification(error.message || 'Ошибка обновления runtime-кэша', 'error');
+                })
+                .finally(() => {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                });
+        }
+
+        function archiveForensicLogs() {
+            const button = document.getElementById('archiveForensicLogsBtn');
+            const olderThanDays = Math.max(1, Number(document.getElementById('maintenanceArchiveDaysInput').value || 30));
+            const limit = Math.max(50, Number(document.getElementById('maintenanceArchiveLimitInput').value || 1000));
+
+            if (button) {
+                button.disabled = true;
+            }
+
+            setMaintenanceLog('maintenanceArchiveLog', `Переносим forensic-логи старше ${formatAdminNumber(olderThanDays)} дн. (до ${formatAdminNumber(limit)} строк за запуск)...`);
+
+            postAction({
+                action: 'archive_client_event_logs',
+                olderThanDays: String(olderThanDays),
+                limit: String(limit)
+            })
+                .then(data => {
+                    if (!data.success || !data.result) {
+                        throw new Error(data.message || 'Не удалось архивировать forensic-логи');
+                    }
+
+                    setMaintenanceLog(
+                        'maintenanceArchiveLog',
+                        [
+                            `Выбрано: ${formatAdminNumber(data.result.selected || 0)}`,
+                            `Архивировано: ${formatAdminNumber(data.result.archived || 0)}`,
+                            `Удалено из активной таблицы: ${formatAdminNumber(data.result.deleted || 0)}`,
+                            `Порог: ${data.result.cutoff_date || 'неизвестно'}`
+                        ].join('\n')
+                    );
+                    loadMaintenanceSnapshot(true);
+                    showNotification(data.message || 'Архивация forensic-логов завершена', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setMaintenanceLog('maintenanceArchiveLog', error.message || 'Ошибка архивации forensic-логов.');
+                    showNotification(error.message || 'Ошибка архивации forensic-логов', 'error');
+                })
+                .finally(() => {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                });
+        }
+
+        function exportForensicDump() {
+            const button = document.getElementById('exportForensicDumpBtn');
+            const sourceScope = String(document.getElementById('maintenanceExportSource').value || 'all');
+            const format = String(document.getElementById('maintenanceExportFormat').value || 'json').toLowerCase();
+            const userId = Math.max(0, Number(document.getElementById('maintenanceExportUserId').value || 0));
+            const limit = Math.max(100, Number(document.getElementById('maintenanceExportLimit').value || 2000));
+            const search = String(document.getElementById('maintenanceExportSearch').value || '').trim();
+
+            if (button) {
+                button.disabled = true;
+            }
+
+            setMaintenanceLog('maintenanceExportLog', 'Готовим большую forensic-выгрузку...');
+
+            postAction({
+                action: 'export_forensic_log_dump',
+                sourceScope,
+                userId: String(userId),
+                search,
+                limit: String(limit)
+            })
+                .then(data => {
+                    if (!data.success || !data.export) {
+                        throw new Error(data.message || 'Не удалось подготовить forensic-выгрузку');
+                    }
+
+                    const items = Array.isArray(data.export.items) ? data.export.items : [];
+                    if (items.length === 0) {
+                        showNotification('По выбранным условиям forensic-лог пуст.', 'warning');
+                        setMaintenanceLog('maintenanceExportLog', 'По выбранным условиям forensic-лог пуст.');
+                        return;
+                    }
+
+                    const fileBase = `forensic-dump-${sourceScope}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+                    if (format === 'csv') {
+                        const header = ['table', 'receivedAt', 'archivedAt', 'userId', 'loginSnapshot', 'group', 'type', 'source', 'page', 'sequence', 'scoreSnapshot', 'energySnapshot', 'plusSnapshot', 'deviceId', 'clientSessionId', 'ipAddress', 'description', 'archiveReason', 'payload'];
+                        const rows = items.map(item => [
+                            item.table || '',
+                            item.receivedAt || '',
+                            item.archivedAt || '',
+                            item.userId || 0,
+                            item.loginSnapshot || '',
+                            item.group || '',
+                            item.type || '',
+                            item.source || '',
+                            item.page || '',
+                            item.sequence || 0,
+                            item.scoreSnapshot || 0,
+                            item.energySnapshot || 0,
+                            item.plusSnapshot || 0,
+                            item.deviceId || '',
+                            item.clientSessionId || '',
+                            item.ipAddress || '',
+                            item.description || '',
+                            item.archiveReason || '',
+                            JSON.stringify(item.payload || {})
+                        ]);
+                        const csvContent = [header, ...rows].map(row => row.map(escapeCsvCell).join(';')).join('\n');
+                        downloadTextFile(`${fileBase}.csv`, csvContent, 'text/csv;charset=utf-8');
+                    } else if (format === 'txt') {
+                        const txtContent = items.map(item => {
+                            return [
+                                `[${item.receivedAt || 'unknown'}] ${item.group || 'general'} / ${item.type || 'event'} / ${item.source || 'client'}`,
+                                `table=${item.table || 'user_client_event_log'} user=${item.userId || 0} login=${item.loginSnapshot || ''} seq=${item.sequence || 0}`,
+                                `score=${item.scoreSnapshot || 0} energy=${item.energySnapshot || 0} plus=${item.plusSnapshot || 0}`,
+                                item.ipAddress ? `ip=${item.ipAddress}` : '',
+                                item.archivedAt ? `archived_at=${item.archivedAt} reason=${item.archiveReason || ''}` : '',
+                                item.description ? `description=${item.description}` : '',
+                                `payload=${JSON.stringify(item.payload || {})}`,
+                                ''
+                            ].filter(Boolean).join('\n');
+                        }).join('\n');
+                        downloadTextFile(`${fileBase}.txt`, txtContent, 'text/plain;charset=utf-8');
+                    } else {
+                        downloadTextFile(`${fileBase}.json`, JSON.stringify(items, null, 2), 'application/json;charset=utf-8');
+                    }
+
+                    setMaintenanceLog(
+                        'maintenanceExportLog',
+                        [
+                            `Подготовлено строк: ${formatAdminNumber(items.length)}`,
+                            `Источник: ${sourceScope}`,
+                            `ID игрока: ${userId > 0 ? formatAdminNumber(userId) : 'все'}`,
+                            `Поиск: ${search || 'без фильтра'}`
+                        ].join('\n')
+                    );
+                    showNotification('Forensic-выгрузка готова.', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setMaintenanceLog('maintenanceExportLog', error.message || 'Ошибка подготовки forensic-выгрузки.');
+                    showNotification(error.message || 'Ошибка подготовки forensic-выгрузки', 'error');
+                })
+                .finally(() => {
+                    if (button) {
+                        button.disabled = false;
+                    }
+                });
+        }
+
         function isCompactAdminViewport() {
             return window.matchMedia('(max-width: 1200px)').matches;
         }
@@ -5589,10 +6017,43 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 closeSidebarForCompactViewport();
             });
 
+            document.getElementById('maintenanceBtn').addEventListener('click', function() {
+                showMaintenanceView();
+                closeSidebarForCompactViewport();
+            });
+
             const refreshStatsBtn = document.getElementById('refreshStatsBtn');
             if (refreshStatsBtn) {
                 refreshStatsBtn.addEventListener('click', function() {
                     loadDashboardStats(true);
+                });
+            }
+
+            const refreshMaintenanceBtn = document.getElementById('refreshMaintenanceBtn');
+            if (refreshMaintenanceBtn) {
+                refreshMaintenanceBtn.addEventListener('click', function() {
+                    loadMaintenanceSnapshot(true);
+                });
+            }
+
+            const refreshAllCachesBtn = document.getElementById('refreshAllCachesBtn');
+            if (refreshAllCachesBtn) {
+                refreshAllCachesBtn.addEventListener('click', function() {
+                    refreshAdminRuntimeCaches();
+                });
+            }
+
+            const archiveForensicLogsBtn = document.getElementById('archiveForensicLogsBtn');
+            if (archiveForensicLogsBtn) {
+                archiveForensicLogsBtn.addEventListener('click', function() {
+                    archiveForensicLogs();
+                });
+            }
+
+            const exportForensicDumpBtn = document.getElementById('exportForensicDumpBtn');
+            if (exportForensicDumpBtn) {
+                exportForensicDumpBtn.addEventListener('click', function() {
+                    exportForensicDump();
                 });
             }
             
@@ -5652,7 +6113,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const refreshAccountsBtn = document.getElementById('refreshAccountsBtn');
             if (refreshAccountsBtn) {
                 refreshAccountsBtn.addEventListener('click', function() {
-                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
+                    loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter, { forceRefresh: true });
                 });
             }
 
@@ -6099,6 +6560,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'skins';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'block';
+            document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsToolbar').style.display = 'flex';
@@ -6467,6 +6929,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsToolbar').style.display = 'flex';
@@ -6484,6 +6947,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'statistics';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsToolbar').style.display = 'flex';
@@ -6494,11 +6958,25 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             updateActiveMenuItem('statisticsBtn');
         }
         
+        function showMaintenanceView() {
+            currentAdminView = 'maintenance';
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'block';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'none';
+            updateActiveMenuItem('maintenanceBtn');
+            loadMaintenanceSnapshot();
+        }
+
         // Функция показа SQL редактора
         function showSqlEditor() {
             currentAdminView = 'sql';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
             document.getElementById('statsToolbar').style.display = 'none';
@@ -6656,10 +7134,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
-        function loadAccounts(search = '', sort = currentAccountSort, filter = currentAccountFilter) {
+        function loadAccounts(search = '', sort = currentAccountSort, filter = currentAccountFilter, options = {}) {
             lastAccountSearch = search;
             currentAccountSort = sort || currentAccountSort;
             currentAccountFilter = filter || currentAccountFilter;
+            const forceRefresh = Boolean(options.forceRefresh);
 
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
@@ -6680,7 +7159,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 action: 'get_users_overview',
                 search: search,
                 sort: currentAccountSort,
-                filter: currentAccountFilter
+                filter: currentAccountFilter,
+                forceRefresh: forceRefresh ? 1 : 0
             })
             .then(data => {
                 if (!data.success) {
@@ -7130,7 +7610,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 : buildClientLogPrettyHtml(selectedAccountClientLogItems);
         }
 
-        function buildSelectedAccountClientLogParams(limitOverride = null) {
+        function buildSelectedAccountClientLogParams(limitOverride = null, forceRefresh = false) {
             return {
                 action: 'get_user_client_log',
                 user_id: String(selectedAccountId || 0),
@@ -7138,7 +7618,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 type: String(selectedAccountClientLogTypeFilter || 'all'),
                 source: String(selectedAccountClientLogSourceFilter || 'all'),
                 search: String(selectedAccountClientLogSearch || ''),
-                limit: String(limitOverride || selectedAccountClientLogLimit || 200)
+                limit: String(limitOverride || selectedAccountClientLogLimit || 200),
+                forceRefresh: forceRefresh ? 1 : 0
             };
         }
 
@@ -7150,6 +7631,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const container = document.getElementById('accountClientLogContainer');
             const silent = Boolean(options.silent);
             const limitOverride = options.limitOverride || null;
+            const forceRefresh = Boolean(options.forceRefresh);
 
             if (container && !silent) {
                 container.innerHTML = `
@@ -7160,7 +7642,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 `;
             }
 
-            return postAction(buildSelectedAccountClientLogParams(limitOverride))
+            return postAction(buildSelectedAccountClientLogParams(limitOverride, forceRefresh))
                 .then(data => {
                     if (!data.success || !data.log) {
                         throw new Error(data.message || 'Не удалось загрузить подробный клиентский лог');
@@ -7868,7 +8350,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const refreshClientLogButton = document.getElementById('refreshAccountClientLogBtn');
             if (refreshClientLogButton) {
                 refreshClientLogButton.addEventListener('click', function() {
-                    loadSelectedAccountClientLog();
+                    loadSelectedAccountClientLog({ forceRefresh: true });
                 });
             }
 
@@ -8258,6 +8740,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             // Показываем карточку с данными таблицы
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';
             document.getElementById('statsToolbar').style.display = 'none';
