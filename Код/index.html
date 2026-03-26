@@ -158,7 +158,8 @@ Owner decisions:
             display: none;
             margin: 20px;
         }
-        input {
+        #loginForm input,
+        #registerForm input {
             margin: 5px;
             padding: 10px;
             width: 200px;
@@ -1684,6 +1685,120 @@ Owner decisions:
         text-shadow: 0 8px 24px rgba(51, 197, 199, 0.22);
     }
 
+    .auth-panel {
+        width: min(100%, 420px);
+        margin: 18px auto 0;
+        padding: 20px 18px 18px;
+        border-radius: 24px;
+        border: 1px solid rgba(126, 241, 255, 0.2);
+        background: linear-gradient(180deg, rgba(22, 18, 52, 0.92), rgba(10, 12, 30, 0.98));
+        box-shadow: 0 24px 38px rgba(4, 10, 26, 0.2);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+
+    .auth-panel h2 {
+        margin: 0 0 8px;
+        color: #e8ffff;
+        text-shadow: 0 10px 22px rgba(51, 197, 199, 0.22);
+    }
+
+    .auth-panel-subtitle {
+        margin: 0 0 14px;
+        color: rgba(255, 255, 255, 0.74);
+        line-height: 1.55;
+        font-size: 14px;
+    }
+
+    .auth-panel-rule {
+        margin: 12px 0 0;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.76);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    #loginForm input,
+    #registerForm input {
+        width: min(100%, 320px);
+        margin: 8px auto 0;
+        display: block;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(7, 14, 30, 0.58);
+        color: #f8ffff;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+    }
+
+    #loginForm input::placeholder,
+    #registerForm input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    #loginForm input:focus,
+    #registerForm input:focus {
+        outline: none;
+        border-color: rgba(126, 241, 255, 0.44);
+        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.2), 0 18px 24px rgba(8, 14, 31, 0.18);
+    }
+
+    @media (hover: hover) {
+        .leaderboard-item {
+            transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        .leaderboard-item:hover {
+            transform: translateY(-2px);
+            border-color: rgba(126, 241, 255, 0.52);
+            background: linear-gradient(180deg, rgba(32, 22, 70, 0.98), rgba(18, 12, 43, 0.96));
+            box-shadow: 0 22px 30px rgba(9, 4, 24, 0.28), 0 0 18px rgba(126, 241, 255, 0.14);
+        }
+    }
+
+    #flyBeaverOpenButton {
+        width: min(100%, 360px);
+        min-height: 60px;
+        padding: 16px 22px;
+        font-size: 17px;
+        border-radius: 20px;
+        background:
+            linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
+            rgba(255, 255, 255, 0.06);
+        color: #062035;
+        box-shadow:
+            0 24px 32px rgba(6, 13, 30, 0.24),
+            inset 0 1px 0 rgba(255, 255, 255, 0.44);
+    }
+
+    #flyBeaverOpenButton:hover {
+        box-shadow:
+            0 28px 36px rgba(6, 13, 30, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.52);
+    }
+
+    .skin-modal-confirm:disabled,
+    .skin-modal-confirm.disabled-reason,
+    #upgradeActionModalConfirm:disabled {
+        background: linear-gradient(180deg, rgba(108, 122, 169, 0.76), rgba(66, 78, 112, 0.84));
+        color: rgba(255, 255, 255, 0.86);
+        box-shadow: none;
+        border-color: rgba(255, 255, 255, 0.08);
+        cursor: not-allowed;
+        opacity: 1;
+    }
+
+    .skin-modal-confirm:disabled:hover,
+    .skin-modal-confirm.disabled-reason:hover,
+    #upgradeActionModalConfirm:disabled:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
     #shopExit {
         padding: 14px 20px;
         background: linear-gradient(180deg, rgba(255, 205, 87, 0.96), rgba(223, 124, 29, 0.98));
@@ -2202,6 +2317,19 @@ Owner decisions:
             font-size: 13px;
         }
 
+        .auth-panel {
+            width: min(100%, 100%);
+            padding: 18px 14px 16px;
+            border-radius: 20px;
+        }
+
+        #flyBeaverOpenButton {
+            width: min(100%, 100%);
+            min-height: 56px;
+            font-size: 16px;
+            padding: 15px 18px;
+        }
+
         .skin-shop-card {
             min-height: 138px;
             padding: 9px;
@@ -2393,19 +2521,20 @@ function showNotification(message, type = 'success', duration = 3000) {
 	    <h2> Admin </h2>
 		<button onclick="score = score +1000;">+1000</button>
 	</div>
-    <div id="loginForm">
-        <h2>Форма Входа</h2>
+    <div id="loginForm" class="auth-panel">
+        <h2>Форма входа</h2>
+        <p class="auth-panel-subtitle">Быстрый вход в облачное сохранение, магазин и синхронизацию сессии между устройствами.</p>
         <input type="text" id="login" placeholder="Логин" autocomplete="username">
         <input type="password" id="password" placeholder="Пароль">
         <button id="submitLogin">Войти</button>
     </div>
 
-    <div id="registerForm">
-        <h2>Форма Регистрации</h2>
+    <div id="registerForm" class="auth-panel">
+        <h2>Форма регистрации</h2>
+        <p class="auth-panel-subtitle">Новый аккаунт создаётся сразу с автовходом и облачным сохранением прогресса.</p>
         <input type="text" id="regLogin" placeholder="Логин" maxlength="10" pattern="[A-Za-z0-9_-]{3,10}" title="3-10 символов: английские буквы, цифры, - и _" autocomplete="username">
         <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
-        <h2>Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</h2>
-        <br>
+        <div class="auth-panel-rule">Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</div>
         <button id="submitRegister">Зарегистрироваться</button>
     </div>
 <br>
@@ -3058,7 +3187,8 @@ const sessionConflictState = {
 };
 const skinActionState = {
     skinId: '',
-    mode: ''
+    mode: '',
+    disabledReason: ''
 };
 const upgradeActionState = {
     type: '',
@@ -3694,10 +3824,11 @@ function hideSkinActionModal() {
     modal.setAttribute('aria-hidden', 'true');
     skinActionState.skinId = '';
     skinActionState.mode = '';
+    skinActionState.disabledReason = '';
     syncGlobalOverlayState();
 }
 
-function showSkinActionModal(skinConfig, mode) {
+function showSkinActionModal(skinConfig, mode, options = {}) {
     const modal = document.getElementById('skinActionModal');
     const titleNode = document.getElementById('skinActionModalTitle');
     const textNode = document.getElementById('skinActionModalText');
@@ -3713,13 +3844,16 @@ function showSkinActionModal(skinConfig, mode) {
         return;
     }
 
+    const disabledReason = String(options.disabledReason || '').trim();
     skinActionState.skinId = skinConfig.id;
     skinActionState.mode = mode;
+    skinActionState.disabledReason = disabledReason;
     logClientEvent('skins', mode === 'install' ? 'skin_install_modal_open' : 'skin_purchase_modal_open', {
         skinId: skinConfig.id,
         skinName: skinConfig.name,
         price: Number(skinConfig.price || 0),
-        mode: mode
+        mode: mode,
+        disabledReason: disabledReason
     }, {
         source: 'skin_shop',
         description: mode === 'install'
@@ -3757,10 +3891,13 @@ function showSkinActionModal(skinConfig, mode) {
         metaNode.style.display = mode === 'install' ? 'none' : 'flex';
     }
 
-    confirmNode.textContent = mode === 'install'
+    const defaultConfirmText = mode === 'install'
         ? 'Установить'
         : (skinConfig.price > 0 ? `Купить за ${formatCompactNumber(skinConfig.price)}` : 'Получить');
+    confirmNode.textContent = disabledReason || defaultConfirmText;
     confirmNode.classList.toggle('install', mode === 'install');
+    confirmNode.classList.toggle('disabled-reason', disabledReason !== '');
+    confirmNode.disabled = disabledReason !== '';
 
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -3924,8 +4061,18 @@ function updateUpgradeActionModalView() {
     }
 
     if (confirmNode) {
-        confirmNode.textContent = `Купить x${formatCompactNumber(quantity)} за ${formatCompactNumber(totalPrice)}`;
-        confirmNode.disabled = !userId || maxAffordableQuantity < 1 || score < totalPrice;
+        const isDisabled = !userId || maxAffordableQuantity < 1 || score < totalPrice;
+        let disabledReason = '';
+        if (!userId) {
+            disabledReason = 'Сначала войдите';
+        } else if (maxAffordableQuantity < 1 || score < totalPrice) {
+            disabledReason = 'Не хватает коинов';
+        }
+
+        confirmNode.textContent = isDisabled
+            ? disabledReason
+            : `Купить x${formatCompactNumber(quantity)} за ${formatCompactNumber(totalPrice)}`;
+        confirmNode.disabled = isDisabled;
     }
 
     presetButtons.forEach((button) => {
@@ -5235,11 +5382,197 @@ function renderLeaderboard(players) {
 
 async function requestJson(url, options = {}) {
     if (SHARED_CLIENT.requestJson) {
-        return SHARED_CLIENT.requestJson(url, options);
+        try {
+            return await SHARED_CLIENT.requestJson(url, options);
+        } catch (error) {
+            const shouldReport = !options.skipErrorReporting && (!error.status || Number(error.status) >= 500 || isLikelyNetworkError(error));
+            if (shouldReport) {
+                reportUnexpectedClientError(error, 'request', {
+                    url: String(url || ''),
+                    method: String(options.method || 'GET')
+                }, {
+                    copyToClipboard: isLikelyNetworkError(error)
+                }).catch(() => {});
+            }
+            throw error;
+        }
     }
 
     throw new Error('Общий клиентский модуль не загружен.');
 }
+
+const unexpectedErrorState = {
+    reporting: false,
+    lastFingerprint: '',
+    lastReportedAt: 0
+};
+
+function isLikelyNetworkError(error) {
+    const message = String((error && error.message) || '').toLowerCase();
+    return (
+        String((error && error.name) || '').toLowerCase() === 'typeerror' ||
+        message.includes('failed to fetch') ||
+        message.includes('networkerror') ||
+        message.includes('load failed') ||
+        message.includes('сеть') ||
+        message.includes('network')
+    );
+}
+
+function buildUnexpectedErrorReport(error, context = 'runtime', extra = {}) {
+    const payload = error && error.payload && typeof error.payload === 'object'
+        ? error.payload
+        : null;
+    const normalizedContext = String(context || 'runtime');
+    return {
+        context: normalizedContext,
+        name: String((error && error.name) || 'Error'),
+        message: String((error && error.message) || 'Неизвестная ошибка'),
+        status: Number(error && error.status) || 0,
+        stack: typeof (error && error.stack) === 'string' ? error.stack : '',
+        url: window.location.href,
+        userId: Number(userId || 0),
+        login: String(currentLogin || ''),
+        deviceId: getClientLogDeviceId(),
+        clientSessionId: getClientLogSessionId(),
+        userAgent: navigator.userAgent || '',
+        online: navigator.onLine !== false,
+        pageVisibility: document.visibilityState || 'unknown',
+        timestamp: new Date().toISOString(),
+        extra: extra && typeof extra === 'object' ? extra : {},
+        payload: payload
+    };
+}
+
+async function copyUnexpectedErrorReport(report) {
+    if (!SHARED_CLIENT.safeCopyTextToClipboard) {
+        return false;
+    }
+
+    return SHARED_CLIENT.safeCopyTextToClipboard(JSON.stringify(report, null, 2));
+}
+
+async function flushPendingClientLogsDirectly(reason = 'unexpected_error') {
+    if (!userId) {
+        return false;
+    }
+
+    let iterations = 0;
+    let sentAnything = false;
+
+    while (iterations < 4) {
+        iterations += 1;
+        const preparedBatch = await prepareClientLogBatch({
+            mode: 'auth',
+            login: currentLogin,
+            limit: Math.min(120, CLIENT_EVENT_LOG_CONFIG.batchSize)
+        });
+
+        if (!preparedBatch || !preparedBatch.payload) {
+            return sentAnything;
+        }
+
+        const response = await fetch('https://bober-api.gt.tc/client-log.php', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                reason: reason,
+                clientLogBatch: preparedBatch.payload
+            })
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (error) {
+            return false;
+        }
+
+        if (!data || data.success !== true) {
+            return false;
+        }
+
+        await acknowledgeClientLogBatch(preparedBatch);
+        sentAnything = true;
+
+        if (!preparedBatch.hasMore) {
+            break;
+        }
+    }
+
+    return sentAnything;
+}
+
+async function reportUnexpectedClientError(error, context = 'runtime', extra = {}, options = {}) {
+    const report = buildUnexpectedErrorReport(error, context, extra);
+    const fingerprint = `${report.context}|${report.name}|${report.message}`;
+    const now = Date.now();
+
+    if (unexpectedErrorState.reporting && unexpectedErrorState.lastFingerprint === fingerprint && now - unexpectedErrorState.lastReportedAt < 3000) {
+        return report;
+    }
+
+    unexpectedErrorState.reporting = true;
+    unexpectedErrorState.lastFingerprint = fingerprint;
+    unexpectedErrorState.lastReportedAt = now;
+
+    try {
+        logClientEvent('ui', 'unexpected_client_error', report, {
+            source: String(report.context || 'runtime'),
+            description: 'Клиент зафиксировал неожиданную ошибку и собрал forensic-контекст.'
+        });
+
+        try {
+            await flushPendingClientLogsDirectly(`unexpected:${report.context}`);
+        } catch (flushError) {
+            console.warn('Не удалось форсированно отправить client-log после ошибки.', flushError);
+        }
+
+        if (options.copyToClipboard || isLikelyNetworkError(error)) {
+            const copied = await copyUnexpectedErrorReport(report);
+            showNotification(
+                copied
+                    ? 'Сетевой лог скопирован в буфер обмена.'
+                    : 'Ошибка сети зафиксирована. Лог остался локально.',
+                'error',
+                4200
+            );
+        }
+
+        return report;
+    } finally {
+        unexpectedErrorState.reporting = false;
+    }
+}
+
+window.addEventListener('error', function(event) {
+    const target = event && event.target;
+    if (target instanceof HTMLImageElement || target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+        reportUnexpectedClientError(new Error('Ошибка загрузки ресурса.'), 'resource_error', {
+            tagName: target.tagName,
+            resourceUrl: target.currentSrc || target.src || target.href || ''
+        }).catch(() => {});
+        return;
+    }
+
+    reportUnexpectedClientError(event && event.error ? event.error : new Error(event.message || 'Unexpected runtime error'), 'window_error', {
+        fileName: event && event.filename ? event.filename : '',
+        line: event && event.lineno ? Number(event.lineno) : 0,
+        column: event && event.colno ? Number(event.colno) : 0
+    }).catch(() => {});
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    const reason = event && event.reason ? event.reason : new Error('Unhandled promise rejection');
+    reportUnexpectedClientError(reason instanceof Error ? reason : new Error(String(reason || 'Unhandled promise rejection')), 'unhandled_rejection').catch(() => {});
+});
 
 async function loadSkinCatalog() {
     try {
@@ -5601,11 +5934,17 @@ function buySkin(skinId) {
             description: 'Игрок открыл недоступный скин.'
         });
         showNotification('Этот скин пока в разработке. Если хотите, напишите в поддержку и добавим его быстрее.', 'success');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Скин скрыт из магазина'
+        });
         return;
     }
 
     if (!userId) {
         showNotification('Пожалуйста, войдите в аккаунт.', 'error');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Сначала войдите в аккаунт'
+        });
         return;
     }
 
@@ -5618,6 +5957,9 @@ function buySkin(skinId) {
             description: 'Игрок открыл скин, доступный только через ручную выдачу.'
         });
         showNotification('Этот скин нельзя купить. Его можно получить только через ручную выдачу.', 'error');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Только ручная выдача'
+        });
         return;
     }
 
@@ -5630,6 +5972,9 @@ function buySkin(skinId) {
             description: 'Игрок открыл стартовый скин вне сценария нового аккаунта.'
         });
         showNotification('Это стартовый скин для новых игроков. Для существующего аккаунта его нужно выдать вручную.', 'error');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Стартовый скин для новых'
+        });
         return;
     }
 
@@ -5661,6 +6006,9 @@ function buySkin(skinId) {
             description: 'Не хватило коинов для покупки скина.'
         });
         showNotification(getSkinShortageMessage(skinConfig.price), 'error');
+        showSkinActionModal(skinConfig, 'buy', {
+            disabledReason: 'Не хватает коинов'
+        });
         return;
     }
 
@@ -5997,6 +6345,7 @@ async function Save() {
 function buyUpgrade1() {
     if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        showUpgradeActionModal('tapSmall');
         return;
     }
 
@@ -6011,6 +6360,7 @@ function buyUpgrade1() {
             description: 'Не хватило коинов на покупку улучшения +1 к тапу.'
         });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
+        showUpgradeActionModal('tapSmall');
         return;
     }
     showUpgradeActionModal('tapSmall');
@@ -6019,6 +6369,7 @@ function buyUpgrade1() {
 function buyUpgrade2() {
     if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        showUpgradeActionModal('tapBig');
         return;
     }
 
@@ -6033,6 +6384,7 @@ function buyUpgrade2() {
             description: 'Не хватило коинов на покупку улучшения +5 к тапу.'
         });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
+        showUpgradeActionModal('tapBig');
         return;
     }
     showUpgradeActionModal('tapBig');
@@ -6041,6 +6393,7 @@ function buyUpgrade2() {
 function buyEnergyUpgrade() {
     if (!userId) {
         showNotification('Пожалуйста, войдите в систему!', 'error');
+        showUpgradeActionModal('energy');
         return;
     }
 
@@ -6055,6 +6408,7 @@ function buyEnergyUpgrade() {
             description: 'Не хватило коинов на покупку улучшения энергии.'
         });
         showNotification(getUpgradeShortageMessage(descriptor.price), 'error');
+        showUpgradeActionModal('energy');
         return;
     }
     showUpgradeActionModal('energy');
