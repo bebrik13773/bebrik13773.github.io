@@ -705,7 +705,7 @@ Owner decisions:
 			border-radius: 5px;
 			background: #4676D7;
 			color: #fff;
-			padding: 8px 47%;
+			padding: 8px 18px;
 			font-size: 16px;
 		}
          @media (max-width: 768px) {
@@ -715,7 +715,7 @@ Owner decisions:
 			    border-radius: 5px;
 		    	background: #4676D7;
 		    	color: #fff;
-		    	padding: 8px 48%;
+			    padding: 8px 18px;
 		    	font-size: 16px;
 		    }
         }
@@ -1559,6 +1559,8 @@ Owner decisions:
     #shopButton {
         padding: 14px 18px;
         width: min(100%, 320px);
+        display: block;
+        margin: 0 auto;
     }
 
     #shopTitle {
@@ -5386,11 +5388,6 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
         showNotification('Недостаточно энергии!', 'error');
     }
 }, { passive: false });
-
-if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-    const shopbutt = document.getElementById('shopButton');
-    shopbutt.style.padding = '8px 39%';
-}
 
 document.getElementById('loginButton').onclick = function() {
     document.getElementById('loginForm').style.display = 'block';
