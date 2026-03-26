@@ -949,16 +949,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function extractCloudSessionEndedPayload(error) {
-            const payload = error && error.payload && typeof error.payload === 'object'
-                ? error.payload
+            const normalized = SHARED_CLIENT.normalizeSessionEndedPayload
+                ? SHARED_CLIENT.normalizeSessionEndedPayload(error && error.payload ? error.payload : null)
                 : null;
 
-            if (!payload || payload.sessionEnded !== true) {
+            if (!normalized) {
                 return null;
             }
 
             return {
-                message: String(payload.message || 'Эта сессия завершена на другом устройстве.').trim()
+                message: String(normalized.message || 'Эта сессия завершена на другом устройстве.').trim()
             };
         }
 

@@ -3041,17 +3041,9 @@ const CLIENT_EVENT_LOG_CONFIG = {
     summaryStorageKey: 'bober_client_log_summary',
     deviceIdStorageKey: 'bober_client_log_device_id'
 };
-const clientLogState = {
-    supported: typeof indexedDB !== 'undefined',
-    dbPromise: null,
-    readyPromise: null,
-    memoryQueue: [],
-    memoryIndex: new Set(),
-    deviceId: '',
-    clientSessionId: '',
-    sequence: 0,
-    lastBatchNumber: 0
-};
+const CLIENT_LOG_MANAGER = SHARED_CLIENT.createClientLogManager
+    ? SHARED_CLIENT.createClientLogManager(CLIENT_EVENT_LOG_CONFIG)
+    : null;
 const sessionConflictState = {
     visible: false,
     mode: 'login',
@@ -3074,366 +3066,78 @@ const upgradeActionState = {
 };
 
 function getClientLogDeviceId() {
-    if (clientLogState.deviceId) {
-        return clientLogState.deviceId;
+    if (!CLIENT_LOG_MANAGER) {
+        return 'device-unavailable';
     }
 
-    try {
-        const storedId = localStorage.getItem(CLIENT_EVENT_LOG_CONFIG.deviceIdStorageKey);
-        if (storedId) {
-            clientLogState.deviceId = storedId;
-            return storedId;
-        }
-    } catch (error) {
-        console.warn('Не удалось прочитать deviceId клиентского лога.', error);
-    }
-
-    const generatedId = createClientLogRandomId('device');
-    clientLogState.deviceId = generatedId;
-
-    try {
-        localStorage.setItem(CLIENT_EVENT_LOG_CONFIG.deviceIdStorageKey, generatedId);
-    } catch (error) {
-        console.warn('Не удалось сохранить deviceId клиентского лога.', error);
-    }
-
-    return generatedId;
+    return CLIENT_LOG_MANAGER.getDeviceId();
 }
 
 function getClientLogSessionId() {
-    if (!clientLogState.clientSessionId) {
-        clientLogState.clientSessionId = createClientLogRandomId('session');
+    if (!CLIENT_LOG_MANAGER) {
+        return 'session-unavailable';
     }
 
-    return clientLogState.clientSessionId;
+    return CLIENT_LOG_MANAGER.getSessionId();
 }
 
 function createClientLogRandomId(prefix = 'evt') {
-    const safePrefix = String(prefix || 'evt').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase() || 'evt';
-    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-        return `${safePrefix}-${window.crypto.randomUUID()}`;
+    if (!CLIENT_LOG_MANAGER) {
+        return `${String(prefix || 'evt')}-${Date.now().toString(36)}`;
     }
 
-    const randomChunk = Math.random().toString(36).slice(2, 10);
-    return `${safePrefix}-${Date.now().toString(36)}-${randomChunk}`;
-}
-
-function updateClientLogSummaryDraft() {
-    try {
-        const pendingCount = clientLogState.memoryQueue.length;
-        if (pendingCount < 1) {
-            localStorage.removeItem(CLIENT_EVENT_LOG_CONFIG.summaryStorageKey);
-            return;
-        }
-
-        const lastItem = clientLogState.memoryQueue[clientLogState.memoryQueue.length - 1] || null;
-        localStorage.setItem(CLIENT_EVENT_LOG_CONFIG.summaryStorageKey, JSON.stringify({
-            pendingCount,
-            lastEventTs: lastItem ? Number(lastItem.clientTs || lastItem.createdAt || Date.now()) : Date.now()
-        }));
-    } catch (error) {
-        console.warn('Не удалось обновить сводку клиентского лога.', error);
-    }
-}
-
-function rememberClientLogEventInMemory(eventItem) {
-    if (!eventItem || !eventItem.eventUid || clientLogState.memoryIndex.has(eventItem.eventUid)) {
-        return;
-    }
-
-    clientLogState.memoryQueue.push(eventItem);
-    clientLogState.memoryIndex.add(eventItem.eventUid);
-    updateClientLogSummaryDraft();
-}
-
-function forgetClientLogEventsInMemory(eventUids) {
-    const uidSet = new Set(Array.isArray(eventUids) ? eventUids.filter(Boolean) : []);
-    if (uidSet.size === 0) {
-        return;
-    }
-
-    clientLogState.memoryQueue = clientLogState.memoryQueue.filter((eventItem) => !uidSet.has(eventItem.eventUid));
-    uidSet.forEach((eventUid) => {
-        clientLogState.memoryIndex.delete(eventUid);
-    });
-    updateClientLogSummaryDraft();
-}
-
-function openClientLogDatabase() {
-    if (!clientLogState.supported) {
-        return Promise.resolve(null);
-    }
-
-    if (clientLogState.dbPromise) {
-        return clientLogState.dbPromise;
-    }
-
-    clientLogState.dbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(CLIENT_EVENT_LOG_CONFIG.dbName, CLIENT_EVENT_LOG_CONFIG.dbVersion);
-
-        request.onupgradeneeded = function() {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(CLIENT_EVENT_LOG_CONFIG.storeName)) {
-                const store = db.createObjectStore(CLIENT_EVENT_LOG_CONFIG.storeName, { keyPath: 'eventUid' });
-                store.createIndex('userIdHint', 'userIdHint', { unique: false });
-                store.createIndex('createdAt', 'createdAt', { unique: false });
-            }
-        };
-
-        request.onsuccess = function() {
-            resolve(request.result);
-        };
-
-        request.onerror = function() {
-            reject(request.error || new Error('Не удалось открыть IndexedDB для клиентского лога.'));
-        };
-    }).catch((error) => {
-        console.warn('IndexedDB для клиентского лога недоступна, работаем без устойчивой очереди.', error);
-        clientLogState.supported = false;
-        return null;
-    });
-
-    return clientLogState.dbPromise;
-}
-
-function readAllClientLogEventsFromDb(db) {
-    if (!db) {
-        return Promise.resolve([]);
-    }
-
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readonly');
-        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
-
-        if (typeof store.getAll === 'function') {
-            const request = store.getAll();
-            request.onsuccess = function() {
-                resolve(Array.isArray(request.result) ? request.result : []);
-            };
-            request.onerror = function() {
-                reject(request.error || new Error('Не удалось прочитать клиентский лог из IndexedDB.'));
-            };
-            return;
-        }
-
-        const items = [];
-        const cursorRequest = store.openCursor();
-        cursorRequest.onsuccess = function() {
-            const cursor = cursorRequest.result;
-            if (!cursor) {
-                resolve(items);
-                return;
-            }
-
-            items.push(cursor.value);
-            cursor.continue();
-        };
-        cursorRequest.onerror = function() {
-            reject(cursorRequest.error || new Error('Не удалось пройтись по IndexedDB клиентского лога.'));
-        };
-    });
+    return CLIENT_LOG_MANAGER.createRandomId(prefix);
 }
 
 async function ensureClientLogReady() {
-    if (clientLogState.readyPromise) {
-        return clientLogState.readyPromise;
-    }
-
-    clientLogState.readyPromise = (async () => {
-        getClientLogDeviceId();
-        getClientLogSessionId();
-
-        if (!clientLogState.supported) {
-            updateClientLogSummaryDraft();
-            return true;
-        }
-
-        const db = await openClientLogDatabase();
-        const storedItems = await readAllClientLogEventsFromDb(db);
-        storedItems
-            .sort((left, right) => {
-                const leftSequence = Number(left.sequence || 0);
-                const rightSequence = Number(right.sequence || 0);
-                if (leftSequence !== rightSequence) {
-                    return leftSequence - rightSequence;
-                }
-
-                return Number(left.createdAt || 0) - Number(right.createdAt || 0);
-            })
-            .forEach((eventItem) => {
-                rememberClientLogEventInMemory(eventItem);
-            });
-
-        return true;
-    })();
-
-    return clientLogState.readyPromise;
-}
-
-async function persistClientLogEvent(eventItem) {
-    const db = await openClientLogDatabase();
-    if (!db) {
+    if (!CLIENT_LOG_MANAGER) {
         return false;
     }
 
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readwrite');
-        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
-        const request = store.put(eventItem);
-
-        request.onsuccess = function() {
-            resolve(true);
-        };
-        request.onerror = function() {
-            reject(request.error || new Error('Не удалось сохранить событие клиентского лога.'));
-        };
-    });
-}
-
-async function removeClientLogEventsFromDb(eventUids) {
-    const db = await openClientLogDatabase();
-    if (!db) {
-        return false;
-    }
-
-    const normalizedUids = Array.isArray(eventUids) ? eventUids.filter(Boolean) : [];
-    if (normalizedUids.length === 0) {
-        return true;
-    }
-
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(CLIENT_EVENT_LOG_CONFIG.storeName, 'readwrite');
-        const store = transaction.objectStore(CLIENT_EVENT_LOG_CONFIG.storeName);
-
-        normalizedUids.forEach((eventUid) => {
-            store.delete(eventUid);
-        });
-
-        transaction.oncomplete = function() {
-            resolve(true);
-        };
-        transaction.onerror = function() {
-            reject(transaction.error || new Error('Не удалось удалить отправленные события клиентского лога.'));
-        };
-    });
+    return CLIENT_LOG_MANAGER.ensureReady();
 }
 
 function createClientLogEvent(group, type, payload = {}, options = {}) {
-    const nextSequence = Math.max(1, clientLogState.sequence + 1);
-    clientLogState.sequence = nextSequence;
-
-    const resolvedPayload = payload && typeof payload === 'object' ? payload : {};
-    const eventLoginHint = String(options.loginHint ?? (userId ? currentLogin : '') ?? '').trim();
-    const eventUserIdHint = Math.max(0, Number(options.userIdHint ?? userId) || 0);
-    const scoreSnapshot = Math.max(0, Math.floor(Number(options.scoreSnapshot ?? score) || 0));
-    const energySnapshot = Math.max(0, Math.floor(Number(options.energySnapshot ?? energy) || 0));
-    const plusSnapshot = Math.max(0, Math.floor(Number(options.plusSnapshot ?? plus) || 0));
-
-    return {
-        eventUid: `${getClientLogDeviceId()}-${getClientLogSessionId()}-${nextSequence}-${Date.now().toString(36)}`,
-        createdAt: Date.now(),
-        deviceId: getClientLogDeviceId(),
-        clientSessionId: getClientLogSessionId(),
-        userIdHint: eventUserIdHint,
-        loginHint: eventLoginHint,
-        sequence: nextSequence,
-        clientTs: Math.max(0, Number(options.clientTs || Date.now()) || Date.now()),
-        page: String(options.page || 'main_clicker'),
-        group: String(group || 'general'),
-        type: String(type || 'event'),
-        source: String(options.source || 'client'),
-        description: typeof options.description === 'string' ? options.description : '',
-        scoreSnapshot,
-        energySnapshot,
-        plusSnapshot,
-        payload: resolvedPayload
-    };
-}
-
-function logClientEvent(group, type, payload = {}, options = {}) {
-    const eventItem = createClientLogEvent(group, type, payload, options);
-    rememberClientLogEventInMemory(eventItem);
-
-    if (clientLogState.supported) {
-        persistClientLogEvent(eventItem).catch((error) => {
-            console.warn('Не удалось записать событие клиентского лога в IndexedDB.', error);
-        });
-    }
-
-    return eventItem;
-}
-
-function getClientLogEligibleEvents(mode = 'auth', loginValue = '') {
-    const normalizedLogin = String(loginValue || currentLogin || '').trim().toLowerCase();
-    const currentUserId = Math.max(0, Number(userId) || 0);
-
-    return [...clientLogState.memoryQueue]
-        .sort((left, right) => {
-            const leftSequence = Number(left.sequence || 0);
-            const rightSequence = Number(right.sequence || 0);
-            if (leftSequence !== rightSequence) {
-                return leftSequence - rightSequence;
-            }
-
-            return Number(left.createdAt || 0) - Number(right.createdAt || 0);
-        })
-        .filter((eventItem) => {
-            const eventUserId = Math.max(0, Number(eventItem.userIdHint || 0));
-            const eventLogin = String(eventItem.loginHint || '').trim().toLowerCase();
-
-            if (mode === 'login') {
-                return eventUserId === 0 && (normalizedLogin === '' || eventLogin === '' || eventLogin === normalizedLogin);
-            }
-
-            if (currentUserId < 1) {
-                return false;
-            }
-
-            if (eventUserId > 0) {
-                return eventUserId === currentUserId;
-            }
-
-            return normalizedLogin === '' || eventLogin === '' || eventLogin === normalizedLogin;
-        });
-}
-
-function prepareClientLogBatchFromMemory(options = {}) {
-    const mode = String(options.mode || 'auth');
-    const loginValue = String(options.login || currentLogin || '');
-    const limit = Math.max(1, Math.min(1000, Number(options.limit || CLIENT_EVENT_LOG_CONFIG.batchSize) || CLIENT_EVENT_LOG_CONFIG.batchSize));
-    const eligibleEvents = getClientLogEligibleEvents(mode, loginValue);
-    if (eligibleEvents.length === 0) {
+    if (!CLIENT_LOG_MANAGER) {
         return null;
     }
 
-    const selectedEvents = eligibleEvents.slice(0, limit);
-    clientLogState.lastBatchNumber += 1;
+    return CLIENT_LOG_MANAGER.createEvent(group, type, payload, {
+        ...options,
+        loginHint: String(options.loginHint ?? (userId ? currentLogin : '') ?? '').trim(),
+        userIdHint: Math.max(0, Number(options.userIdHint ?? userId) || 0),
+        scoreSnapshot: Math.max(0, Math.floor(Number(options.scoreSnapshot ?? score) || 0)),
+        energySnapshot: Math.max(0, Math.floor(Number(options.energySnapshot ?? energy) || 0)),
+        plusSnapshot: Math.max(0, Math.floor(Number(options.plusSnapshot ?? plus) || 0))
+    });
+}
 
-    return {
-        eventUids: selectedEvents.map((eventItem) => eventItem.eventUid),
-        hasMore: eligibleEvents.length > selectedEvents.length,
-        payload: {
-            deviceId: getClientLogDeviceId(),
-            clientSessionId: getClientLogSessionId(),
-            batchId: `${getClientLogDeviceId()}-batch-${clientLogState.lastBatchNumber}-${Date.now().toString(36)}`,
-            events: selectedEvents.map((eventItem) => ({
-                eventUid: eventItem.eventUid,
-                deviceId: eventItem.deviceId,
-                clientSessionId: eventItem.clientSessionId,
-                sequence: Number(eventItem.sequence || 0),
-                clientTs: Number(eventItem.clientTs || 0),
-                page: String(eventItem.page || 'main_clicker'),
-                group: String(eventItem.group || 'general'),
-                type: String(eventItem.type || 'event'),
-                source: String(eventItem.source || 'client'),
-                description: String(eventItem.description || ''),
-                scoreSnapshot: Math.max(0, Number(eventItem.scoreSnapshot || 0)),
-                energySnapshot: Math.max(0, Number(eventItem.energySnapshot || 0)),
-                plusSnapshot: Math.max(0, Number(eventItem.plusSnapshot || 0)),
-                payload: eventItem.payload && typeof eventItem.payload === 'object' ? eventItem.payload : {}
-            }))
-        }
-    };
+function logClientEvent(group, type, payload = {}, options = {}) {
+    if (!CLIENT_LOG_MANAGER) {
+        return null;
+    }
+
+    return CLIENT_LOG_MANAGER.logEvent(group, type, payload, {
+        ...options,
+        loginHint: String(options.loginHint ?? (userId ? currentLogin : '') ?? '').trim(),
+        userIdHint: Math.max(0, Number(options.userIdHint ?? userId) || 0),
+        scoreSnapshot: Math.max(0, Math.floor(Number(options.scoreSnapshot ?? score) || 0)),
+        energySnapshot: Math.max(0, Math.floor(Number(options.energySnapshot ?? energy) || 0)),
+        plusSnapshot: Math.max(0, Math.floor(Number(options.plusSnapshot ?? plus) || 0))
+    });
+}
+
+function prepareClientLogBatchFromMemory(options = {}) {
+    if (!CLIENT_LOG_MANAGER) {
+        return null;
+    }
+
+    return CLIENT_LOG_MANAGER.prepareBatchFromMemory({
+        mode: String(options.mode || 'auth'),
+        login: String(options.login || currentLogin || ''),
+        currentUserId: Math.max(0, Number(options.currentUserId ?? userId) || 0),
+        limit: Math.max(1, Math.min(1000, Number(options.limit || CLIENT_EVENT_LOG_CONFIG.batchSize) || CLIENT_EVENT_LOG_CONFIG.batchSize))
+    });
 }
 
 async function prepareClientLogBatch(options = {}) {
@@ -3442,22 +3146,11 @@ async function prepareClientLogBatch(options = {}) {
 }
 
 async function acknowledgeClientLogBatch(preparedBatch) {
-    if (!preparedBatch || !Array.isArray(preparedBatch.eventUids) || preparedBatch.eventUids.length === 0) {
+    if (!CLIENT_LOG_MANAGER) {
         return false;
     }
 
-    forgetClientLogEventsInMemory(preparedBatch.eventUids);
-    if (!clientLogState.supported) {
-        return true;
-    }
-
-    try {
-        await removeClientLogEventsFromDb(preparedBatch.eventUids);
-        return true;
-    } catch (error) {
-        console.warn('Не удалось удалить уже отправленные события клиентского лога из IndexedDB.', error);
-        return false;
-    }
+    return CLIENT_LOG_MANAGER.acknowledgeBatch(preparedBatch);
 }
 
 async function buildSaveStateTransportPayload(reason = 'save_state') {
@@ -4633,87 +4326,30 @@ function tryHandleBanError(error) {
 }
 
 function formatSessionDateTime(value) {
+    if (SHARED_CLIENT.formatSessionDateTime) {
+        return SHARED_CLIENT.formatSessionDateTime(value);
+    }
+
     const normalizedValue = typeof value === 'string' ? value.trim() : '';
-    if (!normalizedValue) {
-        return 'неизвестно';
-    }
-
-    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-    if (Number.isNaN(parsedDate.getTime())) {
-        return normalizedValue;
-    }
-
-    return parsedDate.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return normalizedValue || 'неизвестно';
 }
 
 function normalizeGameSessionInfo(rawSession) {
-    if (!rawSession || typeof rawSession !== 'object') {
-        return null;
-    }
-
-    const sessionId = Number(rawSession.sessionId);
-    if (!Number.isFinite(sessionId) || sessionId < 1) {
-        return null;
-    }
-
-    const browserLabel = String(rawSession.browserLabel || '').trim();
-    const platformLabel = String(rawSession.platformLabel || '').trim();
-    const deviceLabel = String(rawSession.deviceLabel || `${browserLabel} ${platformLabel}` || 'Устройство').trim();
-
-    return {
-        sessionId,
-        deviceLabel: deviceLabel || 'Устройство',
-        browserLabel: browserLabel || 'Неизвестный браузер',
-        platformLabel: platformLabel || 'Неизвестная платформа',
-        ipAddress: String(rawSession.ipAddress || '').trim(),
-        createdAt: String(rawSession.createdAt || '').trim(),
-        lastSeenAt: String(rawSession.lastSeenAt || '').trim(),
-        isCurrent: Boolean(rawSession.isCurrent)
-    };
+    return SHARED_CLIENT.normalizeGameSessionInfo
+        ? SHARED_CLIENT.normalizeGameSessionInfo(rawSession)
+        : null;
 }
 
 function normalizeSessionConflictPayload(payload) {
-    if (!payload || typeof payload !== 'object' || payload.sessionConflict !== true || !Array.isArray(payload.sessions)) {
-        return null;
-    }
-
-    const isAuthenticatedConflict = payload.authenticatedConflict === true;
-    const currentOrIncomingSession = isAuthenticatedConflict
-        ? (payload.currentSession && typeof payload.currentSession === 'object' ? payload.currentSession : null)
-        : (payload.incomingSession && typeof payload.incomingSession === 'object' ? payload.incomingSession : null);
-
-    return {
-        message: String(payload.message || 'Аккаунт уже открыт на другом устройстве.').trim(),
-        mode: isAuthenticatedConflict ? 'authenticated' : 'login',
-        sessions: payload.sessions.map(normalizeGameSessionInfo).filter(Boolean),
-        incomingSession: {
-            sessionId: Number(currentOrIncomingSession && currentOrIncomingSession.sessionId) > 0
-                ? Number(currentOrIncomingSession.sessionId)
-                : 0,
-            deviceLabel: String((currentOrIncomingSession && currentOrIncomingSession.deviceLabel) || 'Это устройство').trim(),
-            browserLabel: String((currentOrIncomingSession && currentOrIncomingSession.browserLabel) || '').trim(),
-            platformLabel: String((currentOrIncomingSession && currentOrIncomingSession.platformLabel) || '').trim(),
-            ipAddress: String((currentOrIncomingSession && currentOrIncomingSession.ipAddress) || '').trim(),
-            createdAt: String((currentOrIncomingSession && currentOrIncomingSession.createdAt) || '').trim(),
-            lastSeenAt: String((currentOrIncomingSession && currentOrIncomingSession.lastSeenAt) || '').trim()
-        }
-    };
+    return SHARED_CLIENT.normalizeSessionConflictPayload
+        ? SHARED_CLIENT.normalizeSessionConflictPayload(payload)
+        : null;
 }
 
 function normalizeSessionEndedPayload(payload) {
-    if (!payload || typeof payload !== 'object' || payload.sessionEnded !== true) {
-        return null;
-    }
-
-    return {
-        message: String(payload.message || 'Эта сессия завершена на другом устройстве. Войдите заново.').trim(),
-        terminatedSession: normalizeGameSessionInfo(payload.terminatedSession)
-    };
+    return SHARED_CLIENT.normalizeSessionEndedPayload
+        ? SHARED_CLIENT.normalizeSessionEndedPayload(payload)
+        : null;
 }
 
 function hideSessionConflictModal(options = {}) {
@@ -6687,6 +6323,7 @@ document.addEventListener('visibilitychange', function() {
 <script>
 class AutoClickerDetector {
     constructor() {
+        this.utils = SHARED_CLIENT.antiCheatUtils || {};
         this.clicks = [];
         this.heat = 0;
         this.warningCount = 0;
@@ -6712,6 +6349,10 @@ class AutoClickerDetector {
     }
 
     checkMobileDevice() {
+        if (this.utils.checkMobileDevice) {
+            return this.utils.checkMobileDevice();
+        }
+
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
                'ontouchstart' in window ||
                navigator.maxTouchPoints > 0;
@@ -6893,89 +6534,37 @@ class AutoClickerDetector {
     }
 
     average(values) {
-        if (!values.length) {
-            return 0;
-        }
-
-        return values.reduce((sum, value) => sum + value, 0) / values.length;
+        return this.utils.average ? this.utils.average(values) : 0;
     }
 
     median(values) {
-        if (!values.length) {
-            return 0;
-        }
-
-        const sorted = [...values].sort((a, b) => a - b);
-        const middle = Math.floor(sorted.length / 2);
-        return sorted.length % 2 === 0
-            ? (sorted[middle - 1] + sorted[middle]) / 2
-            : sorted[middle];
+        return this.utils.median ? this.utils.median(values) : 0;
     }
 
     standardDeviation(values, averageValue) {
-        if (!values.length) {
-            return 0;
-        }
-
-        const variance = values.reduce((sum, value) => {
-            return sum + Math.pow(value - averageValue, 2);
-        }, 0) / values.length;
-
-        return Math.sqrt(variance);
+        return this.utils.standardDeviation ? this.utils.standardDeviation(values, averageValue) : 0;
     }
 
     calculateStableRatio(intervals, medianInterval) {
-        if (!intervals.length) {
-            return 0;
-        }
-
-        const stableIntervals = intervals.filter(interval => Math.abs(interval - medianInterval) <= this.config.cadenceToleranceMs);
-        return stableIntervals.length / intervals.length;
+        return this.utils.calculateStableRatio
+            ? this.utils.calculateStableRatio(intervals, medianInterval, this.config.cadenceToleranceMs)
+            : 0;
     }
 
     calculateLongestStableStreak(intervals, medianInterval) {
-        let longest = 0;
-        let current = 0;
-
-        intervals.forEach(interval => {
-            if (Math.abs(interval - medianInterval) <= this.config.cadenceToleranceMs) {
-                current += 1;
-                longest = Math.max(longest, current);
-                return;
-            }
-
-            current = 0;
-        });
-
-        return longest;
+        return this.utils.calculateLongestStableStreak
+            ? this.utils.calculateLongestStableStreak(intervals, medianInterval, this.config.cadenceToleranceMs)
+            : 0;
     }
 
     calculateDominantRatio(intervals) {
-        if (!intervals.length) {
-            return 0;
-        }
-
-        const buckets = new Map();
-        intervals.forEach(interval => {
-            const bucket = Math.round(interval / 5) * 5;
-            buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
-        });
-
-        let dominant = 0;
-        buckets.forEach(count => {
-            dominant = Math.max(dominant, count);
-        });
-
-        return dominant / intervals.length;
+        return this.utils.calculateDominantRatio ? this.utils.calculateDominantRatio(intervals) : 0;
     }
 
     calculateRangeRatio(intervals, minimum, maximum) {
-        if (!intervals.length) {
-            return 0;
-        }
-
-        const matched = intervals.filter(interval => interval >= minimum && interval <= maximum);
-        return matched.length / intervals.length;
+        return this.utils.calculateRangeRatio
+            ? this.utils.calculateRangeRatio(intervals, minimum, maximum)
+            : 0;
     }
 
     buildMetrics(samples, extra = {}) {
