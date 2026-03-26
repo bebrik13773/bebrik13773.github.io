@@ -1,0 +1,35 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="body" x1="52" y1="40" x2="191" y2="143" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C5803D"/>
+      <stop offset="1" stop-color="#7B471E"/>
+    </linearGradient>
+    <linearGradient id="belly" x1="108" y1="64" x2="174" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD7A0"/>
+      <stop offset="1" stop-color="#E49D56"/>
+    </linearGradient>
+    <filter id="shadow" x="4" y="12" width="231" height="149" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#3E220E" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M31 97C25 79 29 61 43 51C58 40 80 48 92 65L83 146C61 140 39 121 31 97Z" fill="#6B3F1C"/>
+    <path d="M55 109C55 72 86 42 128 42C170 42 208 67 208 103C208 136 175 153 128 153C84 153 55 140 55 109Z" fill="url(#body)"/>
+    <path d="M102 65C116 56 135 52 156 52C183 52 203 66 207 89C196 84 181 82 166 82C134 82 107 92 92 110C88 95 92 75 102 65Z" fill="#D89A57" fill-opacity=".56"/>
+    <ellipse cx="152" cy="102" rx="41" ry="31" fill="url(#belly)"/>
+    <ellipse cx="114" cy="66" rx="12" ry="13" fill="#A86734"/>
+    <ellipse cx="138" cy="57" rx="13" ry="14" fill="#A86734"/>
+    <ellipse cx="114" cy="66" rx="6" ry="6" fill="#F6B3B8"/>
+    <ellipse cx="138" cy="57" rx="6" ry="6" fill="#F6B3B8"/>
+    <ellipse cx="163" cy="79" rx="8.5" ry="10" fill="#171212"/>
+    <ellipse cx="184" cy="81" rx="8" ry="9.5" fill="#171212"/>
+    <circle cx="166" cy="76" r="2.2" fill="#fff"/>
+    <circle cx="186" cy="78" r="2" fill="#fff"/>
+    <path d="M178 97C180 101 179 106 175 108C170 111 163 110 158 108C152 106 151 100 155 97C159 94 166 94 171 94C174 94 177 95 178 97Z" fill="#2A1A16"/>
+    <path d="M164 110C169 114 177 114 184 109" stroke="#2A1A16" stroke-width="5" stroke-linecap="round"/>
+    <path d="M196 88L217 62" stroke="#5E3118" stroke-width="6" stroke-linecap="round"/>
+    <path d="M205 102L228 92" stroke="#5E3118" stroke-width="6" stroke-linecap="round"/>
+    <path d="M111 136L128 117" stroke="#5E3118" stroke-width="9" stroke-linecap="round"/>
+    <path d="M145 143L157 120" stroke="#5E3118" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>
