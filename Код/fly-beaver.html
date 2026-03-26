@@ -101,60 +101,65 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
-            padding: 12px;
-            border-radius: 22px;
-            background: rgba(7, 12, 25, 0.34);
-            border: 1px solid rgba(255, 255, 255, 0.16);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 18px 32px rgba(5, 10, 20, 0.22);
+            gap: 8px;
+            pointer-events: none;
         }
 
         .hud-stats {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: auto auto;
+            grid-template-areas:
+                "score high"
+                "score level";
             gap: 8px;
             min-width: 0;
+            pointer-events: auto;
         }
 
         #score {
+            grid-area: score;
             position: static;
-            min-width: 68px;
-            padding: 10px 14px;
-            font-size: 30px;
+            min-width: 70px;
+            min-height: 68px;
+            padding: 10px 12px;
+            font-size: 28px;
             font-weight: bold;
             text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: #fff8d6;
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
             border-radius: 18px;
-            background: rgba(7, 12, 25, 0.46);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(7, 12, 25, 0.52);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
             box-shadow: 0 10px 24px rgba(5, 10, 20, 0.28);
         }
         
         #high-score {
+            grid-area: high;
             position: static;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             color: white;
             text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
-            padding: 8px 12px;
-            border-radius: 14px;
+            padding: 7px 10px;
+            border-radius: 13px;
             background: rgba(7, 12, 25, 0.48);
             border: 1px solid rgba(255, 255, 255, 0.14);
             backdrop-filter: blur(10px);
         }
         
         #level-indicator {
+            grid-area: level;
             position: static;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             color: #92f4ff;
             text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
-            padding: 8px 12px;
-            border-radius: 14px;
+            padding: 7px 10px;
+            border-radius: 13px;
             background: rgba(7, 12, 25, 0.48);
             border: 1px solid rgba(255, 255, 255, 0.14);
             backdrop-filter: blur(10px);
@@ -174,7 +179,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             color: white;
             z-index: 20;
             text-align: center;
-            padding: calc(var(--safe-top) + 104px) 22px calc(var(--safe-bottom) + 18px);
+            padding: calc(var(--safe-top) + 84px) 22px calc(var(--safe-bottom) + 18px);
             backdrop-filter: blur(14px);
         }
         
@@ -329,30 +334,35 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .cloud-panel {
-            position: static;
-            width: min(238px, 100%);
+            position: relative;
+            width: min(168px, 44vw);
             z-index: 1;
+            pointer-events: auto;
             background: rgba(9, 14, 29, 0.74);
             border: 1px solid rgba(142, 220, 255, 0.24);
-            border-radius: 18px;
-            padding: 10px 12px;
+            border-radius: 16px;
+            padding: 8px 9px;
             color: #f5fbff;
             backdrop-filter: blur(12px);
             box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
         }
 
         .cloud-panel.compact {
-            width: min(192px, 100%);
+            width: min(142px, 38vw);
         }
 
         .cloud-panel.compact .cloud-details {
             display: none;
         }
 
+        .cloud-panel.compact .cloud-summary {
+            display: none;
+        }
+
         .cloud-header {
             display: flex;
-            align-items: flex-start;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
         }
 
         .cloud-head-copy {
@@ -361,11 +371,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .cloud-title {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.02em;
             color: #8bdcff;
-            margin-bottom: 2px;
+            margin-bottom: 0;
         }
 
         .cloud-summary {
@@ -401,13 +411,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .cloud-toggle {
-            width: 34px;
-            min-width: 34px;
-            height: 34px;
+            width: 28px;
+            min-width: 28px;
+            height: 28px;
             margin: 0;
             padding: 0;
             border-radius: 50%;
-            font-size: 18px;
+            font-size: 16px;
             background: linear-gradient(180deg, #45c8ff 0%, #2563eb 100%);
             color: #f8fcff;
             box-shadow: 0 5px 0 #194ab7, 0 10px 16px rgba(0, 0, 0, 0.2);
@@ -534,12 +544,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .cloud-panel {
-                width: min(168px, 100%);
-                padding: 9px 10px;
+                width: min(120px, 34vw);
+                padding: 7px 8px;
             }
 
             .cloud-panel.expanded {
-                width: min(220px, calc(100% - 24px));
+                width: min(188px, 52vw);
             }
 
             .cloud-title {
@@ -552,10 +562,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .cloud-toggle {
-                width: 30px;
-                min-width: 30px;
-                height: 30px;
-                font-size: 16px;
+                width: 26px;
+                min-width: 26px;
+                height: 26px;
+                font-size: 14px;
             }
 
             .cloud-action {
@@ -564,17 +574,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .screen {
-                padding: calc(var(--safe-top) + 92px) 18px calc(var(--safe-bottom) + 16px);
+                padding: calc(var(--safe-top) + 74px) 18px calc(var(--safe-bottom) + 16px);
             }
 
             .hud-shell {
-                flex-direction: column;
-                gap: 10px;
-                padding: 10px;
+                gap: 6px;
             }
 
             .hud-stats {
-                width: 100%;
+                grid-template-columns: auto auto;
+                width: auto;
             }
 
             #score,
@@ -583,7 +592,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             .cloud-panel,
             .cloud-panel.compact,
             .cloud-panel.expanded {
-                width: 100%;
                 max-width: none;
             }
         }
@@ -609,7 +617,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             .screen {
-                padding-top: calc(var(--safe-top) + 78px);
+                padding-top: calc(var(--safe-top) + 68px);
             }
         }
     </style>
