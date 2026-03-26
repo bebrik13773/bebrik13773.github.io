@@ -2981,6 +2981,11 @@ function rebuildSkinCatalogRuntime(rawCatalog) {
 
 function getVisibleSkinCatalog() {
     const filteredItems = SKIN_CATALOG.filter((item) => {
+        const isOwned = isSkinOwned(item.id);
+        if (item.available === false && !isOwned) {
+            return false;
+        }
+
         if (skinShopViewState.category === 'all') {
             return true;
         }
@@ -3823,7 +3828,7 @@ function updateSkinShopFeature(skinId = '') {
         ${focusedSkin.issueMode === 'shop' ? '' : `<span class="skin-chip ${focusedSkin.issueMode === 'grant_only' ? 'mode-grant-only' : ''}">${escapeHtmlText(getSkinIssueModeLabel(focusedSkin.issueMode))}</span>`}
     `;
 
-    if (focusedSkin.available === false) {
+    if (focusedSkin.available === false && !owned) {
         featureStatusNode.textContent = 'Скоро';
         featureTipNode.textContent = '';
     } else if (focusedSkin.issueMode === 'grant_only' && !owned) {
@@ -3871,14 +3876,15 @@ function updateSkinShopUI() {
         const priceNode = skinCard.querySelector('.skin-shop-card-price');
         const statusNode = skinCard.querySelector('.skin-shop-card-status');
         const badgeNode = skinCard.querySelector('.skin-shop-badge');
+        const isHiddenForViewer = skinConfig.available === false && !isOwned;
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
-        skinCard.classList.toggle('locked', !isOwned && skinConfig.available !== false && !requiresSpecialIssue);
-        skinCard.classList.toggle('coming-soon', skinConfig.available === false);
+        skinCard.classList.toggle('locked', !isOwned && !isHiddenForViewer && !requiresSpecialIssue);
+        skinCard.classList.toggle('coming-soon', isHiddenForViewer);
 
         if (priceNode) {
-            if (skinConfig.available === false || isOwned || skinConfig.issueMode !== 'shop') {
+            if (isHiddenForViewer || isOwned || skinConfig.issueMode !== 'shop') {
                 priceNode.textContent = '';
                 priceNode.style.display = 'none';
             } else {
@@ -3888,7 +3894,7 @@ function updateSkinShopUI() {
         }
 
         if (statusNode) {
-            if (skinConfig.available === false) {
+            if (isHiddenForViewer) {
                 statusNode.textContent = 'Скоро';
             } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 statusNode.textContent = 'Выдача';
@@ -3909,7 +3915,7 @@ function updateSkinShopUI() {
 
         if (badgeNode) {
             badgeNode.className = 'skin-shop-badge';
-            if (skinConfig.available === false) {
+            if (isHiddenForViewer) {
                 badgeNode.classList.add('coming-soon');
                 badgeNode.textContent = 'Скоро';
             } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
@@ -5950,7 +5956,7 @@ function buySkin(skinId) {
         return;
     }
 
-    if (skinConfig.available === false) {
+    if (skinConfig.available === false && !isSkinOwned(skinConfig.id)) {
         logClientEvent('skins', 'skin_unavailable_open', {
             skinId: skinConfig.id,
             skinName: skinConfig.name
