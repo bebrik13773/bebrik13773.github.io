@@ -1197,7 +1197,11 @@ Owner decisions:
     .settings-modal {
         width: min(100%, 640px);
         max-width: calc(100vw - 32px);
+        max-height: min(calc(100dvh - 32px), 920px);
         overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable both-edges;
     }
 
     .settings-modal-grid {
@@ -1205,6 +1209,7 @@ Owner decisions:
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 14px;
         margin-top: 16px;
+        align-content: start;
     }
 
     .settings-card {
@@ -1276,6 +1281,12 @@ Owner decisions:
         display: flex;
         flex-wrap: wrap;
         align-items: stretch;
+        position: sticky;
+        bottom: -20px;
+        padding-top: 14px;
+        padding-bottom: 2px;
+        background: linear-gradient(180deg, rgba(16, 10, 34, 0), rgba(16, 10, 34, 0.92) 24%, rgba(16, 10, 34, 0.98) 100%);
+        z-index: 1;
     }
 
     .settings-action-button {
