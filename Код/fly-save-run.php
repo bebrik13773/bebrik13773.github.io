@@ -20,8 +20,9 @@ try {
 
     $score = max(0, (int) ($data['score'] ?? 0));
     $level = max(1, (int) ($data['level'] ?? 1));
-    $minimumCreditedScore = 15;
+    $minimumCreditedScore = 10;
     $creditedScore = $score >= $minimumCreditedScore ? $score : 0;
+    $pendingTransferReset = $score < $minimumCreditedScore;
 
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
@@ -46,12 +47,12 @@ try {
     $insertRunStmt->close();
 
     if (!$isDuplicate) {
-        $updateStmt = $conn->prepare('UPDATE fly_beaver_progress SET best_score = GREATEST(best_score, ?), last_score = ?, last_level = ?, games_played = games_played + 1, total_score = total_score + ?, pending_transfer_score = pending_transfer_score + ?, last_played_at = CURRENT_TIMESTAMP WHERE user_id = ?');
+        $updateStmt = $conn->prepare('UPDATE fly_beaver_progress SET best_score = GREATEST(best_score, ?), last_score = ?, last_level = ?, games_played = games_played + 1, total_score = total_score + ?, pending_transfer_score = CASE WHEN ? > 0 THEN pending_transfer_score + ? ELSE 0 END, last_played_at = CURRENT_TIMESTAMP WHERE user_id = ?');
         if (!$updateStmt) {
             throw new RuntimeException('Не удалось подготовить обновление прогресса fly-beaver.');
         }
 
-        $updateStmt->bind_param('iiiiii', $score, $score, $level, $creditedScore, $creditedScore, $userId);
+        $updateStmt->bind_param('iiiiiiii', $score, $score, $level, $creditedScore, $creditedScore, $creditedScore, $creditedScore, $userId);
         if (!$updateStmt->execute()) {
             $updateStmt->close();
             throw new RuntimeException('Не удалось обновить прогресс fly-beaver.');
@@ -75,6 +76,7 @@ try {
             'level' => $level,
             'credited_score' => $creditedScore,
             'minimum_credited_score' => $minimumCreditedScore,
+            'pending_transfer_reset' => $pendingTransferReset,
         ],
     ]);
     $conn->commit();
@@ -86,7 +88,7 @@ try {
             ? 'Этот забег уже сохранен.'
             : ($creditedScore > 0
                 ? 'Забег сохранен и засчитан в облачный счет.'
-                : 'Забег сохранен в статистику, но в начисление не пошел: нужно минимум 15 очков.'),
+                : 'Забег сохранен в статистику, но не пошел в очередь: нужно минимум 10 очков, поэтому очередь вывода очищена.'),
         'duplicate' => $isDuplicate,
         'creditedScore' => $creditedScore,
         'minimumCreditedScore' => $minimumCreditedScore,

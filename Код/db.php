@@ -800,6 +800,8 @@ CREATE TABLE IF NOT EXISTS `users` (
     `upgrade_tap_big_count` INT NOT NULL DEFAULT 0,
     `upgrade_energy_count` INT NOT NULL DEFAULT 0,
     `upgrade_tap_huge_count` INT NOT NULL DEFAULT 0,
+    `upgrade_regen_boost_count` INT NOT NULL DEFAULT 0,
+    `upgrade_energy_huge_count` INT NOT NULL DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -822,7 +824,9 @@ SQL;
         'upgrade_tap_big_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_tap_big_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_small_count`",
         'upgrade_energy_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_energy_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_big_count`",
         'upgrade_tap_huge_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_tap_huge_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_energy_count`",
-        'created_at' => "ALTER TABLE `users` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `upgrade_tap_huge_count`",
+        'upgrade_regen_boost_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_regen_boost_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_huge_count`",
+        'upgrade_energy_huge_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_energy_huge_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_regen_boost_count`",
+        'created_at' => "ALTER TABLE `users` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `upgrade_energy_huge_count`",
         'updated_at' => "ALTER TABLE `users` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
     ];
 
@@ -850,6 +854,8 @@ SQL;
         "UPDATE `users` SET `upgrade_tap_big_count` = 0 WHERE `upgrade_tap_big_count` IS NULL OR `upgrade_tap_big_count` < 0",
         "UPDATE `users` SET `upgrade_energy_count` = 0 WHERE `upgrade_energy_count` IS NULL OR `upgrade_energy_count` < 0",
         "UPDATE `users` SET `upgrade_tap_huge_count` = 0 WHERE `upgrade_tap_huge_count` IS NULL OR `upgrade_tap_huge_count` < 0",
+        "UPDATE `users` SET `upgrade_regen_boost_count` = 0 WHERE `upgrade_regen_boost_count` IS NULL OR `upgrade_regen_boost_count` < 0",
+        "UPDATE `users` SET `upgrade_energy_huge_count` = 0 WHERE `upgrade_energy_huge_count` IS NULL OR `upgrade_energy_huge_count` < 0",
     ];
 
     foreach ($normalizationQueries as $sql) {
@@ -2913,6 +2919,44 @@ SQL;
     return $leaders;
 }
 
+function bober_fetch_public_fly_beaver_leaderboard($conn, $limit = 3)
+{
+    $limit = max(1, min(25, (int) $limit));
+    $sql = <<<SQL
+SELECT u.login, MAX(f.best_score) AS score
+FROM users u
+INNER JOIN fly_beaver_progress f
+    ON f.user_id = u.id
+LEFT JOIN user_bans b
+    ON b.user_id = u.id
+    AND b.lifted_at IS NULL
+    AND b.ban_until > CURRENT_TIMESTAMP
+WHERE u.login IS NOT NULL
+    AND u.login <> ''
+    AND LOWER(TRIM(u.login)) <> 'test'
+    AND b.id IS NULL
+GROUP BY u.id, u.login
+ORDER BY score DESC
+LIMIT {$limit}
+SQL;
+
+    $result = $conn->query($sql);
+    if ($result === false) {
+        throw new RuntimeException('Ошибка выполнения запроса таблицы лидеров Летающего бобра.');
+    }
+
+    $leaders = [];
+    while ($row = $result->fetch_assoc()) {
+        $leaders[] = [
+            'login' => (string) ($row['login'] ?? ''),
+            'score' => max(0, (int) ($row['score'] ?? 0)),
+        ];
+    }
+    $result->free();
+
+    return $leaders;
+}
+
 function bober_fetch_account_snapshot($conn, $userId)
 {
     $userId = max(0, (int) $userId);
@@ -2920,7 +2964,7 @@ function bober_fetch_account_snapshot($conn, $userId)
         throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
 
-    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count FROM users WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
@@ -2970,6 +3014,8 @@ function bober_fetch_account_snapshot($conn, $userId)
             'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
             'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
             'tapHuge' => max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0)),
+            'regenBoost' => max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0)),
+            'energyHuge' => max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0)),
         ],
         'flyBeaver' => bober_fetch_fly_beaver_progress($conn, $userId),
         'settings' => bober_fetch_user_settings($conn, $userId),
@@ -2995,8 +3041,10 @@ function bober_apply_user_state_update($conn, $userId, $data)
     $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
     $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
     $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
+    $upgradeRegenBoostCount = max(0, (int) ($upgradePurchases['regenBoost'] ?? 0));
+    $upgradeEnergyHugeCount = max(0, (int) ($upgradePurchases['energyHuge'] ?? 0));
 
-    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count FROM users WHERE id = ? LIMIT 1');
+    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
     if (!$currentStmt) {
         throw new RuntimeException('Ошибка подготовки чтения текущего состояния.');
     }
@@ -3014,12 +3062,12 @@ function bober_apply_user_state_update($conn, $userId, $data)
     }
     $currentStmt->close();
 
-    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ? WHERE id = ?');
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('iisisiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $userId);
+    $stmt->bind_param('iisisiiiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount, $userId);
     if (!$stmt->execute()) {
         $stmt->close();
         throw new RuntimeException('Ошибка выполнения запроса.');
@@ -3034,6 +3082,8 @@ function bober_apply_user_state_update($conn, $userId, $data)
         $previousTapBig = max(0, (int) ($currentRow['upgrade_tap_big_count'] ?? 0));
         $previousEnergyPurchases = max(0, (int) ($currentRow['upgrade_energy_count'] ?? 0));
         $previousTapHuge = max(0, (int) ($currentRow['upgrade_tap_huge_count'] ?? 0));
+        $previousRegenBoost = max(0, (int) ($currentRow['upgrade_regen_boost_count'] ?? 0));
+        $previousEnergyHuge = max(0, (int) ($currentRow['upgrade_energy_huge_count'] ?? 0));
         $previousSkinState = bober_decode_skin_state((string) ($currentRow['skin'] ?? ''));
         $nextSkinState = bober_decode_skin_state($skin);
 
@@ -3101,6 +3151,39 @@ function bober_apply_user_state_update($conn, $userId, $data)
                     'next_count' => $upgradeTapHugeCount,
                     'previous_plus' => $previousPlus,
                     'next_plus' => $plus,
+                ],
+            ]);
+        }
+
+        if ($upgradeRegenBoostCount > $previousRegenBoost) {
+            bober_log_user_activity($conn, $userId, 'upgrade_regen_boost_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение скорости восполнения энергии.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousRegenBoost,
+                    'next_count' => $upgradeRegenBoostCount,
+                    'regen_bonus_per_second' => max(0, ($upgradeRegenBoostCount - $previousRegenBoost) * 2),
+                ],
+            ]);
+        }
+
+        if ($upgradeEnergyHugeCount > $previousEnergyHuge) {
+            bober_log_user_activity($conn, $userId, 'upgrade_energy_huge_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение +10000 к запасу энергии.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousEnergyHuge,
+                    'next_count' => $upgradeEnergyHugeCount,
+                    'previous_energy_max' => $previousEnergyMax,
+                    'next_energy_max' => $energyMax,
                 ],
             ]);
         }

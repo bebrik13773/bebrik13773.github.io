@@ -490,6 +490,16 @@ Owner decisions:
 				radial-gradient(circle at top right, rgba(255, 154, 89, 0.34), transparent 42%),
 				linear-gradient(145deg, rgba(110, 37, 18, 0.97), rgba(46, 15, 7, 0.99));
 		}
+		.upgrade-card.regen-boost {
+			background:
+				radial-gradient(circle at top right, rgba(112, 255, 176, 0.34), transparent 42%),
+				linear-gradient(145deg, rgba(22, 88, 58, 0.97), rgba(8, 38, 24, 0.99));
+		}
+		.upgrade-card.energy-huge {
+			background:
+				radial-gradient(circle at top right, rgba(120, 214, 255, 0.32), transparent 42%),
+				linear-gradient(145deg, rgba(24, 60, 110, 0.97), rgba(8, 20, 47, 0.99));
+		}
 		.upgrade-card.locked {
 			filter: saturate(0.88);
 			border-color: rgba(255, 255, 255, 0.12);
@@ -821,12 +831,81 @@ Owner decisions:
         text-align: left;
     }
 
-    .leaderboard-title {
+    .leaderboard-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
         margin: 0 0 14px;
+        padding: 6px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+        --leaderboard-tab-offset: 0px;
+    }
+
+    .leaderboard-tabs::before {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 6px;
+        bottom: 6px;
+        width: calc(50% - 10px);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(80, 142, 255, 0.9), rgba(40, 90, 192, 0.96));
+        box-shadow: 0 12px 24px rgba(5, 10, 28, 0.18);
+        transform: translateX(var(--leaderboard-tab-offset));
+        transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+        z-index: 0;
+    }
+
+    .leaderboard-tab {
+        appearance: none;
+        border: none;
+        flex: 1;
+        min-width: 0;
+        border-radius: 14px;
+        padding: 11px 14px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+        transition: color 0.2s ease, transform 0.16s ease;
+    }
+
+    .leaderboard-tab.active {
+        color: #ffffff;
+    }
+
+    .leaderboard-tab:active {
+        transform: scale(0.985);
+    }
+
+    .leaderboard-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 14px;
         text-align: center;
+    }
+
+    .leaderboard-title {
+        margin: 0;
         font-size: 28px;
         color: #c9ffff;
         text-shadow: 0 2px 12px rgba(51, 197, 199, 0.45);
+    }
+
+    .leaderboard-subtitle {
+        margin: 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.72);
     }
 
     .leaderboard-list {
@@ -2842,9 +2921,16 @@ Owner decisions:
             margin: 20px auto 14px;
         }
 
+        .leaderboard-tabs {
+            margin-bottom: 10px;
+        }
+
         .leaderboard-title {
             font-size: 18px;
-            margin-bottom: 8px;
+        }
+
+        .leaderboard-subtitle {
+            font-size: 12px;
         }
 
         .leaderboard-list {
@@ -3169,11 +3255,33 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-status"></span>
     </span>
 </button>
+<button class="upgrade-card regen-boost" id="upgradeRegenBoostButton" data-palette="upgrade-regen-boost" onclick="buyRegenBoostUpgrade()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">⟳</span>
+        <span class="upgrade-card-title">Быстрая зарядка</span>
+        <span class="upgrade-card-meta">Каждая покупка ускоряет восполнение энергии на 2 единицы в секунду.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
 <button class="upgrade-card tap-huge" id="upgradeTap100Button" data-palette="upgrade-tap-huge" onclick="buyUpgradeHuge()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">+100</span>
         <span class="upgrade-card-title">Мега-тап</span>
         <span class="upgrade-card-meta">Большой скачок силы: каждое нажатие даёт на 100 коинов больше.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
+<button class="upgrade-card energy-huge" id="upgradeEnergyHugeButton" data-palette="upgrade-energy-huge" onclick="buyEnergyHugeUpgrade()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">+10K</span>
+        <span class="upgrade-card-title">Сверхзапас</span>
+        <span class="upgrade-card-meta">Резко увеличивает максимум энергии: сразу на 10000 за покупку.</span>
     </span>
     <span class="upgrade-card-footer">
         <span class="upgrade-card-price"></span>
@@ -3650,7 +3758,9 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     tapSmall: 5000,
     tapBig: 20000,
     energy: 10000,
-    tapHuge: 2500000
+    tapHuge: 2500000,
+    regenBoost: 35000,
+    energyHuge: 90000
 });
 const SKIN_RARITY_ORDER = Object.freeze({
     common: 0,
@@ -3677,6 +3787,12 @@ let DEFAULT_OWNED_SKIN_IDS = [];
 const skinShopViewState = {
     category: localStorage.getItem('skin_shop_category') || 'all',
     sort: localStorage.getItem('skin_shop_sort') || 'manual'
+};
+const LEADERBOARD_STORAGE_KEY = 'bober_leaderboard_mode';
+const leaderboardState = {
+    selected: localStorage.getItem(LEADERBOARD_STORAGE_KEY) === 'flyBeaver' ? 'flyBeaver' : 'main',
+    main: [],
+    flyBeaver: []
 };
 
 function normalizeSkinRarity(value) {
@@ -4040,6 +4156,28 @@ const INTERACTION_PALETTES = {
         rippleRing: '255, 140, 198',
         rippleShadow: '166, 86, 240',
         clickerGlow: '255, 198, 160'
+    },
+    'upgrade-regen-boost': {
+        pageA: '110, 255, 177',
+        pageB: '101, 225, 204',
+        pageC: '46, 137, 100',
+        sheen: '228, 255, 243',
+        shadow: '10, 43, 29',
+        rippleCore: '145, 255, 205',
+        rippleRing: '109, 238, 203',
+        rippleShadow: '69, 162, 117',
+        clickerGlow: '155, 255, 212'
+    },
+    'upgrade-energy-huge': {
+        pageA: '132, 221, 255',
+        pageB: '117, 171, 255',
+        pageC: '63, 104, 205',
+        sheen: '233, 247, 255',
+        shadow: '13, 26, 73',
+        rippleCore: '163, 228, 255',
+        rippleRing: '120, 179, 255',
+        rippleShadow: '79, 118, 220',
+        clickerGlow: '172, 235, 255'
     },
     'skin-common': {
         pageA: '158, 145, 255',
@@ -5397,7 +5535,9 @@ function getDefaultUpgradePurchaseCounts() {
         tapSmall: 0,
         tapBig: 0,
         energy: 0,
-        tapHuge: 0
+        tapHuge: 0,
+        regenBoost: 0,
+        energyHuge: 0
     };
 }
 
@@ -5468,7 +5608,8 @@ function normalizeSkinState(rawSkin) {
 }
 
 function updateRegenRate() {
-    ENERGY_REGEN_PER_MS = energy_max / ENERGY_REGEN_TIME;
+    const regenBoostPerSecond = Math.max(0, Math.floor(Number(upgradePurchaseCounts.regenBoost) || 0)) * 2;
+    ENERGY_REGEN_PER_MS = (energy_max / ENERGY_REGEN_TIME) + (regenBoostPerSecond / 1000);
 }
 
 function updateScoreUI() {
@@ -5864,6 +6005,20 @@ function getUpgradeDescriptor(type) {
             effectStep: 100,
             purchaseCount: upgradePurchaseCounts.tapHuge,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapHuge, upgradePurchaseCounts.tapHuge)
+        },
+        regenBoost: {
+            title: 'Быстрая зарядка',
+            effect: '+2 энергии в секунду',
+            effectStep: 2,
+            purchaseCount: upgradePurchaseCounts.regenBoost,
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.regenBoost, upgradePurchaseCounts.regenBoost)
+        },
+        energyHuge: {
+            title: 'Сверхзапас',
+            effect: '+10000 к максимуму энергии',
+            effectStep: 10000,
+            purchaseCount: upgradePurchaseCounts.energyHuge,
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energyHuge, upgradePurchaseCounts.energyHuge)
         }
     };
 
@@ -5974,7 +6129,13 @@ function updateUpgradeActionModalView() {
     }
 
     if (effectNode) {
-        effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${upgradeActionState.type === 'energy' ? 'к энергии' : 'к тапу'}`;
+        let effectLabel = 'к тапу';
+        if (upgradeActionState.type === 'energy' || upgradeActionState.type === 'energyHuge') {
+            effectLabel = 'к энергии';
+        } else if (upgradeActionState.type === 'regenBoost') {
+            effectLabel = 'энергии/сек';
+        }
+        effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${effectLabel}`;
     }
 
     if (quantityNoteNode) {
@@ -6063,6 +6224,13 @@ function performUpgradePurchase(type, quantity = 1) {
     } else if (type === 'tapHuge') {
         plus += 100 * safeQuantity;
         upgradePurchaseCounts.tapHuge += safeQuantity;
+    } else if (type === 'regenBoost') {
+        upgradePurchaseCounts.regenBoost += safeQuantity;
+        updateRegenRate();
+    } else if (type === 'energyHuge') {
+        energy_max += 10000 * safeQuantity;
+        upgradePurchaseCounts.energyHuge += safeQuantity;
+        updateRegenRate();
     }
 
     score -= currentCost;
@@ -6086,8 +6254,10 @@ function performUpgradePurchase(type, quantity = 1) {
 
     hideUpgradeActionModal();
     showNotification(
-        type === 'energy'
+        type === 'energy' || type === 'energyHuge'
             ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый максимум: ${formatCompactNumber(energy_max)}`
+            : type === 'regenBoost'
+                ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Реген: +${formatCompactNumber(upgradePurchaseCounts.regenBoost * 2)} энергии/сек`
             : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
         'success'
     );
@@ -6187,6 +6357,8 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
         normalized.tapBig = Math.max(0, Math.floor(Number(rawCounts.tapBig) || 0));
         normalized.energy = Math.max(0, Math.floor(Number(rawCounts.energy) || 0));
         normalized.tapHuge = Math.max(0, Math.floor(Number(rawCounts.tapHuge) || 0));
+        normalized.regenBoost = Math.max(0, Math.floor(Number(rawCounts.regenBoost) || 0));
+        normalized.energyHuge = Math.max(0, Math.floor(Number(rawCounts.energyHuge) || 0));
     }
 
     const resolvedPlus = Math.max(1, Math.floor(Number(options.plus) || 1));
@@ -6198,8 +6370,12 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
         normalized.tapSmall = extraTap % 5;
     }
 
-    if (normalized.energy === 0 && resolvedEnergyMax > 5000) {
-        normalized.energy = Math.floor((resolvedEnergyMax - 5000) / 1000);
+    const energyBonus = Math.max(0, resolvedEnergyMax - 5000);
+    if (normalized.energy === 0 && normalized.energyHuge === 0 && energyBonus > 0) {
+        normalized.energyHuge = Math.floor(energyBonus / 10000);
+        normalized.energy = Math.floor(Math.max(0, energyBonus - (normalized.energyHuge * 10000)) / 1000);
+    } else if (normalized.energyHuge === 0 && energyBonus > (normalized.energy * 1000)) {
+        normalized.energyHuge = Math.floor(Math.max(0, energyBonus - (normalized.energy * 1000)) / 10000);
     }
 
     return normalized;
@@ -6232,6 +6408,8 @@ function updateUpgradeShopUI() {
     const upgradeTap5Button = document.getElementById('upgradeTap5Button');
     const upgradeEnergyButton = document.getElementById('upgradeEnergyButton');
     const upgradeTap100Button = document.getElementById('upgradeTap100Button');
+    const upgradeRegenBoostButton = document.getElementById('upgradeRegenBoostButton');
+    const upgradeEnergyHugeButton = document.getElementById('upgradeEnergyHugeButton');
     const cards = [
         {
             button: upgradeTap1Button,
@@ -6260,6 +6438,20 @@ function updateUpgradeShopUI() {
             purchaseCount: upgradePurchaseCounts.tapHuge,
             affordableText: 'Мега-тап уже можно брать',
             lockedText: 'Нужно накопить на мега-тап'
+        },
+        {
+            button: upgradeRegenBoostButton,
+            baseCost: UPGRADE_BASE_COSTS.regenBoost,
+            purchaseCount: upgradePurchaseCounts.regenBoost,
+            affordableText: 'Можно ускорить заряд энергии',
+            lockedText: 'Нужно накопить на быструю зарядку'
+        },
+        {
+            button: upgradeEnergyHugeButton,
+            baseCost: UPGRADE_BASE_COSTS.energyHuge,
+            purchaseCount: upgradePurchaseCounts.energyHuge,
+            affordableText: 'Сверхзапас уже доступен',
+            lockedText: 'Нужно накопить на сверхзапас'
         }
     ];
 
@@ -6327,7 +6519,7 @@ function updateFlyRewardUI() {
     const best = Math.max(0, Number(flyBeaverState.bestScore) || 0);
     const rewardCoins = calculateFlyRewardCoins(pending);
 
-    if (pending >= 25) {
+    if (pending >= 30) {
         rewardButton.style.display = 'inline-block';
         rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
         rewardStatus.className = 'save-status draft';
@@ -6338,13 +6530,13 @@ function updateFlyRewardUI() {
     if (pending > 0) {
         rewardButton.style.display = 'none';
         rewardStatus.className = 'save-status idle';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(25 - pending)} очк. В зачет идут забеги от 15 очков.`;
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(30 - pending)} очк. В зачет идут только забеги от 10 очков, а меньший забег очищает очередь.`;
         return;
     }
 
     rewardButton.style.display = 'none';
     rewardStatus.className = 'save-status saved';
-    rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}.`;
+    rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}. Начисление от 10 очков, вывод от 30.`;
 }
 
 function normalizeBanInfoObject(rawBanInfo) {
@@ -7409,13 +7601,17 @@ function restoreLocalDraftIfAvailable() {
         draftUpgradePurchases.tapSmall > upgradePurchaseCounts.tapSmall ||
         draftUpgradePurchases.tapBig > upgradePurchaseCounts.tapBig ||
         draftUpgradePurchases.energy > upgradePurchaseCounts.energy ||
-        draftUpgradePurchases.tapHuge > upgradePurchaseCounts.tapHuge
+        draftUpgradePurchases.tapHuge > upgradePurchaseCounts.tapHuge ||
+        draftUpgradePurchases.regenBoost > upgradePurchaseCounts.regenBoost ||
+        draftUpgradePurchases.energyHuge > upgradePurchaseCounts.energyHuge
     ) {
         upgradePurchaseCounts = {
             tapSmall: Math.max(upgradePurchaseCounts.tapSmall, draftUpgradePurchases.tapSmall),
             tapBig: Math.max(upgradePurchaseCounts.tapBig, draftUpgradePurchases.tapBig),
             energy: Math.max(upgradePurchaseCounts.energy, draftUpgradePurchases.energy),
-            tapHuge: Math.max(upgradePurchaseCounts.tapHuge, draftUpgradePurchases.tapHuge)
+            tapHuge: Math.max(upgradePurchaseCounts.tapHuge, draftUpgradePurchases.tapHuge),
+            regenBoost: Math.max(upgradePurchaseCounts.regenBoost, draftUpgradePurchases.regenBoost),
+            energyHuge: Math.max(upgradePurchaseCounts.energyHuge, draftUpgradePurchases.energyHuge)
         };
         restored = true;
     }
@@ -7562,18 +7758,54 @@ function formatLeaderboardScore(scoreValue) {
     return Number.isFinite(scoreNumber) ? Math.max(0, scoreNumber).toLocaleString('ru-RU').replace(/[\u00A0\u202F]/g, ' ') : '0';
 }
 
-function renderLeaderboard(players) {
+function setLeaderboardMode(mode) {
+    leaderboardState.selected = mode === 'flyBeaver' ? 'flyBeaver' : 'main';
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, leaderboardState.selected);
+    renderLeaderboard();
+}
+
+function attachLeaderboardTabHandlers(root) {
+    if (!root) {
+        return;
+    }
+
+    root.querySelectorAll('.leaderboard-tab').forEach((button) => {
+        button.addEventListener('click', () => {
+            setLeaderboardMode(button.dataset.mode || 'main');
+        });
+    });
+}
+
+function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = leaderboardState.flyBeaver) {
     const leaderboard = document.getElementById('leaderboard');
     const rankClasses = ['gold', 'silver', 'bronze'];
-    const safePlayers = Array.isArray(players)
-        ? players.filter((player) => String(player && player.login ? player.login : '').trim().toLowerCase() !== 'test')
+    leaderboardState.main = Array.isArray(mainPlayers) ? mainPlayers : leaderboardState.main;
+    leaderboardState.flyBeaver = Array.isArray(flyPlayers) ? flyPlayers : leaderboardState.flyBeaver;
+
+    const activePlayers = leaderboardState.selected === 'flyBeaver'
+        ? leaderboardState.flyBeaver
+        : leaderboardState.main;
+    const safePlayers = Array.isArray(activePlayers)
+        ? activePlayers.filter((player) => String(player && player.login ? player.login : '').trim().toLowerCase() !== 'test')
         : [];
+    const title = leaderboardState.selected === 'flyBeaver' ? 'Топ-3 Летающего бобра' : 'Топ-3 игроков';
+    const subtitle = leaderboardState.selected === 'flyBeaver'
+        ? 'Лучшие рекорды по забегам'
+        : 'Лучшие счета в кликере';
+    const headerHtml = `
+        <div class="leaderboard-tabs" style="--leaderboard-tab-offset: ${leaderboardState.selected === 'flyBeaver' ? 'calc(100% + 8px)' : '0px'};">
+            <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'main' ? 'active' : ''}" data-mode="main">Кликер</button>
+            <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'flyBeaver' ? 'active' : ''}" data-mode="flyBeaver">Летающий бобер</button>
+        </div>
+        <div class="leaderboard-heading">
+            <h2 class="leaderboard-title">${title}</h2>
+            <p class="leaderboard-subtitle">${subtitle}</p>
+        </div>
+    `;
 
     if (safePlayers.length === 0) {
-        leaderboard.innerHTML = `
-            <h2 class="leaderboard-title">Топ-3 игроков</h2>
-            <p class="leaderboard-empty">Пока нет сохраненных результатов.</p>
-        `;
+        leaderboard.innerHTML = `${headerHtml}<p class="leaderboard-empty">Пока нет сохраненных результатов.</p>`;
+        attachLeaderboardTabHandlers(leaderboard);
         return;
     }
 
@@ -7585,10 +7817,28 @@ function renderLeaderboard(players) {
         </li>
     `).join('');
 
+    leaderboard.innerHTML = `${headerHtml}<ol class="leaderboard-list">${rowsHtml}</ol>`;
+    attachLeaderboardTabHandlers(leaderboard);
+}
+
+function renderLeaderboardError(message) {
+    const leaderboard = document.getElementById('leaderboard');
+    if (!leaderboard) {
+        return;
+    }
+
     leaderboard.innerHTML = `
-        <h2 class="leaderboard-title">Топ-3 игроков</h2>
-        <ol class="leaderboard-list">${rowsHtml}</ol>
+        <div class="leaderboard-tabs" style="--leaderboard-tab-offset: ${leaderboardState.selected === 'flyBeaver' ? 'calc(100% + 8px)' : '0px'};">
+            <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'main' ? 'active' : ''}" data-mode="main">Кликер</button>
+            <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'flyBeaver' ? 'active' : ''}" data-mode="flyBeaver">Летающий бобер</button>
+        </div>
+        <div class="leaderboard-heading">
+            <h2 class="leaderboard-title">${leaderboardState.selected === 'flyBeaver' ? 'Топ-3 Летающего бобра' : 'Топ-3 игроков'}</h2>
+            <p class="leaderboard-subtitle">${leaderboardState.selected === 'flyBeaver' ? 'Лучшие рекорды по забегам' : 'Лучшие счета в кликере'}</p>
+        </div>
+        <p class="leaderboard-error">${escapeHtmlText(message || 'Ошибка получения таблицы лидеров. Обратитесь в поддержку.')}</p>
     `;
+    attachLeaderboardTabHandlers(leaderboard);
 }
 
 async function requestJson(url, options = {}) {
@@ -7820,7 +8070,9 @@ function buildSaveStatePayload() {
             tapSmall: Math.max(0, Math.floor(upgradePurchaseCounts.tapSmall || 0)),
             tapBig: Math.max(0, Math.floor(upgradePurchaseCounts.tapBig || 0)),
             energy: Math.max(0, Math.floor(upgradePurchaseCounts.energy || 0)),
-            tapHuge: Math.max(0, Math.floor(upgradePurchaseCounts.tapHuge || 0))
+            tapHuge: Math.max(0, Math.floor(upgradePurchaseCounts.tapHuge || 0)),
+            regenBoost: Math.max(0, Math.floor(upgradePurchaseCounts.regenBoost || 0)),
+            energyHuge: Math.max(0, Math.floor(upgradePurchaseCounts.energyHuge || 0))
         }
     };
 }
@@ -8183,8 +8435,10 @@ async function synchronizeMainState(options = {}) {
 
         const data = await requestJson('https://bober-api.gt.tc/sync-state.php', requestOptions);
 
-        if (Array.isArray(data.leaderboard)) {
-            renderLeaderboard(data.leaderboard);
+        if (data.leaderboards && typeof data.leaderboards === 'object') {
+            renderLeaderboard(data.leaderboards.main, data.leaderboards.flyBeaver);
+        } else if (Array.isArray(data.leaderboard)) {
+            renderLeaderboard(data.leaderboard, leaderboardState.flyBeaver);
         }
 
         if (data.account && data.account.success) {
@@ -8873,6 +9127,52 @@ function buyUpgradeHuge() {
     showUpgradeActionModal('tapHuge');
 }
 
+function buyRegenBoostUpgrade() {
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
+        return;
+    }
+
+    const descriptor = getUpgradeDescriptor('regenBoost');
+    if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'regenBoost',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку ускорения регена энергии.'
+        });
+        showUpgradeActionModal('regenBoost');
+        return;
+    }
+    showUpgradeActionModal('regenBoost');
+}
+
+function buyEnergyHugeUpgrade() {
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
+        return;
+    }
+
+    const descriptor = getUpgradeDescriptor('energyHuge');
+    if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'energyHuge',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения +10000 энергии.'
+        });
+        showUpgradeActionModal('energyHuge');
+        return;
+    }
+    showUpgradeActionModal('energyHuge');
+}
+
 function saveplus() {
     if (!userId) {
         return;
@@ -9090,10 +9390,7 @@ async function loadLeaderboard() {
     });
 
     if (!synced && !userId) {
-        document.getElementById('leaderboard').innerHTML = `
-            <h2 class="leaderboard-title">Топ-3 игроков</h2>
-            <p class="leaderboard-error">Ошибка получения таблицы лидеров. Обратитесь в поддержку.</p>
-        `;
+        renderLeaderboardError('Ошибка получения таблицы лидеров. Обратитесь в поддержку.');
     }
 }
 
@@ -9103,6 +9400,7 @@ applyUserSettings(userSettings, {
     updateInputs: true
 });
 renderSkinShop();
+renderLeaderboard();
 skinLoad();
 updateScoreUI();
 updateEnergyUI();

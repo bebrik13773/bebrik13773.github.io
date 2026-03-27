@@ -12,6 +12,7 @@ try {
     bober_ensure_gameplay_schema($conn);
 
     $leaderboard = bober_fetch_public_leaderboard($conn, 3);
+    $flyLeaderboard = bober_fetch_public_fly_beaver_leaderboard($conn, 3);
     $sessionUserId = bober_get_logged_in_user_id();
     $account = null;
     $settings = bober_default_user_settings();
@@ -90,6 +91,10 @@ try {
     bober_json_response([
         'success' => true,
         'leaderboard' => $leaderboard,
+        'leaderboards' => [
+            'main' => $leaderboard,
+            'flyBeaver' => $flyLeaderboard,
+        ],
         'account' => $account,
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,

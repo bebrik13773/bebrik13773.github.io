@@ -463,6 +463,34 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             display: flex;
         }
 
+        .landscape-guard {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 25;
+            background: linear-gradient(180deg, rgba(7, 18, 16, 0.84), rgba(4, 10, 10, 0.96));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            text-align: center;
+            padding: 24px;
+        }
+
+        .landscape-guard.show {
+            display: flex;
+        }
+
+        .landscape-guard-card {
+            width: min(100%, 320px);
+            padding: 22px 20px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(18, 38, 31, 0.96), rgba(9, 24, 21, 0.99));
+            border: 1px solid rgba(176, 231, 179, 0.24);
+            box-shadow: 0 24px 40px rgba(0,0,0,0.32);
+            color: #fff;
+        }
+
         .fly-loading-card {
             width: min(100%, 320px);
             padding: 22px 20px;
@@ -494,6 +522,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 28px rgba(0,0,0,0.2);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
+            text-align: center;
         }
 
         .game-over-cloud-title {
@@ -502,6 +531,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             color: #d9f8c6;
             margin-bottom: 8px;
             letter-spacing: 0.02em;
+            text-align: center;
         }
 
         .game-over-cloud-meta {
@@ -509,6 +539,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             line-height: 1.5;
             color: rgba(255,255,255,0.76);
             margin-top: 8px;
+            text-align: center;
+            white-space: pre-line;
         }
 
         .game-over-cloud-action {
@@ -731,6 +763,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.8);" id="flyLoadingText">Подключаем облако и подготавливаем игру...</div>
             </div>
         </div>
+        <div class="landscape-guard" id="landscapeGuard" aria-hidden="true">
+            <div class="landscape-guard-card">
+                <div style="font-size: 42px; margin-bottom: 10px;">📱</div>
+                <div style="font-size: 22px; font-weight: 800; color: #e6fbff; margin-bottom: 8px;">Поверните телефон</div>
+                <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.82);">Летающий бобер работает только в портретной ориентации. В альбомной игра ставится на паузу, чтобы сцена не ломалась.</div>
+            </div>
+        </div>
     </div>
 
     <script src="shared-client.js"></script>
@@ -752,6 +791,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over');
         const pauseScreen = document.getElementById('pause-screen');
+        const landscapeGuardElement = document.getElementById('landscapeGuard');
         const cloudPanelElement = document.getElementById('cloud-panel');
         const cloudTitleElement = document.getElementById('cloud-title');
         const cloudSummaryElement = document.getElementById('cloud-summary');
@@ -786,8 +826,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         levelupSound.volume = 0.7;
         const isMobile = 'ontouchstart' in window;
         const FLY_VISUAL_ASSET_PATHS = {
+            beaverIdle: 'fly-assets/beaver-idle.svg',
             beaverGlide: 'fly-assets/beaver-glide.svg',
-            beaverFlap: 'fly-assets/beaver-flap.svg',
+            beaverFlapUp: 'fly-assets/beaver-flap-up.svg',
+            beaverFlapDown: 'fly-assets/beaver-flap-down.svg',
             beaverFall: 'fly-assets/beaver-fall.svg',
             logTop: 'fly-assets/log-top.svg',
             logBottom: 'fly-assets/log-bottom.svg',
@@ -816,14 +858,24 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         // Установка размеров canvas
         function resizeCanvas() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            canvas.width = Math.max(1, canvas.offsetWidth || 0);
+            canvas.height = Math.max(1, canvas.offsetHeight || 0);
             syncSceneState(true);
+            if (beaver) {
+                beaver.y = Math.max(0, Math.min(beaver.y, canvas.height - ground.height - beaver.height));
+            }
         }
         
         // Инициализация размеров canvas
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+            updateOrientationGuard();
+        });
+        window.addEventListener('orientationchange', updateOrientationGuard);
+        if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+            screen.orientation.addEventListener('change', updateOrientationGuard);
+        }
         
         // Игровые переменные
         let gameRunning = false;
@@ -837,13 +889,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let currentRunToken = '';
         let cloudSaveInFlight = false;
         let isCloudPanelExpanded = false;
+        let cloudAutoCollapseTimer = null;
+        let cloudAutoCollapseDoneForRun = false;
         let lastFrameTime = 0;
+        let landscapeBlocked = false;
+        let orientationPausedRun = false;
+        let beaver = null;
         const SHARED_CLIENT = window.BoberSharedClient || {};
         const TARGET_FRAME_MS = 1000 / 60;
         const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
         const PENDING_FLY_RUNS_STORAGE_KEY = 'bober_fly_pending_runs';
-        const FLY_TRANSFER_MIN_SCORE = 25;
-        const FLY_CREDIT_MIN_SCORE = 15;
+        const FLY_TRANSFER_MIN_SCORE = 30;
+        const FLY_CREDIT_MIN_SCORE = 10;
         const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
         let accountState = {
             userId: null,
@@ -1143,7 +1200,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 const summaryText = cloudSummaryElement ? cloudSummaryElement.textContent : '';
                 gameOverCloudMetaElement.textContent = [titleText, statusText, summaryText]
                     .filter((part, index, parts) => part && parts.indexOf(part) === index)
-                    .join(' • ');
+                    .join('\n');
             }
 
             if (gameOverClaimFlyScoreButton) {
@@ -1166,6 +1223,73 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             cloudToggleButton.setAttribute('aria-expanded', isCloudPanelExpanded ? 'true' : 'false');
             cloudToggleButton.textContent = isCloudPanelExpanded ? '−' : '+';
             syncGameOverCloudCard();
+        }
+
+        function clearCloudAutoCollapseTimer() {
+            if (cloudAutoCollapseTimer) {
+                clearTimeout(cloudAutoCollapseTimer);
+                cloudAutoCollapseTimer = null;
+            }
+        }
+
+        function scheduleCloudAutoCollapse() {
+            clearCloudAutoCollapseTimer();
+            cloudAutoCollapseDoneForRun = false;
+
+            if (!gameRunning) {
+                return;
+            }
+
+            cloudAutoCollapseTimer = setTimeout(() => {
+                cloudAutoCollapseTimer = null;
+                if (!gameRunning || gamePaused || !isCloudPanelExpanded) {
+                    return;
+                }
+
+                setCloudPanelExpanded(false);
+                cloudAutoCollapseDoneForRun = true;
+            }, 5000);
+        }
+
+        function isLandscapeOrientationBlocked() {
+            return Boolean(isMobile && window.innerWidth > window.innerHeight);
+        }
+
+        async function tryLockPortraitOrientation() {
+            if (!isMobile || !screen.orientation || typeof screen.orientation.lock !== 'function') {
+                return false;
+            }
+
+            try {
+                await screen.orientation.lock('portrait');
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function updateOrientationGuard() {
+            landscapeBlocked = isLandscapeOrientationBlocked();
+            if (landscapeGuardElement) {
+                landscapeGuardElement.classList.toggle('show', landscapeBlocked);
+                landscapeGuardElement.setAttribute('aria-hidden', landscapeBlocked ? 'false' : 'true');
+            }
+
+            if (!landscapeBlocked) {
+                if (gameRunning && orientationPausedRun) {
+                    pauseScreen.style.display = 'none';
+                    gamePaused = false;
+                    orientationPausedRun = false;
+                    lastFrameTime = 0;
+                }
+                resizeCanvas();
+                return;
+            }
+
+            if (gameRunning && !gamePaused) {
+                gamePaused = true;
+                orientationPausedRun = true;
+            }
         }
 
         function calculateFlyRewardCoins(scoreValue) {
@@ -1222,7 +1346,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             if (pending > 0) {
                 claimFlyScoreButton.style.display = 'none';
                 cloudStatusElement.className = 'cloud-status local';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Для перевода нужно еще ${(FLY_TRANSFER_MIN_SCORE - pending).toLocaleString('ru-RU')} очк. В счет идут только забеги от ${FLY_CREDIT_MIN_SCORE} очков.`;
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Для перевода нужно еще ${(FLY_TRANSFER_MIN_SCORE - pending).toLocaleString('ru-RU')} очк. В очередь идут только забеги от ${FLY_CREDIT_MIN_SCORE} очков, а меньший забег очищает ее полностью.`;
                 setCloudSummary(`В очереди: ${pending.toLocaleString('ru-RU')} очк.`);
                 syncGameOverCloudCard();
                 return;
@@ -1230,7 +1354,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             claimFlyScoreButton.style.display = 'none';
             cloudStatusElement.className = 'cloud-status connected';
-            cloudStatusElement.textContent = `Облачный рекорд: ${best}. Сыграно забегов: ${(accountState.flyBeaver.gamesPlayed || 0).toLocaleString('ru-RU')}.`;
+            cloudStatusElement.textContent = `Облачный рекорд: ${best}. Сыграно забегов: ${(accountState.flyBeaver.gamesPlayed || 0).toLocaleString('ru-RU')}. Начисление идет от ${FLY_CREDIT_MIN_SCORE}, вывод от ${FLY_TRANSFER_MIN_SCORE}.`;
             setCloudSummary(`Рекорд: ${best.toLocaleString('ru-RU')}`);
             syncGameOverCloudCard();
         }
@@ -1605,24 +1729,24 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             };
 
             createTreeBelt('back', {
-                extraWidth: 760,
-                spacing: 76,
+                extraWidth: 980,
+                spacing: 88,
                 countBoost: 4,
                 minScale: 0.86,
                 maxScale: 1.18,
                 jitter: 54,
                 seedOffset: 12,
-                types: ['pine', 'birch', 'willow', 'cypress']
+                types: ['spruce', 'cedar', 'willow', 'oak']
             });
             createTreeBelt('front', {
-                extraWidth: 1180,
-                spacing: 58,
+                extraWidth: 1480,
+                spacing: 64,
                 countBoost: 8,
                 minScale: 0.98,
                 maxScale: 1.42,
                 jitter: 62,
                 seedOffset: 46,
-                types: ['pine', 'birch', 'willow', 'snag', 'cypress']
+                types: ['spruce', 'cedar', 'willow', 'oak']
             });
         }
 
@@ -1751,40 +1875,38 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             ctx.fillStyle = trunkColor;
             ctx.fillRect(x - trunkWidth * 0.5, baseY - trunkHeight, trunkWidth, trunkHeight);
 
-            if (type === 'pine') {
+            if (type === 'spruce' || type === 'pine') {
                 ctx.fillStyle = leafColor;
                 ctx.beginPath();
-                ctx.moveTo(x, crownY - 26 * scale);
-                ctx.lineTo(x - 15 * scale, crownY + 12 * scale);
-                ctx.lineTo(x + 15 * scale, crownY + 12 * scale);
+                ctx.moveTo(x, crownY - 24 * scale);
+                ctx.lineTo(x - 13 * scale, crownY + 8 * scale);
+                ctx.lineTo(x + 13 * scale, crownY + 8 * scale);
                 ctx.closePath();
                 ctx.fill();
                 ctx.beginPath();
-                ctx.moveTo(x, crownY - 8 * scale);
-                ctx.lineTo(x - 18 * scale, crownY + 22 * scale);
-                ctx.lineTo(x + 18 * scale, crownY + 22 * scale);
+                ctx.moveTo(x, crownY - 6 * scale);
+                ctx.lineTo(x - 18 * scale, crownY + 18 * scale);
+                ctx.lineTo(x + 18 * scale, crownY + 18 * scale);
                 ctx.closePath();
                 ctx.fill();
                 ctx.beginPath();
-                ctx.moveTo(x, crownY + 10 * scale);
-                ctx.lineTo(x - 21 * scale, crownY + 34 * scale);
-                ctx.lineTo(x + 21 * scale, crownY + 34 * scale);
+                ctx.moveTo(x, crownY + 8 * scale);
+                ctx.lineTo(x - 22 * scale, crownY + 30 * scale);
+                ctx.lineTo(x + 22 * scale, crownY + 30 * scale);
                 ctx.closePath();
                 ctx.fill();
-            } else if (type === 'birch') {
-                ctx.fillStyle = '#d7e9d7';
-                ctx.fillRect(x - trunkWidth * 0.8, baseY - trunkHeight * 1.08, trunkWidth * 1.6, trunkHeight * 1.08);
-                ctx.fillStyle = 'rgba(74, 63, 49, 0.42)';
-                ctx.beginPath();
-                ctx.ellipse(x - 1 * scale, crownY + 4 * scale, 3.6 * scale, 5.8 * scale, 0.2, 0, Math.PI * 2);
-                ctx.ellipse(x + 3 * scale, crownY + 18 * scale, 3.2 * scale, 5.4 * scale, -0.18, 0, Math.PI * 2);
-                ctx.ellipse(x - 2 * scale, crownY + 30 * scale, 3.3 * scale, 5.4 * scale, 0.08, 0, Math.PI * 2);
-                ctx.fill();
+            } else if (type === 'cedar' || type === 'birch') {
+                ctx.fillStyle = '#dce9d9';
+                ctx.fillRect(x - trunkWidth * 0.75, baseY - trunkHeight * 1.05, trunkWidth * 1.5, trunkHeight * 1.05);
                 ctx.fillStyle = leafColor;
                 ctx.beginPath();
-                ctx.arc(x - 10 * scale, crownY + 4 * scale, 15 * scale, 0, Math.PI * 2);
-                ctx.arc(x + 5 * scale, crownY - 5 * scale, 18 * scale, 0, Math.PI * 2);
-                ctx.arc(x + 18 * scale, crownY + 8 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.arc(x - 10 * scale, crownY + 6 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 5 * scale, crownY - 4 * scale, 17 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 17 * scale, crownY + 8 * scale, 11 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = accentColor;
+                ctx.beginPath();
+                ctx.arc(x + 2 * scale, crownY + 8 * scale, 10 * scale, 0, Math.PI * 2);
                 ctx.fill();
             } else if (type === 'willow') {
                 ctx.fillStyle = leafColor;
@@ -1805,33 +1927,25 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     );
                     ctx.fill();
                 }
-            } else if (type === 'cypress') {
+            } else if (type === 'oak' || type === 'cypress') {
                 ctx.fillStyle = leafColor;
                 ctx.beginPath();
-                ctx.moveTo(x, crownY - 28 * scale);
-                ctx.lineTo(x - 12 * scale, crownY + 12 * scale);
-                ctx.lineTo(x - 7 * scale, crownY + 28 * scale);
-                ctx.lineTo(x, crownY + 34 * scale);
-                ctx.lineTo(x + 7 * scale, crownY + 28 * scale);
-                ctx.lineTo(x + 12 * scale, crownY + 12 * scale);
-                ctx.closePath();
+                ctx.arc(x - 12 * scale, crownY + 5 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 4 * scale, crownY - 4 * scale, 17 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 18 * scale, crownY + 7 * scale, 13 * scale, 0, Math.PI * 2);
+                ctx.arc(x, crownY + 18 * scale, 18 * scale, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = accentColor;
                 ctx.beginPath();
-                ctx.ellipse(x, crownY + 4 * scale, 7 * scale, 18 * scale, 0, 0, Math.PI * 2);
+                ctx.arc(x + 5 * scale, crownY + 8 * scale, 9 * scale, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                ctx.strokeStyle = trunkColor;
-                ctx.lineWidth = 5 * scale;
-                ctx.lineCap = 'round';
+                ctx.fillStyle = leafColor;
                 ctx.beginPath();
-                ctx.moveTo(x, baseY);
-                ctx.lineTo(x, crownY - 16 * scale);
-                ctx.moveTo(x, crownY - 6 * scale);
-                ctx.lineTo(x - 11 * scale, crownY + 8 * scale);
-                ctx.moveTo(x, crownY - 1 * scale);
-                ctx.lineTo(x + 12 * scale, crownY + 10 * scale);
-                ctx.stroke();
+                ctx.arc(x - 8 * scale, crownY + 4 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 7 * scale, crownY + 2 * scale, 13 * scale, 0, Math.PI * 2);
+                ctx.arc(x, crownY + 14 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
@@ -1860,7 +1974,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     };
 
                 const drawWrapped = (xBase) => {
-                    if (xBase < -340 || xBase > canvas.width + 340) {
+                    if (xBase < -460 || xBase > canvas.width + 460) {
                         return;
                     }
                     drawTreeAt(xBase, baseY, tree.scale * (layerKey === 'back' ? 0.92 : 1), tree.type, palette);
@@ -1968,13 +2082,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         };
 
         // Бобёр (главный персонаж)
-        const beaver = {
+        beaver = {
             x: 50,
             y: canvas.height / 2,
             width: 42,
             height: 32,
-            spriteWidth: 64,
-            spriteHeight: 48,
+            spriteWidth: 72,
+            spriteHeight: 54,
             gravity: 0.25,
             velocity: 0,
             jump: -7,
@@ -1984,9 +2098,17 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             bobPhase: 0,
 
             getSprite: function() {
+                if (!gameRunning) {
+                    return flyVisualAssets.images.beaverIdle || flyVisualAssets.images.beaverGlide || null;
+                }
+
                 const elapsedSinceFlap = performance.now() - this.lastFlapAt;
-                if (elapsedSinceFlap < 135 || this.velocity < -1.3) {
-                    return flyVisualAssets.images.beaverFlap || flyVisualAssets.images.beaverGlide || null;
+                if (this.velocity < -2.1) {
+                    return flyVisualAssets.images.beaverFlapUp || flyVisualAssets.images.beaverGlide || null;
+                }
+
+                if (elapsedSinceFlap < 150 || this.velocity < -0.6) {
+                    return flyVisualAssets.images.beaverFlapDown || flyVisualAssets.images.beaverGlide || null;
                 }
 
                 if (this.velocity > 2.7) {
@@ -1999,16 +2121,19 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             drawFallback: function() {
                 ctx.fillStyle = '#8B5A2B';
                 ctx.beginPath();
-                ctx.ellipse(0, 0, 20, 14, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = '#FFD3A0';
+                ctx.fillStyle = '#6b4020';
                 ctx.beginPath();
-                ctx.ellipse(8, 3, 12, 9, 0, 0, Math.PI * 2);
+                ctx.ellipse(-16, 1, 11, 8, -0.2, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = '#000';
+                ctx.fillStyle = '#f7d6a6';
                 ctx.beginPath();
-                ctx.arc(8, -4, 2.5, 0, Math.PI * 2);
-                ctx.arc(17, -2, 2.3, 0, Math.PI * 2);
+                ctx.ellipse(10, 2, 12, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#23140b';
+                ctx.beginPath();
+                ctx.arc(9, -3, 2.4, 0, Math.PI * 2);
                 ctx.fill();
             },
             
@@ -2281,7 +2406,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 while (this.spawnTicks >= 148) {
                     this.spawnTicks -= 148;
                     this.position.push({
-                        x: canvas.width + 110,
+                        x: canvas.width + 160,
                         y: Math.random() * (canvas.height / 2.9),
                         size: 20 + Math.random() * 22,
                         speed: 0.55 + Math.random() * 0.5,
@@ -2293,7 +2418,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     const c = this.position[i];
                     c.x -= c.speed * deltaFactor;
                     
-                    if (c.x + c.size * 3.3 < -280) {
+                    if (c.x + c.size * 3.3 < -420) {
                         this.position.shift();
                     }
                 }
@@ -2302,13 +2427,21 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         // Функция начала игры
         function startGame() {
+            if (landscapeBlocked) {
+                updateOrientationGuard();
+                return;
+            }
+
             gameRunning = true;
             gamePaused = false;
+            orientationPausedRun = false;
             score = 0;
             currentLevel = 1;
             currentRunToken = createRunToken();
             currentGameSpeed = getGameSpeedForLevel(currentLevel);
             lastFrameTime = 0;
+            setCloudPanelExpanded(true);
+            scheduleCloudAutoCollapse();
             scoreElement.textContent = score;
             levelIndicator.textContent = `Уровень: ${currentLevel}`;
             
@@ -2341,13 +2474,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     alpha: 0.5 + Math.random() * 0.2
                 });
             }
+
+            resizeCanvas();
         }
         
         // Функция паузы игры
         function togglePause() {
-            if (!gameRunning) return;
+            if (!gameRunning || landscapeBlocked) return;
             
             gamePaused = !gamePaused;
+            orientationPausedRun = false;
             
             if (gamePaused) {
                 pauseScoreElement.textContent = score;
@@ -2355,6 +2491,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 pauseScreen.style.display = 'flex';
             } else {
                 pauseScreen.style.display = 'none';
+                lastFrameTime = 0;
+                resizeCanvas();
             }
         }
         
@@ -2362,6 +2500,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         function gameOver() {
             gameRunning = false;
             gamePaused = false;
+            orientationPausedRun = false;
+            clearCloudAutoCollapseTimer();
             
             if (score > highScore) {
                 highScore = score;
@@ -2432,6 +2572,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         // Обработчики событий
         startButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
             startGame();
             vibrate(100);
         });
@@ -2441,6 +2582,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
         
         restartButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
             startGame();
             vibrate(100);
         });
@@ -2451,6 +2593,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         });
         
         restartFromPauseButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
             startGame();
             vibrate(100);
         });
@@ -2470,6 +2613,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         document.addEventListener('keydown', function(e) {
             if (e.code === 'Space') {
+                if (landscapeBlocked) {
+                    e.preventDefault();
+                    return;
+                }
                 if (gameRunning && !gamePaused) {
                     beaver.flap();
                 } else if (canStartNewRunFromOverlay()) {
@@ -2485,6 +2632,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         });
         
         canvas.addEventListener('click', function() {
+            tryLockPortraitOrientation();
+            if (landscapeBlocked) {
+                return;
+            }
             if (gameRunning && !gamePaused) {
                 beaver.flap();
             } else if (canStartNewRunFromOverlay()) {
@@ -2493,6 +2644,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         });
         
         canvas.addEventListener('touchstart', function(e) {
+            tryLockPortraitOrientation();
+            if (landscapeBlocked) {
+                e.preventDefault();
+                return;
+            }
             if (gameRunning && !gamePaused) {
                 beaver.flap();
             } else if (canStartNewRunFromOverlay()) {
@@ -2512,7 +2668,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 return;
             }
 
-            setCloudPanelExpanded(false);
+            setCloudPanelExpanded(true);
             setFlyLoadingOverlay(true, 'Летающий бобер', 'Рисуем лесную сцену и подключаем облачные сохранения...');
 
             try {
@@ -2522,6 +2678,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 ]);
             } finally {
                 syncSceneState(true);
+                updateOrientationGuard();
                 setFlyLoadingOverlay(false);
                 loop();
             }

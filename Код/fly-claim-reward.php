@@ -33,7 +33,7 @@ try {
     }
     $selectStmt->close();
 
-    $minimumTransferScore = 25;
+    $minimumTransferScore = 30;
     $coinsPerScore = 500;
     $hourlyCoinsLimit = 100000;
     $hourlyWindowSeconds = 60 * 60;
@@ -147,7 +147,7 @@ try {
             $message = 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 500 коинов.';
         }
     } elseif ($requestedScore < $minimumTransferScore) {
-        $message = 'Для перевода нужно минимум 25 очков из Летающего бобра.';
+        $message = 'Для перевода нужно минимум 30 очков из Летающего бобра.';
     } elseif ($remainingCoins < ($minimumTransferScore * $coinsPerScore)) {
         $message = 'Сейчас достигнут лимит вывода: максимум 100000 коинов в час. Попробуйте позже.';
     } else {

@@ -61,13 +61,15 @@ try {
     $upgradeTapBigCount = 0;
     $upgradeEnergyCount = 0;
     $upgradeTapHugeCount = 0;
+    $upgradeRegenBoostCount = 0;
+    $upgradeEnergyHugeCount = 0;
 
-    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $conn->prepare('INSERT INTO users (login, password, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('ssisisiiiiii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount);
+    $stmt->bind_param('ssisisiiiiiiii', $login, $passwordHash, $plus, $defaultSkin, $energy, $lastEnergyUpdate, $energyMax, $score, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount);
 
     if (!$stmt->execute()) {
         $stmt->close();

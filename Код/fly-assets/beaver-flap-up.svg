@@ -1,0 +1,29 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="upBody" x1="60" y1="52" x2="175" y2="134" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BC7B43"/>
+      <stop offset="1" stop-color="#6E3D1C"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="56" cy="124" rx="22" ry="12" fill="#553114" opacity=".22"/>
+  <path d="M34 108C24 95 26 78 38 67C51 57 68 58 84 71L97 82L83 152C57 146 40 133 34 108Z" fill="#603718"/>
+  <path d="M43 96L83 114" stroke="#2D1607" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="126" cy="98" rx="60" ry="42" fill="url(#upBody)"/>
+  <ellipse cx="157" cy="101" rx="36" ry="29" fill="#F3D7B3"/>
+  <circle cx="117" cy="63" r="12" fill="#A86636"/>
+  <circle cx="140" cy="59" r="13" fill="#A86636"/>
+  <circle cx="117" cy="63" r="6" fill="#F4B4BF"/>
+  <circle cx="140" cy="59" r="6" fill="#F4B4BF"/>
+  <ellipse cx="173" cy="88" rx="24" ry="20" fill="#F3D8B4"/>
+  <ellipse cx="188" cy="89" rx="7" ry="9" fill="#171112"/>
+  <circle cx="189" cy="86" r="2" fill="#fff"/>
+  <ellipse cx="205" cy="95" rx="7" ry="6" fill="#2B1810"/>
+  <rect x="201" y="100" width="7" height="15" rx="2.2" fill="#FFF3D7"/>
+  <rect x="209" y="100" width="7" height="15" rx="2.2" fill="#FFF3D7"/>
+  <path d="M203 85C211 76 218 71 223 70" stroke="#7B4A23" stroke-width="8" stroke-linecap="round"/>
+  <path d="M205 93L221 97" stroke="#2B1810" stroke-width="3" stroke-linecap="round"/>
+  <path d="M205 97L222 101" stroke="#2B1810" stroke-width="3" stroke-linecap="round"/>
+  <path d="M189 105C194 108 200 108 205 105" stroke="#2B1810" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M112 136L132 138" stroke="#6A3C1B" stroke-width="9" stroke-linecap="round"/>
+  <path d="M148 136L170 143" stroke="#6A3C1B" stroke-width="9" stroke-linecap="round"/>
+</svg>
