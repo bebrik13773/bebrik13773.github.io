@@ -895,6 +895,41 @@ Owner decisions:
         text-align: center;
     }
 
+    .leaderboard-panel-shell {
+        position: relative;
+        overflow: hidden;
+        min-height: 152px;
+    }
+
+    .leaderboard-panel {
+        will-change: transform, opacity;
+    }
+
+    .leaderboard-panel.is-animating {
+        animation: leaderboardPanelIn 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .leaderboard-panel.is-animating.from-main {
+        --leaderboard-panel-start-x: 26px;
+    }
+
+    .leaderboard-panel.is-animating.from-fly {
+        --leaderboard-panel-start-x: -26px;
+    }
+
+    @keyframes leaderboardPanelIn {
+        0% {
+            opacity: 0;
+            transform: translate3d(var(--leaderboard-panel-start-x, 0px), 10px, 0) scale(0.986);
+            filter: blur(8px);
+        }
+        100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1);
+            filter: blur(0);
+        }
+    }
+
     .leaderboard-title {
         margin: 0;
         font-size: 28px;
@@ -7847,9 +7882,18 @@ function formatLeaderboardScore(scoreValue) {
 }
 
 function setLeaderboardMode(mode) {
-    leaderboardState.selected = mode === 'flyBeaver' ? 'flyBeaver' : 'main';
+    const nextMode = mode === 'flyBeaver' ? 'flyBeaver' : 'main';
+    if (leaderboardState.selected === nextMode) {
+        return;
+    }
+
+    const transitionDirection = nextMode === 'flyBeaver' ? 'from-main' : 'from-fly';
+    leaderboardState.selected = nextMode;
     localStorage.setItem(LEADERBOARD_STORAGE_KEY, leaderboardState.selected);
-    renderLeaderboard();
+    renderLeaderboard(undefined, undefined, {
+        animate: true,
+        direction: transitionDirection
+    });
 }
 
 function attachLeaderboardTabHandlers(root) {
@@ -7864,9 +7908,11 @@ function attachLeaderboardTabHandlers(root) {
     });
 }
 
-function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = leaderboardState.flyBeaver) {
+function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = leaderboardState.flyBeaver, options = {}) {
     const leaderboard = document.getElementById('leaderboard');
     const rankClasses = ['gold', 'silver', 'bronze'];
+    const animate = Boolean(options.animate);
+    const animationDirection = options.direction === 'from-fly' ? 'from-fly' : 'from-main';
     leaderboardState.main = Array.isArray(mainPlayers) ? mainPlayers : leaderboardState.main;
     leaderboardState.flyBeaver = Array.isArray(flyPlayers) ? flyPlayers : leaderboardState.flyBeaver;
 
@@ -7885,6 +7931,9 @@ function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = lea
             <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'main' ? 'active' : ''}" data-mode="main">Кликер</button>
             <button type="button" class="leaderboard-tab ${leaderboardState.selected === 'flyBeaver' ? 'active' : ''}" data-mode="flyBeaver">Летающий бобер</button>
         </div>
+    `;
+    const panelClass = animate ? `leaderboard-panel is-animating ${animationDirection}` : 'leaderboard-panel';
+    const panelHeaderHtml = `
         <div class="leaderboard-heading">
             <h2 class="leaderboard-title">${title}</h2>
             <p class="leaderboard-subtitle">${subtitle}</p>
@@ -7892,7 +7941,7 @@ function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = lea
     `;
 
     if (safePlayers.length === 0) {
-        leaderboard.innerHTML = `${headerHtml}<p class="leaderboard-empty">Пока нет сохраненных результатов.</p>`;
+        leaderboard.innerHTML = `${headerHtml}<div class="leaderboard-panel-shell"><div class="${panelClass}">${panelHeaderHtml}<p class="leaderboard-empty">Пока нет сохраненных результатов.</p></div></div>`;
         attachLeaderboardTabHandlers(leaderboard);
         return;
     }
@@ -7905,7 +7954,7 @@ function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = lea
         </li>
     `).join('');
 
-    leaderboard.innerHTML = `${headerHtml}<ol class="leaderboard-list">${rowsHtml}</ol>`;
+    leaderboard.innerHTML = `${headerHtml}<div class="leaderboard-panel-shell"><div class="${panelClass}">${panelHeaderHtml}<ol class="leaderboard-list">${rowsHtml}</ol></div></div>`;
     attachLeaderboardTabHandlers(leaderboard);
 }
 
