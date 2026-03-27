@@ -295,7 +295,7 @@ function bober_clicker_top_reward_skin_defaults()
         'id' => bober_clicker_top_reward_skin_id(),
         'name' => 'Топ-1 бобер кликера',
         'price' => 0,
-        'image' => 'skins/bober.png',
+        'image' => 'skins/top-1-bober-kliker.png',
         'available' => false,
         'rarity' => 'legendary',
         'category' => 'top',
