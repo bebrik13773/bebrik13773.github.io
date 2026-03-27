@@ -1196,6 +1196,8 @@ Owner decisions:
 
     .settings-modal {
         width: min(100%, 640px);
+        max-width: calc(100vw - 32px);
+        overflow-x: hidden;
     }
 
     .settings-modal-grid {
@@ -1271,6 +1273,9 @@ Owner decisions:
 
     .settings-modal-actions {
         margin-top: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
     }
 
     .settings-action-button {
@@ -1341,6 +1346,13 @@ Owner decisions:
 
     .settings-card-actions .settings-action-button {
         flex: 1 1 220px;
+        min-width: 0;
+    }
+
+    .settings-modal-actions .settings-action-button {
+        flex: 1 1 220px;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .settings-value {
@@ -2158,6 +2170,7 @@ Owner decisions:
         top: calc(100% + 10px);
         right: 0;
         width: min(300px, calc(100vw - 24px));
+        max-width: calc(100vw - 24px);
         padding: 12px;
         border-radius: 22px;
         border: 1px solid rgba(126, 241, 255, 0.24);
@@ -2234,6 +2247,7 @@ Owner decisions:
     #logoutButton,
     #sessionsButton {
         width: 100%;
+        max-width: 100%;
         margin: 0;
         display: inline-flex;
         align-items: center;
@@ -2242,6 +2256,7 @@ Owner decisions:
         color: #f8fbff;
         text-align: left;
         box-shadow: none;
+        white-space: normal;
     }
 
     #supportAppealButton,
