@@ -2809,15 +2809,34 @@ Owner decisions:
 
     .skin-shop-feature-preview {
         min-height: 210px;
+        padding: 14px;
         border-radius: 18px;
-        background:
-            linear-gradient(180deg, rgba(10, 10, 25, 0.06), rgba(10, 10, 25, 0.28)),
-            var(--skin-shop-feature-image, linear-gradient(135deg, #5f38d4, #33c5c7));
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
+        background: linear-gradient(180deg, rgba(10, 10, 25, 0.06), rgba(10, 10, 25, 0.28));
         border: 1px solid rgba(255,255,255,0.14);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        position: relative;
+        isolation: isolate;
+        contain: paint;
+        overflow: hidden;
+    }
+
+    .skin-shop-feature-image {
+        width: 100%;
+        height: 100%;
+        min-height: 182px;
+        display: block;
+        object-fit: contain;
+        object-position: center;
+        filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.22));
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-user-drag: none;
+        user-select: none;
+        pointer-events: none;
+    }
+
+    .skin-shop-feature-image[hidden] {
+        display: none;
     }
 
     .skin-shop-feature-copy {
@@ -3345,7 +3364,9 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="skin-shop-panel-title">Каталог скинов</div>
         <div class="skin-shop-panel-subtitle" id="skinShopMeta">Фильтруйте скины и выбирайте образ для бобра.</div>
         <div class="skin-shop-feature" id="skinShopFeature">
-            <div class="skin-shop-feature-preview" id="skinShopFeaturePreview"></div>
+            <div class="skin-shop-feature-preview" id="skinShopFeaturePreview">
+                <img class="skin-shop-feature-image" id="skinShopFeatureImage" alt="" hidden>
+            </div>
             <div class="skin-shop-feature-copy">
                 <div class="skin-shop-feature-head">
                     <div class="skin-shop-feature-name" id="skinShopFeatureName">Скин не выбран</div>
@@ -4970,6 +4991,16 @@ function isClickerReactionTarget(target) {
     return Boolean(target && target.closest('#clicker'));
 }
 
+function shouldSuppressShopMotionReaction(target) {
+    const shopNode = document.getElementById('shop');
+    return Boolean(
+        shopNode &&
+        shopNode.style.display === 'block' &&
+        target &&
+        target.closest('#shop')
+    );
+}
+
 function shouldIgnoreDuplicateTap(pageX, pageY) {
     const now = Date.now();
     const deltaTime = now - interactionFxState.lastTapAt;
@@ -5123,6 +5154,10 @@ function handleInterfacePointerMove(event) {
         return;
     }
 
+    if (shouldSuppressShopMotionReaction(target)) {
+        return;
+    }
+
     queueInterfaceMotion({
         clientX: Number(event.clientX),
         clientY: Number(event.clientY),
@@ -5155,6 +5190,10 @@ function handleInterfaceTouchMove(event) {
     }
 
     if (isClickerReactionTarget(target)) {
+        return;
+    }
+
+    if (shouldSuppressShopMotionReaction(target)) {
         return;
     }
 
@@ -5802,18 +5841,21 @@ function getSkinShopFocusedConfig() {
 
 function updateSkinShopFeature() {
     const featurePreviewNode = document.getElementById('skinShopFeaturePreview');
+    const featureImageNode = document.getElementById('skinShopFeatureImage');
     const featureNameNode = document.getElementById('skinShopFeatureName');
     const featureStatusNode = document.getElementById('skinShopFeatureStatus');
     const featureMetaNode = document.getElementById('skinShopFeatureMeta');
     const featureTipNode = document.getElementById('skinShopFeatureTip');
     const focusedSkin = getSkinShopFocusedConfig();
 
-    if (!featurePreviewNode || !featureNameNode || !featureStatusNode || !featureMetaNode || !featureTipNode) {
+    if (!featurePreviewNode || !featureImageNode || !featureNameNode || !featureStatusNode || !featureMetaNode || !featureTipNode) {
         return;
     }
 
     if (!focusedSkin) {
-        featurePreviewNode.style.setProperty('--skin-shop-feature-image', "linear-gradient(135deg, #5f38d4, #33c5c7)");
+        featureImageNode.src = '';
+        featureImageNode.alt = '';
+        featureImageNode.hidden = true;
         featureNameNode.textContent = 'Скины не найдены';
         featureStatusNode.textContent = 'Пусто';
         featureMetaNode.innerHTML = '';
@@ -5823,7 +5865,9 @@ function updateSkinShopFeature() {
 
     const owned = isSkinOwned(focusedSkin.id);
     const equipped = owned && skin.equippedSkinId === focusedSkin.id;
-    featurePreviewNode.style.setProperty('--skin-shop-feature-image', `url('${focusedSkin.image}')`);
+    featureImageNode.src = focusedSkin.image;
+    featureImageNode.alt = focusedSkin.name;
+    featureImageNode.hidden = false;
     featureNameNode.textContent = focusedSkin.name;
     featureMetaNode.innerHTML = `
         <span class="skin-chip rarity-${escapeHtmlText(focusedSkin.rarity)}">${escapeHtmlText(getSkinRarityLabel(focusedSkin.rarity))}</span>
