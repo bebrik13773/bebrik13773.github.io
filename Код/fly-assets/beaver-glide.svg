@@ -1,34 +1,45 @@
-<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="240" height="180" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="glideBody" x1="60" y1="56" x2="176" y2="136" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B87841"/>
-      <stop offset="1" stop-color="#6A3B1A"/>
+    <linearGradient id="glideTail" x1="28" y1="106" x2="80" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#885024"/>
+      <stop offset="1" stop-color="#5A3013"/>
     </linearGradient>
-    <linearGradient id="glideBelly" x1="120" y1="76" x2="178" y2="129" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F8DEC0"/>
-      <stop offset="1" stop-color="#E1B17C"/>
+    <linearGradient id="glideBody" x1="74" y1="70" x2="180" y2="136" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C97F38"/>
+      <stop offset="0.56" stop-color="#A55B27"/>
+      <stop offset="1" stop-color="#733917"/>
+    </linearGradient>
+    <linearGradient id="glideBelly" x1="130" y1="94" x2="182" y2="138" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FAE8C1"/>
+      <stop offset="1" stop-color="#DEB06E"/>
+    </linearGradient>
+    <linearGradient id="glideMuzzle" x1="170" y1="84" x2="220" y2="122" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF0CC"/>
+      <stop offset="1" stop-color="#E4BE80"/>
     </linearGradient>
   </defs>
-  <ellipse cx="56" cy="123" rx="22" ry="12" fill="#553114" opacity=".22"/>
-  <path d="M36 107C26 95 28 79 39 69C52 58 68 60 84 72L96 82L82 151C58 147 41 134 36 107Z" fill="#5D3416"/>
-  <path d="M45 95L82 114" stroke="#2D1607" stroke-width="6" stroke-linecap="round"/>
-  <path d="M47 113L79 130" stroke="#7F5027" stroke-width="4" stroke-linecap="round"/>
-  <ellipse cx="126" cy="100" rx="60" ry="42" fill="url(#glideBody)"/>
-  <ellipse cx="156" cy="102" rx="36" ry="29" fill="url(#glideBelly)"/>
-  <circle cx="116" cy="65" r="12" fill="#A76635"/>
-  <circle cx="138" cy="61" r="13" fill="#A76635"/>
-  <circle cx="116" cy="65" r="6" fill="#F4B4BF"/>
-  <circle cx="138" cy="61" r="6" fill="#F4B4BF"/>
-  <ellipse cx="173" cy="91" rx="24" ry="20" fill="#F3D8B4"/>
-  <ellipse cx="188" cy="92" rx="7" ry="9" fill="#171112"/>
-  <circle cx="189" cy="89" r="2" fill="#fff"/>
-  <ellipse cx="205" cy="98" rx="7" ry="6" fill="#2B1810"/>
-  <rect x="201" y="103" width="7" height="15" rx="2.2" fill="#FFF3D7"/>
-  <rect x="209" y="103" width="7" height="15" rx="2.2" fill="#FFF3D7"/>
-  <path d="M205 96L221 100" stroke="#2B1810" stroke-width="3" stroke-linecap="round"/>
-  <path d="M204 100L222 105" stroke="#2B1810" stroke-width="3" stroke-linecap="round"/>
-  <path d="M203 104L220 112" stroke="#2B1810" stroke-width="3" stroke-linecap="round"/>
-  <path d="M189 108C194 111 200 111 205 108" stroke="#2B1810" stroke-width="4.6" stroke-linecap="round"/>
-  <path d="M116 139L136 142" stroke="#6A3C1B" stroke-width="9" stroke-linecap="round"/>
-  <path d="M149 140L171 146" stroke="#6A3C1B" stroke-width="9" stroke-linecap="round"/>
+  <ellipse cx="114" cy="137" rx="78" ry="16" fill="#1D110A" opacity="0.16"/>
+  <g transform="rotate(-4 126 104)">
+    <path d="M30 112C25 92 37 76 60 72C77 69 92 77 99 91C106 105 101 120 82 130C65 139 36 132 30 112Z" fill="url(#glideTail)" stroke="#2B1509" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M38 111L86 84" stroke="#4D2710" stroke-width="5" stroke-linecap="round"/>
+    <path d="M43 123L90 96" stroke="#4D2710" stroke-width="5" stroke-linecap="round"/>
+    <path d="M55 131L95 107" stroke="#4D2710" stroke-width="5" stroke-linecap="round"/>
+    <path d="M78 98C90 70 126 58 163 67C191 74 209 94 209 116C209 142 184 153 146 152C102 151 72 138 63 114C61 108 69 101 78 98Z" fill="url(#glideBody)" stroke="#2B1509" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M132 102C151 89 181 93 196 109C197 132 178 144 151 145C126 146 108 135 98 120C101 111 114 106 132 102Z" fill="url(#glideBelly)" stroke="#A56A27" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="127" cy="71" r="11" fill="#995725" stroke="#2B1509" stroke-width="5"/>
+    <circle cx="149" cy="69" r="12" fill="#995725" stroke="#2B1509" stroke-width="5"/>
+    <path d="M111 118C121 112 136 111 146 117C139 128 123 130 111 118Z" fill="#6A3A1B" opacity="0.42"/>
+    <path d="M149 109C157 105 169 106 179 114C172 123 156 124 149 109Z" fill="#6A3A1B" opacity="0.42"/>
+    <path d="M170 85C188 78 210 85 218 101C225 117 217 131 198 135C178 139 160 129 158 112C156 99 160 90 170 85Z" fill="url(#glideMuzzle)" stroke="#2B1509" stroke-width="6" stroke-linejoin="round"/>
+    <ellipse cx="188" cy="103" rx="16" ry="20" fill="#FFFFFF"/>
+    <ellipse cx="193" cy="106" rx="8" ry="11" fill="#160D08"/>
+    <circle cx="196" cy="101" r="2.8" fill="#FFFFFF"/>
+    <ellipse cx="215" cy="106" rx="8" ry="6.5" fill="#3A2112"/>
+    <rect x="208" y="109" width="7" height="16" rx="2.4" fill="#FFF9F0" stroke="#2B1509" stroke-width="3"/>
+    <rect x="215" y="109" width="7" height="15" rx="2.4" fill="#FFF9F0" stroke="#2B1509" stroke-width="3"/>
+    <path d="M200 116C205 120 212 120 218 116" fill="none" stroke="#2B1509" stroke-width="4" stroke-linecap="round"/>
+    <path d="M214 100L227 98" stroke="#2B1509" stroke-width="3" stroke-linecap="round"/>
+    <path d="M214 107L229 107" stroke="#2B1509" stroke-width="3" stroke-linecap="round"/>
+    <path d="M213 114L226 118" stroke="#2B1509" stroke-width="3" stroke-linecap="round"/>
+  </g>
 </svg>
