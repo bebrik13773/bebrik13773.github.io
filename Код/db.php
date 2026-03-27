@@ -503,7 +503,6 @@ function bober_merge_required_skin_catalog_items(array $catalogItems)
     $catalogMap[$topSkinId] = array_merge($topSkinDefaults, $existingTopSkin, [
         'id' => $topSkinId,
         'price' => 0,
-        'available' => false,
         'category' => 'top',
         'issue_mode' => 'grant_only',
         'default_owned' => false,
