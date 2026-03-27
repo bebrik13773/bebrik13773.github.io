@@ -52,7 +52,7 @@ try {
             throw new RuntimeException('Не удалось подготовить обновление прогресса fly-beaver.');
         }
 
-        $updateStmt->bind_param('iiiiiiii', $score, $score, $level, $creditedScore, $creditedScore, $creditedScore, $creditedScore, $userId);
+        $updateStmt->bind_param('iiiiiii', $score, $score, $level, $creditedScore, $creditedScore, $creditedScore, $userId);
         if (!$updateStmt->execute()) {
             $updateStmt->close();
             throw new RuntimeException('Не удалось обновить прогресс fly-beaver.');
