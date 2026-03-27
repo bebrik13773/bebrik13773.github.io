@@ -323,6 +323,7 @@
                 <h2>Навигация</h2>
                 <a href="#nearby">Ближайшие улучшения</a>
                 <a href="#prompts">Промты для графики</a>
+                <a href="#svg-prompts">SVG-код промты</a>
                 <a href="#style">Общий стиль</a>
                 <a href="#beaver">Промты бобра</a>
                 <a href="#trees">Промты деревьев</a>
@@ -364,6 +365,102 @@
                         Ниже собран отдельный набор промтов для внешней нейросети. Цель: получить аккуратные и согласованные ассеты для
                         <span class="inline-code">Летающего бобра</span> и связанного UI, чтобы потом их было легко встроить в игру.
                     </p>
+
+                    <h3 id="svg-prompts">Промты Для Генерации SVG-Кода</h3>
+                    <p class="section-note">
+                        Это отдельный блок именно для нейросети, которая должна вернуть не картинку, а готовый <span class="inline-code">SVG-код</span>.
+                        Логика такая: сначала копируется общий мастер-промт, затем общий технический блок, затем нужный промт состояния или ассета.
+                    </p>
+
+                    <h4>0. Общий мастер-промт для SVG-кода</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-master-prompt">Скопировать</button>
+                        <pre><code id="svg-master-prompt">Generate production-ready raw SVG code for a 2D side-view casual mobile game asset. Return only valid SVG markup, no markdown fences, no explanations, no JSON, no commentary. The result must be a single self-contained &lt;svg&gt; element with width, height and viewBox. Use clean layered vector shapes, grouped structure, readable ids for major parts, and compact organization suitable for manual editing later. The art style must be polished cartoon mobile game art, readable at small size, with a clear silhouette and friendly whimsical swamp-forest vibe. The asset must look unmistakably like part of the same game world and same artist style.</code></pre>
+                    </div>
+
+                    <h4>1. Общий технический блок для всех SVG-ассетов</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-tech-block">Скопировать</button>
+                        <pre><code id="svg-tech-block">Technical requirements for the SVG:
+- output only raw SVG code
+- transparent background
+- side view only
+- full subject visible with safe padding
+- centered composition
+- mobile-game readability first
+- clean silhouette, not noisy
+- no raster image embedding
+- no external fonts
+- no external CSS
+- no scripts
+- use vector paths, ellipses, circles, gradients and simple masks only when helpful
+- avoid huge filter stacks and heavy blur that would be hard to render in-browser
+- keep shapes editable and layered
+- use readable group ids like body, tail, ear, eye, paw, outline, highlight
+- add subtle gradients and highlights, but keep the result lightweight
+- no text, no watermark, no frame, no UI elements
+- no background scene unless explicitly asked</code></pre>
+                    </div>
+
+                    <h4>2. Общий negative prompt для SVG-кода</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-negative-prompt">Скопировать</button>
+                        <pre><code id="svg-negative-prompt">Do not make it photorealistic, painterly noise-heavy, furry with thousands of strands, seal-like, rat-like, flat clipart, front-facing, top-down, isometric, over-detailed, asymmetrical in a broken way, cropped, too dark, muddy, horror-like, dirty, messy, with extra limbs, malformed anatomy, unreadable tail, unreadable paws, unreadable teeth, giant head with tiny tail, random props, text, labels, frame, white background, bitmap texture, jpeg artifacts, or empty placeholder geometry.</code></pre>
+                    </div>
+
+                    <h4>3. Базовый SVG-промт для главного бобра</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-base">Скопировать</button>
+                        <pre><code id="svg-beaver-base">Create raw SVG code for the main flying beaver character of a whimsical swamp-forest arcade game. Side view only. The character must clearly read as a beaver, not a seal: large flat tail with visible crosshatch segments, rounded brown body, beige belly and muzzle, small rounded ears, visible front teeth, expressive eye, small paws tucked near the body, short whiskers, compact friendly silhouette. The beaver should feel cute, determined, adventurous and readable on a phone screen. Use polished cartoon vector shading, warm brown fur tones, soft amber highlights, clean dark outline, subtle inner highlights, and a slightly magical casual-game feel. Transparent background, full body visible, centered, no scene, no text, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>4. SVG: бобер idle / стартовое парение</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-idle">Скопировать</button>
+                        <pre><code id="svg-beaver-idle">Create raw SVG code for the same flying beaver character in idle hover pose for a side-view casual mobile game. The beaver is calm, slightly floating, body relaxed, tail a bit lowered, paws gently tucked, eye open and alert, expression friendly. Keep the silhouette compact and readable. Same exact design language as the main beaver: big flat tail, visible teeth, rounded ears, beige muzzle and belly, warm brown fur, polished cartoon vector shading, transparent background, centered, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>5. SVG: бобер glide / основной полет</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-glide">Скопировать</button>
+                        <pre><code id="svg-beaver-glide">Create raw SVG code for the same beaver character in glide pose for a 2D side-view flying arcade game. The body should lean slightly forward, tail extended for balance, paws tucked, expression focused but cute, silhouette smooth and aerodynamic while still chunky and beaver-like. The tail must remain highly readable. Use the same palette and vector style as the approved main beaver: rich warm browns, beige belly, soft highlights, clean dark outline, transparent background, full body visible, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>6. SVG: бобер flap-up / активный толчок вверх</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-flap-up">Скопировать</button>
+                        <pre><code id="svg-beaver-flap-up">Create raw SVG code for the same side-view beaver character during an energetic upward flap motion. The pose should feel punchy and game-readable: body slightly lifted, face more determined, paws raised a little, tail angled to help the motion, silhouette still compact and very readable. Keep the character cute and polished, not aggressive. Warm swamp-forest cartoon vector style, transparent background, centered, full body visible, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>7. SVG: бобер flap-down / переход после взмаха</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-flap-down">Скопировать</button>
+                        <pre><code id="svg-beaver-flap-down">Create raw SVG code for the same flying beaver character in downward flap transition. The body should feel slightly compressed after the upward push, tail stabilizing the motion, paws closer to the torso, eye focused, silhouette strong and clean. Keep everything in the same polished vector casual-game style, same proportions, same readable beaver tail, same warm brown and beige palette, transparent background, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>8. SVG: бобер fall / hit</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-beaver-fall">Скопировать</button>
+                        <pre><code id="svg-beaver-fall">Create raw SVG code for the same side-view beaver character in a fall-or-hit pose for a casual arcade game. The beaver should look startled or dizzy but still cute and family-friendly, body tilted downward, tail lagging behind, paws looser, eye expressive, silhouette readable. No damage, no gore, no harsh realism. Maintain the same shape language, outline quality and warm vector palette as the other states. Transparent background, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>9. SVG: набор деревьев для болота и леса</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-tree-pack">Скопировать</button>
+                        <pre><code id="svg-tree-pack">Create raw SVG code for a small cohesive set of side-view forest-swamp trees for a casual mobile game. Include 3 to 4 separate tree variants inside one SVG composition or as clearly separated grouped assets: a swamp willow, a dense spruce, a clean birch with subtle markings, and an old dead swamp tree. All trees must share the same whimsical cartoon vector style, readable silhouette, clean outlines, restrained detail, no noisy stripes, no realism, no horror. Transparent background, editable groups, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>10. SVG: набор брёвен-препятствий</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-log-pack">Скопировать</button>
+                        <pre><code id="svg-log-pack">Create raw SVG code for a cohesive set of side-view obstacle logs for a whimsical swamp arcade game. Include 3 variants in the same art family: normal log, rotten log, cracked or broken log. Each log must have a readable silhouette, visible cut rings, simple bark texture, some moss accents, and clean vector shading. Keep them game-friendly and readable, not realistic, not gross, no heavy fake shadow outside the object. Transparent background, grouped layers, raw SVG only.</code></pre>
+                    </div>
+
+                    <h4>11. SVG: болотный декор и вода</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="svg-swamp-decor">Скопировать</button>
+                        <pre><code id="svg-swamp-decor">Create raw SVG code for a side-view swamp decoration set for a mobile arcade game. Include stylized reeds, cattails, lily pads, moss clumps, small wet soil bumps and a decorative strip of swamp water with gentle ripples. The result should feel colorful, readable and magical, but still lightweight and clean for game use. Use the same whimsical swamp-forest vector language as the beaver and trees. Transparent background, editable grouped parts, raw SVG only.</code></pre>
+                    </div>
 
                     <h3 id="style">Общие требования ко всем ассетам</h3>
                     <ul>
