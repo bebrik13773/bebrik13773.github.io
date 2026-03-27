@@ -1141,6 +1141,80 @@ Owner decisions:
         gap: 10px;
     }
 
+    .settings-modal-actions {
+        margin-top: 18px;
+    }
+
+    .settings-action-button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 18px;
+        min-height: 52px;
+        padding: 12px 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: linear-gradient(180deg, rgba(20, 25, 56, 0.9), rgba(9, 13, 31, 0.92));
+        color: #f7feff;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        box-shadow: 0 14px 26px rgba(4, 8, 22, 0.26);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+
+    .settings-action-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(126, 241, 255, 0.42);
+        box-shadow: 0 18px 28px rgba(5, 10, 28, 0.24);
+    }
+
+    .settings-action-button:active {
+        transform: scale(0.98);
+    }
+
+    .settings-action-button:focus-visible {
+        outline: none;
+        box-shadow:
+            0 0 0 2px rgba(126, 241, 255, 0.28),
+            0 16px 28px rgba(5, 10, 28, 0.24);
+    }
+
+    .settings-action-button.primary {
+        background: linear-gradient(180deg, rgba(86, 245, 224, 0.96), rgba(27, 166, 196, 0.94));
+        border-color: rgba(171, 255, 246, 0.42);
+        color: #071822;
+        box-shadow: 0 12px 0 rgba(12, 91, 107, 0.9), 0 18px 24px rgba(0, 0, 0, 0.24);
+    }
+
+    .settings-action-button.primary:hover {
+        box-shadow: 0 9px 0 rgba(12, 91, 107, 0.9), 0 14px 20px rgba(0, 0, 0, 0.24);
+    }
+
+    .settings-action-button.secondary {
+        background: linear-gradient(180deg, rgba(104, 122, 170, 0.92), rgba(64, 74, 111, 0.96));
+        border-color: rgba(192, 214, 255, 0.3);
+        color: #f3f7ff;
+        box-shadow: 0 12px 0 rgba(34, 42, 73, 0.9), 0 18px 24px rgba(0, 0, 0, 0.24);
+    }
+
+    .settings-action-button.secondary:hover {
+        box-shadow: 0 9px 0 rgba(34, 42, 73, 0.9), 0 14px 20px rgba(0, 0, 0, 0.24);
+    }
+
+    .settings-action-button.muted {
+        background: linear-gradient(180deg, rgba(18, 24, 48, 0.84), rgba(10, 13, 28, 0.9));
+        color: rgba(235, 248, 255, 0.9);
+    }
+
+    .settings-card-actions .settings-action-button {
+        flex: 1 1 220px;
+    }
+
     .settings-value {
         font-size: 12px;
         font-weight: 700;
@@ -1585,20 +1659,32 @@ Owner decisions:
         min-height: 100dvh;
         --page-glow-x: 50%;
         --page-glow-y: 18%;
+        --page-color-a-rgb: 102, 247, 255;
+        --page-color-b-rgb: 84, 191, 255;
+        --page-color-c-rgb: 70, 118, 215;
+        --page-sheen-rgb: 220, 247, 255;
+        --page-shadow-rgb: 26, 10, 74;
+        --ripple-core-rgb: 126, 241, 255;
+        --ripple-ring-rgb: 96, 161, 255;
+        --ripple-shadow-rgb: 103, 58, 212;
         --page-ripple-scale: 6.4;
         --page-ripple-opacity: 0.9;
         --page-ripple-blur: 2px;
+        --page-ripple-size: 24px;
         --clicker-glow-x: 50%;
         --clicker-glow-y: 28%;
         --clicker-glow-opacity: 0.58;
+        --clicker-glow-rgb: 126, 241, 255;
         background:
-            radial-gradient(circle at var(--page-glow-x) var(--page-glow-y), rgba(102, 247, 255, 0.2), transparent 30%),
-            radial-gradient(circle at 18% 10%, rgba(84, 191, 255, 0.18), transparent 30%),
-            radial-gradient(circle at 84% 88%, rgba(70, 118, 215, 0.24), transparent 34%),
+            radial-gradient(circle at var(--page-glow-x) var(--page-glow-y), rgba(var(--page-color-a-rgb), 0.22), transparent 30%),
+            radial-gradient(circle at 18% 10%, rgba(var(--page-color-b-rgb), 0.18), transparent 30%),
+            radial-gradient(circle at 84% 88%, rgba(var(--page-color-c-rgb), 0.24), transparent 34%),
             linear-gradient(180deg, #6b11d7 0%, #45118a 46%, #1c0f42 100%);
         color: #fff;
         position: relative;
         overflow-x: hidden;
+        isolation: isolate;
+        transition: background 0.28s ease;
     }
 
     body::before {
@@ -1607,39 +1693,85 @@ Owner decisions:
         inset: 0;
         pointer-events: none;
         background:
-            linear-gradient(180deg, rgba(255,255,255,0.06), transparent 18%, transparent 82%, rgba(0,0,0,0.12)),
-            radial-gradient(circle at calc(var(--page-glow-x) * 0.9) calc(var(--page-glow-y) * 0.85), rgba(255,255,255,0.1), transparent 24%);
+            linear-gradient(180deg, rgba(var(--page-sheen-rgb), 0.08), transparent 18%, transparent 82%, rgba(var(--page-shadow-rgb), 0.18)),
+            radial-gradient(circle at calc(var(--page-glow-x) * 0.9) calc(var(--page-glow-y) * 0.85), rgba(var(--page-color-a-rgb), 0.14), transparent 24%),
+            radial-gradient(circle at calc(var(--page-glow-x) * 1.08) calc(var(--page-glow-y) * 1.12), rgba(var(--page-color-c-rgb), 0.09), transparent 32%);
         z-index: 0;
+        transition: background 0.28s ease;
     }
 
     #pageRippleLayer {
-        position: fixed;
+        position: absolute;
         inset: 0;
-        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        overflow: visible;
         pointer-events: none;
         z-index: 0;
     }
 
     .page-water-ripple {
         position: absolute;
-        width: 24px;
-        height: 24px;
+        width: var(--page-ripple-size);
+        height: var(--page-ripple-size);
         border-radius: 50%;
         background:
-            radial-gradient(circle, rgba(147, 255, 255, 0.38) 0%, rgba(98, 182, 255, 0.18) 42%, rgba(96, 62, 255, 0) 72%);
-        transform: translate(-50%, -50%) scale(0.2);
-        opacity: var(--page-ripple-opacity);
-        animation: pageWaterRipple 0.9s ease-out forwards;
+            radial-gradient(circle, rgba(var(--ripple-core-rgb), 0.32) 0%, rgba(var(--ripple-core-rgb), 0.18) 18%, rgba(var(--ripple-ring-rgb), 0.1) 42%, rgba(var(--ripple-shadow-rgb), 0) 74%);
+        transform: translate3d(-50%, -50%, 0) scale(0.18);
+        opacity: var(--ripple-opacity, var(--page-ripple-opacity));
+        animation: pageWaterRipple var(--ripple-duration, 1150ms) ease-out forwards;
         filter: blur(var(--page-ripple-blur));
+        box-shadow:
+            0 0 0 1px rgba(var(--ripple-ring-rgb), 0.28),
+            0 0 26px rgba(var(--ripple-core-rgb), 0.18),
+            0 0 42px rgba(var(--ripple-shadow-rgb), 0.14);
+        will-change: transform, opacity;
+        pointer-events: none;
+    }
+
+    .page-water-ripple::before,
+    .page-water-ripple::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+    }
+
+    .page-water-ripple::before {
+        background:
+            radial-gradient(circle, rgba(var(--ripple-core-rgb), 0.16) 0%, rgba(var(--ripple-core-rgb), 0.08) 36%, rgba(var(--ripple-core-rgb), 0) 72%);
+        filter: blur(calc(var(--page-ripple-blur) * 1.9));
+        transform: scale(1.55);
+        opacity: 0.9;
+    }
+
+    .page-water-ripple::after {
+        inset: -18%;
+        border: 1px solid rgba(var(--ripple-ring-rgb), 0.42);
+        box-shadow:
+            0 0 0 6px rgba(var(--ripple-ring-rgb), 0.08),
+            0 0 34px rgba(var(--ripple-shadow-rgb), 0.16);
+        opacity: 0.92;
     }
 
     @keyframes pageWaterRipple {
         0% {
-            transform: translate(-50%, -50%) scale(0.2);
-            opacity: 0.95;
+            transform: translate3d(-50%, -50%, 0) scale(0.18);
+            opacity: calc(var(--ripple-opacity, var(--page-ripple-opacity)) * 0.94);
+        }
+        48% {
+            opacity: calc(var(--ripple-opacity, var(--page-ripple-opacity)) * 0.62);
         }
         100% {
-            transform: translate(-50%, -50%) scale(var(--page-ripple-scale));
+            transform:
+                translate3d(
+                    calc(-50% + var(--ripple-drift-x, 0px)),
+                    calc(-50% + var(--ripple-drift-y, 0px)),
+                    0
+                )
+                scale(var(--ripple-scale, var(--page-ripple-scale)));
             opacity: 0;
         }
     }
@@ -2293,7 +2425,7 @@ Owner decisions:
         inset: 0;
         border-radius: 26px;
         background:
-            radial-gradient(circle at var(--clicker-glow-x) var(--clicker-glow-y), rgba(126, 241, 255, 0.2), transparent 28%),
+            radial-gradient(circle at var(--clicker-glow-x) var(--clicker-glow-y), rgba(var(--clicker-glow-rgb), 0.22), transparent 28%),
             radial-gradient(circle at 26% 18%, rgba(255, 255, 255, 0.12), transparent 24%);
         opacity: var(--clicker-glow-opacity);
         pointer-events: none;
@@ -2927,9 +3059,9 @@ function showNotification(message, type = 'success', duration = 3000) {
     }, duration);
 }
 </script>
-<div id="clicerMex">
+<div id="clicerMex" data-palette="clicker">
     <h1>БОБЕР 🦫 КЛИКЕР 2</h1>
-    <div class="top-utility-bar">
+    <div class="top-utility-bar" data-palette="profile">
         <div class="top-utility-actions">
             <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки">
                 <span class="utility-glass-icon">⚙️</span>
@@ -3001,10 +3133,10 @@ function showNotification(message, type = 'success', duration = 3000) {
 </div>
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
-<div id="shop">
+<div id="shop" data-palette="shop">
 <h1 id="shopTitle">Магазин улучшений и скинов</h1>
 <div id="upgradeSection">
-<button class="upgrade-card tap-small" id="upgradeTap1Button" onclick="buyUpgrade1()">
+<button class="upgrade-card tap-small" id="upgradeTap1Button" data-palette="upgrade-tap-small" onclick="buyUpgrade1()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">+1</span>
         <span class="upgrade-card-title">Усилить тап</span>
@@ -3015,7 +3147,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-status"></span>
     </span>
 </button>
-<button class="upgrade-card tap-big" id="upgradeTap5Button" onclick="buyUpgrade2()">
+<button class="upgrade-card tap-big" id="upgradeTap5Button" data-palette="upgrade-tap-big" onclick="buyUpgrade2()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">+5</span>
         <span class="upgrade-card-title">Сильный тап</span>
@@ -3026,7 +3158,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-status"></span>
     </span>
 </button>
-<button class="upgrade-card energy" id="upgradeEnergyButton" onclick="buyEnergyUpgrade()">
+<button class="upgrade-card energy" id="upgradeEnergyButton" data-palette="upgrade-energy" onclick="buyEnergyUpgrade()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">⚡</span>
         <span class="upgrade-card-title">Запас энергии</span>
@@ -3037,7 +3169,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-status"></span>
     </span>
 </button>
-<button class="upgrade-card tap-huge" id="upgradeTap100Button" onclick="buyUpgradeHuge()">
+<button class="upgrade-card tap-huge" id="upgradeTap100Button" data-palette="upgrade-tap-huge" onclick="buyUpgradeHuge()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">+100</span>
         <span class="upgrade-card-title">Мега-тап</span>
@@ -3097,9 +3229,9 @@ function showNotification(message, type = 'success', duration = 3000) {
 <div id="skins"></div>
 </div>
 <br>
-<div id="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
+<div id="leaderboard" data-palette="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
 
-<div class="modal-backdrop" id="skinActionModal" aria-hidden="true">
+<div class="modal-backdrop" id="skinActionModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="skinActionModalTitle">
         <div class="skin-action-modal-title" id="skinActionModalTitle">Подтверждение</div>
         <div class="skin-action-modal-text" id="skinActionModalText">Вы действительно хотите продолжить?</div>
@@ -3114,7 +3246,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="upgradeActionModal" aria-hidden="true">
+<div class="modal-backdrop" id="upgradeActionModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal upgrade-action-modal" role="dialog" aria-modal="true" aria-labelledby="upgradeActionModalTitle">
         <div class="skin-action-modal-title" id="upgradeActionModalTitle">Подтверждение покупки</div>
         <div class="skin-action-modal-text" id="upgradeActionModalText">Проверьте цену и итоговый баланс перед покупкой.</div>
@@ -3157,7 +3289,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="sessionConflictModal" aria-hidden="true">
+<div class="modal-backdrop" id="sessionConflictModal" aria-hidden="true" data-palette="modal">
     <div class="session-conflict-modal" role="dialog" aria-modal="true" aria-labelledby="sessionConflictModalTitle">
         <div class="session-conflict-title" id="sessionConflictModalTitle">Аккаунт уже открыт</div>
         <div class="session-conflict-text" id="sessionConflictModalText">
@@ -3170,7 +3302,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="authModal" aria-hidden="true">
+<div class="modal-backdrop" id="authModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
         <div class="auth-modal-head">
             <div class="auth-modal-head-copy">
@@ -3202,7 +3334,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+<div class="modal-backdrop" id="settingsModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
         <div class="skin-action-modal-title" id="settingsModalTitle">Настройки</div>
         <div class="skin-action-modal-text">Эти параметры синхронизируются между устройствами. Локальные кнопки очистки влияют только на это устройство.</div>
@@ -3272,22 +3404,22 @@ function showNotification(message, type = 'success', duration = 3000) {
                 <div class="settings-card-title">Локальные данные</div>
                 <div class="settings-card-text">Быстрая очистка черновиков, локального кэша и forensic-очереди этого устройства.</div>
                 <div class="settings-card-actions">
-                    <button type="button" class="skin-modal-cancel" id="settingsClearDraftsButton">Очистить черновики</button>
-                    <button type="button" class="skin-modal-cancel" id="settingsClearLogsButton">Очистить локальные логи</button>
+                    <button type="button" class="settings-action-button muted" id="settingsClearDraftsButton">Очистить черновики</button>
+                    <button type="button" class="settings-action-button muted" id="settingsClearLogsButton">Очистить локальные логи</button>
                 </div>
             </div>
             <div class="settings-card">
                 <div class="settings-card-title">Безопасность и сессии</div>
                 <div class="settings-card-text">Здесь можно быстро открыть список активных игровых устройств.</div>
                 <div class="settings-card-actions">
-                    <button type="button" class="skin-modal-confirm install" id="settingsSessionButton">Открыть мои сессии</button>
+                    <button type="button" class="settings-action-button primary" id="settingsSessionButton">Открыть мои сессии</button>
                 </div>
             </div>
         </div>
         <div id="settingsStatus">Настройки загружены. Изменения сохраняются в облако автоматически.</div>
-        <div class="skin-action-modal-buttons" style="margin-top: 18px;">
-            <button type="button" class="skin-modal-confirm install" id="settingsSaveButton">Сохранить сейчас</button>
-            <button type="button" class="skin-modal-confirm install" id="settingsModalClose">Закрыть</button>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button primary" id="settingsSaveButton">Сохранить сейчас</button>
+            <button type="button" class="settings-action-button secondary" id="settingsModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -3783,8 +3915,207 @@ const authModalState = {
 const SETTINGS_SYNC_CONFIG = {
     debounceMs: 900
 };
+const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
 const LIVE_SYNC_CONFIG = {
     intervalMs: 30000
+};
+const INTERACTION_PALETTES = {
+    main: {
+        pageA: '102, 247, 255',
+        pageB: '84, 191, 255',
+        pageC: '70, 118, 215',
+        sheen: '220, 247, 255',
+        shadow: '26, 10, 74',
+        rippleCore: '126, 241, 255',
+        rippleRing: '96, 161, 255',
+        rippleShadow: '103, 58, 212',
+        clickerGlow: '126, 241, 255'
+    },
+    clicker: {
+        pageA: '122, 255, 240',
+        pageB: '82, 180, 255',
+        pageC: '101, 81, 240',
+        sheen: '229, 255, 250',
+        shadow: '22, 9, 71',
+        rippleCore: '148, 255, 238',
+        rippleRing: '103, 183, 255',
+        rippleShadow: '123, 88, 255',
+        clickerGlow: '148, 255, 238'
+    },
+    profile: {
+        pageA: '173, 130, 255',
+        pageB: '111, 240, 255',
+        pageC: '96, 123, 240',
+        sheen: '232, 244, 255',
+        shadow: '30, 11, 83',
+        rippleCore: '179, 252, 255',
+        rippleRing: '142, 185, 255',
+        rippleShadow: '149, 102, 255',
+        clickerGlow: '167, 239, 255'
+    },
+    shop: {
+        pageA: '214, 120, 255',
+        pageB: '120, 232, 255',
+        pageC: '118, 93, 232',
+        sheen: '244, 235, 255',
+        shadow: '42, 11, 84',
+        rippleCore: '225, 171, 255',
+        rippleRing: '124, 209, 255',
+        rippleShadow: '148, 87, 240',
+        clickerGlow: '173, 233, 255'
+    },
+    leaderboard: {
+        pageA: '255, 208, 120',
+        pageB: '123, 240, 255',
+        pageC: '90, 112, 222',
+        sheen: '255, 244, 221',
+        shadow: '36, 15, 66',
+        rippleCore: '255, 216, 145',
+        rippleRing: '118, 207, 255',
+        rippleShadow: '107, 84, 212',
+        clickerGlow: '187, 243, 255'
+    },
+    footer: {
+        pageA: '114, 196, 255',
+        pageB: '111, 255, 225',
+        pageC: '89, 84, 214',
+        sheen: '225, 248, 255',
+        shadow: '14, 14, 52',
+        rippleCore: '144, 243, 255',
+        rippleRing: '101, 163, 255',
+        rippleShadow: '94, 69, 212',
+        clickerGlow: '144, 243, 255'
+    },
+    modal: {
+        pageA: '143, 255, 237',
+        pageB: '152, 190, 255',
+        pageC: '124, 74, 222',
+        sheen: '237, 255, 251',
+        shadow: '14, 10, 52',
+        rippleCore: '178, 255, 245',
+        rippleRing: '142, 196, 255',
+        rippleShadow: '134, 92, 245',
+        clickerGlow: '178, 255, 245'
+    },
+    'upgrade-tap-small': {
+        pageA: '110, 244, 255',
+        pageB: '92, 201, 255',
+        pageC: '61, 108, 216',
+        sheen: '226, 252, 255',
+        shadow: '14, 18, 66',
+        rippleCore: '135, 247, 255',
+        rippleRing: '97, 185, 255',
+        rippleShadow: '79, 117, 228',
+        clickerGlow: '135, 247, 255'
+    },
+    'upgrade-tap-big': {
+        pageA: '244, 140, 255',
+        pageB: '112, 201, 255',
+        pageC: '137, 78, 227',
+        sheen: '248, 232, 255',
+        shadow: '29, 10, 73',
+        rippleCore: '245, 183, 255',
+        rippleRing: '136, 196, 255',
+        rippleShadow: '156, 89, 238',
+        clickerGlow: '227, 188, 255'
+    },
+    'upgrade-energy': {
+        pageA: '255, 209, 106',
+        pageB: '255, 163, 90',
+        pageC: '173, 113, 48',
+        sheen: '255, 246, 214',
+        shadow: '54, 23, 10',
+        rippleCore: '255, 232, 162',
+        rippleRing: '255, 181, 99',
+        rippleShadow: '200, 124, 62',
+        clickerGlow: '255, 226, 145'
+    },
+    'upgrade-tap-huge': {
+        pageA: '255, 164, 118',
+        pageB: '255, 106, 186',
+        pageC: '170, 72, 236',
+        sheen: '255, 236, 226',
+        shadow: '52, 12, 42',
+        rippleCore: '255, 196, 154',
+        rippleRing: '255, 140, 198',
+        rippleShadow: '166, 86, 240',
+        clickerGlow: '255, 198, 160'
+    },
+    'skin-common': {
+        pageA: '158, 145, 255',
+        pageB: '117, 227, 255',
+        pageC: '83, 110, 220',
+        sheen: '237, 240, 255',
+        shadow: '29, 13, 73',
+        rippleCore: '185, 214, 255',
+        rippleRing: '124, 208, 255',
+        rippleShadow: '120, 99, 228',
+        clickerGlow: '182, 227, 255'
+    },
+    'skin-uncommon': {
+        pageA: '118, 248, 191',
+        pageB: '111, 226, 255',
+        pageC: '70, 132, 182',
+        sheen: '229, 255, 242',
+        shadow: '12, 32, 47',
+        rippleCore: '145, 255, 208',
+        rippleRing: '118, 219, 255',
+        rippleShadow: '72, 169, 142',
+        clickerGlow: '145, 255, 208'
+    },
+    'skin-rare': {
+        pageA: '116, 231, 255',
+        pageB: '97, 178, 255',
+        pageC: '71, 122, 214',
+        sheen: '229, 250, 255',
+        shadow: '11, 26, 63',
+        rippleCore: '145, 244, 255',
+        rippleRing: '115, 192, 255',
+        rippleShadow: '82, 113, 218',
+        clickerGlow: '145, 244, 255'
+    },
+    'skin-epic': {
+        pageA: '211, 148, 255',
+        pageB: '149, 126, 255',
+        pageC: '97, 85, 224',
+        sheen: '248, 236, 255',
+        shadow: '30, 11, 78',
+        rippleCore: '232, 191, 255',
+        rippleRing: '173, 151, 255',
+        rippleShadow: '121, 88, 232',
+        clickerGlow: '220, 183, 255'
+    },
+    'skin-legendary': {
+        pageA: '255, 210, 115',
+        pageB: '255, 158, 80',
+        pageC: '206, 103, 47',
+        sheen: '255, 245, 214',
+        shadow: '60, 23, 11',
+        rippleCore: '255, 228, 157',
+        rippleRing: '255, 176, 95',
+        rippleShadow: '219, 118, 54',
+        clickerGlow: '255, 220, 148'
+    },
+    'skin-admin': {
+        pageA: '255, 139, 200',
+        pageB: '255, 112, 155',
+        pageC: '188, 72, 166',
+        sheen: '255, 232, 242',
+        shadow: '55, 10, 48',
+        rippleCore: '255, 176, 218',
+        rippleRing: '255, 132, 180',
+        rippleShadow: '187, 77, 170',
+        clickerGlow: '255, 180, 220'
+    }
+};
+const RIPPLE_ENGINE_CONFIG = {
+    maxActiveRipples: 16,
+    tapDuplicateWindowMs: 56,
+    tapDuplicateDistance: 14,
+    moveMinDistance: 26,
+    moveMinIntervalMs: 70,
+    scrollMinDistance: 18,
+    scrollMinIntervalMs: 92
 };
 const settingsState = {
     dirty: false,
@@ -3798,6 +4129,23 @@ const liveSyncState = {
     inFlight: false,
     lastSyncedAt: 0
 };
+const interactionFxState = {
+    rafId: 0,
+    pendingSample: null,
+    lastKnownClientX: Number.isFinite(window.innerWidth) ? window.innerWidth * 0.5 : 0,
+    lastKnownClientY: Number.isFinite(window.innerHeight) ? Math.min(window.innerHeight * 0.26, 240) : 0,
+    lastKnownPageX: (Number.isFinite(window.innerWidth) ? window.innerWidth * 0.5 : 0) + (window.scrollX || 0),
+    lastKnownPageY: (Number.isFinite(window.innerHeight) ? Math.min(window.innerHeight * 0.26, 240) : 0) + (window.scrollY || 0),
+    lastScrollY: window.scrollY || 0,
+    lastSpawnAt: 0,
+    lastSpawnPageX: Number.NaN,
+    lastSpawnPageY: Number.NaN,
+    lastTapAt: 0,
+    lastTapPageX: Number.NaN,
+    lastTapPageY: Number.NaN,
+    lastPaletteToken: 'main',
+    activeRipples: []
+};
 let userSettings = SHARED_CLIENT.readCachedUserSettings
     ? SHARED_CLIENT.readCachedUserSettings()
     : {
@@ -3807,12 +4155,106 @@ let userSettings = SHARED_CLIENT.readCachedUserSettings
         notifications: { enabled: true },
         effects: { quality: 'high' }
     };
+const bootPendingSettingsSync = readPendingSettingsSync();
+if (bootPendingSettingsSync && bootPendingSettingsSync.settings) {
+    userSettings = bootPendingSettingsSync.settings;
+}
 window.__boberUserSettings = userSettings;
 
 function normalizeUserSettings(settings) {
     return SHARED_CLIENT.normalizeUserSettings
         ? SHARED_CLIENT.normalizeUserSettings(settings)
         : userSettings;
+}
+
+function persistPendingSettingsSync(settings, userIdValue = userId) {
+    try {
+        if (!Number(userIdValue)) {
+            return false;
+        }
+
+        localStorage.setItem(SETTINGS_PENDING_SYNC_STORAGE_KEY, JSON.stringify({
+            userId: Number(userIdValue) || 0,
+            settings: normalizeUserSettings(settings),
+            updatedAt: Date.now()
+        }));
+        return true;
+    } catch (error) {
+        console.warn('Не удалось сохранить локальный черновик настроек.', error);
+        return false;
+    }
+}
+
+function readPendingSettingsSync() {
+    try {
+        const rawValue = localStorage.getItem(SETTINGS_PENDING_SYNC_STORAGE_KEY);
+        if (!rawValue) {
+            return null;
+        }
+
+        const parsed = JSON.parse(rawValue);
+        if (!parsed || typeof parsed !== 'object' || !parsed.settings) {
+            return null;
+        }
+
+        return {
+            userId: Math.max(0, Number(parsed.userId) || 0),
+            settings: normalizeUserSettings(parsed.settings),
+            updatedAt: Math.max(0, Number(parsed.updatedAt) || 0)
+        };
+    } catch (error) {
+        console.warn('Не удалось прочитать локальный черновик настроек.', error);
+        return null;
+    }
+}
+
+function clearPendingSettingsSync() {
+    try {
+        localStorage.removeItem(SETTINGS_PENDING_SYNC_STORAGE_KEY);
+    } catch (error) {
+        console.warn('Не удалось очистить локальный черновик настроек.', error);
+    }
+}
+
+function buildSettingsSyncPayload(settings = userSettings) {
+    return {
+        userId: Number(userId) || 0,
+        settings: normalizeUserSettings(settings)
+    };
+}
+
+function flushSettingsWithBeacon() {
+    if (!userId || !settingsState.dirty || !navigator.sendBeacon) {
+        return false;
+    }
+
+    const payload = buildSettingsSyncPayload(userSettings);
+    persistPendingSettingsSync(payload.settings, payload.userId);
+
+    try {
+        return navigator.sendBeacon('https://bober-api.gt.tc/sync-state.php', new Blob([JSON.stringify(payload)], {
+            type: 'application/json'
+        }));
+    } catch (error) {
+        console.warn('Не удалось отправить настройки через sendBeacon.', error);
+        return false;
+    }
+}
+
+async function resumePendingSettingsSync() {
+    const pendingSync = readPendingSettingsSync();
+    if (!pendingSync || !userId || pendingSync.userId !== Number(userId)) {
+        return false;
+    }
+
+    applyUserSettings(pendingSync.settings, {
+        persist: true,
+        updateInputs: true
+    });
+    settingsState.dirty = true;
+    settingsState.lastError = '';
+    updateSettingsStatus('Найдены локальные изменения настроек. Досохраняем их в облако...', 'saving');
+    return saveUserSettings({ silent: true, force: true });
 }
 
 function persistCachedUserSettings(settings) {
@@ -4155,6 +4597,109 @@ function triggerHaptic(kind = 'tap') {
     navigator.vibrate(duration);
 }
 
+function getEffectsQualityMultiplier() {
+    const effectsQuality = normalizeUserSettings(window.__boberUserSettings || userSettings).effects.quality;
+    if (effectsQuality === 'low') {
+        return 0.72;
+    }
+    if (effectsQuality === 'medium') {
+        return 0.88;
+    }
+    return 1;
+}
+
+function getMaxActiveRipples() {
+    const effectsQuality = normalizeUserSettings(window.__boberUserSettings || userSettings).effects.quality;
+    if (effectsQuality === 'low') {
+        return 8;
+    }
+    if (effectsQuality === 'medium') {
+        return 12;
+    }
+    return RIPPLE_ENGINE_CONFIG.maxActiveRipples;
+}
+
+function getSkinInteractionPaletteToken(skinConfig) {
+    const rarity = String(skinConfig?.rarity || 'common').trim().toLowerCase();
+    if (rarity === 'uncommon') {
+        return 'skin-uncommon';
+    }
+    if (rarity === 'rare') {
+        return 'skin-rare';
+    }
+    if (rarity === 'epic') {
+        return 'skin-epic';
+    }
+    if (rarity === 'legendary') {
+        return 'skin-legendary';
+    }
+    if (rarity === 'admin') {
+        return 'skin-admin';
+    }
+    return 'skin-common';
+}
+
+function resolveInteractionPaletteToken(target) {
+    if (!(target instanceof Element)) {
+        return interactionFxState.lastPaletteToken || 'main';
+    }
+
+    const explicitPaletteNode = target.closest('[data-palette]');
+    if (explicitPaletteNode?.dataset?.palette) {
+        return explicitPaletteNode.dataset.palette;
+    }
+
+    const skinCard = target.closest('.skin-shop-card');
+    if (skinCard) {
+        return getSkinInteractionPaletteToken(getSkinConfigById(skinCard.dataset.skinId || ''));
+    }
+
+    if (target.closest('.top-utility-bar, .profile-menu-shell, .profile-menu-dropdown, #settingsButton')) {
+        return 'profile';
+    }
+
+    if (target.closest('.modal-backdrop, .skin-action-modal, .settings-modal, .auth-modal, .session-conflict-modal')) {
+        return 'modal';
+    }
+
+    if (target.closest('#shop, .skin-shop-panel, .skin-shop-toolbar, .skin-shop-feature')) {
+        return 'shop';
+    }
+
+    if (target.closest('#leaderboard')) {
+        return 'leaderboard';
+    }
+
+    if (target.closest('.footer')) {
+        return 'footer';
+    }
+
+    if (target.closest('#clicker, #clicerMex')) {
+        return 'clicker';
+    }
+
+    return 'main';
+}
+
+function applyInteractionPalette(token = 'main') {
+    const resolvedToken = INTERACTION_PALETTES[token] ? token : 'main';
+    if (interactionFxState.lastPaletteToken === resolvedToken) {
+        return resolvedToken;
+    }
+    const palette = INTERACTION_PALETTES[resolvedToken];
+    document.body.style.setProperty('--page-color-a-rgb', palette.pageA);
+    document.body.style.setProperty('--page-color-b-rgb', palette.pageB);
+    document.body.style.setProperty('--page-color-c-rgb', palette.pageC);
+    document.body.style.setProperty('--page-sheen-rgb', palette.sheen);
+    document.body.style.setProperty('--page-shadow-rgb', palette.shadow);
+    document.body.style.setProperty('--ripple-core-rgb', palette.rippleCore);
+    document.body.style.setProperty('--ripple-ring-rgb', palette.rippleRing);
+    document.body.style.setProperty('--ripple-shadow-rgb', palette.rippleShadow);
+    document.body.style.setProperty('--clicker-glow-rgb', palette.clickerGlow);
+    interactionFxState.lastPaletteToken = resolvedToken;
+    return resolvedToken;
+}
+
 function updateReactiveGlowPosition(clientX, clientY) {
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
         return;
@@ -4170,45 +4715,269 @@ function updateReactiveGlowPosition(clientX, clientY) {
     document.body.style.setProperty('--clicker-glow-y', yPercent);
 }
 
-function spawnPageRipple(clientX, clientY) {
+function trimActiveRipples() {
+    const maxActiveRipples = getMaxActiveRipples();
+    while (interactionFxState.activeRipples.length > maxActiveRipples) {
+        const oldestRipple = interactionFxState.activeRipples.shift();
+        oldestRipple?.remove?.();
+    }
+}
+
+function spawnPageRipple(pageX, pageY, paletteToken = 'main', options = {}) {
     if (document.body.classList.contains('animations-off')) {
         return;
     }
 
     const rippleLayer = document.getElementById('pageRippleLayer');
-    if (!rippleLayer || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    if (!rippleLayer || !Number.isFinite(pageX) || !Number.isFinite(pageY)) {
         return;
     }
 
+    const palette = INTERACTION_PALETTES[paletteToken] || INTERACTION_PALETTES.main;
+    const intensityMultiplier = getEffectsQualityMultiplier();
+    const rippleSize = Math.max(18, Number(options.size || 24) * intensityMultiplier);
+    const rippleScale = Math.max(2.8, Number(options.scale || 1) * Number(getComputedStyle(document.body).getPropertyValue('--page-ripple-scale') || 6.4));
+    const rippleOpacity = Math.max(0.16, Math.min(0.96, Number(options.opacity || 1) * Number(getComputedStyle(document.body).getPropertyValue('--page-ripple-opacity') || 0.9)));
+    const rippleDuration = Math.max(520, Number(options.durationMs || (options.source === 'scroll' ? 980 : (options.source === 'move' ? 1100 : 1240))));
+    const driftX = Number(options.driftX || 0);
+    const driftY = Number(options.driftY || 0);
+
     const ripple = document.createElement('span');
     ripple.className = 'page-water-ripple';
-    ripple.style.left = `${clientX}px`;
-    ripple.style.top = `${clientY}px`;
+    ripple.style.left = `${pageX}px`;
+    ripple.style.top = `${pageY}px`;
+    ripple.style.setProperty('--page-ripple-size', `${rippleSize}px`);
+    ripple.style.setProperty('--ripple-scale', rippleScale.toFixed(2));
+    ripple.style.setProperty('--ripple-opacity', rippleOpacity.toFixed(3));
+    ripple.style.setProperty('--ripple-duration', `${rippleDuration}ms`);
+    ripple.style.setProperty('--ripple-drift-x', `${driftX.toFixed(2)}px`);
+    ripple.style.setProperty('--ripple-drift-y', `${driftY.toFixed(2)}px`);
+    ripple.style.setProperty('--ripple-core-rgb', palette.rippleCore);
+    ripple.style.setProperty('--ripple-ring-rgb', palette.rippleRing);
+    ripple.style.setProperty('--ripple-shadow-rgb', palette.rippleShadow);
     rippleLayer.appendChild(ripple);
+    interactionFxState.activeRipples.push(ripple);
+    trimActiveRipples();
     window.setTimeout(() => {
+        interactionFxState.activeRipples = interactionFxState.activeRipples.filter((activeRipple) => activeRipple !== ripple);
         ripple.remove();
-    }, document.body.classList.contains('reduced-animations') ? 260 : 950);
+    }, rippleDuration + 120);
+}
+
+function shouldSkipInterfaceReaction(target) {
+    return Boolean(target && target.closest('.notification-container'));
+}
+
+function shouldIgnoreDuplicateTap(pageX, pageY) {
+    const now = Date.now();
+    const deltaTime = now - interactionFxState.lastTapAt;
+    const distance = Math.hypot(
+        (Number(pageX) || 0) - (Number(interactionFxState.lastTapPageX) || 0),
+        (Number(pageY) || 0) - (Number(interactionFxState.lastTapPageY) || 0)
+    );
+
+    if (deltaTime <= RIPPLE_ENGINE_CONFIG.tapDuplicateWindowMs && distance <= RIPPLE_ENGINE_CONFIG.tapDuplicateDistance) {
+        return true;
+    }
+
+    interactionFxState.lastTapAt = now;
+    interactionFxState.lastTapPageX = pageX;
+    interactionFxState.lastTapPageY = pageY;
+    return false;
+}
+
+function queueInterfaceMotion(sample) {
+    if (!sample || document.hidden) {
+        return;
+    }
+
+    interactionFxState.pendingSample = sample;
+    if (interactionFxState.rafId) {
+        return;
+    }
+
+    interactionFxState.rafId = window.requestAnimationFrame(() => {
+        interactionFxState.rafId = 0;
+        const pendingSample = interactionFxState.pendingSample;
+        interactionFxState.pendingSample = null;
+        if (!pendingSample) {
+            return;
+        }
+
+        const { clientX, clientY, pageX, pageY, target, source = 'tap' } = pendingSample;
+        if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(pageX) || !Number.isFinite(pageY)) {
+            return;
+        }
+
+        interactionFxState.lastKnownClientX = clientX;
+        interactionFxState.lastKnownClientY = clientY;
+        interactionFxState.lastKnownPageX = pageX;
+        interactionFxState.lastKnownPageY = pageY;
+
+        const paletteToken = applyInteractionPalette(resolveInteractionPaletteToken(target));
+        updateReactiveGlowPosition(clientX, clientY);
+
+        const now = performance.now();
+        const deltaSinceLastRipple = now - interactionFxState.lastSpawnAt;
+        const distanceSinceLastRipple = Math.hypot(
+            pageX - (Number(interactionFxState.lastSpawnPageX) || 0),
+            pageY - (Number(interactionFxState.lastSpawnPageY) || 0)
+        );
+
+        let shouldSpawnRipple = source === 'tap';
+        if (source === 'move') {
+            shouldSpawnRipple =
+                distanceSinceLastRipple >= RIPPLE_ENGINE_CONFIG.moveMinDistance &&
+                deltaSinceLastRipple >= RIPPLE_ENGINE_CONFIG.moveMinIntervalMs;
+        } else if (source === 'scroll') {
+            shouldSpawnRipple =
+                distanceSinceLastRipple >= RIPPLE_ENGINE_CONFIG.scrollMinDistance &&
+                deltaSinceLastRipple >= RIPPLE_ENGINE_CONFIG.scrollMinIntervalMs;
+        }
+
+        if (!shouldSpawnRipple) {
+            return;
+        }
+
+        const deltaX = pageX - (Number(interactionFxState.lastSpawnPageX) || pageX);
+        const deltaY = pageY - (Number(interactionFxState.lastSpawnPageY) || pageY);
+        const driftX = Math.max(-28, Math.min(28, deltaX * 0.18));
+        const driftY = Math.max(-24, Math.min(24, deltaY * 0.16));
+        const baseSize = source === 'scroll' ? 20 : (source === 'move' ? 22 : 26);
+        const baseOpacity = source === 'scroll' ? 0.52 : (source === 'move' ? 0.64 : 0.92);
+        const baseScale = source === 'scroll' ? 0.74 : (source === 'move' ? 0.86 : 1);
+        const baseDuration = source === 'scroll' ? 860 : (source === 'move' ? 1020 : 1220);
+        spawnPageRipple(pageX, pageY, paletteToken, {
+            source,
+            size: baseSize,
+            opacity: baseOpacity,
+            scale: baseScale,
+            durationMs: document.body.classList.contains('reduced-animations') ? Math.round(baseDuration * 0.72) : baseDuration,
+            driftX,
+            driftY
+        });
+
+        interactionFxState.lastSpawnAt = now;
+        interactionFxState.lastSpawnPageX = pageX;
+        interactionFxState.lastSpawnPageY = pageY;
+    });
 }
 
 function handleInterfaceRipple(event) {
     const target = event.target instanceof Element ? event.target : null;
-    if (!target) {
+    if (!target || shouldSkipInterfaceReaction(target)) {
         return;
     }
 
-    if (target.closest('.modal-backdrop') || target.closest('.notification-container')) {
-        return;
-    }
-
-    const pointSource = event.touches && event.touches[0]
-        ? event.touches[0]
-        : event.changedTouches && event.changedTouches[0]
-            ? event.changedTouches[0]
-            : event;
+    const touchList = event.touches && event.touches.length
+        ? event.touches
+        : event.changedTouches && event.changedTouches.length
+            ? event.changedTouches
+            : null;
+    const pointSource = touchList && touchList[0] ? touchList[0] : event;
     const clientX = Number(pointSource.clientX);
     const clientY = Number(pointSource.clientY);
-    updateReactiveGlowPosition(clientX, clientY);
-    spawnPageRipple(clientX, clientY);
+    const pageX = Number(pointSource.pageX ?? (clientX + (window.scrollX || 0)));
+    const pageY = Number(pointSource.pageY ?? (clientY + (window.scrollY || 0)));
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(pageX) || !Number.isFinite(pageY)) {
+        return;
+    }
+
+    if (shouldIgnoreDuplicateTap(pageX, pageY)) {
+        return;
+    }
+
+    queueInterfaceMotion({
+        clientX,
+        clientY,
+        pageX,
+        pageY,
+        target,
+        source: 'tap'
+    });
+}
+
+function handleInterfacePointerMove(event) {
+    if (event.pointerType === 'touch') {
+        return;
+    }
+
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    queueInterfaceMotion({
+        clientX: Number(event.clientX),
+        clientY: Number(event.clientY),
+        pageX: Number(event.pageX ?? (event.clientX + (window.scrollX || 0))),
+        pageY: Number(event.pageY ?? (event.clientY + (window.scrollY || 0))),
+        target,
+        source: 'move'
+    });
+}
+
+function handleInterfaceTouchMove(event) {
+    if (!event.touches || !event.touches.length) {
+        return;
+    }
+
+    const touches = Array.from(event.touches);
+    const centroid = touches.reduce((accumulator, touch) => {
+        accumulator.x += Number(touch.clientX) || 0;
+        accumulator.y += Number(touch.clientY) || 0;
+        return accumulator;
+    }, { x: 0, y: 0 });
+    const clientX = centroid.x / touches.length;
+    const clientY = centroid.y / touches.length;
+    const pageX = clientX + (window.scrollX || 0);
+    const pageY = clientY + (window.scrollY || 0);
+    const target = document.elementFromPoint(clientX, clientY) || (event.target instanceof Element ? event.target : document.body);
+    if (shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    queueInterfaceMotion({
+        clientX,
+        clientY,
+        pageX,
+        pageY,
+        target,
+        source: 'move'
+    });
+}
+
+function handleInterfaceScroll() {
+    if (document.hidden) {
+        interactionFxState.lastScrollY = window.scrollY || 0;
+        return;
+    }
+
+    const currentScrollY = window.scrollY || 0;
+    const deltaY = currentScrollY - interactionFxState.lastScrollY;
+    if (!deltaY) {
+        return;
+    }
+
+    interactionFxState.lastScrollY = currentScrollY;
+    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    const clientX = Number.isFinite(interactionFxState.lastKnownClientX) ? interactionFxState.lastKnownClientX : width * 0.5;
+    const baseClientY = Number.isFinite(interactionFxState.lastKnownClientY) ? interactionFxState.lastKnownClientY : Math.min(height * 0.34, 260);
+    const clientY = Math.max(0, Math.min(height - 1, baseClientY + Math.max(-84, Math.min(84, deltaY * 0.22))));
+    const target = document.elementFromPoint(clientX, clientY) || document.body;
+    if (shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    queueInterfaceMotion({
+        clientX,
+        clientY,
+        pageX: clientX + (window.scrollX || 0),
+        pageY: clientY + currentScrollY,
+        target,
+        source: 'scroll'
+    });
 }
 
 function buildInteractionPayload(event, fallbackTouchCount = 1) {
@@ -4434,15 +5203,32 @@ function openSettingsModal() {
     syncGlobalOverlayState();
 }
 
-function closeSettingsModal() {
+function closeSettingsModal(options = {}) {
     const modal = document.getElementById('settingsModal');
     if (!modal) {
         return;
     }
 
+    const shouldSyncOnClose = options.sync !== false;
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+
+    if (shouldSyncOnClose && userId && settingsState.dirty) {
+        if (settingsState.timer) {
+            clearTimeout(settingsState.timer);
+            settingsState.timer = null;
+        }
+
+        persistPendingSettingsSync(userSettings);
+        saveUserSettings({
+            silent: true,
+            force: true,
+            keepalive: options.keepalive !== false
+        }).catch((error) => {
+            console.warn('Не удалось досинхронизировать настройки при закрытии модалки.', error);
+        });
+    }
 }
 
 function markSettingsDirty() {
@@ -4460,7 +5246,7 @@ function markSettingsDirty() {
 }
 
 async function saveUserSettings(options = {}) {
-    const { silent = false } = options;
+    const { silent = false, keepalive = false } = options;
 
     if (!userId) {
         return false;
@@ -4476,17 +5262,16 @@ async function saveUserSettings(options = {}) {
 
     settingsState.inFlight = true;
     updateSettingsStatus('Сохраняем настройки в облако...', 'saving');
+    persistPendingSettingsSync(userSettings);
 
     try {
         const data = await requestJson('https://bober-api.gt.tc/sync-state.php', {
             method: 'POST',
+            keepalive: Boolean(keepalive),
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                userId: userId,
-                settings: userSettings
-            })
+            body: JSON.stringify(buildSettingsSyncPayload(userSettings))
         });
 
         if (data && data.success) {
@@ -4505,6 +5290,7 @@ async function saveUserSettings(options = {}) {
             settingsState.dirty = false;
             settingsState.lastSavedAt = Date.now();
             settingsState.lastError = '';
+            clearPendingSettingsSync();
             updateSettingsStatus(`Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`, 'success');
             if (!silent) {
                 showNotification('Настройки сохранены.', 'success');
@@ -4919,6 +5705,7 @@ function renderSkinShop() {
             type="button"
             class="skin-shop-card"
             data-skin-id="${escapeHtmlText(skinConfig.id)}"
+            data-palette="${escapeHtmlText(getSkinInteractionPaletteToken(skinConfig))}"
             style="--skin-card-image: url('${escapeHtmlText(skinConfig.image)}');"
         >
             <span class="skin-shop-badge"></span>
@@ -6660,7 +7447,7 @@ function resetUserState() {
     hideSkinActionModal();
     hideUpgradeActionModal();
     closeAuthModal();
-    closeSettingsModal();
+    closeSettingsModal({ sync: false });
     userId = null;
     score = 0;
     plus = 1;
@@ -6746,6 +7533,9 @@ function applyAuthenticatedState(data) {
     document.getElementById('password').value = '';
     updateFlyRewardUI();
     updateProfileMenuUI();
+    resumePendingSettingsSync().catch((error) => {
+        console.warn('Не удалось досохранить локальные настройки после входа.', error);
+    });
 
     if (!restoreLocalDraftIfAvailable()) {
         autosaveState.lastSavedAt = Date.now();
@@ -7718,6 +8508,9 @@ document.addEventListener('click', function(event) {
 
 document.addEventListener('pointerdown', handleInterfaceRipple, { passive: true });
 document.addEventListener('touchstart', handleInterfaceRipple, { passive: true });
+document.addEventListener('pointermove', handleInterfacePointerMove, { passive: true });
+document.addEventListener('touchmove', handleInterfaceTouchMove, { passive: true });
+window.addEventListener('scroll', handleInterfaceScroll, { passive: true });
 
 const skinCategorySelect = document.getElementById('skinCategorySelect');
 if (skinCategorySelect) {
@@ -8336,12 +9129,14 @@ window.addEventListener('load', async function() {
 
 window.addEventListener('pagehide', function() {
     flushAutosaveWithBeacon();
+    flushSettingsWithBeacon();
 });
 
 document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
         stopLiveSyncTimer();
         flushAutosaveWithBeacon();
+        flushSettingsWithBeacon();
     } else {
         if (userId) {
             checkAuthenticatedSessionConflict();
@@ -9217,7 +10012,7 @@ console.log('Анти-чит система активирована. Мобил
 console.log('Настройки античита:', clickDetector.config);
 </script>
 	
-	 <footer class="footer">
+	 <footer class="footer" data-palette="footer">
         <div class="footer-container">
             <div class="footer-logo">
                 <h3>Бобер кликер</h3>
