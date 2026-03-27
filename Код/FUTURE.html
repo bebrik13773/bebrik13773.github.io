@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Future Roadmap</title>
+    <style>
+        :root {
+            --bg-a: #0f1024;
+            --bg-b: #18123d;
+            --bg-c: #0f2b37;
+            --panel: rgba(20, 16, 42, 0.72);
+            --panel-strong: rgba(16, 12, 34, 0.84);
+            --border: rgba(118, 223, 255, 0.24);
+            --border-strong: rgba(118, 223, 255, 0.46);
+            --text: #f5fbff;
+            --muted: rgba(234, 244, 255, 0.72);
+            --accent: #7eeeff;
+            --accent-strong: #59b9ff;
+            --shadow: 0 24px 60px rgba(2, 6, 20, 0.42);
+            --radius: 26px;
+            --code-bg: rgba(9, 11, 25, 0.82);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "SF Pro Display", "Arial", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(126, 238, 255, 0.14), transparent 28%),
+                radial-gradient(circle at top right, rgba(92, 126, 255, 0.16), transparent 24%),
+                linear-gradient(180deg, var(--bg-c), var(--bg-b) 42%, var(--bg-a));
+        }
+
+        a {
+            color: var(--accent);
+        }
+
+        .page {
+            width: min(1200px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 0 56px;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            padding: 28px;
+            border-radius: 32px;
+            background:
+                linear-gradient(180deg, rgba(28, 19, 56, 0.9), rgba(13, 14, 32, 0.94)),
+                var(--panel);
+            border: 1px solid var(--border-strong);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            inset: -20% auto auto -12%;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(126, 238, 255, 0.22), rgba(126, 238, 255, 0));
+            pointer-events: none;
+        }
+
+        .kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(126, 238, 255, 0.2);
+            background: rgba(126, 238, 255, 0.08);
+            color: #d7fbff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 12px;
+            font-size: clamp(34px, 5vw, 58px);
+            line-height: 0.98;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 840px;
+            color: var(--muted);
+            font-size: 17px;
+            line-height: 1.7;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+            align-items: start;
+        }
+
+        .toc,
+        .content-card,
+        .roadmap-grid article {
+            border-radius: var(--radius);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .toc {
+            position: sticky;
+            top: 16px;
+            padding: 20px;
+        }
+
+        .toc h2 {
+            margin: 0 0 16px;
+            font-size: 18px;
+        }
+
+        .toc a {
+            display: block;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 14px;
+            text-decoration: none;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.03);
+            transition: 0.18s ease;
+        }
+
+        .toc a:hover {
+            color: var(--text);
+            border-color: rgba(126, 238, 255, 0.18);
+            background: rgba(126, 238, 255, 0.08);
+            transform: translateX(4px);
+        }
+
+        .content {
+            display: grid;
+            gap: 22px;
+        }
+
+        .content-card {
+            padding: 24px;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: clamp(24px, 3vw, 34px);
+        }
+
+        h3 {
+            margin: 28px 0 12px;
+            font-size: 22px;
+        }
+
+        h4 {
+            margin: 18px 0 8px;
+            font-size: 18px;
+            color: #dcfaff;
+        }
+
+        p,
+        li {
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .roadmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .roadmap-grid article {
+            padding: 18px;
+        }
+
+        .roadmap-grid h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+        }
+
+        .section-note {
+            margin: 0 0 18px;
+            color: var(--muted);
+        }
+
+        .code-block {
+            position: relative;
+            margin-top: 12px;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            border: 1px solid rgba(126, 238, 255, 0.2);
+            border-radius: 999px;
+            padding: 8px 12px;
+            background: rgba(126, 238, 255, 0.08);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.18s ease;
+        }
+
+        .copy-button:hover {
+            background: rgba(126, 238, 255, 0.16);
+            transform: translateY(-1px);
+        }
+
+        pre {
+            margin: 0;
+            padding: 22px 18px 18px;
+            overflow: auto;
+            border-radius: 22px;
+            background: var(--code-bg);
+            border: 1px solid rgba(126, 238, 255, 0.16);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            color: #dffbff;
+            font-size: 14px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+        }
+
+        code {
+            font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+        }
+
+        .inline-code {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(126, 238, 255, 0.1);
+            border: 1px solid rgba(126, 238, 255, 0.12);
+            color: #ddfbff;
+            font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+            font-size: 0.92em;
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(126, 238, 255, 0.06);
+            border: 1px solid rgba(126, 238, 255, 0.12);
+        }
+
+        @media (max-width: 960px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .toc {
+                position: static;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .page {
+                width: min(100% - 20px, 100%);
+                padding: 18px 0 36px;
+            }
+
+            .hero,
+            .content-card,
+            .toc {
+                padding: 18px;
+                border-radius: 22px;
+            }
+
+            pre {
+                padding: 52px 14px 14px;
+                border-radius: 18px;
+                font-size: 13px;
+            }
+
+            .copy-button {
+                top: 10px;
+                right: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="kicker">Roadmap • Rendered HTML</div>
+            <h1>Future Roadmap</h1>
+            <p>
+                Основная читаемая версия roadmap теперь живёт в <span class="inline-code">FUTURE.html</span>.
+                Здесь удобно смотреть планы, ассеты и готовые промты для внешней нейросети без markdown-шума.
+            </p>
+        </section>
+
+        <div class="layout">
+            <nav class="toc">
+                <h2>Навигация</h2>
+                <a href="#nearby">Ближайшие улучшения</a>
+                <a href="#prompts">Промты для графики</a>
+                <a href="#style">Общий стиль</a>
+                <a href="#beaver">Промты бобра</a>
+                <a href="#trees">Промты деревьев</a>
+                <a href="#logs">Промты брёвен</a>
+                <a href="#backgrounds">Фоны и декор</a>
+                <a href="#extras">Что ещё можно заказать</a>
+            </nav>
+
+            <div class="content">
+                <section class="content-card" id="nearby">
+                    <h2>Ближайшие улучшения</h2>
+                    <div class="roadmap-grid">
+                        <article>
+                            <h3>Достижения и награды</h3>
+                            <p>Серии кликов, milestones по счету, редкие награды из <span class="inline-code">Летающего бобра</span>, визуальные медали в профиле.</p>
+                        </article>
+                        <article>
+                            <h3>Новые биомы и погода</h3>
+                            <p>Дневной лес, туманный вечер, дождь, ветер и редкие атмосферные события без смены базовой механики.</p>
+                        </article>
+                        <article>
+                            <h3>Replay и forensic viewer</h3>
+                            <p>Просмотр сохранённого client-log как таймлайна для разбора апелляций и поиска багов.</p>
+                        </article>
+                        <article>
+                            <h3>Расширенный профиль</h3>
+                            <p>Статистика кликов, история рекордов, любимые скины, активные сессии и красивое summary по аккаунту.</p>
+                        </article>
+                        <article>
+                            <h3>Accessibility и эффекты</h3>
+                            <p>Сила ripple, контраст UI, крупные шрифты, упрощённый режим интерфейса, отдельные параметры для motion и вибрации.</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="content-card" id="prompts">
+                    <h2>Подробные Промты Для Генерации Графики</h2>
+                    <p class="section-note">
+                        Ниже собран отдельный набор промтов для внешней нейросети. Цель: получить аккуратные и согласованные ассеты для
+                        <span class="inline-code">Летающего бобра</span> и связанного UI, чтобы потом их было легко встроить в игру.
+                    </p>
+
+                    <h3 id="style">Общие требования ко всем ассетам</h3>
+                    <ul>
+                        <li>Стиль: яркий, читаемый, мультяшный 2D game art, friendly casual mobile game, не реализм, не 3D render, не low-poly, не пиксель-арт.</li>
+                        <li>Камера: только боковой вид <span class="inline-code">side view</span>, без сильной перспективы, без изометрии.</li>
+                        <li>Читаемость: силуэт должен быть понятен даже в маленьком размере на телефоне.</li>
+                        <li>Контур: аккуратный, чистый, без грязных рваных краёв, без лишних мелких деталей, которые распадутся при уменьшении.</li>
+                        <li>Фон: если это отдельный спрайт, то фон обязательно прозрачный.</li>
+                        <li>Композиция: объект по центру, не обрезан, с запасом воздуха по краям.</li>
+                        <li>Свет: мягкий, сказочный, слегка влажный лесо-болотный вайб, но без мрачного хоррора.</li>
+                        <li>Палитра: болотные зелёные, тёплые коричневые, мягкие бирюзовые и голубые акценты, чуть золотистого света.</li>
+                        <li>Формат результата: ideally <span class="inline-code">PNG</span> или <span class="inline-code">SVG-ready</span> look, квадратный холст <span class="inline-code">2048x2048</span> для одиночных объектов, прозрачный фон.</li>
+                        <li>Важно: без текста, без интерфейсных надписей, без водяных знаков, без рамок, без лишних персонажей.</li>
+                    </ul>
+
+                    <h3>Общий negative prompt</h3>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="negative-prompt">Скопировать</button>
+                        <pre><code id="negative-prompt">photorealistic, realistic fur, realistic wood texture, horror, creepy, dirty composition, cropped subject, cut off tail, cut off ears, cut off feet, heavy perspective, isometric, top view, front view, complex background, text, letters, watermark, logo, frame, ui, blurry silhouette, overdetailed noise, low contrast subject, dark unreadable art, extra limbs, malformed anatomy</code></pre>
+                    </div>
+
+                    <h3>Базовый стиль-гайд</h3>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="style-guide">Скопировать</button>
+                        <pre><code id="style-guide">Create a cohesive set of 2D side-view mobile game assets for a whimsical swamp-forest arcade game. Style: polished cartoon casual game art, readable at small size, soft painterly shading, clean silhouette, transparent background for single objects, cohesive palette of moss green, wet wood brown, muted teal, soft sky blue, warm amber highlights. The world should feel like a magical forest swamp: gentle mist, reeds, moss, damp bark, shallow glowing water, but still bright and friendly. Avoid realism, avoid heavy detail, avoid horror mood. Every asset must look like it belongs to the same game and same artist.</code></pre>
+                    </div>
+
+                    <h3 id="beaver">Промты бобра</h3>
+                    <h4>1. Главный промт для бобра</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-main">Скопировать</button>
+                        <pre><code id="beaver-main">Cute flying beaver for a 2D side-view casual arcade game, full body visible, transparent background, centered composition, clean cartoon silhouette, unmistakably a beaver and not a seal. Short rounded body, small ears, visible front teeth, expressive eyes, tiny paws tucked near body, large flat beaver tail clearly visible, soft brown fur with lighter beige belly and muzzle, subtle whiskers, friendly determined expression, readable shape for mobile game, high clarity, polished 2D game art, side view only, no extra objects, no crop, no text.</code></pre>
+                    </div>
+
+                    <h4>2. Бобер: idle / парение перед стартом</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-idle">Скопировать</button>
+                        <pre><code id="beaver-idle">2D side-view cartoon beaver for a mobile arcade game, idle hovering pose, transparent background, same character design as the main beaver asset, body relaxed, tail slightly lowered, paws gently tucked, eyes open and alert, small smile, soft magical swamp-forest palette, clean silhouette, polished casual game sprite, centered with padding, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>3. Бобер: glide / спокойный полет</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-glide">Скопировать</button>
+                        <pre><code id="beaver-glide">2D side-view cartoon beaver gliding through the air for a casual mobile game, transparent background, same exact beaver character, streamlined pose, body stretched slightly forward, tail balancing behind, paws tucked, calm focused eyes, readable game silhouette, polished cartoon shading, friendly swamp-forest style, no crop, centered, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>4. Бобер: flap-up / активный взмах вверх</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-flap-up">Скопировать</button>
+                        <pre><code id="beaver-flap-up">2D side-view cartoon beaver doing an energetic upward flap for a mobile arcade game, transparent background, same exact beaver character, body slightly tilted upward, cheeks and expression more determined, paws lifted a little, tail angled for balance, motion-friendly pose, readable silhouette, polished casual game art, bright friendly swamp palette, centered sprite, no crop, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>5. Бобер: flap-down / переход после взмаха</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-flap-down">Скопировать</button>
+                        <pre><code id="beaver-flap-down">2D side-view cartoon beaver in downward flap transition for a casual mobile game, transparent background, same character, body slightly compressed, tail stabilizing motion, paws closer to body, eyes focused, strong readable silhouette, polished colorful game art, swamp-forest palette, centered with full body visible, no extra objects, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>6. Бобер: fall / hit</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="beaver-fall">Скопировать</button>
+                        <pre><code id="beaver-fall">2D side-view cartoon beaver falling after a hit in a casual mobile game, transparent background, same exact beaver character, slightly dizzy or shocked expression but still cute, body tilted downward, tail lagging behind, paws loose, readable silhouette, polished 2D game art, no gore, no damage, no realism, centered, no crop, no text, no background.</code></pre>
+                    </div>
+
+                    <h3 id="trees">Промты деревьев</h3>
+                    <h4>7.1. Болотная ива</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="tree-willow">Скопировать</button>
+                        <pre><code id="tree-willow">Stylized swamp willow tree for a 2D side-view mobile game, full tree visible, transparent background, elegant drooping branches, mossy bark, soft hanging foliage, readable silhouette, whimsical forest-swamp mood, clean cartoon art, not realistic, not striped, not broken, no text, centered, no background.</code></pre>
+                    </div>
+
+                    <h4>7.2. Плотная хвойная ель</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="tree-spruce">Скопировать</button>
+                        <pre><code id="tree-spruce">Stylized forest spruce tree for a 2D side-view casual mobile game, transparent background, dense layered needles, clean triangular silhouette, soft moss hints near lower trunk, readable at small size, polished cartoon art, same swamp-forest palette, no realism, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>7.3. Сухое болотное дерево</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="tree-dead">Скопировать</button>
+                        <pre><code id="tree-dead">Stylized dead swamp tree for a 2D side-view arcade game, transparent background, twisted but readable silhouette, few bare branches, old damp bark, slightly spooky but still family-friendly, consistent with whimsical swamp forest style, clean shape, no stripes, no realistic decay gore, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>7.4. Береза без полосатого мусора</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="tree-birch">Скопировать</button>
+                        <pre><code id="tree-birch">Stylized birch tree for a 2D side-view mobile game, transparent background, clean elegant silhouette, white bark with only subtle tasteful birch markings, not noisy, not stripe-heavy, fresh green crown, readable and cohesive with swamp forest setting, polished cartoon art, no text, no background.</code></pre>
+                    </div>
+
+                    <h3 id="logs">Промты брёвен</h3>
+                    <h4>8.1. Обычное бревно</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="log-normal">Скопировать</button>
+                        <pre><code id="log-normal">Top or bottom obstacle log for a 2D side-view casual mobile game, transparent background, thick forest log with readable bark texture, soft moss patches, visible tree rings on cut edge, polished cartoon art, clean silhouette, friendly swamp-forest palette, no heavy shadow baked outside the object, no text.</code></pre>
+                    </div>
+
+                    <h4>8.2. Подгнившее бревно</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="log-rotten">Скопировать</button>
+                        <pre><code id="log-rotten">Rotten obstacle log for a 2D side-view mobile game, transparent background, same overall size and silhouette family as the normal log, slightly darker damp bark, moss and softened rotten wood details, readable cut rings, still clean and game-friendly, not gross, not hyperrealistic, no text.</code></pre>
+                    </div>
+
+                    <h4>8.3. Треснувшее или сломанное бревно</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="log-cracked">Скопировать</button>
+                        <pre><code id="log-cracked">Cracked broken forest log obstacle for a 2D side-view casual arcade game, transparent background, same family as the normal game log, visible split wood and broken edge details, readable silhouette, whimsical swamp style, polished cartoon shading, no scary realism, no text.</code></pre>
+                    </div>
+
+                    <h3 id="backgrounds">Фоны и декор</h3>
+                    <h4>9. Облака для неба</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="clouds">Скопировать</button>
+                        <pre><code id="clouds">Soft stylized fantasy clouds for a 2D side-view mobile game, transparent background, rounded layered cloud shapes, gentle highlights, airy readable silhouette, calm fairy-tale forest sky mood, polished cartoon art, no text, no storm, no realism.</code></pre>
+                    </div>
+
+                    <h4>10. Дальний фон: лес и горы</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="background-far">Скопировать</button>
+                        <pre><code id="background-far">Wide side-view background layer for a whimsical swamp-forest arcade game, no characters, no UI, panoramic composition. Soft distant mountains barely visible through haze, layered forest silhouettes, atmospheric depth, readable horizon line, magical but clear environment, casual mobile game art, painterly cartoon style, cool blue-green and misty teal tones, not too dark, not too detailed, suitable as a far background layer.</code></pre>
+                    </div>
+
+                    <h4>11. Средний фон: болото и лес</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="background-mid">Скопировать</button>
+                        <pre><code id="background-mid">Wide side-view midground layer for a whimsical swamp arcade game, panoramic forest swamp scene, reeds, mossy islets, low shrubs, soft fog bands, clustered trees in the distance, readable parallax-friendly composition, polished cartoon mobile game art, bright but swampy, no characters, no UI, no text.</code></pre>
+                    </div>
+
+                    <h4>12. Передний слой: вода, камыш, кочки</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="background-front">Скопировать</button>
+                        <pre><code id="background-front">Wide side-view foreground layer for a swamp forest mobile game, shallow swamp water, reeds, cattails, floating leaves, small mossy bumps and wet soil edges, clear readable silhouettes, parallax-friendly composition, polished 2D cartoon game art, no characters, no UI, no text.</code></pre>
+                    </div>
+
+                    <h4>13. Болотная вода под полетом</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="swamp-water">Скопировать</button>
+                        <pre><code id="swamp-water">Stylized swamp water strip for a 2D side-view arcade game, readable surface, subtle ripples, dark green-blue water with magical highlights, floating leaves and tiny reflections, clearly dangerous to fall into but still colorful and beautiful, cartoon game art, side view, no text, no extra scene clutter.</code></pre>
+                    </div>
+
+                    <h4>14. Камыш и мелкие декоративные элементы</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="decor-small">Скопировать</button>
+                        <pre><code id="decor-small">Set of small swamp decoration assets for a 2D side-view mobile game, transparent background, cattails, reeds, lily pads, moss clumps, tiny fern bundles, soft mushrooms, all in one cohesive whimsical swamp-forest cartoon style, readable at small size, no text, no background.</code></pre>
+                    </div>
+
+                    <h4>15. Moodboard всей сцены</h4>
+                    <div class="code-block">
+                        <button class="copy-button" data-copy-target="moodboard">Скопировать</button>
+                        <pre><code id="moodboard">Create a polished moodboard for a cute side-view swamp forest arcade game starring a flying beaver. Show the art direction only: friendly magical swamp, layered trees, soft mist, reeds, mossy logs, shallow dark water, distant mountains, dreamy sky, readable silhouettes, casual mobile game quality, colorful but not childish overload, polished cartoon rendering, atmospheric but bright enough for gameplay. The beaver should feel energetic, charming, stubborn and adventurous. Avoid realism, avoid dark horror swamp, avoid messy noisy vegetation.</code></pre>
+                    </div>
+
+                    <h3 id="extras">Что обязательно дописывать к любому промту</h3>
+                    <ul>
+                        <li><span class="inline-code">transparent background</span></li>
+                        <li><span class="inline-code">side view</span></li>
+                        <li><span class="inline-code">full subject visible</span></li>
+                        <li><span class="inline-code">centered composition</span></li>
+                        <li><span class="inline-code">mobile game asset</span></li>
+                        <li><span class="inline-code">clean silhouette</span></li>
+                        <li><span class="inline-code">no text, no watermark, no frame</span></li>
+                    </ul>
+
+                    <div class="footer-note">
+                        <strong>Что можно заказать следующим пакетом:</strong>
+                        достижения, погодные версии биомов, сезонные деревья, эффекты удара и всплеска воды, дорогие скины для основного кликера в том же стиле.
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.querySelectorAll('[data-copy-target]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const codeNode = document.getElementById(button.dataset.copyTarget || '');
+                if (!codeNode) {
+                    return;
+                }
+
+                const text = codeNode.textContent || '';
+                try {
+                    await navigator.clipboard.writeText(text);
+                    const previous = button.textContent;
+                    button.textContent = 'Скопировано';
+                    window.setTimeout(() => {
+                        button.textContent = previous;
+                    }, 1200);
+                } catch (error) {
+                    button.textContent = 'Не удалось';
+                    window.setTimeout(() => {
+                        button.textContent = 'Скопировать';
+                    }, 1200);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
