@@ -4252,7 +4252,7 @@ const INTERACTION_PALETTES = {
     }
 };
 const RIPPLE_ENGINE_CONFIG = {
-    maxActiveRipples: 8,
+    maxActiveRipples: 6,
     tapDuplicateWindowMs: 56,
     tapDuplicateDistance: 14,
     moveMinDistance: 56,
@@ -4764,10 +4764,10 @@ function getEffectsQualityMultiplier() {
 function getMaxActiveRipples() {
     const effectsQuality = normalizeUserSettings(window.__boberUserSettings || userSettings).effects.quality;
     if (effectsQuality === 'low') {
-        return 8;
+        return 4;
     }
     if (effectsQuality === 'medium') {
-        return 12;
+        return 5;
     }
     return RIPPLE_ENGINE_CONFIG.maxActiveRipples;
 }
@@ -4921,6 +4921,10 @@ function shouldSkipInterfaceReaction(target) {
     return Boolean(target && target.closest('.notification-container'));
 }
 
+function isClickerReactionTarget(target) {
+    return Boolean(target && target.closest('#clicker'));
+}
+
 function shouldIgnoreDuplicateTap(pageX, pageY) {
     const now = Date.now();
     const deltaTime = now - interactionFxState.lastTapAt;
@@ -4999,9 +5003,9 @@ function queueInterfaceMotion(sample) {
         const driftX = Math.max(-28, Math.min(28, deltaX * 0.18));
         const driftY = Math.max(-24, Math.min(24, deltaY * 0.16));
         const baseSize = source === 'scroll' ? 20 : (source === 'move' ? 22 : 26);
-        const baseOpacity = source === 'scroll' ? 0.52 : (source === 'move' ? 0.64 : 0.92);
-        const baseScale = source === 'scroll' ? 0.74 : (source === 'move' ? 0.86 : 1);
-        const baseDuration = source === 'scroll' ? 860 : (source === 'move' ? 1020 : 1220);
+        const baseOpacity = source === 'scroll' ? 0.38 : (source === 'move' ? 0.44 : 0.56);
+        const baseScale = source === 'scroll' ? 0.7 : (source === 'move' ? 0.8 : 0.9);
+        const baseDuration = source === 'scroll' ? 820 : (source === 'move' ? 940 : 1080);
         spawnPageRipple(pageX, pageY, paletteToken, {
             source,
             size: baseSize,
@@ -5019,8 +5023,16 @@ function queueInterfaceMotion(sample) {
 }
 
 function handleInterfaceRipple(event) {
+    if (event.type === 'touchstart' && 'PointerEvent' in window) {
+        return;
+    }
+
     const target = event.target instanceof Element ? event.target : null;
     if (!target || shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    if (isClickerReactionTarget(target)) {
         return;
     }
 
@@ -5062,6 +5074,10 @@ function handleInterfacePointerMove(event) {
         return;
     }
 
+    if (isClickerReactionTarget(target)) {
+        return;
+    }
+
     queueInterfaceMotion({
         clientX: Number(event.clientX),
         clientY: Number(event.clientY),
@@ -5090,6 +5106,10 @@ function handleInterfaceTouchMove(event) {
     const pageY = clientY + (window.scrollY || 0);
     const target = document.elementFromPoint(clientX, clientY) || (event.target instanceof Element ? event.target : document.body);
     if (shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    if (isClickerReactionTarget(target)) {
         return;
     }
 
@@ -5391,7 +5411,10 @@ function closeSettingsModal(options = {}) {
 function markSettingsDirty() {
     settingsState.dirty = true;
     settingsState.lastError = '';
+    settingsState.lastSavedAt = 0;
     settingsState.revision += 1;
+    persistCachedUserSettings(userSettings);
+    persistPendingSettingsSync(userSettings);
     if (settingsState.timer) {
         clearTimeout(settingsState.timer);
     }
@@ -5423,7 +5446,7 @@ async function saveUserSettings(options = {}) {
     settingsState.inFlight = true;
     settingsState.retryRequested = false;
     const revisionAtStart = settingsState.revision;
-    const settingsSnapshot = normalizeUserSettings(userSettings);
+    const settingsSnapshot = persistCachedUserSettings(normalizeUserSettings(userSettings));
     updateSettingsStatus('Сохраняем настройки в облако...', 'saving');
     persistPendingSettingsSync(settingsSnapshot);
 
@@ -5463,6 +5486,7 @@ async function saveUserSettings(options = {}) {
             persistCachedUserSettings(userSettings);
             applySettingsVisualState();
             updateSettingsInputs();
+            persistPendingSettingsSync(userSettings);
             updateSettingsStatus('Появились новые изменения. Досохраняем их в облако...', 'saving');
             settingsState.retryRequested = true;
             return false;
@@ -5479,6 +5503,8 @@ async function saveUserSettings(options = {}) {
         }
 
         settingsState.lastError = error.message || 'Не удалось сохранить настройки.';
+        persistCachedUserSettings(userSettings);
+        persistPendingSettingsSync(userSettings);
         updateSettingsStatus(settingsState.lastError, 'error');
         if (!silent) {
             showNotification(settingsState.lastError, 'error');
