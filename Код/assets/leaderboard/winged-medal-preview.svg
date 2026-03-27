@@ -1,0 +1,50 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="goldMain" cx="38%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#FFF7C8"/>
+      <stop offset="0.22" stop-color="#FFE27A"/>
+      <stop offset="0.55" stop-color="#FFC928"/>
+      <stop offset="0.82" stop-color="#D99A00"/>
+      <stop offset="1" stop-color="#A86A00"/>
+    </radialGradient>
+    <radialGradient id="goldInner" cx="35%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#FFF9D9"/>
+      <stop offset="0.35" stop-color="#FFD95C"/>
+      <stop offset="0.78" stop-color="#D59600"/>
+      <stop offset="1" stop-color="#9A5F00"/>
+    </radialGradient>
+    <linearGradient id="goldStroke" x1="120" y1="120" x2="392" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF0A0"/>
+      <stop offset="0.5" stop-color="#C88700"/>
+      <stop offset="1" stop-color="#7A4700"/>
+    </linearGradient>
+  </defs>
+
+  <g id="medal">
+    <circle cx="256" cy="256" r="170" fill="url(#goldMain)" stroke="url(#goldStroke)" stroke-width="14"/>
+    <circle cx="256" cy="256" r="128" fill="url(#goldInner)" stroke="#F7D24C" stroke-width="10"/>
+    <circle cx="256" cy="256" r="102" fill="none" stroke="#A96A00" stroke-width="8" opacity="0.7"/>
+
+    <g id="wings" fill="#8A5200">
+      <path d="M250 250
+               C220 210 170 205 150 240
+               C135 265 145 300 185 315
+               C165 290 175 260 210 255
+               C190 275 210 305 240 300
+               Z"/>
+      <path d="M262 250
+               C292 210 342 205 362 240
+               C377 265 367 300 327 315
+               C347 290 337 260 302 255
+               C322 275 302 305 272 300
+               Z"/>
+    </g>
+
+    <path
+      d="M145 180C181 125 245 100 311 108C267 90 212 93 171 121C151 135 136 155 145 180Z"
+      fill="#FFF6BF"
+      opacity="0.35"
+    />
+    <circle cx="208" cy="180" r="20" fill="#FFF8D6" opacity="0.45"/>
+  </g>
+</svg>
