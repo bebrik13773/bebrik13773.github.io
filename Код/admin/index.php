@@ -5179,6 +5179,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <label class="form-label" for="addSkinCategoryInput">Категория</label>
                             <select class="form-control" id="addSkinCategoryInput">
                                 <option value="classic">Классика</option>
+                                <option value="top">Топ</option>
                                 <option value="food">Еда</option>
                                 <option value="fun">Фан</option>
                                 <option value="mystic">Мистика</option>
@@ -7191,6 +7192,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function getSkinCategoryLabel(category) {
             const labels = {
                 classic: 'Классика',
+                top: 'Топ',
                 food: 'Еда',
                 fun: 'Фан',
                 mystic: 'Мистика',
