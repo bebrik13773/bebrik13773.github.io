@@ -1,0 +1,61 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="goldMain" cx="38%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#FFF7C8"/>
+      <stop offset="0.22" stop-color="#FFE27A"/>
+      <stop offset="0.55" stop-color="#FFC928"/>
+      <stop offset="0.82" stop-color="#D99A00"/>
+      <stop offset="1" stop-color="#A86A00"/>
+    </radialGradient>
+    <radialGradient id="goldInner" cx="35%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#FFF9D9"/>
+      <stop offset="0.35" stop-color="#FFD95C"/>
+      <stop offset="0.78" stop-color="#D59600"/>
+      <stop offset="1" stop-color="#9A5F00"/>
+    </radialGradient>
+    <linearGradient id="goldStroke" x1="120" y1="120" x2="392" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF0A0"/>
+      <stop offset="0.5" stop-color="#C88700"/>
+      <stop offset="1" stop-color="#7A4700"/>
+    </linearGradient>
+  </defs>
+
+  <g id="medal">
+    <circle cx="256" cy="256" r="170" fill="url(#goldMain)" stroke="url(#goldStroke)" stroke-width="14"/>
+    <circle cx="256" cy="256" r="128" fill="url(#goldInner)" stroke="#F7D24C" stroke-width="10"/>
+    <circle cx="256" cy="256" r="102" fill="none" stroke="#A96A00" stroke-width="8" opacity="0.7"/>
+
+    <g id="palette">
+      <path
+        d="M230 210
+           C180 210 150 240 150 285
+           C150 330 185 360 235 360
+           C260 360 275 350 275 330
+           C275 315 265 305 250 305
+           C240 305 232 300 232 292
+           C232 280 245 270 270 270
+           C300 270 320 250 320 225
+           C320 205 300 190 270 190
+           C255 190 242 195 230 210Z"
+        fill="#8A5200"
+      />
+      <circle cx="210" cy="260" r="10" fill="#FF4D4D"/>
+      <circle cx="240" cy="240" r="10" fill="#4DA6FF"/>
+      <circle cx="270" cy="260" r="10" fill="#FFD24D"/>
+      <circle cx="230" cy="300" r="10" fill="#4DFF88"/>
+    </g>
+
+    <g id="brush">
+      <rect x="300" y="300" width="90" height="20" rx="10" fill="#5C3418"/>
+      <rect x="380" y="295" width="30" height="30" rx="6" fill="#D4A373"/>
+      <path d="M410 295 L440 310 L410 325 Z" fill="#FFF2CC"/>
+    </g>
+
+    <path
+      d="M145 180C181 125 245 100 311 108C267 90 212 93 171 121C151 135 136 155 145 180Z"
+      fill="#FFF6BF"
+      opacity="0.35"
+    />
+    <circle cx="208" cy="180" r="20" fill="#FFF8D6" opacity="0.45"/>
+  </g>
+</svg>
