@@ -855,6 +855,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             },
             lastSizeKey: ''
         };
+        let beaver = null;
         
         // Установка размеров canvas
         function resizeCanvas() {
@@ -894,7 +895,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let lastFrameTime = 0;
         let landscapeBlocked = false;
         let orientationPausedRun = false;
-        let beaver = null;
         const SHARED_CLIENT = window.BoberSharedClient || {};
         const TARGET_FRAME_MS = 1000 / 60;
         const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
