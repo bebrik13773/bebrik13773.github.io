@@ -94,5 +94,17 @@
     "issue_mode": "grant_only",
     "default_owned": false,
     "grant_only": true
+  },
+  {
+    "id": "top-1-bober-kliker",
+    "name": "Топ-1 бобер кликера",
+    "price": 0,
+    "image": "skins/bober.png",
+    "available": false,
+    "rarity": "legendary",
+    "category": "top",
+    "issue_mode": "grant_only",
+    "default_owned": false,
+    "grant_only": true
   }
 ]

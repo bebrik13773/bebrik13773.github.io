@@ -1390,6 +1390,8 @@ SQL;
                                 throw new RuntimeException('Не удалось сохранить прогресс fly-beaver.');
                             }
 
+                            bober_reconcile_clicker_top_reward_skin($conn);
+
                             bober_admin_log_action($conn, 'save_user_profile', [
                                 'target_table' => 'users',
                                 'query_text' => 'SAVE USER PROFILE #' . $userId,
@@ -1448,7 +1450,9 @@ SQL;
                     $conn = connectDB();
                     bober_ensure_project_schema($conn);
 
-                    $nextSkinState = bober_grant_skin_to_user($conn, $userId, $skinId, $equipSkin);
+                    bober_grant_skin_to_user($conn, $userId, $skinId, $equipSkin);
+                    bober_reconcile_clicker_top_reward_skin($conn);
+                    $nextSkinState = bober_decode_skin_state(bober_fetch_account_snapshot($conn, $userId)['skin'] ?? '');
                     $response['success'] = true;
                     $response['message'] = $equipSkin
                         ? 'Скин выдан и сразу установлен.'

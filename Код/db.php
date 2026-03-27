@@ -284,6 +284,25 @@ function bober_default_skin_json()
     return json_encode(bober_default_skin_state(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
+function bober_clicker_top_reward_skin_id()
+{
+    return 'top-1-bober-kliker';
+}
+
+function bober_clicker_top_reward_skin_defaults()
+{
+    return [
+        'id' => bober_clicker_top_reward_skin_id(),
+        'name' => 'Топ-1 бобер кликера',
+        'price' => 0,
+        'image' => 'skins/bober.png',
+        'available' => false,
+        'rarity' => 'legendary',
+        'category' => 'top',
+        'issue_mode' => 'grant_only',
+    ];
+}
+
 function bober_skin_catalog_file_path()
 {
     return __DIR__ . '/skin-catalog.json';
@@ -372,6 +391,7 @@ function bober_builtin_skin_catalog()
             'category' => 'admin',
             'issue_mode' => 'grant_only',
         ],
+        bober_clicker_top_reward_skin_id() => bober_clicker_top_reward_skin_defaults(),
     ];
 }
 
@@ -461,6 +481,38 @@ function bober_skin_catalog_is_pinned_last($item)
     return trim((string) ($item['id'] ?? '')) === 'dev';
 }
 
+function bober_merge_required_skin_catalog_items(array $catalogItems)
+{
+    $catalogMap = [];
+    foreach ($catalogItems as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $itemId = trim((string) ($item['id'] ?? ''));
+        if ($itemId === '') {
+            continue;
+        }
+
+        $catalogMap[$itemId] = $item;
+    }
+
+    $topSkinId = bober_clicker_top_reward_skin_id();
+    $topSkinDefaults = bober_clicker_top_reward_skin_defaults();
+    $existingTopSkin = is_array($catalogMap[$topSkinId] ?? null) ? $catalogMap[$topSkinId] : [];
+    $catalogMap[$topSkinId] = array_merge($topSkinDefaults, $existingTopSkin, [
+        'id' => $topSkinId,
+        'price' => 0,
+        'available' => false,
+        'category' => 'top',
+        'issue_mode' => 'grant_only',
+        'default_owned' => false,
+        'grant_only' => true,
+    ]);
+
+    return array_values($catalogMap);
+}
+
 function bober_order_skin_catalog_items(array $catalogItems)
 {
     $regularItems = [];
@@ -495,6 +547,15 @@ function bober_skin_catalog()
                     }
                 }
 
+                $catalogItems = bober_merge_required_skin_catalog_items(array_values($catalog));
+                $catalog = [];
+                foreach ($catalogItems as $item) {
+                    $normalizedItem = bober_normalize_skin_catalog_item($item);
+                    if ($normalizedItem !== null) {
+                        $catalog[$normalizedItem['id']] = $normalizedItem;
+                    }
+                }
+
                 if (!empty($catalog)) {
                     return $catalog;
                 }
@@ -512,6 +573,7 @@ function bober_skin_catalog_list()
 
 function bober_store_skin_catalog(array $catalogItems)
 {
+    $catalogItems = bober_merge_required_skin_catalog_items($catalogItems);
     $normalizedItems = [];
     foreach ($catalogItems as $item) {
         $normalizedItem = bober_normalize_skin_catalog_item($item);
@@ -2887,7 +2949,7 @@ function bober_fetch_public_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
     $sql = <<<SQL
-SELECT u.login, MAX(u.score) AS score
+SELECT u.id, u.login, u.score
 FROM users u
 LEFT JOIN user_bans b
     ON b.user_id = u.id
@@ -2897,8 +2959,7 @@ WHERE u.login IS NOT NULL
     AND u.login <> ''
     AND LOWER(TRIM(u.login)) <> 'test'
     AND b.id IS NULL
-GROUP BY u.id, u.login
-ORDER BY score DESC
+ORDER BY u.score DESC, u.id ASC
 LIMIT {$limit}
 SQL;
 
@@ -2917,6 +2978,127 @@ SQL;
     $result->free();
 
     return $leaders;
+}
+
+function bober_fetch_public_clicker_top_user_id($conn)
+{
+    $sql = <<<SQL
+SELECT u.id
+FROM users u
+LEFT JOIN user_bans b
+    ON b.user_id = u.id
+    AND b.lifted_at IS NULL
+    AND b.ban_until > CURRENT_TIMESTAMP
+WHERE u.login IS NOT NULL
+    AND u.login <> ''
+    AND LOWER(TRIM(u.login)) <> 'test'
+    AND b.id IS NULL
+ORDER BY u.score DESC, u.id ASC
+LIMIT 1
+SQL;
+
+    $result = $conn->query($sql);
+    if ($result === false) {
+        throw new RuntimeException('Ошибка определения топ-1 игрока кликера.');
+    }
+
+    $row = $result->fetch_assoc();
+    $result->free();
+
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $userId = max(0, (int) ($row['id'] ?? 0));
+    return $userId > 0 ? $userId : null;
+}
+
+function bober_reconcile_clicker_top_reward_skin($conn)
+{
+    $skinId = bober_clicker_top_reward_skin_id();
+    $topUserId = bober_fetch_public_clicker_top_user_id($conn);
+    $likePattern = '%' . $skinId . '%';
+
+    if ($topUserId !== null) {
+        $stmt = $conn->prepare('SELECT `id`, `skin` FROM `users` WHERE `id` = ? OR `skin` LIKE ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить пересчет топового скина.');
+        }
+
+        $stmt->bind_param('is', $topUserId, $likePattern);
+    } else {
+        $stmt = $conn->prepare('SELECT `id`, `skin` FROM `users` WHERE `skin` LIKE ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить очистку топового скина.');
+        }
+
+        $stmt->bind_param('s', $likePattern);
+    }
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить текущих владельцев топового скина.');
+    }
+
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $rows[] = $row;
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (empty($rows)) {
+        return;
+    }
+
+    $defaultEquippedSkinId = (string) (bober_default_skin_state()['equippedSkinId'] ?? 'classic');
+    $updateStmt = $conn->prepare('UPDATE `users` SET `skin` = ? WHERE `id` = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение топового скина.');
+    }
+
+    foreach ($rows as $row) {
+        $userId = max(0, (int) ($row['id'] ?? 0));
+        if ($userId < 1) {
+            continue;
+        }
+
+        $skinState = bober_decode_skin_state($row['skin'] ?? '');
+        $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+        $hasTopSkin = in_array($skinId, $ownedSkinIds, true);
+        $shouldOwnTopSkin = $topUserId !== null && $userId === $topUserId;
+        $changed = false;
+
+        if ($shouldOwnTopSkin && !$hasTopSkin) {
+            $ownedSkinIds[] = $skinId;
+            $changed = true;
+        } elseif (!$shouldOwnTopSkin && $hasTopSkin) {
+            $ownedSkinIds = array_values(array_filter($ownedSkinIds, static function ($ownedSkinId) use ($skinId) {
+                return $ownedSkinId !== $skinId;
+            }));
+            if (($skinState['equippedSkinId'] ?? '') === $skinId) {
+                $skinState['equippedSkinId'] = $defaultEquippedSkinId;
+            }
+            $changed = true;
+        }
+
+        if (!$changed) {
+            continue;
+        }
+
+        $skinState['ownedSkinIds'] = $ownedSkinIds;
+        $encodedSkin = bober_encode_skin_state($skinState);
+        $updateStmt->bind_param('si', $encodedSkin, $userId);
+        if (!$updateStmt->execute()) {
+            $updateStmt->close();
+            throw new RuntimeException('Не удалось обновить владельца топового скина.');
+        }
+    }
+
+    $updateStmt->close();
 }
 
 function bober_fetch_public_fly_beaver_leaderboard($conn, $limit = 3)
@@ -2963,6 +3145,8 @@ function bober_fetch_account_snapshot($conn, $userId)
     if ($userId < 1) {
         throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
+
+    bober_reconcile_clicker_top_reward_skin($conn);
 
     $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
@@ -3073,6 +3257,8 @@ function bober_apply_user_state_update($conn, $userId, $data)
         throw new RuntimeException('Ошибка выполнения запроса.');
     }
     $stmt->close();
+
+    bober_reconcile_clicker_top_reward_skin($conn);
 
     if (is_array($currentRow)) {
         $previousScore = max(0, (int) ($currentRow['score'] ?? 0));
