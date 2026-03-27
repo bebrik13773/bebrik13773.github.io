@@ -9878,7 +9878,30 @@ class AutoClickerDetector {
             exactPatternMinEffectiveCps: 8.8,
             exactPatternMaxAverageTouchCount: 1.35,
             exactPatternMaxMultiTouchRatio: 0.12,
-            exactPatternMaxTouchCount: 2
+            exactPatternMaxTouchCount: 2,
+            desktopShortExactMinWindow: 7,
+            desktopShortExactMaxWindow: 10,
+            desktopShortExactMinInterval: 94,
+            desktopShortExactMaxInterval: 106,
+            desktopShortExactMaxStdDev: 4.5,
+            desktopShortExactMaxAverageDeviation: 4.2,
+            desktopShortExactMinRangeRatio: 0.9,
+            desktopShortExactMinStableRatio: 0.7,
+            desktopShortExactMinDominantRatio: 0.5,
+            desktopShortExactMinCps: 8.8,
+            desktopNearHundredMinWindow: 7,
+            desktopNearHundredMaxWindow: 10,
+            desktopNearHundredMinInterval: 84,
+            desktopNearHundredMaxInterval: 132,
+            desktopNearHundredMedianMin: 90,
+            desktopNearHundredMedianMax: 122,
+            desktopNearHundredMaxStdDev: 18,
+            desktopNearHundredMaxAverageDeviation: 16,
+            desktopNearHundredMaxSpread: 64,
+            desktopNearHundredMinRangeRatio: 0.75,
+            desktopNearHundredMaxShortBurstRatio: 0.18,
+            desktopNearHundredMinCps: 8.1,
+            desktopNearHundredMinSinglePointerRatio: 0.88
         };
     }
 
@@ -10033,6 +10056,122 @@ class AutoClickerDetector {
             : 0;
     }
 
+    averageAbsoluteDeviation(intervals, targetInterval = 100) {
+        if (!Array.isArray(intervals) || intervals.length === 0) {
+            return 0;
+        }
+
+        const deviations = intervals.map((interval) => Math.abs(interval - targetInterval));
+        return this.average(deviations);
+    }
+
+    findDesktopPatternWindow(intervals, options = {}) {
+        if (!Array.isArray(intervals) || intervals.length === 0) {
+            return null;
+        }
+
+        const minWindow = Math.max(1, Math.floor(Number(options.minWindow) || 1));
+        const maxWindow = Math.max(minWindow, Math.min(intervals.length, Math.floor(Number(options.maxWindow) || intervals.length)));
+        let bestCandidate = null;
+
+        for (let windowSize = maxWindow; windowSize >= minWindow; windowSize--) {
+            for (let startIndex = 0; startIndex + windowSize <= intervals.length; startIndex++) {
+                const windowIntervals = intervals.slice(startIndex, startIndex + windowSize);
+                const averageInterval = this.average(windowIntervals);
+                if (!(averageInterval > 0)) {
+                    continue;
+                }
+
+                const medianInterval = this.median(windowIntervals);
+                const stdDev = this.standardDeviation(windowIntervals, averageInterval);
+                const stableRatio = this.calculateStableRatio(windowIntervals, medianInterval);
+                const dominantRatio = this.calculateDominantRatio(windowIntervals);
+                const longestStableStreak = this.calculateLongestStableStreak(windowIntervals, medianInterval);
+                const rangeRatio = this.calculateRangeRatio(windowIntervals, Number(options.minimumInterval) || 0, Number(options.maximumInterval) || Number.POSITIVE_INFINITY);
+                const averageDeviation = this.averageAbsoluteDeviation(windowIntervals, Number(options.targetInterval) || 100);
+                const minInterval = Math.min(...windowIntervals);
+                const maxInterval = Math.max(...windowIntervals);
+                const spread = maxInterval - minInterval;
+                const shortBurstRatio = windowIntervals.filter((interval) => interval <= Math.max(0, Number(options.shortBurstCeiling) || 0)).length / windowIntervals.length;
+                const windowCps = 1000 / averageInterval;
+
+                if (Number.isFinite(Number(options.medianMinimum)) && medianInterval < Number(options.medianMinimum)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.medianMaximum)) && medianInterval > Number(options.medianMaximum)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.maxStdDev)) && stdDev > Number(options.maxStdDev)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.maxAverageDeviation)) && averageDeviation > Number(options.maxAverageDeviation)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.maxSpread)) && spread > Number(options.maxSpread)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.minRangeRatio)) && rangeRatio < Number(options.minRangeRatio)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.minStableRatio)) && stableRatio < Number(options.minStableRatio)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.minDominantRatio)) && dominantRatio < Number(options.minDominantRatio)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.minStableStreak)) && longestStableStreak < Number(options.minStableStreak)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.maxShortBurstRatio)) && shortBurstRatio > Number(options.maxShortBurstRatio)) {
+                    continue;
+                }
+
+                if (Number.isFinite(Number(options.minCps)) && windowCps < Number(options.minCps)) {
+                    continue;
+                }
+
+                const score = (windowSize * 100)
+                    + (rangeRatio * 25)
+                    + (dominantRatio * 10)
+                    + (stableRatio * 10)
+                    - stdDev
+                    - averageDeviation;
+                const candidate = {
+                    startIndex: startIndex,
+                    size: windowSize,
+                    intervals: windowIntervals,
+                    averageInterval: averageInterval,
+                    medianInterval: medianInterval,
+                    stdDev: stdDev,
+                    stableRatio: stableRatio,
+                    dominantRatio: dominantRatio,
+                    longestStableStreak: longestStableStreak,
+                    rangeRatio: rangeRatio,
+                    averageDeviation: averageDeviation,
+                    spread: spread,
+                    shortBurstRatio: shortBurstRatio,
+                    cps: windowCps,
+                    score: score
+                };
+
+                if (!bestCandidate || candidate.score > bestCandidate.score) {
+                    bestCandidate = candidate;
+                }
+            }
+        }
+
+        return bestCandidate;
+    }
+
     buildMetrics(samples, extra = {}) {
         const intervals = this.buildIntervals(samples);
         const sampleCount = samples.length;
@@ -10131,6 +10270,48 @@ class AutoClickerDetector {
         const singlePointerRatio = recentClicks.length > 0
             ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) === 1).length / recentClicks.length
             : 0;
+        const desktopShortExactWindow = !this.isMobile &&
+            lowTouchAutomationRisk &&
+            singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
+            ? this.findDesktopPatternWindow(intervals, {
+                minWindow: this.config.desktopShortExactMinWindow,
+                maxWindow: this.config.desktopShortExactMaxWindow,
+                minimumInterval: this.config.desktopShortExactMinInterval,
+                maximumInterval: this.config.desktopShortExactMaxInterval,
+                medianMinimum: this.config.desktopShortExactMinInterval,
+                medianMaximum: this.config.desktopShortExactMaxInterval,
+                maxStdDev: this.config.desktopShortExactMaxStdDev,
+                maxAverageDeviation: this.config.desktopShortExactMaxAverageDeviation,
+                minRangeRatio: this.config.desktopShortExactMinRangeRatio,
+                minStableRatio: this.config.desktopShortExactMinStableRatio,
+                minDominantRatio: this.config.desktopShortExactMinDominantRatio,
+                minStableStreak: this.config.desktopShortExactMinWindow - 2,
+                minCps: this.config.desktopShortExactMinCps,
+                targetInterval: 100
+            })
+            : null;
+        const desktopNearHundredWindow = !this.isMobile &&
+            lowTouchAutomationRisk &&
+            singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
+            ? this.findDesktopPatternWindow(intervals, {
+                minWindow: this.config.desktopNearHundredMinWindow,
+                maxWindow: this.config.desktopNearHundredMaxWindow,
+                minimumInterval: this.config.desktopNearHundredMinInterval,
+                maximumInterval: this.config.desktopNearHundredMaxInterval,
+                medianMinimum: this.config.desktopNearHundredMedianMin,
+                medianMaximum: this.config.desktopNearHundredMedianMax,
+                maxStdDev: this.config.desktopNearHundredMaxStdDev,
+                maxAverageDeviation: this.config.desktopNearHundredMaxAverageDeviation,
+                maxSpread: this.config.desktopNearHundredMaxSpread,
+                minRangeRatio: this.config.desktopNearHundredMinRangeRatio,
+                maxShortBurstRatio: this.config.desktopNearHundredMaxShortBurstRatio,
+                minCps: this.config.desktopNearHundredMinCps,
+                targetInterval: 100,
+                shortBurstCeiling: 78
+            })
+            : null;
+        const desktopShortExactPattern = Boolean(desktopShortExactWindow);
+        const desktopNearHundredMsPattern = Boolean(desktopNearHundredWindow) && !desktopShortExactPattern;
 
         const suspiciousCadence = effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.lowCvThreshold &&
@@ -10183,12 +10364,12 @@ class AutoClickerDetector {
             longestStableStreak >= 4;
 
         const extremeSpeed = effectiveCps >= this.config.extremeCPS;
-        const strongHundredMsPattern = exactHundredMsPattern || mobileHundredMsPattern || mobileNearHundredMsPattern;
+        const strongHundredMsPattern = exactHundredMsPattern || desktopShortExactPattern || mobileHundredMsPattern || mobileNearHundredMsPattern;
         const mobileCpsOnlySuspicion = this.isMobile &&
             !strongHundredMsPattern &&
             (extremeSpeed || suspiciousCadence || hardCadence || shortBurstRatio >= 0.6);
 
-        if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
+        if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !desktopShortExactPattern && !desktopNearHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
             return {
                 action: 'ignore'
             };
@@ -10234,6 +10415,16 @@ class AutoClickerDetector {
             reasons.push('паттерн автокликера около 100 мс');
         }
 
+        if (desktopShortExactPattern && !exactHundredMsPattern) {
+            addedHeat += 8;
+            reasons.push('короткий паттерн автокликера около 100 мс');
+        }
+
+        if (desktopNearHundredMsPattern && !desktopShortExactPattern && !exactHundredMsPattern) {
+            addedHeat += 6;
+            reasons.push('джиттерный паттерн автокликера около 100 мс');
+        }
+
         if (mobileHundredMsPattern && !exactHundredMsPattern) {
             addedHeat += 6;
             reasons.push('мобильный автокликер с ритмом около 100 мс');
@@ -10266,6 +10457,16 @@ class AutoClickerDetector {
             longestStableStreak: longestStableStreak,
             touchSourceRatio: touchSourceRatio,
             singlePointerRatio: singlePointerRatio,
+            desktopShortExactPattern: desktopShortExactPattern,
+            desktopShortExactWindowSize: desktopShortExactWindow ? desktopShortExactWindow.size : 0,
+            desktopShortExactWindowMedian: desktopShortExactWindow ? desktopShortExactWindow.medianInterval : 0,
+            desktopShortExactWindowStdDev: desktopShortExactWindow ? desktopShortExactWindow.stdDev : 0,
+            desktopNearHundredMsPattern: desktopNearHundredMsPattern,
+            desktopNearWindowSize: desktopNearHundredWindow ? desktopNearHundredWindow.size : 0,
+            desktopNearWindowMedian: desktopNearHundredWindow ? desktopNearHundredWindow.medianInterval : 0,
+            desktopNearWindowStdDev: desktopNearHundredWindow ? desktopNearHundredWindow.stdDev : 0,
+            desktopNearWindowRangeRatio: desktopNearHundredWindow ? desktopNearHundredWindow.rangeRatio : 0,
+            desktopNearWindowAverageDeviation: desktopNearHundredWindow ? desktopNearHundredWindow.averageDeviation : 0,
             mobileCpsOnlySuspicion: mobileCpsOnlySuspicion,
             reason: reasons[0] || 'подозрительный ритм'
         });
@@ -10275,7 +10476,7 @@ class AutoClickerDetector {
             : this.heat >= this.config.banHeatThreshold;
         const shouldBanImmediately = this.isMobile
             ? strongHundredMsPattern || shouldBanFromHeat
-            : extremeSpeed || hardCadence || exactHundredMsPattern || shouldBanFromHeat;
+            : extremeSpeed || hardCadence || exactHundredMsPattern || desktopShortExactPattern || (desktopNearHundredMsPattern && this.warningCount >= 1) || shouldBanFromHeat;
 
         if (shouldBanImmediately) {
             return {
