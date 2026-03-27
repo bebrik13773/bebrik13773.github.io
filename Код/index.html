@@ -4012,8 +4012,7 @@ function rebuildSkinCatalogRuntime(rawCatalog) {
 
 function getVisibleSkinCatalog() {
     const filteredItems = SKIN_CATALOG.filter((item) => {
-        const isOwned = isSkinOwned(item.id);
-        if (item.available === false && !isOwned) {
+        if (isSkinHiddenForViewer(item)) {
             return false;
         }
 
@@ -5788,6 +5787,18 @@ function isUniqueHiddenSkin(skinConfig, owned = isSkinOwned((skinConfig || {}).i
     return Boolean(skinConfig && skinConfig.available === false && owned);
 }
 
+function isSkinHiddenForViewer(skinConfig, owned = isSkinOwned((skinConfig || {}).id)) {
+    if (!skinConfig) {
+        return false;
+    }
+
+    if (skinConfig.issueMode === 'grant_only') {
+        return false;
+    }
+
+    return Boolean(skinConfig.available === false && !owned);
+}
+
 function updateSkinShopControls() {
     const categorySelect = document.getElementById('skinCategorySelect');
     const sortSelect = document.getElementById('skinSortSelect');
@@ -5818,7 +5829,7 @@ function getSkinShortageMessage(price) {
 
 function getSkinShopFocusedConfig() {
     const featuredItems = sortSkinCatalogForDisplay(SKIN_CATALOG.filter((item) => {
-        return item.available !== false || isSkinOwned(item.id);
+        return !isSkinHiddenForViewer(item);
     }));
 
     if (featuredItems.length === 0) {
@@ -5878,7 +5889,7 @@ function updateSkinShopFeature() {
         ${focusedSkin.issueMode === 'shop' ? '' : `<span class="skin-chip ${focusedSkin.issueMode === 'grant_only' ? 'mode-grant-only' : ''}">${escapeHtmlText(getSkinIssueModeLabel(focusedSkin.issueMode))}</span>`}
     `;
 
-    if (focusedSkin.available === false && !owned) {
+    if (isSkinHiddenForViewer(focusedSkin, owned)) {
         featureStatusNode.textContent = 'Скоро';
         featureTipNode.textContent = '';
     } else if (isUniqueHiddenSkin(focusedSkin, owned)) {
@@ -5929,7 +5940,7 @@ function updateSkinShopUI() {
         const priceNode = skinCard.querySelector('.skin-shop-card-price');
         const statusNode = skinCard.querySelector('.skin-shop-card-status');
         const badgeNode = skinCard.querySelector('.skin-shop-badge');
-        const isHiddenForViewer = skinConfig.available === false && !isOwned;
+        const isHiddenForViewer = isSkinHiddenForViewer(skinConfig, isOwned);
         const isUniqueHiddenOwned = isUniqueHiddenSkin(skinConfig, isOwned);
 
         skinCard.classList.toggle('owned', isOwned);
@@ -8776,7 +8787,7 @@ function buySkin(skinId) {
         return;
     }
 
-    if (skinConfig.available === false && !isSkinOwned(skinConfig.id)) {
+    if (isSkinHiddenForViewer(skinConfig)) {
         logClientEvent('skins', 'skin_unavailable_open', {
             skinId: skinConfig.id,
             skinName: skinConfig.name
