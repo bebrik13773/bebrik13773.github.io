@@ -1,0 +1,59 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="goldMain" cx="38%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#FFF7C8"/>
+      <stop offset="0.22" stop-color="#FFE27A"/>
+      <stop offset="0.55" stop-color="#FFC928"/>
+      <stop offset="0.82" stop-color="#D99A00"/>
+      <stop offset="1" stop-color="#A86A00"/>
+    </radialGradient>
+    <radialGradient id="goldInner" cx="35%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#FFF9D9"/>
+      <stop offset="0.35" stop-color="#FFD95C"/>
+      <stop offset="0.78" stop-color="#D59600"/>
+      <stop offset="1" stop-color="#9A5F00"/>
+    </radialGradient>
+    <linearGradient id="goldStroke" x1="120" y1="120" x2="392" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF0A0"/>
+      <stop offset="0.5" stop-color="#C88700"/>
+      <stop offset="1" stop-color="#7A4700"/>
+    </linearGradient>
+  </defs>
+
+  <g id="medal">
+    <circle id="outer_disc" cx="256" cy="256" r="170" fill="url(#goldMain)" stroke="url(#goldStroke)" stroke-width="14"/>
+    <circle id="inner_ring" cx="256" cy="256" r="128" fill="url(#goldInner)" stroke="#F7D24C" stroke-width="10"/>
+    <circle id="center_ring" cx="256" cy="256" r="102" fill="none" stroke="#A96A00" stroke-width="8" opacity="0.7"/>
+
+    <g id="laurel_left" fill="#B67800">
+      <ellipse cx="176" cy="304" rx="11" ry="24" transform="rotate(-42 176 304)"/>
+      <ellipse cx="163" cy="283" rx="10" ry="22" transform="rotate(-30 163 283)"/>
+      <ellipse cx="157" cy="258" rx="10" ry="21" transform="rotate(-18 157 258)"/>
+      <ellipse cx="159" cy="233" rx="9" ry="20" transform="rotate(-6 159 233)"/>
+      <ellipse cx="168" cy="210" rx="9" ry="19" transform="rotate(8 168 210)"/>
+      <ellipse cx="184" cy="190" rx="9" ry="18" transform="rotate(22 184 190)"/>
+      <path d="M202 320C176 289 167 247 180 199" fill="none" stroke="#9C6200" stroke-width="8" stroke-linecap="round"/>
+    </g>
+
+    <g id="laurel_right" fill="#B67800">
+      <ellipse cx="336" cy="304" rx="11" ry="24" transform="rotate(42 336 304)"/>
+      <ellipse cx="349" cy="283" rx="10" ry="22" transform="rotate(30 349 283)"/>
+      <ellipse cx="355" cy="258" rx="10" ry="21" transform="rotate(18 355 258)"/>
+      <ellipse cx="353" cy="233" rx="9" ry="20" transform="rotate(6 353 233)"/>
+      <ellipse cx="344" cy="210" rx="9" ry="19" transform="rotate(-8 344 210)"/>
+      <ellipse cx="328" cy="190" rx="9" ry="18" transform="rotate(-22 328 190)"/>
+      <path d="M310 320C336 289 345 247 332 199" fill="none" stroke="#9C6200" stroke-width="8" stroke-linecap="round"/>
+    </g>
+
+    <g id="number_one">
+      <path d="M256 168C242 184 224 195 203 202" fill="none" stroke="#8A5200" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M256 182V329" fill="none" stroke="#8A5200" stroke-width="28" stroke-linecap="round"/>
+      <path d="M214 329H302" fill="none" stroke="#8A5200" stroke-width="24" stroke-linecap="round"/>
+      <path d="M256 168C242 184 224 195 203 202" fill="none" stroke="#FFE18A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+      <path d="M256 188V323" fill="none" stroke="#FFE18A" stroke-width="8" stroke-linecap="round" opacity="0.35"/>
+    </g>
+
+    <path id="top_highlight" d="M145 180C181 125 245 100 311 108C267 90 212 93 171 121C151 135 136 155 145 180Z" fill="#FFF6BF" opacity="0.35"/>
+    <circle id="shine" cx="208" cy="180" r="20" fill="#FFF8D6" opacity="0.45"/>
+  </g>
+</svg>
