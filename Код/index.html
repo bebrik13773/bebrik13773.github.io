@@ -1003,6 +1003,10 @@ Owner decisions:
         display: flex;
     }
 
+    #sessionConflictModal {
+        z-index: 10080;
+    }
+
     .skin-action-modal {
         width: min(100%, 540px);
         border-radius: 24px;
@@ -1796,16 +1800,17 @@ Owner decisions:
         height: var(--page-ripple-size);
         border-radius: 50%;
         background:
-            radial-gradient(circle, rgba(var(--ripple-core-rgb), 0.32) 0%, rgba(var(--ripple-core-rgb), 0.18) 18%, rgba(var(--ripple-ring-rgb), 0.1) 42%, rgba(var(--ripple-shadow-rgb), 0) 74%);
+            radial-gradient(circle, rgba(var(--ripple-core-rgb), 0.22) 0%, rgba(var(--ripple-core-rgb), 0.14) 18%, rgba(var(--ripple-ring-rgb), 0.08) 44%, rgba(var(--ripple-shadow-rgb), 0) 74%);
         transform: translate3d(-50%, -50%, 0) scale(0.18);
         opacity: var(--ripple-opacity, var(--page-ripple-opacity));
         animation: pageWaterRipple var(--ripple-duration, 1150ms) ease-out forwards;
         filter: blur(var(--page-ripple-blur));
         box-shadow:
-            0 0 0 1px rgba(var(--ripple-ring-rgb), 0.28),
-            0 0 26px rgba(var(--ripple-core-rgb), 0.18),
-            0 0 42px rgba(var(--ripple-shadow-rgb), 0.14);
+            0 0 0 1px rgba(var(--ripple-ring-rgb), 0.18),
+            0 0 18px rgba(var(--ripple-core-rgb), 0.12),
+            0 0 28px rgba(var(--ripple-shadow-rgb), 0.08);
         will-change: transform, opacity;
+        contain: layout style paint;
         pointer-events: none;
     }
 
@@ -4247,20 +4252,22 @@ const INTERACTION_PALETTES = {
     }
 };
 const RIPPLE_ENGINE_CONFIG = {
-    maxActiveRipples: 16,
+    maxActiveRipples: 8,
     tapDuplicateWindowMs: 56,
     tapDuplicateDistance: 14,
-    moveMinDistance: 26,
-    moveMinIntervalMs: 70,
-    scrollMinDistance: 18,
-    scrollMinIntervalMs: 92
+    moveMinDistance: 56,
+    moveMinIntervalMs: 160,
+    scrollMinDistance: 44,
+    scrollMinIntervalMs: 180
 };
 const settingsState = {
     dirty: false,
     timer: null,
     inFlight: false,
     lastSavedAt: 0,
-    lastError: ''
+    lastError: '',
+    revision: 0,
+    retryRequested: false
 };
 const liveSyncState = {
     timer: null,
@@ -4282,7 +4289,10 @@ const interactionFxState = {
     lastTapPageX: Number.NaN,
     lastTapPageY: Number.NaN,
     lastPaletteToken: 'main',
-    activeRipples: []
+    activeRipples: [],
+    rippleScale: 6.4,
+    rippleOpacity: 0.9,
+    rippleBlur: 2
 };
 let userSettings = SHARED_CLIENT.readCachedUserSettings
     ? SHARED_CLIENT.readCachedUserSettings()
@@ -4391,6 +4401,7 @@ async function resumePendingSettingsSync() {
     });
     settingsState.dirty = true;
     settingsState.lastError = '';
+    settingsState.revision += 1;
     updateSettingsStatus('Найдены локальные изменения настроек. Досохраняем их в облако...', 'saving');
     return saveUserSettings({ silent: true, force: true });
 }
@@ -4622,6 +4633,10 @@ function applySettingsVisualState() {
     const rippleOpacity = effectsQuality === 'low' ? '0.58' : (effectsQuality === 'medium' ? '0.74' : '0.9');
     const rippleBlur = effectsQuality === 'low' ? '1px' : (effectsQuality === 'medium' ? '1.6px' : '2px');
     const clickerGlowOpacity = effectsQuality === 'low' ? '0.32' : (effectsQuality === 'medium' ? '0.44' : '0.58');
+
+    interactionFxState.rippleScale = Number(rippleScale) || 6.4;
+    interactionFxState.rippleOpacity = Number(rippleOpacity) || 0.9;
+    interactionFxState.rippleBlur = Number.parseFloat(rippleBlur) || 2;
 
     document.body.style.setProperty('--page-ripple-scale', rippleScale);
     document.body.style.setProperty('--page-ripple-opacity', rippleOpacity);
@@ -4874,8 +4889,8 @@ function spawnPageRipple(pageX, pageY, paletteToken = 'main', options = {}) {
     const palette = INTERACTION_PALETTES[paletteToken] || INTERACTION_PALETTES.main;
     const intensityMultiplier = getEffectsQualityMultiplier();
     const rippleSize = Math.max(18, Number(options.size || 24) * intensityMultiplier);
-    const rippleScale = Math.max(2.8, Number(options.scale || 1) * Number(getComputedStyle(document.body).getPropertyValue('--page-ripple-scale') || 6.4));
-    const rippleOpacity = Math.max(0.16, Math.min(0.96, Number(options.opacity || 1) * Number(getComputedStyle(document.body).getPropertyValue('--page-ripple-opacity') || 0.9)));
+    const rippleScale = Math.max(2.8, Number(options.scale || 1) * (Number(interactionFxState.rippleScale) || 6.4));
+    const rippleOpacity = Math.max(0.16, Math.min(0.96, Number(options.opacity || 1) * (Number(interactionFxState.rippleOpacity) || 0.9)));
     const rippleDuration = Math.max(520, Number(options.durationMs || (options.source === 'scroll' ? 980 : (options.source === 'move' ? 1100 : 1240))));
     const driftX = Number(options.driftX || 0);
     const driftY = Number(options.driftY || 0);
@@ -4942,7 +4957,7 @@ function queueInterfaceMotion(sample) {
             return;
         }
 
-        const { clientX, clientY, pageX, pageY, target, source = 'tap' } = pendingSample;
+        const { clientX, clientY, pageX, pageY, target, source = 'tap', emitRipple = true } = pendingSample;
         if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(pageX) || !Number.isFinite(pageY)) {
             return;
         }
@@ -4962,13 +4977,15 @@ function queueInterfaceMotion(sample) {
             pageY - (Number(interactionFxState.lastSpawnPageY) || 0)
         );
 
-        let shouldSpawnRipple = source === 'tap';
+        let shouldSpawnRipple = emitRipple && source === 'tap';
         if (source === 'move') {
             shouldSpawnRipple =
+                emitRipple &&
                 distanceSinceLastRipple >= RIPPLE_ENGINE_CONFIG.moveMinDistance &&
                 deltaSinceLastRipple >= RIPPLE_ENGINE_CONFIG.moveMinIntervalMs;
         } else if (source === 'scroll') {
             shouldSpawnRipple =
+                emitRipple &&
                 distanceSinceLastRipple >= RIPPLE_ENGINE_CONFIG.scrollMinDistance &&
                 deltaSinceLastRipple >= RIPPLE_ENGINE_CONFIG.scrollMinIntervalMs;
         }
@@ -5051,7 +5068,8 @@ function handleInterfacePointerMove(event) {
         pageX: Number(event.pageX ?? (event.clientX + (window.scrollX || 0))),
         pageY: Number(event.pageY ?? (event.clientY + (window.scrollY || 0))),
         target,
-        source: 'move'
+        source: 'move',
+        emitRipple: false
     });
 }
 
@@ -5081,7 +5099,8 @@ function handleInterfaceTouchMove(event) {
         pageX,
         pageY,
         target,
-        source: 'move'
+        source: 'move',
+        emitRipple: false
     });
 }
 
@@ -5372,6 +5391,7 @@ function closeSettingsModal(options = {}) {
 function markSettingsDirty() {
     settingsState.dirty = true;
     settingsState.lastError = '';
+    settingsState.revision += 1;
     if (settingsState.timer) {
         clearTimeout(settingsState.timer);
     }
@@ -5395,12 +5415,17 @@ async function saveUserSettings(options = {}) {
     }
 
     if (settingsState.inFlight) {
+        settingsState.retryRequested = true;
+        persistPendingSettingsSync(userSettings);
         return false;
     }
 
     settingsState.inFlight = true;
+    settingsState.retryRequested = false;
+    const revisionAtStart = settingsState.revision;
+    const settingsSnapshot = normalizeUserSettings(userSettings);
     updateSettingsStatus('Сохраняем настройки в облако...', 'saving');
-    persistPendingSettingsSync(userSettings);
+    persistPendingSettingsSync(settingsSnapshot);
 
     try {
         const data = await requestJson('https://bober-api.gt.tc/sync-state.php', {
@@ -5409,31 +5434,38 @@ async function saveUserSettings(options = {}) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(buildSettingsSyncPayload(userSettings))
+            body: JSON.stringify(buildSettingsSyncPayload(settingsSnapshot))
         });
 
         if (data && data.success) {
-            if (data.account) {
-                applyUserSettings(data.account.settings || data.settings || userSettings, {
+            const resolvedServerSettings = data.account
+                ? (data.account.settings || data.settings || settingsSnapshot)
+                : (data.settings || settingsSnapshot);
+            const hasNewerLocalChanges = settingsState.revision !== revisionAtStart;
+
+            if (!hasNewerLocalChanges) {
+                applyUserSettings(resolvedServerSettings, {
                     persist: true,
                     updateInputs: true
                 });
-            } else {
-                applyUserSettings(data.settings || userSettings, {
-                    persist: true,
-                    updateInputs: true
-                });
+
+                settingsState.dirty = false;
+                settingsState.lastSavedAt = Date.now();
+                settingsState.lastError = '';
+                clearPendingSettingsSync();
+                updateSettingsStatus(`Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`, 'success');
+                if (!silent) {
+                    showNotification('Настройки сохранены.', 'success');
+                }
+                return true;
             }
 
-            settingsState.dirty = false;
-            settingsState.lastSavedAt = Date.now();
-            settingsState.lastError = '';
-            clearPendingSettingsSync();
-            updateSettingsStatus(`Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`, 'success');
-            if (!silent) {
-                showNotification('Настройки сохранены.', 'success');
-            }
-            return true;
+            persistCachedUserSettings(userSettings);
+            applySettingsVisualState();
+            updateSettingsInputs();
+            updateSettingsStatus('Появились новые изменения. Досохраняем их в облако...', 'saving');
+            settingsState.retryRequested = true;
+            return false;
         }
 
         throw new Error((data && data.message) || 'Не удалось сохранить настройки.');
@@ -5454,6 +5486,14 @@ async function saveUserSettings(options = {}) {
         return false;
     } finally {
         settingsState.inFlight = false;
+        if (settingsState.retryRequested && userId && settingsState.dirty) {
+            settingsState.retryRequested = false;
+            window.setTimeout(() => {
+                saveUserSettings({ silent: true, force: true }).catch((error) => {
+                    console.warn('Не удалось повторно досохранить настройки.', error);
+                });
+            }, 40);
+        }
     }
 }
 
@@ -6798,6 +6838,10 @@ function renderSessionConflictModal() {
 }
 
 function showSessionConflictModal(conflictPayload, credentials = {}) {
+    if (authModalState.isOpen) {
+        closeAuthModal();
+    }
+
     sessionConflictState.visible = true;
     sessionConflictState.mode = conflictPayload.mode === 'authenticated' ? 'authenticated' : 'login';
     sessionConflictState.context = String(conflictPayload.context || (sessionConflictState.mode === 'authenticated' ? 'authenticated_conflict' : 'login'));
@@ -7030,6 +7074,17 @@ async function continueLoginWithSessionTermination(sessionId) {
             description: 'Игрок повторил вход после выбора завершаемой сессии.'
         });
         const data = await submitLoginRequest(sessionConflictState.login, sessionConflictState.password, sessionId);
+        const inlineConflict = normalizeSessionConflictPayload(data);
+        if (inlineConflict) {
+            showSessionConflictModal(inlineConflict, {
+                login: sessionConflictState.login,
+                password: sessionConflictState.password
+            });
+            return;
+        }
+        if (!data || data.success !== true) {
+            throw new Error((data && data.message) || 'Не удалось завершить выбранную сессию.');
+        }
 
         hideSessionConflictModal();
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : fallbackLogin;
@@ -7660,8 +7715,13 @@ function resetUserState() {
     updateEnergyUI();
     updateUpgradeShopUI();
     resetAutosaveState();
+    if (settingsState.timer) {
+        clearTimeout(settingsState.timer);
+    }
     settingsState.dirty = false;
     settingsState.lastError = '';
+    settingsState.retryRequested = false;
+    settingsState.timer = null;
     updateAdminVisibility('');
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
@@ -7703,10 +7763,12 @@ function applyAuthenticatedState(data) {
     });
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
-    applyUserSettings(data.settings || userSettings, {
-        persist: true,
-        updateInputs: true
-    });
+    if (!settingsState.dirty && !settingsState.inFlight) {
+        applyUserSettings(data.settings || userSettings, {
+            persist: true,
+            updateInputs: true
+        });
+    }
 
     skin = normalizeSkinState(data.skin);
     skinLoad();
@@ -8348,10 +8410,12 @@ function applySynchronizedAccountState(data) {
     }
 
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
-    applyUserSettings(data.settings || userSettings, {
-        persist: true,
-        updateInputs: true
-    });
+    if (!settingsState.dirty && !settingsState.inFlight) {
+        applyUserSettings(data.settings || userSettings, {
+            persist: true,
+            updateInputs: true
+        });
+    }
 
     const serverEnergy = Number(data.energy);
     energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy;
@@ -8890,6 +8954,14 @@ document.getElementById('submitLogin').onclick = async function() {
 
     try {
         const data = await submitLoginRequest(loginValue, passwordValue);
+        const inlineConflict = normalizeSessionConflictPayload(data);
+        if (inlineConflict) {
+            showSessionConflictModal(inlineConflict, {
+                login: loginValue,
+                password: passwordValue
+            });
+            return;
+        }
 
         if (!data.success) {
             showNotification(data.message || 'Ошибка входа.', 'error');
