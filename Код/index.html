@@ -404,6 +404,16 @@ Owner decisions:
 			background: rgba(255, 196, 87, 0.24);
 			color: #fff1cb;
 		}
+		.skin-shop-badge.unique {
+			background: rgba(255, 218, 122, 0.24);
+			color: #fff2bf;
+			box-shadow: 0 0 0 1px rgba(255, 218, 122, 0.2);
+		}
+		.skin-chip.unique {
+			background: rgba(255, 218, 122, 0.18);
+			color: #fff2c8;
+			border-color: rgba(255, 218, 122, 0.2);
+		}
 		@media (max-width: 768px) {
 			.skin-shop-toolbar {
 				grid-template-columns: 1fr;
@@ -5733,6 +5743,10 @@ function isSkinOwned(skinId) {
     return Boolean(skin && Array.isArray(skin.ownedSkinIds) && skin.ownedSkinIds.includes(skinId));
 }
 
+function isUniqueHiddenSkin(skinConfig, owned = isSkinOwned((skinConfig || {}).id)) {
+    return Boolean(skinConfig && skinConfig.available === false && owned);
+}
+
 function updateSkinShopControls() {
     const categorySelect = document.getElementById('skinCategorySelect');
     const sortSelect = document.getElementById('skinSortSelect');
@@ -5814,11 +5828,15 @@ function updateSkinShopFeature() {
     featureMetaNode.innerHTML = `
         <span class="skin-chip rarity-${escapeHtmlText(focusedSkin.rarity)}">${escapeHtmlText(getSkinRarityLabel(focusedSkin.rarity))}</span>
         <span class="skin-chip">${escapeHtmlText(getSkinCategoryLabel(focusedSkin.category))}</span>
+        ${isUniqueHiddenSkin(focusedSkin, owned) ? '<span class="skin-chip unique">★ Уникальный</span>' : ''}
         ${focusedSkin.issueMode === 'shop' ? '' : `<span class="skin-chip ${focusedSkin.issueMode === 'grant_only' ? 'mode-grant-only' : ''}">${escapeHtmlText(getSkinIssueModeLabel(focusedSkin.issueMode))}</span>`}
     `;
 
     if (focusedSkin.available === false && !owned) {
         featureStatusNode.textContent = 'Скоро';
+        featureTipNode.textContent = '';
+    } else if (isUniqueHiddenSkin(focusedSkin, owned)) {
+        featureStatusNode.textContent = equipped ? '★ Надет' : '★ Уникальный';
         featureTipNode.textContent = '';
     } else if (focusedSkin.issueMode === 'grant_only' && !owned) {
         featureStatusNode.textContent = 'Выдача';
@@ -5866,6 +5884,7 @@ function updateSkinShopUI() {
         const statusNode = skinCard.querySelector('.skin-shop-card-status');
         const badgeNode = skinCard.querySelector('.skin-shop-badge');
         const isHiddenForViewer = skinConfig.available === false && !isOwned;
+        const isUniqueHiddenOwned = isUniqueHiddenSkin(skinConfig, isOwned);
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
@@ -5885,6 +5904,8 @@ function updateSkinShopUI() {
         if (statusNode) {
             if (isHiddenForViewer) {
                 statusNode.textContent = 'Скоро';
+            } else if (isUniqueHiddenOwned) {
+                statusNode.textContent = isEquipped ? '★ Надет' : 'Уникальный';
             } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 statusNode.textContent = 'Выдача';
             } else if (skinConfig.issueMode === 'starter' && !isOwned) {
@@ -5907,6 +5928,9 @@ function updateSkinShopUI() {
             if (isHiddenForViewer) {
                 badgeNode.classList.add('coming-soon');
                 badgeNode.textContent = 'Скоро';
+            } else if (isUniqueHiddenOwned) {
+                badgeNode.classList.add('unique');
+                badgeNode.textContent = '★ Уникальный';
             } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
                 badgeNode.classList.add('grant-only');
                 badgeNode.textContent = '★ Выдача';
