@@ -254,13 +254,15 @@ Owner decisions:
 			border: 2px solid rgba(255, 255, 255, 0.2);
 			border-radius: 18px;
 			background:
-				linear-gradient(180deg, rgba(10, 10, 25, 0.08), rgba(10, 10, 25, 0.42)),
+				linear-gradient(180deg, rgba(10, 10, 25, 0.03), rgba(10, 10, 25, 0.18)),
 				var(--skin-card-image, linear-gradient(135deg, #5f38d4, #33c5c7));
-			background-size: cover;
-			background-position: center;
+			background-size: contain;
+			background-repeat: no-repeat;
+			background-position: center 18px;
+			background-color: rgba(12, 13, 28, 0.28);
 			color: #fff;
 			cursor: pointer;
-			min-height: 272px;
+			min-height: 312px;
 			padding: 14px;
 			display: flex;
 			flex-direction: column;
@@ -282,7 +284,7 @@ Owner decisions:
 			content: '';
 			position: absolute;
 			inset: 0;
-			background: linear-gradient(180deg, rgba(12, 10, 24, 0.01), rgba(12, 10, 24, 0.08) 52%, rgba(12, 10, 24, 0.26) 80%, rgba(12, 10, 24, 0.4));
+			background: linear-gradient(180deg, rgba(12, 10, 24, 0.02), rgba(12, 10, 24, 0.03) 54%, rgba(12, 10, 24, 0.08) 78%, rgba(12, 10, 24, 0.2));
 			pointer-events: none;
 		}
 		.skin-shop-card > * {
@@ -315,7 +317,7 @@ Owner decisions:
 			gap: 6px;
 			padding: 9px 10px;
 			border-radius: 16px;
-			background: linear-gradient(180deg, rgba(6, 10, 24, 0.08), rgba(6, 10, 24, 0.34));
+			background: linear-gradient(180deg, rgba(6, 10, 24, 0.03), rgba(6, 10, 24, 0.16));
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
@@ -411,14 +413,14 @@ Owner decisions:
 				gap: 12px;
 			}
 			.skin-shop-card {
-				min-height: 208px;
+				min-height: 236px;
 				padding: 12px;
 			}
 			.skin-shop-card-name {
 				font-size: 16px;
 			}
 			.skin-shop-card-footer {
-				padding: 9px 10px;
+				padding: 8px 10px;
 				gap: 5px;
 			}
 		}
@@ -1065,23 +1067,112 @@ Owner decisions:
     }
 
     .settings-modal {
-        width: min(100%, 480px);
+        width: min(100%, 640px);
     }
 
-    .settings-modal-list {
+    .settings-modal-grid {
         display: grid;
-        gap: 10px;
-        margin-top: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 16px;
     }
 
-    .settings-modal-item {
-        padding: 11px 13px;
-        border-radius: 16px;
+    .settings-card {
+        padding: 14px;
+        border-radius: 18px;
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.08);
         color: rgba(255, 255, 255, 0.86);
-        font-size: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        text-align: left;
+    }
+
+    .settings-card-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #dfffff;
+    }
+
+    .settings-card-text {
+        font-size: 13px;
         line-height: 1.45;
+        color: rgba(255, 255, 255, 0.74);
+    }
+
+    .settings-field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .settings-field label,
+    .settings-inline-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.88);
+    }
+
+    .settings-field input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+        accent-color: #5df0d9;
+    }
+
+    .settings-field select,
+    .settings-field input[type="range"] {
+        width: min(210px, 100%);
+    }
+
+    .settings-field select {
+        padding: 9px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(126, 241, 255, 0.2);
+        background: rgba(9, 13, 27, 0.62);
+        color: #fff;
+        font-size: 14px;
+    }
+
+    .settings-card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .settings-value {
+        font-size: 12px;
+        font-weight: 700;
+        color: #9feeff;
+        text-align: right;
+    }
+
+    #settingsStatus {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 13px;
+        line-height: 1.4;
+        text-align: left;
+    }
+
+    #settingsStatus.is-saving {
+        color: #dfffff;
+        border-color: rgba(126, 241, 255, 0.22);
+    }
+
+    #settingsStatus.is-error {
+        color: #ffd6dc;
+        border-color: rgba(255, 126, 145, 0.24);
+    }
+
+    #settingsStatus.is-success {
+        color: #dfffff;
+        border-color: rgba(126, 241, 255, 0.22);
     }
 
     @keyframes skinModalIn {
@@ -1118,7 +1209,8 @@ Owner decisions:
         background:
             linear-gradient(180deg, rgba(8, 8, 22, 0.06), rgba(8, 8, 22, 0.5)),
             var(--skin-action-preview, linear-gradient(135deg, #5f38d4, #33c5c7));
-        background-size: cover;
+        background-size: contain;
+        background-repeat: no-repeat;
         background-position: center;
         border: 1px solid rgba(255, 255, 255, 0.16);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -1491,9 +1583,18 @@ Owner decisions:
     body {
         min-height: 100vh;
         min-height: 100dvh;
+        --page-glow-x: 50%;
+        --page-glow-y: 18%;
+        --page-ripple-scale: 6.4;
+        --page-ripple-opacity: 0.9;
+        --page-ripple-blur: 2px;
+        --clicker-glow-x: 50%;
+        --clicker-glow-y: 28%;
+        --clicker-glow-opacity: 0.58;
         background:
-            radial-gradient(circle at top, rgba(84, 191, 255, 0.16), transparent 34%),
-            radial-gradient(circle at bottom, rgba(70, 118, 215, 0.2), transparent 36%),
+            radial-gradient(circle at var(--page-glow-x) var(--page-glow-y), rgba(102, 247, 255, 0.2), transparent 30%),
+            radial-gradient(circle at 18% 10%, rgba(84, 191, 255, 0.18), transparent 30%),
+            radial-gradient(circle at 84% 88%, rgba(70, 118, 215, 0.24), transparent 34%),
             linear-gradient(180deg, #6b11d7 0%, #45118a 46%, #1c0f42 100%);
         color: #fff;
         position: relative;
@@ -1507,8 +1608,40 @@ Owner decisions:
         pointer-events: none;
         background:
             linear-gradient(180deg, rgba(255,255,255,0.06), transparent 18%, transparent 82%, rgba(0,0,0,0.12)),
-            radial-gradient(circle at 20% 15%, rgba(255,255,255,0.1), transparent 24%);
+            radial-gradient(circle at calc(var(--page-glow-x) * 0.9) calc(var(--page-glow-y) * 0.85), rgba(255,255,255,0.1), transparent 24%);
         z-index: 0;
+    }
+
+    #pageRippleLayer {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .page-water-ripple {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background:
+            radial-gradient(circle, rgba(147, 255, 255, 0.38) 0%, rgba(98, 182, 255, 0.18) 42%, rgba(96, 62, 255, 0) 72%);
+        transform: translate(-50%, -50%) scale(0.2);
+        opacity: var(--page-ripple-opacity);
+        animation: pageWaterRipple 0.9s ease-out forwards;
+        filter: blur(var(--page-ripple-blur));
+    }
+
+    @keyframes pageWaterRipple {
+        0% {
+            transform: translate(-50%, -50%) scale(0.2);
+            opacity: 0.95;
+        }
+        100% {
+            transform: translate(-50%, -50%) scale(var(--page-ripple-scale));
+            opacity: 0;
+        }
     }
 
     body > * {
@@ -1628,7 +1761,7 @@ Owner decisions:
     .top-utility-bar {
         width: min(100%, 620px);
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
         gap: 10px;
         margin: 0 auto 12px;
     }
@@ -1636,9 +1769,13 @@ Owner decisions:
     .top-utility-actions {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: space-between;
         gap: 10px;
         width: 100%;
+    }
+
+    .profile-menu-shell {
+        margin-left: auto;
     }
 
     .utility-glass-button {
@@ -1799,6 +1936,7 @@ Owner decisions:
         line-height: 1.45;
     }
 
+    #supportAppealButton,
     #logoutButton,
     #sessionsButton,
     #submitRegister,
@@ -1831,6 +1969,7 @@ Owner decisions:
         transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
     }
 
+    #supportAppealButton,
     #logoutButton,
     #sessionsButton {
         width: 100%;
@@ -1844,6 +1983,7 @@ Owner decisions:
         box-shadow: none;
     }
 
+    #supportAppealButton,
     #sessionsButton {
         border-color: rgba(255, 255, 255, 0.08);
         color: rgba(248, 251, 255, 0.84);
@@ -1866,12 +2006,14 @@ Owner decisions:
     .skin-action-modal-buttons button:hover,
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
+    #supportAppealButton:hover,
     #logoutButton:hover,
     #sessionsButton:hover {
         transform: translateY(-1px);
         box-shadow: 0 18px 28px rgba(5, 10, 28, 0.26);
     }
 
+    #supportAppealButton:hover,
     #sessionsButton:hover {
         box-shadow: none;
         background: rgba(255, 255, 255, 0.08);
@@ -1889,6 +2031,7 @@ Owner decisions:
     .skin-action-modal-buttons button:active,
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
+    #supportAppealButton:active,
     #logoutButton:active,
     #sessionsButton:active {
         transform: scale(0.97);
@@ -2037,11 +2180,28 @@ Owner decisions:
     }
 
     #shopExit {
-        padding: 14px 20px;
+        padding: 18px 28px;
+        min-width: 168px;
+        font-size: 18px;
         background: linear-gradient(180deg, rgba(255, 205, 87, 0.96), rgba(223, 124, 29, 0.98));
         color: #271305;
         border-color: rgba(255, 239, 193, 0.24);
         box-shadow: 0 16px 30px rgba(0,0,0,0.26);
+        min-height: 58px;
+    }
+
+    body.reduced-animations *,
+    body.reduced-animations *::before,
+    body.reduced-animations *::after {
+        animation-duration: 0.12s !important;
+        transition-duration: 0.12s !important;
+    }
+
+    body.animations-off *,
+    body.animations-off *::before,
+    body.animations-off *::after {
+        animation: none !important;
+        transition: none !important;
     }
 
     .skin-modal-cancel,
@@ -2125,6 +2285,19 @@ Owner decisions:
         box-shadow: 0 26px 46px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255,255,255,0.08);
         background-color: rgba(255, 255, 255, 0.06);
         overflow: visible;
+    }
+
+    #clicker::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 26px;
+        background:
+            radial-gradient(circle at var(--clicker-glow-x) var(--clicker-glow-y), rgba(126, 241, 255, 0.2), transparent 28%),
+            radial-gradient(circle at 26% 18%, rgba(255, 255, 255, 0.12), transparent 24%);
+        opacity: var(--clicker-glow-opacity);
+        pointer-events: none;
+        transition: opacity 0.18s ease;
     }
 
     #clicker::after {
@@ -2374,12 +2547,13 @@ Owner decisions:
     }
 
     .skin-shop-feature-preview {
-        min-height: 152px;
+        min-height: 210px;
         border-radius: 18px;
         background:
             linear-gradient(180deg, rgba(10, 10, 25, 0.06), rgba(10, 10, 25, 0.28)),
             var(--skin-shop-feature-image, linear-gradient(135deg, #5f38d4, #33c5c7));
-        background-size: cover;
+        background-size: contain;
+        background-repeat: no-repeat;
         background-position: center;
         border: 1px solid rgba(255,255,255,0.14);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
@@ -2577,8 +2751,9 @@ Owner decisions:
         }
 
         .skin-shop-card {
-            min-height: 220px;
+            min-height: 246px;
             padding: 10px;
+            background-position: center 14px;
         }
 
         .skin-shop-card-footer {
@@ -2657,11 +2832,30 @@ Owner decisions:
         }
 
         .skin-shop-feature-preview {
-            min-height: 176px;
+            min-height: 222px;
         }
 
         .skin-shop-feature-head {
             flex-direction: column;
+        }
+
+        .settings-modal-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .settings-field {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .settings-value {
+            text-align: left;
+        }
+
+        #shopExit {
+            min-width: 196px;
+            padding: 18px 30px;
+            font-size: 19px;
         }
 
         .footer {
@@ -2693,6 +2887,7 @@ Owner decisions:
 <body>
 <!-- Контейнер уведомлений -->
 <div class="notification-container" id="notifications"></div>
+<div id="pageRippleLayer"></div>
 <div class="loading-overlay" id="loadingOverlay" aria-hidden="true">
     <div class="loading-overlay-card">
         <div class="loading-overlay-spinner"></div>
@@ -2705,6 +2900,14 @@ Owner decisions:
 <script src="shared-client.js"></script>
 <script>
 function showNotification(message, type = 'success', duration = 3000) {
+    const settings = window.__boberUserSettings && typeof window.__boberUserSettings === 'object'
+        ? window.__boberUserSettings
+        : null;
+    const notificationsEnabled = !settings || !settings.notifications || settings.notifications.enabled !== false;
+    if (!notificationsEnabled && type !== 'error' && type !== 'warning') {
+        return;
+    }
+
     const container = document.getElementById('notifications');
     
     const notification = document.createElement('div');
@@ -2745,6 +2948,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
                         <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
                     </div>
+                    <button id="supportAppealButton" type="button">Поддержка и апелляция</button>
                     <button id="sessionsButton" type="button">Мои сессии</button>
                     <button id="logoutButton" type="button">Выйти</button>
                 </div>
@@ -2779,7 +2983,6 @@ function showNotification(message, type = 'success', duration = 3000) {
     <button id="save" onclick="Save()">Сохранить</button>
     <div id="saveStatus" class="save-status idle">Автосохранение выключено</div>
 <br>
-<br>
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
 <br>
@@ -2790,16 +2993,12 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <button id="shopButton" onclick="shopShow()">Магазин</button>
 <br>
-<br>
-<br>
 <button class="shop-action-btn" id="flyBeaverOpenButton" type="button">Летающий бобер</button>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
     <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
 </div>
-<br>
 </div>
-<br>
 <button id="shopExit" onclick="shopClose()">Выход</button>
 <br>
 <div id="shop">
@@ -3005,16 +3204,90 @@ function showNotification(message, type = 'success', duration = 3000) {
 </div>
 <div class="modal-backdrop" id="settingsModal" aria-hidden="true">
     <div class="skin-action-modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-        <div class="skin-action-modal-title" id="settingsModalTitle">Настройки скоро появятся</div>
-        <div class="skin-action-modal-text">Здесь будет отдельный экран с удобными переключателями и персональными опциями игры.</div>
-        <div class="settings-modal-list">
-            <div class="settings-modal-item">Звук и уведомления</div>
-            <div class="settings-modal-item">Вибрация и анимации</div>
-            <div class="settings-modal-item">Интенсивность визуальных эффектов</div>
-            <div class="settings-modal-item">Очистка локального кэша и управление сессиями</div>
+        <div class="skin-action-modal-title" id="settingsModalTitle">Настройки</div>
+        <div class="skin-action-modal-text">Эти параметры синхронизируются между устройствами. Локальные кнопки очистки влияют только на это устройство.</div>
+        <div class="settings-modal-grid">
+            <div class="settings-card">
+                <div class="settings-card-title">Звук</div>
+                <div class="settings-card-text">Музыка, эффекты и громкость мини-игры.</div>
+                <div class="settings-field">
+                    <label for="settingsMusicEnabled">Музыка</label>
+                    <input type="checkbox" id="settingsMusicEnabled">
+                </div>
+                <div class="settings-field">
+                    <label for="settingsEffectsEnabled">Эффекты</label>
+                    <input type="checkbox" id="settingsEffectsEnabled">
+                </div>
+                <div class="settings-field">
+                    <label for="settingsFlyVolume">Громкость мини-игры</label>
+                    <input type="range" id="settingsFlyVolume" min="0" max="100" step="5">
+                </div>
+                <div class="settings-value" id="settingsFlyVolumeValue">100%</div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Вибрация</div>
+                <div class="settings-card-text">Хаптика на телефонах и сила отклика.</div>
+                <div class="settings-field">
+                    <label for="settingsVibrationEnabled">Включить вибрацию</label>
+                    <input type="checkbox" id="settingsVibrationEnabled">
+                </div>
+                <div class="settings-field">
+                    <label for="settingsVibrationIntensity">Сила вибрации</label>
+                    <select id="settingsVibrationIntensity">
+                        <option value="low">Низкая</option>
+                        <option value="medium">Средняя</option>
+                        <option value="high">Высокая</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Анимации и эффекты</div>
+                <div class="settings-card-text">Можно облегчить страницу для телефона и браузера.</div>
+                <div class="settings-field">
+                    <label for="settingsAnimationsMode">Анимации</label>
+                    <select id="settingsAnimationsMode">
+                        <option value="full">Полные</option>
+                        <option value="reduced">Упрощенные</option>
+                        <option value="off">Выключить</option>
+                    </select>
+                </div>
+                <div class="settings-field">
+                    <label for="settingsEffectsQuality">Качество эффектов</label>
+                    <select id="settingsEffectsQuality">
+                        <option value="low">Низкое</option>
+                        <option value="medium">Среднее</option>
+                        <option value="high">Высокое</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Уведомления</div>
+                <div class="settings-card-text">Статусы сохранения, подсказки и всплывающие сообщения.</div>
+                <div class="settings-field">
+                    <label for="settingsNotificationsEnabled">Показывать уведомления</label>
+                    <input type="checkbox" id="settingsNotificationsEnabled">
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Локальные данные</div>
+                <div class="settings-card-text">Быстрая очистка черновиков, локального кэша и forensic-очереди этого устройства.</div>
+                <div class="settings-card-actions">
+                    <button type="button" class="skin-modal-cancel" id="settingsClearDraftsButton">Очистить черновики</button>
+                    <button type="button" class="skin-modal-cancel" id="settingsClearLogsButton">Очистить локальные логи</button>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Безопасность и сессии</div>
+                <div class="settings-card-text">Здесь можно быстро открыть список активных игровых устройств.</div>
+                <div class="settings-card-actions">
+                    <button type="button" class="skin-modal-confirm install" id="settingsSessionButton">Открыть мои сессии</button>
+                </div>
+            </div>
         </div>
+        <div id="settingsStatus">Настройки загружены. Изменения сохраняются в облако автоматически.</div>
         <div class="skin-action-modal-buttons" style="margin-top: 18px;">
-            <button type="button" class="skin-modal-confirm install" id="settingsModalClose">Понятно</button>
+            <button type="button" class="skin-modal-confirm install" id="settingsSaveButton">Сохранить сейчас</button>
+            <button type="button" class="skin-modal-confirm install" id="settingsModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -3507,6 +3780,54 @@ const authModalState = {
     activeTab: 'login',
     hasShownGuestPrompt: false
 };
+const SETTINGS_SYNC_CONFIG = {
+    debounceMs: 900
+};
+const LIVE_SYNC_CONFIG = {
+    intervalMs: 30000
+};
+const settingsState = {
+    dirty: false,
+    timer: null,
+    inFlight: false,
+    lastSavedAt: 0,
+    lastError: ''
+};
+const liveSyncState = {
+    timer: null,
+    inFlight: false,
+    lastSyncedAt: 0
+};
+let userSettings = SHARED_CLIENT.readCachedUserSettings
+    ? SHARED_CLIENT.readCachedUserSettings()
+    : {
+        audio: { musicEnabled: true, effectsEnabled: true, flyVolume: 100 },
+        vibration: { enabled: true, intensity: 'medium' },
+        animations: { mode: 'full' },
+        notifications: { enabled: true },
+        effects: { quality: 'high' }
+    };
+window.__boberUserSettings = userSettings;
+
+function normalizeUserSettings(settings) {
+    return SHARED_CLIENT.normalizeUserSettings
+        ? SHARED_CLIENT.normalizeUserSettings(settings)
+        : userSettings;
+}
+
+function persistCachedUserSettings(settings) {
+    if (SHARED_CLIENT.persistCachedUserSettings) {
+        return SHARED_CLIENT.persistCachedUserSettings(settings);
+    }
+
+    return settings;
+}
+
+function clearCachedUserSettings() {
+    if (SHARED_CLIENT.clearCachedUserSettings) {
+        SHARED_CLIENT.clearCachedUserSettings();
+    }
+}
 
 function getClientLogDeviceId() {
     if (!CLIENT_LOG_MANAGER) {
@@ -3669,9 +3990,280 @@ function setLoadingOverlay(visible, title = 'Загрузка', text = 'Подо
     syncGlobalOverlayState();
 }
 
+function getCurrentUiContext() {
+    if (window.__boberBanInfo) {
+        return 'ban_screen';
+    }
+
+    if (document.getElementById('skinActionModal')?.classList.contains('show')) {
+        return 'skin_modal';
+    }
+
+    if (document.getElementById('upgradeActionModal')?.classList.contains('show')) {
+        return 'upgrade_modal';
+    }
+
+    if (document.getElementById('sessionConflictModal')?.classList.contains('show')) {
+        return 'session_modal';
+    }
+
+    if (document.getElementById('authModal')?.classList.contains('show')) {
+        return 'auth_modal';
+    }
+
+    if (document.getElementById('settingsModal')?.classList.contains('show')) {
+        return 'settings_modal';
+    }
+
+    if (document.getElementById('shop')?.style.display === 'block') {
+        return 'shop';
+    }
+
+    if (document.getElementById('profileMenuShell')?.classList.contains('open')) {
+        return 'profile_menu';
+    }
+
+    return 'main';
+}
+
+function applySettingsVisualState() {
+    const normalized = normalizeUserSettings(userSettings);
+    userSettings = normalized;
+    window.__boberUserSettings = normalized;
+
+    const animationMode = normalized.animations.mode;
+    const effectsQuality = normalized.effects.quality;
+
+    document.body.classList.toggle('reduced-animations', animationMode === 'reduced');
+    document.body.classList.toggle('animations-off', animationMode === 'off');
+    document.body.dataset.effectsQuality = effectsQuality;
+
+    const rippleScale = effectsQuality === 'low' ? '4.8' : (effectsQuality === 'medium' ? '5.6' : '6.4');
+    const rippleOpacity = effectsQuality === 'low' ? '0.58' : (effectsQuality === 'medium' ? '0.74' : '0.9');
+    const rippleBlur = effectsQuality === 'low' ? '1px' : (effectsQuality === 'medium' ? '1.6px' : '2px');
+    const clickerGlowOpacity = effectsQuality === 'low' ? '0.32' : (effectsQuality === 'medium' ? '0.44' : '0.58');
+
+    document.body.style.setProperty('--page-ripple-scale', rippleScale);
+    document.body.style.setProperty('--page-ripple-opacity', rippleOpacity);
+    document.body.style.setProperty('--page-ripple-blur', rippleBlur);
+    document.body.style.setProperty('--clicker-glow-opacity', clickerGlowOpacity);
+}
+
+function updateSettingsInputs() {
+    const normalized = normalizeUserSettings(userSettings);
+    const musicNode = document.getElementById('settingsMusicEnabled');
+    const effectsNode = document.getElementById('settingsEffectsEnabled');
+    const flyVolumeNode = document.getElementById('settingsFlyVolume');
+    const flyVolumeValueNode = document.getElementById('settingsFlyVolumeValue');
+    const vibrationNode = document.getElementById('settingsVibrationEnabled');
+    const vibrationIntensityNode = document.getElementById('settingsVibrationIntensity');
+    const animationsNode = document.getElementById('settingsAnimationsMode');
+    const notificationsNode = document.getElementById('settingsNotificationsEnabled');
+    const effectsQualityNode = document.getElementById('settingsEffectsQuality');
+
+    if (musicNode) {
+        musicNode.checked = normalized.audio.musicEnabled;
+    }
+    if (effectsNode) {
+        effectsNode.checked = normalized.audio.effectsEnabled;
+    }
+    if (flyVolumeNode) {
+        flyVolumeNode.value = String(normalized.audio.flyVolume);
+    }
+    if (flyVolumeValueNode) {
+        flyVolumeValueNode.textContent = `${normalized.audio.flyVolume}%`;
+    }
+    if (vibrationNode) {
+        vibrationNode.checked = normalized.vibration.enabled;
+    }
+    if (vibrationIntensityNode) {
+        vibrationIntensityNode.value = normalized.vibration.intensity;
+    }
+    if (animationsNode) {
+        animationsNode.value = normalized.animations.mode;
+    }
+    if (notificationsNode) {
+        notificationsNode.checked = normalized.notifications.enabled;
+    }
+    if (effectsQualityNode) {
+        effectsQualityNode.value = normalized.effects.quality;
+    }
+}
+
+function updateSettingsStatus(message, variant = 'idle') {
+    const statusNode = document.getElementById('settingsStatus');
+    if (!statusNode) {
+        return;
+    }
+
+    statusNode.classList.remove('is-saving', 'is-error', 'is-success');
+    if (variant === 'saving') {
+        statusNode.classList.add('is-saving');
+    } else if (variant === 'error') {
+        statusNode.classList.add('is-error');
+    } else if (variant === 'success') {
+        statusNode.classList.add('is-success');
+    }
+    statusNode.textContent = message;
+}
+
+function applyUserSettings(settings, options = {}) {
+    userSettings = normalizeUserSettings(settings);
+    window.__boberUserSettings = userSettings;
+
+    if (options.persist !== false) {
+        persistCachedUserSettings(userSettings);
+    }
+
+    applySettingsVisualState();
+    if (options.updateInputs !== false) {
+        updateSettingsInputs();
+    }
+
+    return userSettings;
+}
+
+function shouldShowNotification(type = 'success') {
+    const notificationsEnabled = Boolean((window.__boberUserSettings || userSettings || {}).notifications?.enabled);
+    if (notificationsEnabled) {
+        return true;
+    }
+
+    return type === 'error' || type === 'warning';
+}
+
+function triggerHaptic(kind = 'tap') {
+    if (!('vibrate' in navigator)) {
+        return;
+    }
+
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    if (!settings.vibration.enabled) {
+        return;
+    }
+
+    const intensity = settings.vibration.intensity;
+    let duration = 10;
+    if (kind === 'save') {
+        duration = intensity === 'low' ? 12 : intensity === 'medium' ? 18 : 24;
+    } else if (kind === 'success') {
+        duration = intensity === 'low' ? 14 : intensity === 'medium' ? 22 : 30;
+    } else {
+        duration = intensity === 'low' ? 8 : intensity === 'medium' ? 14 : 20;
+    }
+
+    navigator.vibrate(duration);
+}
+
+function updateReactiveGlowPosition(clientX, clientY) {
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+        return;
+    }
+
+    const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    const xPercent = `${Math.max(0, Math.min(100, (clientX / width) * 100)).toFixed(2)}%`;
+    const yPercent = `${Math.max(0, Math.min(100, (clientY / height) * 100)).toFixed(2)}%`;
+    document.body.style.setProperty('--page-glow-x', xPercent);
+    document.body.style.setProperty('--page-glow-y', yPercent);
+    document.body.style.setProperty('--clicker-glow-x', xPercent);
+    document.body.style.setProperty('--clicker-glow-y', yPercent);
+}
+
+function spawnPageRipple(clientX, clientY) {
+    if (document.body.classList.contains('animations-off')) {
+        return;
+    }
+
+    const rippleLayer = document.getElementById('pageRippleLayer');
+    if (!rippleLayer || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+        return;
+    }
+
+    const ripple = document.createElement('span');
+    ripple.className = 'page-water-ripple';
+    ripple.style.left = `${clientX}px`;
+    ripple.style.top = `${clientY}px`;
+    rippleLayer.appendChild(ripple);
+    window.setTimeout(() => {
+        ripple.remove();
+    }, document.body.classList.contains('reduced-animations') ? 260 : 950);
+}
+
+function handleInterfaceRipple(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) {
+        return;
+    }
+
+    if (target.closest('.modal-backdrop') || target.closest('.notification-container')) {
+        return;
+    }
+
+    const pointSource = event.touches && event.touches[0]
+        ? event.touches[0]
+        : event.changedTouches && event.changedTouches[0]
+            ? event.changedTouches[0]
+            : event;
+    const clientX = Number(pointSource.clientX);
+    const clientY = Number(pointSource.clientY);
+    updateReactiveGlowPosition(clientX, clientY);
+    spawnPageRipple(clientX, clientY);
+}
+
+function buildInteractionPayload(event, fallbackTouchCount = 1) {
+    const target = event && event.currentTarget instanceof Element
+        ? event.currentTarget
+        : (event && event.target instanceof Element ? event.target : null);
+    const rect = target ? target.getBoundingClientRect() : null;
+    const touches = event && event.touches && event.touches.length
+        ? Array.from(event.touches).slice(0, 5)
+        : (event && event.changedTouches && event.changedTouches.length ? Array.from(event.changedTouches).slice(0, 5) : []);
+    const touchPoints = touches.map((touch) => ({
+        clientX: Number(touch.clientX) || 0,
+        clientY: Number(touch.clientY) || 0
+    }));
+    const primary = touchPoints[0] || {
+        clientX: Number(event && event.clientX) || 0,
+        clientY: Number(event && event.clientY) || 0
+    };
+    const touchCount = touchPoints.length > 0 ? touchPoints.length : Math.max(1, Number(fallbackTouchCount) || 1);
+    const centroidX = touchPoints.length > 0
+        ? touchPoints.reduce((sum, point) => sum + point.clientX, 0) / touchPoints.length
+        : primary.clientX;
+    const centroidY = touchPoints.length > 0
+        ? touchPoints.reduce((sum, point) => sum + point.clientY, 0) / touchPoints.length
+        : primary.clientY;
+
+    return {
+        x: primary.clientX,
+        y: primary.clientY,
+        screenX: Number(event && event.screenX) || 0,
+        screenY: Number(event && event.screenY) || 0,
+        relativeX: rect ? Math.round(primary.clientX - rect.left) : 0,
+        relativeY: rect ? Math.round(primary.clientY - rect.top) : 0,
+        touchCount,
+        touches: touchPoints,
+        centroid: {
+            x: Math.round(centroidX),
+            y: Math.round(centroidY)
+        },
+        targetTag: target ? String(target.tagName || '').toLowerCase() : '',
+        targetId: target ? String(target.id || '') : '',
+        targetClasses: target ? String(target.className || '') : '',
+        targetRole: target ? String(target.getAttribute('role') || '') : '',
+        trusted: !event || event.isTrusted !== false,
+        uiContext: getCurrentUiContext()
+    };
+}
+
 function animateClickerTap() {
     const clicker = document.getElementById('clicker');
     if (!clicker) {
+        return;
+    }
+
+    if (document.body.classList.contains('animations-off')) {
         return;
     }
 
@@ -3828,6 +4420,15 @@ function openSettingsModal() {
     }
 
     closeProfileMenu();
+    updateSettingsInputs();
+    updateSettingsStatus(
+        settingsState.lastError
+            ? settingsState.lastError
+            : (settingsState.lastSavedAt > 0
+                ? `Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`
+                : 'Настройки загружены. Изменения сохраняются в облако автоматически.'),
+        settingsState.lastError ? 'error' : (settingsState.lastSavedAt > 0 ? 'success' : 'idle')
+    );
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
@@ -3842,6 +4443,117 @@ function closeSettingsModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+}
+
+function markSettingsDirty() {
+    settingsState.dirty = true;
+    settingsState.lastError = '';
+    if (settingsState.timer) {
+        clearTimeout(settingsState.timer);
+    }
+
+    updateSettingsStatus('Настройки изменены. Сохраним их в облако автоматически...', 'saving');
+    settingsState.timer = setTimeout(() => {
+        settingsState.timer = null;
+        saveUserSettings({ silent: true });
+    }, SETTINGS_SYNC_CONFIG.debounceMs);
+}
+
+async function saveUserSettings(options = {}) {
+    const { silent = false } = options;
+
+    if (!userId) {
+        return false;
+    }
+
+    if (!settingsState.dirty && !options.force) {
+        return true;
+    }
+
+    if (settingsState.inFlight) {
+        return false;
+    }
+
+    settingsState.inFlight = true;
+    updateSettingsStatus('Сохраняем настройки в облако...', 'saving');
+
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/sync-state.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: userId,
+                settings: userSettings
+            })
+        });
+
+        if (data && data.success) {
+            if (data.account) {
+                applyUserSettings(data.account.settings || data.settings || userSettings, {
+                    persist: true,
+                    updateInputs: true
+                });
+            } else {
+                applyUserSettings(data.settings || userSettings, {
+                    persist: true,
+                    updateInputs: true
+                });
+            }
+
+            settingsState.dirty = false;
+            settingsState.lastSavedAt = Date.now();
+            settingsState.lastError = '';
+            updateSettingsStatus(`Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`, 'success');
+            if (!silent) {
+                showNotification('Настройки сохранены.', 'success');
+            }
+            return true;
+        }
+
+        throw new Error((data && data.message) || 'Не удалось сохранить настройки.');
+    } catch (error) {
+        if (tryHandleSessionEndedError(error)) {
+            return false;
+        }
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return false;
+        }
+
+        settingsState.lastError = error.message || 'Не удалось сохранить настройки.';
+        updateSettingsStatus(settingsState.lastError, 'error');
+        if (!silent) {
+            showNotification(settingsState.lastError, 'error');
+        }
+        return false;
+    } finally {
+        settingsState.inFlight = false;
+    }
+}
+
+function clearLocalGameplayDrafts() {
+    clearLocalDraft();
+    try {
+        localStorage.removeItem('skin_shop_category');
+        localStorage.removeItem('skin_shop_sort');
+    } catch (error) {
+        console.warn('Не удалось очистить локальные фильтры магазина.', error);
+    }
+    updateSettingsStatus('Локальные черновики и фильтры очищены на этом устройстве.', 'success');
+    showNotification('Локальные черновики очищены.', 'success');
+}
+
+async function clearLocalClientLogs() {
+    if (CLIENT_LOG_MANAGER && typeof CLIENT_LOG_MANAGER.clearPendingEvents === 'function') {
+        await CLIENT_LOG_MANAGER.clearPendingEvents();
+        updateSettingsStatus('Локальная очередь forensic-логов очищена.', 'success');
+        showNotification('Локальные forensic-логи очищены.', 'success');
+        return;
+    }
+
+    updateSettingsStatus('Очистка локальных логов недоступна в этой версии клиента.', 'error');
 }
 
 function getDefaultSkinState() {
@@ -4707,8 +5419,21 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
 }
 
 function calculateUpgradeCost(baseCost, purchaseCount) {
-    const exponent = Math.max(0, Math.floor(Number(purchaseCount) || 0) - 2);
-    return baseCost * Math.pow(2, exponent);
+    const safeBaseCost = Math.max(1, Number(baseCost) || 1);
+    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+    let currentCost = safeBaseCost;
+
+    for (let purchaseIndex = 1; purchaseIndex <= safePurchaseCount; purchaseIndex += 1) {
+        if (purchaseIndex >= 16) {
+            currentCost *= 1.6;
+        } else if (purchaseIndex >= 9) {
+            currentCost *= 1.4;
+        } else if (purchaseIndex >= 4) {
+            currentCost *= 1.25;
+        }
+    }
+
+    return Math.max(safeBaseCost, Math.round(currentCost));
 }
 
 function getUpgradeBaseCost(type) {
@@ -4890,6 +5615,43 @@ function setBanInfo(banInfo, options = {}) {
     }
 
     clearStoredDeviceBanInfo();
+}
+
+function buildSupportAppealText(banInfo = null) {
+    const normalizedBan = normalizeBanInfoObject(banInfo || window.__boberBanInfo) || null;
+    const accountLabel = currentLogin || 'неизвестен';
+    const resolvedUserId = Number(userId || 0);
+    const deviceId = getClientLogDeviceId();
+    const lines = [
+        'Здравствуйте! Хочу подать апелляцию / запросить помощь.',
+        `Логин: ${accountLabel}`,
+        `User ID: ${resolvedUserId > 0 ? resolvedUserId : 'неизвестен'}`,
+        `Device ID: ${deviceId}`
+    ];
+
+    if (normalizedBan) {
+        lines.push(`Причина бана: ${normalizedBan.reason || 'не указана'}`);
+        lines.push(`Срок: ${normalizedBan.isPermanent ? 'бессрочно' : `${Math.max(0, Number(normalizedBan.durationDays) || 0)} дн.`}`);
+        if (normalizedBan.banUntil) {
+            lines.push(`До: ${normalizedBan.banUntil}`);
+        }
+    }
+
+    lines.push('Описание проблемы:');
+    lines.push('Кратко опишите, что происходило перед ошибкой или баном.');
+    return lines.join('\n');
+}
+
+async function openSupportAppeal(banInfo = null) {
+    const appealText = buildSupportAppealText(banInfo);
+    if (SHARED_CLIENT.safeCopyTextToClipboard) {
+        const copied = await SHARED_CLIENT.safeCopyTextToClipboard(appealText);
+        if (copied) {
+            showNotification('Текст апелляции скопирован. Вставьте его в поддержку.', 'success');
+        }
+    }
+
+    window.open('https://forms.yandex.ru/u/68e2472302848f9edc066ce2', '_blank', 'noopener,noreferrer');
 }
 
 function normalizeBanPayload(payload) {
@@ -5456,11 +6218,43 @@ if (settingsModalCloseButton) {
     });
 }
 
+const settingsSaveButton = document.getElementById('settingsSaveButton');
+if (settingsSaveButton) {
+    settingsSaveButton.addEventListener('click', () => {
+        saveUserSettings({ silent: false, force: true });
+    });
+}
+
+const settingsSessionButton = document.getElementById('settingsSessionButton');
+if (settingsSessionButton) {
+    settingsSessionButton.addEventListener('click', () => {
+        closeSettingsModal();
+        openSessionManagerModal();
+    });
+}
+
+const settingsClearDraftsButton = document.getElementById('settingsClearDraftsButton');
+if (settingsClearDraftsButton) {
+    settingsClearDraftsButton.addEventListener('click', () => {
+        clearLocalGameplayDrafts();
+    });
+}
+
+const settingsClearLogsButton = document.getElementById('settingsClearLogsButton');
+if (settingsClearLogsButton) {
+    settingsClearLogsButton.addEventListener('click', () => {
+        clearLocalClientLogs().catch((error) => {
+            console.error('Не удалось очистить локальные forensic-логи.', error);
+            updateSettingsStatus(error.message || 'Не удалось очистить локальные forensic-логи.', 'error');
+        });
+    });
+}
+
 const settingsButtonNode = document.getElementById('settingsButton');
 if (settingsButtonNode) {
     settingsButtonNode.addEventListener('click', () => {
         if (!requestAuthModal('login', {
-            text: 'Войдите в аккаунт, чтобы позже открыть экран настроек и персональных параметров.'
+            text: 'Войдите в аккаунт, чтобы открыть настройки, синхронизировать их между устройствами и управлять активными сессиями.'
         })) {
             return;
         }
@@ -5468,6 +6262,98 @@ if (settingsButtonNode) {
         openSettingsModal();
     });
 }
+
+[
+    ['settingsMusicEnabled', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            audio: {
+                ...userSettings.audio,
+                musicEnabled: Boolean(event.target.checked)
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsEffectsEnabled', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            audio: {
+                ...userSettings.audio,
+                effectsEnabled: Boolean(event.target.checked)
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsFlyVolume', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            audio: {
+                ...userSettings.audio,
+                flyVolume: Math.max(0, Math.min(100, Number(event.target.value) || 0))
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsVibrationEnabled', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            vibration: {
+                ...userSettings.vibration,
+                enabled: Boolean(event.target.checked)
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsVibrationIntensity', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            vibration: {
+                ...userSettings.vibration,
+                intensity: String(event.target.value || 'medium')
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsAnimationsMode', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            animations: {
+                ...userSettings.animations,
+                mode: String(event.target.value || 'full')
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsNotificationsEnabled', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            notifications: {
+                ...userSettings.notifications,
+                enabled: Boolean(event.target.checked)
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsEffectsQuality', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            effects: {
+                ...userSettings.effects,
+                quality: String(event.target.value || 'high')
+            }
+        });
+        markSettingsDirty();
+    }]
+].forEach(([id, handler]) => {
+    const node = document.getElementById(id);
+    if (node) {
+        const eventName = node.type === 'range' || node.tagName === 'SELECT' ? 'input' : 'change';
+        node.addEventListener(eventName, handler);
+        if (eventName !== 'change') {
+            node.addEventListener('change', handler);
+        }
+    }
+});
 
 const skinActionModalNode = document.getElementById('skinActionModal');
 if (skinActionModalNode) {
@@ -5791,6 +6677,8 @@ function resetUserState() {
     updateEnergyUI();
     updateUpgradeShopUI();
     resetAutosaveState();
+    settingsState.dirty = false;
+    settingsState.lastError = '';
     updateAdminVisibility('');
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
@@ -5799,6 +6687,10 @@ function resetUserState() {
     setSaveStatus('idle', 'Автосохранение выключено');
     updateFlyRewardUI();
     updateProfileMenuUI();
+    applyUserSettings(SHARED_CLIENT.readCachedUserSettings ? SHARED_CLIENT.readCachedUserSettings() : userSettings, {
+        persist: true,
+        updateInputs: true
+    });
 }
 
 function applyAuthenticatedState(data) {
@@ -5828,6 +6720,10 @@ function applyAuthenticatedState(data) {
     });
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    applyUserSettings(data.settings || userSettings, {
+        persist: true,
+        updateInputs: true
+    });
 
     skin = normalizeSkinState(data.skin);
     skinLoad();
@@ -6373,16 +7269,192 @@ function flushAutosaveWithBeacon() {
     }
 }
 
+function applySynchronizedAccountState(data) {
+    if (!data || !Number(data.userId)) {
+        return false;
+    }
+
+    if (!userId || Number(userId) !== Number(data.userId)) {
+        applyAuthenticatedState(data);
+        return true;
+    }
+
+    const resolvedLogin = typeof data.login === 'string' && data.login.trim() !== ''
+        ? data.login.trim()
+        : currentLogin;
+    currentLogin = resolvedLogin;
+    if (resolvedLogin) {
+        localStorage.setItem('login', resolvedLogin);
+        document.getElementById('login').value = resolvedLogin;
+    }
+
+    setBanInfo(null);
+    score = Number.isFinite(Number(data.score)) ? Number(data.score) : score;
+    plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : plus;
+    energy_max = Number(data.ENERGY_MAX) > 0 ? Number(data.ENERGY_MAX) : energy_max;
+    upgradePurchaseCounts = normalizeUpgradePurchaseCounts(data.upgradePurchases, {
+        plus: data.plus,
+        energyMax: data.ENERGY_MAX
+    });
+    updateRegenRate();
+
+    const nextSkin = normalizeSkinState(data.skin);
+    if (JSON.stringify(nextSkin) !== JSON.stringify(skin)) {
+        skin = nextSkin;
+        skinLoad();
+        updateSkinShopUI();
+    }
+
+    flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    applyUserSettings(data.settings || userSettings, {
+        persist: true,
+        updateInputs: true
+    });
+
+    const serverEnergy = Number(data.energy);
+    energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy;
+
+    const serverUpdateTime = Number(data.lastEnergyUpdate);
+    lastEnergyUpdate = Number.isFinite(serverUpdateTime) && serverUpdateTime > 0 ? serverUpdateTime : Date.now();
+
+    updateEnergy();
+    updateScoreUI();
+    updateEnergyUI();
+    updateUpgradeShopUI();
+    updateFlyRewardUI();
+    updateProfileMenuUI();
+    updateAdminVisibility(resolvedLogin);
+    startEnergyTimer();
+    return true;
+}
+
+function stopLiveSyncTimer() {
+    if (liveSyncState.timer) {
+        clearTimeout(liveSyncState.timer);
+        liveSyncState.timer = null;
+    }
+}
+
+function scheduleLiveSync(delayMs = LIVE_SYNC_CONFIG.intervalMs) {
+    stopLiveSyncTimer();
+    if (document.hidden) {
+        return;
+    }
+
+    liveSyncState.timer = setTimeout(async () => {
+        await synchronizeMainState({ reason: 'poll', includeDirtyState: true, silent: true });
+        scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
+    }, Math.max(2500, Number(delayMs) || LIVE_SYNC_CONFIG.intervalMs));
+}
+
+async function synchronizeMainState(options = {}) {
+    const {
+        reason = 'sync',
+        includeDirtyState = false,
+        silent = true,
+        settingsPatch = null
+    } = options;
+
+    if (liveSyncState.inFlight || autosaveState.inFlight) {
+        return false;
+    }
+
+    liveSyncState.inFlight = true;
+    let preparedBatch = null;
+    let revisionAtStart = autosaveState.revision;
+    let includedDirtyState = false;
+
+    try {
+        let requestOptions = { cache: 'no-store' };
+        if (userId) {
+            const payload = { userId: userId };
+            if (settingsPatch && typeof settingsPatch === 'object') {
+                payload.settings = settingsPatch;
+            }
+
+            if (includeDirtyState && hasPendingAutosave()) {
+                const transport = await buildSaveStateTransportPayload(reason);
+                Object.assign(payload, transport.payload);
+                preparedBatch = transport.clientLogBatch;
+                includedDirtyState = true;
+                revisionAtStart = autosaveState.revision;
+            }
+
+            requestOptions = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            };
+        } else if (settingsPatch) {
+            return false;
+        }
+
+        const data = await requestJson('https://bober-api.gt.tc/sync-state.php', requestOptions);
+
+        if (Array.isArray(data.leaderboard)) {
+            renderLeaderboard(data.leaderboard);
+        }
+
+        if (data.account && data.account.success) {
+            applySynchronizedAccountState(data.account);
+        } else if (data.account && data.account.userId) {
+            applySynchronizedAccountState(data.account);
+        }
+
+        if (includedDirtyState) {
+            await acknowledgeClientLogBatch(preparedBatch);
+
+            if (autosaveState.revision === revisionAtStart) {
+                autosaveState.dirty = false;
+                autosaveState.firstDirtyAt = 0;
+                autosaveState.lastSavedAt = Date.now();
+                autosaveState.lastError = '';
+                clearLocalDraft();
+                setSaveStatus('saved', `Сохранено в ${formatSaveTime(autosaveState.lastSavedAt)}`);
+            } else {
+                setSaveStatus('dirty', 'Есть несохраненные изменения');
+                scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
+            }
+        }
+
+        liveSyncState.lastSyncedAt = Date.now();
+        return Boolean(data.account && (data.account.userId || data.account.success));
+    } catch (error) {
+        if (tryHandleSessionConflictError(error)) {
+            return false;
+        }
+        if (tryHandleSessionEndedError(error)) {
+            return false;
+        }
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return false;
+        }
+
+        if (!silent) {
+            showNotification(error.message || 'Не удалось обновить данные страницы.', 'error');
+        }
+
+        console.error('Ошибка синхронизации страницы:', error);
+        return false;
+    } finally {
+        liveSyncState.inFlight = false;
+    }
+}
+
 async function restoreSession() {
     try {
-        const data = await requestJson('https://bober-api.gt.tc/session-t.php', {
-            cache: 'no-store'
+        const restored = await synchronizeMainState({
+            reason: 'restore_session',
+            includeDirtyState: false,
+            silent: true
         });
 
-        if (data && data.success) {
-            applyAuthenticatedState(data);
+        if (restored && userId) {
             logClientEvent('auth', 'session_restore_success', {
-                login: data.login || currentLogin || ''
+                login: currentLogin || ''
             }, {
                 source: 'session_restore',
                 description: 'Сессия была автоматически восстановлена после открытия страницы.'
@@ -6546,40 +7618,56 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
 
     const touches = e.touches.length;
     const totalCost = plus * touches;
+    const interactionPayload = buildInteractionPayload(e, touches);
+    const antiCheatSnapshot = window.clickDetector && typeof window.clickDetector.recordInteraction === 'function'
+        ? window.clickDetector.recordInteraction({
+            source: 'touchstart',
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            touchCount: interactionPayload.touchCount,
+            trusted: interactionPayload.trusted
+        })
+        : null;
 
     if (energy >= totalCost) {
         score += totalCost;
         energy -= totalCost;
         animateClickerTap();
+        triggerHaptic('tap');
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
-        const primaryTouch = e.touches && e.touches[0] ? e.touches[0] : null;
         logClientEvent('clicks', 'tap_success', {
-            touchCount: touches,
             addedScore: totalCost,
-            x: primaryTouch ? primaryTouch.clientX : 0,
-            y: primaryTouch ? primaryTouch.clientY : 0,
-            trusted: e.isTrusted !== false
+            touchCount: touches,
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            screenX: interactionPayload.screenX,
+            screenY: interactionPayload.screenY,
+            relativeX: interactionPayload.relativeX,
+            relativeY: interactionPayload.relativeY,
+            touches: interactionPayload.touches,
+            centroid: interactionPayload.centroid,
+            targetTag: interactionPayload.targetTag,
+            targetId: interactionPayload.targetId,
+            targetClasses: interactionPayload.targetClasses,
+            targetRole: interactionPayload.targetRole,
+            trusted: interactionPayload.trusted,
+            uiContext: interactionPayload.uiContext,
+            antiCheatSnapshot: antiCheatSnapshot
         }, {
             source: 'touchstart',
             description: touches > 1
                 ? `Успешный мультитач по бобру на ${touches} пальца.`
                 : 'Успешный тап по бобру.'
         });
-        if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
-            window.clickDetector.recordInteraction({
-                source: 'touchstart',
-                x: primaryTouch ? primaryTouch.clientX : 0,
-                y: primaryTouch ? primaryTouch.clientY : 0,
-                touchCount: touches,
-                trusted: e.isTrusted !== false
-            });
-        }
     } else {
         logClientEvent('clicks', 'tap_no_energy', {
             touchCount: touches,
-            requestedCost: totalCost
+            requestedCost: totalCost,
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            uiContext: interactionPayload.uiContext
         }, {
             source: 'touchstart',
             description: 'Тап по бобру без достаточного запаса энергии.'
@@ -6601,6 +7689,14 @@ document.getElementById('sessionsButton').onclick = function() {
     openSessionManagerModal();
 };
 
+const supportAppealButton = document.getElementById('supportAppealButton');
+if (supportAppealButton) {
+    supportAppealButton.addEventListener('click', () => {
+        closeProfileMenu();
+        openSupportAppeal(window.__boberBanInfo || null);
+    });
+}
+
 const profileMenuButtonNode = document.getElementById('profileMenuButton');
 if (profileMenuButtonNode) {
     profileMenuButtonNode.addEventListener('click', function(event) {
@@ -6619,6 +7715,9 @@ document.addEventListener('click', function(event) {
         closeProfileMenu();
     }
 });
+
+document.addEventListener('pointerdown', handleInterfaceRipple, { passive: true });
+document.addEventListener('touchstart', handleInterfaceRipple, { passive: true });
 
 const skinCategorySelect = document.getElementById('skinCategorySelect');
 if (skinCategorySelect) {
@@ -6660,34 +7759,51 @@ document.getElementById('clicker').onclick = function(e) {
     }
 
     updateEnergy();
+    const interactionPayload = buildInteractionPayload(e, 1);
+    const antiCheatSnapshot = window.clickDetector && typeof window.clickDetector.recordInteraction === 'function'
+        ? window.clickDetector.recordInteraction({
+            source: 'click',
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            touchCount: 1,
+            trusted: interactionPayload.trusted
+        })
+        : null;
     if (energy >= plus) {
         score += plus;
         energy -= plus;
         animateClickerTap();
+        triggerHaptic('tap');
         updateScoreUI();
         updateEnergyUI();
         saveEnergyDebounced();
         logClientEvent('clicks', 'click_success', {
             addedScore: plus,
-            x: e && typeof e.clientX === 'number' ? e.clientX : 0,
-            y: e && typeof e.clientY === 'number' ? e.clientY : 0,
-            trusted: !e || e.isTrusted !== false
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            screenX: interactionPayload.screenX,
+            screenY: interactionPayload.screenY,
+            relativeX: interactionPayload.relativeX,
+            relativeY: interactionPayload.relativeY,
+            touches: interactionPayload.touches,
+            centroid: interactionPayload.centroid,
+            targetTag: interactionPayload.targetTag,
+            targetId: interactionPayload.targetId,
+            targetClasses: interactionPayload.targetClasses,
+            targetRole: interactionPayload.targetRole,
+            trusted: interactionPayload.trusted,
+            uiContext: interactionPayload.uiContext,
+            antiCheatSnapshot: antiCheatSnapshot
         }, {
             source: 'click',
             description: 'Успешный клик по бобру.'
         });
-        if (window.clickDetector && typeof window.clickDetector.recordInteraction === 'function') {
-            window.clickDetector.recordInteraction({
-                source: 'click',
-                x: e && typeof e.clientX === 'number' ? e.clientX : 0,
-                y: e && typeof e.clientY === 'number' ? e.clientY : 0,
-                touchCount: 1,
-                trusted: !e || e.isTrusted !== false
-            });
-        }
     } else {
         logClientEvent('clicks', 'click_no_energy', {
-            requestedCost: plus
+            requestedCost: plus,
+            x: interactionPayload.x,
+            y: interactionPayload.y,
+            uiContext: interactionPayload.uiContext
         }, {
             source: 'click',
             description: 'Клик по бобру без достаточного запаса энергии.'
@@ -7174,11 +8290,13 @@ function saveScore(scoreValue) {
 }
 
 async function loadLeaderboard() {
-    try {
-        const data = await requestJson('https://bober-api.gt.tc/leaderboard.php');
-        renderLeaderboard(data);
-    } catch (error) {
-        console.error('Ошибка загрузки таблицы лидеров:', error);
+    const synced = await synchronizeMainState({
+        reason: 'leaderboard_refresh',
+        includeDirtyState: false,
+        silent: true
+    });
+
+    if (!synced && !userId) {
         document.getElementById('leaderboard').innerHTML = `
             <h2 class="leaderboard-title">Топ-3 игроков</h2>
             <p class="leaderboard-error">Ошибка получения таблицы лидеров. Обратитесь в поддержку.</p>
@@ -7187,6 +8305,10 @@ async function loadLeaderboard() {
 }
 
 updateRegenRate();
+applyUserSettings(userSettings, {
+    persist: true,
+    updateInputs: true
+});
 renderSkinShop();
 skinLoad();
 updateScoreUI();
@@ -7199,7 +8321,6 @@ window.addEventListener('load', async function() {
             restoreSession(),
             loadSkinCatalog()
         ]);
-        loadLeaderboard();
         if (!sessionRestored && !window.__boberBanInfo && !authModalState.hasShownGuestPrompt) {
             authModalState.hasShownGuestPrompt = true;
             openAuthModal('login', {
@@ -7207,6 +8328,7 @@ window.addEventListener('load', async function() {
                 text: 'Без аккаунта можно посмотреть страницу, но для кликов, магазина, облачного сохранения и профиля нужен вход.'
             });
         }
+        scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
     } finally {
         setLoadingOverlay(false);
     }
@@ -7218,11 +8340,15 @@ window.addEventListener('pagehide', function() {
 
 document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
+        stopLiveSyncTimer();
         flushAutosaveWithBeacon();
     } else {
         if (userId) {
             checkAuthenticatedSessionConflict();
         }
+        synchronizeMainState({ reason: 'visibility_return', includeDirtyState: true, silent: true }).then(() => {
+            scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
+        });
         if (hasPendingAutosave()) {
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
         }
@@ -7342,7 +8468,7 @@ class AutoClickerDetector {
 
     recordInteraction(payload = {}) {
         if (!userId || this.banRequestInFlight || this.isBanned()) {
-            return;
+            return null;
         }
 
         const now = performance.now();
@@ -7359,7 +8485,7 @@ class AutoClickerDetector {
             const elapsed = now - this.lastTouchRecord.time;
             const distance = Math.hypot(x - this.lastTouchRecord.x, y - this.lastTouchRecord.y);
             if (elapsed >= 0 && elapsed <= this.config.syntheticClickAfterTouchMs && distance <= this.config.duplicateDistancePx) {
-                return;
+                return null;
             }
         }
 
@@ -7376,17 +8502,27 @@ class AutoClickerDetector {
             trusted: trusted
         });
 
+        const recentClicks = this.getRecentClicks(now);
+        let forensicSnapshot = this.buildForensicSnapshot(recentClicks, {
+            source: source,
+            inputTouchCount: touchCount
+        });
+
         if (!trusted) {
             this.heat = Math.min(20, this.heat + 12);
-            this.banUser('Синтетические клики без участия пользователя', this.buildMetrics(this.getRecentClicks(now), {
+            const trustedMetrics = this.buildForensicSnapshot(this.getRecentClicks(now), {
                 reason: 'untrusted-event'
-            }));
-            return;
+            });
+            this.banUser('Синтетические клики без участия пользователя', trustedMetrics);
+            return trustedMetrics;
         }
 
         const analysis = this.analyze(now);
+        if (analysis && analysis.metrics) {
+            forensicSnapshot = analysis.metrics;
+        }
         if (!analysis || analysis.action === 'ignore') {
-            return;
+            return forensicSnapshot;
         }
 
         if (analysis.action === 'warn') {
@@ -7399,12 +8535,14 @@ class AutoClickerDetector {
                 this.showWarning('ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ', 'Паттерн кликов все еще похож на автокликер.', analysis.reason, true);
             }
 
-            return;
+            return forensicSnapshot;
         }
 
         if (analysis.action === 'ban') {
             this.banUser(analysis.reason, analysis.metrics);
         }
+
+        return forensicSnapshot;
     }
 
     startMaintenance() {
@@ -7512,6 +8650,22 @@ class AutoClickerDetector {
         };
     }
 
+    buildForensicSnapshot(samples, extra = {}) {
+        const intervals = this.buildIntervals(samples);
+        const metrics = this.buildMetrics(samples, extra);
+        const lastInterval = intervals.length > 0 ? intervals[intervals.length - 1] : null;
+        return {
+            ...metrics,
+            deltaFromPreviousTapMs: lastInterval !== null ? Number(lastInterval.toFixed(2)) : null,
+            rollingIntervalsMs: intervals.slice(-8).map((interval) => Number(interval.toFixed(2))),
+            rollingCps: Number((metrics.cps || 0).toFixed(3)),
+            maxTouchCount: samples.reduce((maxValue, sample) => {
+                return Math.max(maxValue, Math.max(1, Number(sample.touchCount) || 1));
+            }, 1),
+            recentSources: samples.slice(-8).map((sample) => String(sample.source || 'click'))
+        };
+    }
+
     analyze(now = performance.now()) {
         const recentClicks = this.getRecentClicks(now);
         if (recentClicks.length < this.config.minSamples) {
@@ -7534,6 +8688,7 @@ class AutoClickerDetector {
         const multiTouchRatio = recentClicks.length > 0
             ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) >= 3).length / recentClicks.length
             : 0;
+        const multiTouchGuard = this.isMobile && (maxTouchCount >= 3 || multiTouchRatio >= 0.25);
         const hasStrongMobileMultiTouch = this.isMobile &&
             multiTouchRatio >= 0.35 &&
             averageTouchCount >= 2.4 &&
@@ -7612,6 +8767,10 @@ class AutoClickerDetector {
             longestStableStreak >= 4;
 
         const extremeSpeed = effectiveCps >= this.config.extremeCPS;
+        const strongHundredMsPattern = exactHundredMsPattern || mobileHundredMsPattern || mobileNearHundredMsPattern;
+        const mobileCpsOnlySuspicion = this.isMobile &&
+            !strongHundredMsPattern &&
+            (extremeSpeed || suspiciousCadence || hardCadence || shortBurstRatio >= 0.6);
 
         if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
             return {
@@ -7623,22 +8782,35 @@ class AutoClickerDetector {
         const reasons = [];
 
         if (extremeSpeed) {
-            addedHeat += 10;
-            reasons.push(
-                hasStrongMobileMultiTouch
-                    ? `экстремальная скорость ${cps.toFixed(1)} CPS даже после поправки на ${averageTouchCount.toFixed(1)} пальца`
-                    : `экстремальная скорость ${cps.toFixed(1)} CPS`
-            );
+            if (multiTouchGuard && !strongHundredMsPattern) {
+                addedHeat += 2;
+                reasons.push(`очень быстрый мультитач ${cps.toFixed(1)} CPS без 100 мс-паттерна`);
+            } else {
+                addedHeat += 10;
+                reasons.push(
+                    hasStrongMobileMultiTouch
+                        ? `экстремальная скорость ${cps.toFixed(1)} CPS даже после поправки на ${averageTouchCount.toFixed(1)} пальца`
+                        : `экстремальная скорость ${cps.toFixed(1)} CPS`
+                );
+            }
         }
 
         if (suspiciousCadence) {
-            addedHeat += 4;
-            reasons.push(`слишком ровный темп ${medianInterval.toFixed(0)} мс`);
+            addedHeat += multiTouchGuard && !strongHundredMsPattern ? 2 : 4;
+            reasons.push(
+                multiTouchGuard && !strongHundredMsPattern
+                    ? `ровный burst-мультитач ${medianInterval.toFixed(0)} мс`
+                    : `слишком ровный темп ${medianInterval.toFixed(0)} мс`
+            );
         }
 
         if (hardCadence) {
-            addedHeat += 6;
-            reasons.push(`идеальная серия ${longestStableStreak + 1} кликов`);
+            addedHeat += multiTouchGuard && !strongHundredMsPattern ? 2 : 6;
+            reasons.push(
+                multiTouchGuard && !strongHundredMsPattern
+                    ? `подозрительно ровный мультитач ${longestStableStreak + 1} касаний`
+                    : `идеальная серия ${longestStableStreak + 1} кликов`
+            );
         }
 
         if (exactHundredMsPattern) {
@@ -7657,7 +8829,7 @@ class AutoClickerDetector {
         }
 
         if (shortBurstRatio >= 0.6 && effectiveCps >= this.config.suspiciousCPS) {
-            addedHeat += 2;
+            addedHeat += multiTouchGuard && !strongHundredMsPattern ? 1 : 2;
             reasons.push('слишком много сверхкоротких интервалов');
         }
 
@@ -7668,6 +8840,7 @@ class AutoClickerDetector {
             averageTouchCount: averageTouchCount,
             maxTouchCount: maxTouchCount,
             multiTouchRatio: multiTouchRatio,
+            multiTouchGuard: multiTouchGuard,
             hasStrongMobileMultiTouch: hasStrongMobileMultiTouch,
             lowTouchAutomationRisk: lowTouchAutomationRisk,
             coefficientOfVariation: coefficientOfVariation,
@@ -7677,10 +8850,17 @@ class AutoClickerDetector {
             longestStableStreak: longestStableStreak,
             touchSourceRatio: touchSourceRatio,
             singlePointerRatio: singlePointerRatio,
+            mobileCpsOnlySuspicion: mobileCpsOnlySuspicion,
             reason: reasons[0] || 'подозрительный ритм'
         });
 
-        const shouldBanImmediately = extremeSpeed || hardCadence || exactHundredMsPattern || mobileHundredMsPattern || mobileNearHundredMsPattern || this.heat >= this.config.banHeatThreshold;
+        const shouldBanFromHeat = this.isMobile
+            ? (!multiTouchGuard && this.warningCount >= 2 && this.heat >= this.config.banHeatThreshold)
+            : this.heat >= this.config.banHeatThreshold;
+        const shouldBanImmediately = this.isMobile
+            ? strongHundredMsPattern || shouldBanFromHeat
+            : extremeSpeed || hardCadence || exactHundredMsPattern || shouldBanFromHeat;
+
         if (shouldBanImmediately) {
             return {
                 action: 'ban',
@@ -7689,7 +8869,7 @@ class AutoClickerDetector {
             };
         }
 
-        if (this.heat >= this.config.warningHeatThreshold && now >= this.warningCooldownUntil) {
+        if ((this.heat >= this.config.warningHeatThreshold || mobileCpsOnlySuspicion) && now >= this.warningCooldownUntil) {
             return {
                 action: 'warn',
                 reason: reasons[0] || 'подозрительная автоматизированная активность',
@@ -7947,21 +9127,32 @@ class AutoClickerDetector {
                     <p style="color: #aaa; font-size: 0.9em; margin-bottom: 20px;">
                         Бан хранится на сервере. Если считаете это ошибкой, напишите в поддержку и укажите свой логин.
                     </p>
-                    <a
-                        href="https://forms.yandex.ru/u/68e2472302848f9edc066ce2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style="
-                            display: inline-block;
-                            margin-bottom: 16px;
-                            color: #8bdcff;
+                    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center; margin-bottom: 16px;">
+                        <button id="banAppealBtn" style="
+                            background: linear-gradient(180deg, rgba(89, 229, 255, 0.96), rgba(53, 113, 234, 0.98));
+                            color: #f8fbff;
+                            border: none;
+                            padding: 12px 22px;
+                            border-radius: 10px;
+                            cursor: pointer;
+                            font-size: 1em;
                             font-weight: bold;
-                            text-decoration: none;
-                            border-bottom: 1px solid rgba(139, 220, 255, 0.45);
-                            padding-bottom: 2px;
-                        "
-                    >Написать в поддержку</a>
-                    <br>
+                            box-shadow: 0 16px 28px rgba(0, 0, 0, 0.22);
+                        ">Подать апелляцию</button>
+                        <a
+                            href="https://forms.yandex.ru/u/68e2472302848f9edc066ce2"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="
+                                display: inline-block;
+                                color: #8bdcff;
+                                font-weight: bold;
+                                text-decoration: none;
+                                border-bottom: 1px solid rgba(139, 220, 255, 0.45);
+                                padding-bottom: 2px;
+                            "
+                        >Открыть поддержку вручную</a>
+                    </div>
                     <button id="reloadAfterBanBtn" style="
                         background: #74b9ff;
                         color: #0f172a;
@@ -7979,10 +9170,17 @@ class AutoClickerDetector {
         banScreen.querySelector('#reloadAfterBanBtn').addEventListener('click', () => {
             location.reload();
         });
+
+        const appealButton = banScreen.querySelector('#banAppealBtn');
+        if (appealButton) {
+            appealButton.addEventListener('click', () => {
+                openSupportAppeal(normalizedBan);
+            });
+        }
         
         banScreen.addEventListener('click', (e) => {
             const allowedTarget = e.target instanceof Element
-                ? e.target.closest('#reloadAfterBanBtn, a[href]')
+                ? e.target.closest('#reloadAfterBanBtn, #banAppealBtn, a[href]')
                 : null;
 
             if (!allowedTarget) {

@@ -84,34 +84,18 @@ try {
         'source' => 'register',
     ]);
     bober_record_user_ip($conn, $newUserId);
-    $flyBeaver = bober_ensure_fly_progress_row($conn, $newUserId);
+    bober_ensure_fly_progress_row($conn, $newUserId);
     bober_log_user_activity($conn, $newUserId, 'register_success', [
         'action_group' => 'auth',
         'source' => 'register',
         'login' => $login,
         'description' => 'Создан новый аккаунт и выполнен автоматический вход.',
     ]);
+    $response = bober_fetch_account_snapshot($conn, $newUserId);
     $conn->close();
 
-    bober_json_response([
-        'success' => true,
-        'message' => 'Регистрация успешна! Вход выполнен автоматически.',
-        'userId' => $newUserId,
-        'login' => $login,
-        'plus' => $plus,
-        'skin' => $defaultSkin,
-        'energy' => $energy,
-        'lastEnergyUpdate' => (int) $lastEnergyUpdate,
-        'ENERGY_MAX' => $energyMax,
-        'score' => $score,
-        'upgradePurchases' => [
-            'tapSmall' => $upgradeTapSmallCount,
-            'tapBig' => $upgradeTapBigCount,
-            'energy' => $upgradeEnergyCount,
-            'tapHuge' => $upgradeTapHugeCount,
-        ],
-        'flyBeaver' => $flyBeaver,
-    ]);
+    $response['message'] = 'Регистрация успешна! Вход выполнен автоматически.';
+    bober_json_response($response);
 } catch (Throwable $error) {
     $statusCode = $error instanceof InvalidArgumentException ? 400 : 500;
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], $statusCode);

@@ -187,9 +187,86 @@ function buildUniqueSkinCatalogId($name, array $catalogItems)
     return $candidate;
 }
 
+function skinManagedUploadRelativePrefix()
+{
+    return 'skins/uploaded/';
+}
+
 function skinUploadDirectoryPath()
 {
-    return dirname(__DIR__) . '/skins';
+    return dirname(__DIR__) . '/skins/uploaded';
+}
+
+function normalizeManagedSkinRelativePath($relativePath)
+{
+    $relativePath = trim((string) $relativePath);
+    $prefix = skinManagedUploadRelativePrefix();
+    if ($relativePath === '' || strpos($relativePath, $prefix) !== 0) {
+        return '';
+    }
+
+    $suffix = substr($relativePath, strlen($prefix));
+    if (!is_string($suffix) || $suffix === '' || strpos($suffix, '..') !== false || strpos($suffix, '/') !== false || strpos($suffix, '\\') !== false) {
+        return '';
+    }
+
+    return $prefix . $suffix;
+}
+
+function resolveManagedSkinAbsolutePath($relativePath)
+{
+    $normalizedPath = normalizeManagedSkinRelativePath($relativePath);
+    if ($normalizedPath === '') {
+        return '';
+    }
+
+    $absolutePath = dirname(__DIR__) . '/' . $normalizedPath;
+    $realBase = realpath(skinUploadDirectoryPath());
+    if ($realBase === false) {
+        return '';
+    }
+
+    $resolvedDir = realpath(dirname($absolutePath));
+    if ($resolvedDir === false || strpos($resolvedDir, $realBase) !== 0) {
+        return '';
+    }
+
+    return $absolutePath;
+}
+
+function countSkinCatalogImageReferences(array $catalogItems, $relativePath)
+{
+    $normalizedPath = trim((string) $relativePath);
+    if ($normalizedPath === '') {
+        return 0;
+    }
+
+    $count = 0;
+    foreach ($catalogItems as $item) {
+        if (trim((string) ($item['image'] ?? '')) === $normalizedPath) {
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
+function cleanupManagedSkinImageIfUnused(array $catalogItems, $relativePath)
+{
+    $absolutePath = resolveManagedSkinAbsolutePath($relativePath);
+    if ($absolutePath === '') {
+        return false;
+    }
+
+    if (countSkinCatalogImageReferences($catalogItems, $relativePath) > 0) {
+        return false;
+    }
+
+    if (!is_file($absolutePath)) {
+        return false;
+    }
+
+    return @unlink($absolutePath);
 }
 
 function detectSkinImageExtension($tmpPath, $originalName)
@@ -261,7 +338,7 @@ function storeUploadedSkinImage($skinId, array $uploadedFile)
         throw new RuntimeException('Не удалось подготовить папку для скинов.');
     }
 
-    $fileName = $skinId . '-' . gmdate('YmdHis') . '.' . $extension;
+    $fileName = $skinId . '-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $extension;
     $targetPath = $skinsDir . '/' . $fileName;
 
     if (!move_uploaded_file($tmpName, $targetPath)) {
@@ -269,7 +346,7 @@ function storeUploadedSkinImage($skinId, array $uploadedFile)
     }
 
     return [
-        'relative_path' => 'skins/' . $fileName,
+        'relative_path' => skinManagedUploadRelativePrefix() . $fileName,
         'absolute_path' => $targetPath,
     ];
 }
@@ -761,6 +838,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                         try {
                             $nextImage = (string) ($currentItem['image'] ?? '');
+                            $previousImage = $nextImage;
                             if ($uploadedFile && (int) ($uploadedFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                                 $storedImage = storeUploadedSkinImage($skinId, $uploadedFile);
                                 $nextImage = $storedImage['relative_path'];
@@ -789,6 +867,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $response['message'] = 'Скин обновлен.';
                             $response['skin'] = $updatedItem;
                             invalidateAdminRuntimeCaches($conn);
+
+                            if ($previousImage !== '' && $previousImage !== $nextImage) {
+                                cleanupManagedSkinImageIfUnused($catalogItems, $previousImage);
+                            }
 
                             bober_admin_log_action($conn, 'update_skin_catalog_item', [
                                 'target_table' => 'skin_catalog',
@@ -845,6 +927,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         array_splice($catalogItems, $skinIndex, 1);
                         $catalogItems = ensureSkinCatalogDefaults($catalogItems);
                         bober_store_skin_catalog($catalogItems);
+                        cleanupManagedSkinImageIfUnused($catalogItems, (string) ($deletedItem['image'] ?? ''));
 
                         $response['success'] = true;
                         $response['message'] = 'Скин удален из каталога.';
@@ -2405,6 +2488,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             font-weight: 500;
             color: var(--on-surface);
             border-bottom: 1px solid var(--border);
+            min-height: 52px;
         }
         
         .sidebar-item:hover {
@@ -3481,10 +3565,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             .header-content {
                 gap: 10px;
+                align-items: flex-start;
             }
 
             .logo-area {
                 gap: 10px;
+                flex: 1;
+                min-width: 0;
             }
             
             .logo-text h1 {
@@ -3513,13 +3600,39 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .sidebar {
-                width: min(86vw, 360px);
+                width: min(92vw, 380px);
                 border-top-right-radius: 22px;
                 border-bottom-right-radius: 22px;
             }
             
             .main-content {
                 padding: 16px calc(var(--safe-right) + 14px) calc(var(--safe-bottom) + 18px) calc(var(--safe-left) + 14px);
+            }
+
+            .menu-toggle,
+            .action-button,
+            .user-dropdown-item,
+            .table-item,
+            .sidebar-item {
+                min-height: 48px;
+            }
+
+            .header-actions {
+                width: auto;
+                max-width: 44vw;
+                justify-content: flex-end;
+                align-self: flex-start;
+            }
+
+            .user-menu,
+            .user-dropdown {
+                width: 100%;
+            }
+
+            .user-dropdown {
+                left: auto;
+                right: 0;
+                width: min(320px, calc(100vw - var(--safe-left) - var(--safe-right) - 28px));
             }
             
             .card {
@@ -3575,6 +3688,23 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             .modal-footer .btn {
                 width: 100%;
+            }
+
+            .account-list-item {
+                padding: 15px 14px;
+                border-radius: 18px;
+            }
+
+            .account-list-top,
+            .account-list-foot {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .account-list-stats {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
             }
         }
         
@@ -4158,6 +4288,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 padding: 13px;
             }
 
+            .account-empty {
+                min-height: 260px;
+                padding: 22px 18px;
+            }
+
             .account-head-actions .btn,
             .account-list-toolbar .btn,
             .account-list-toolbar .form-control,
@@ -4172,6 +4307,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 8px;
+            }
+
+            .account-list-item .mini-chip,
+            .stack-item-actions .btn,
+            .inline-actions .btn {
+                min-height: 44px;
+                justify-content: center;
             }
 
             .detail-form-grid {
@@ -4227,6 +4369,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .skin-catalog-toolbar .form-control,
             .skin-catalog-toolbar .search-box {
                 width: 100%;
+            }
+
+            .skin-catalog-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .skin-catalog-card-preview {
+                min-height: 220px;
             }
         }
     </style>
@@ -5104,7 +5254,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         </div>
                         <div>
                             <div class="modal-hero-title" id="deleteSkinModalTitle">Удалить этот скин?</div>
-                            <div class="modal-hero-text" id="deleteSkinModalText">Картинка останется на сервере, но сам скин пропадет из каталога магазина.</div>
+                            <div class="modal-hero-text" id="deleteSkinModalText">Сам скин пропадет из каталога магазина, а загруженный файл тоже удалится, если больше нигде не используется.</div>
                         </div>
                     </div>
                     <div class="duration-summary" id="deleteSkinModalInfo"></div>
@@ -6844,7 +6994,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 title.textContent = `Удалить ${skinItem.name || skinItem.id}?`;
             }
             if (text) {
-                text.textContent = 'Игроки перестанут видеть этот скин в магазине. Уже сохраненные картинки останутся на сервере.';
+                text.textContent = 'Игроки перестанут видеть этот скин в магазине. Загруженный файл тоже удалится, если больше нигде не используется.';
             }
             if (info) {
                 info.innerHTML = `

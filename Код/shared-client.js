@@ -3,6 +3,7 @@
 
     var DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
     var DEFAULT_FLY_COINS_PER_SCORE = 500;
+    var USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
     var DEFAULT_CLIENT_LOG_CONFIG = {
         dbName: 'bober_main_client_log',
         storeName: 'pending_events',
@@ -11,6 +12,110 @@
         summaryStorageKey: 'bober_client_log_summary',
         deviceIdStorageKey: 'bober_client_log_device_id'
     };
+
+    function defaultUserSettings() {
+        return {
+            audio: {
+                musicEnabled: true,
+                effectsEnabled: true,
+                flyVolume: 100
+            },
+            vibration: {
+                enabled: true,
+                intensity: 'medium'
+            },
+            animations: {
+                mode: 'full'
+            },
+            notifications: {
+                enabled: true
+            },
+            effects: {
+                quality: 'high'
+            }
+        };
+    }
+
+    function normalizeUserSettings(rawSettings) {
+        var defaults = defaultUserSettings();
+        var raw = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+        var vibrationIntensity = String((((raw.vibration || {}).intensity) || defaults.vibration.intensity)).trim();
+        var animationsMode = String((((raw.animations || {}).mode) || defaults.animations.mode)).trim();
+        var effectsQuality = String((((raw.effects || {}).quality) || defaults.effects.quality)).trim();
+
+        if (['low', 'medium', 'high'].indexOf(vibrationIntensity) === -1) {
+            vibrationIntensity = defaults.vibration.intensity;
+        }
+
+        if (['full', 'reduced', 'off'].indexOf(animationsMode) === -1) {
+            animationsMode = defaults.animations.mode;
+        }
+
+        if (['low', 'medium', 'high'].indexOf(effectsQuality) === -1) {
+            effectsQuality = defaults.effects.quality;
+        }
+
+        return {
+            audio: {
+                musicEnabled: !Object.prototype.hasOwnProperty.call(raw.audio || {}, 'musicEnabled')
+                    ? defaults.audio.musicEnabled
+                    : Boolean((raw.audio || {}).musicEnabled),
+                effectsEnabled: !Object.prototype.hasOwnProperty.call(raw.audio || {}, 'effectsEnabled')
+                    ? defaults.audio.effectsEnabled
+                    : Boolean((raw.audio || {}).effectsEnabled),
+                flyVolume: Math.max(0, Math.min(100, Number((((raw.audio || {}).flyVolume) || defaults.audio.flyVolume)) || 0))
+            },
+            vibration: {
+                enabled: !Object.prototype.hasOwnProperty.call(raw.vibration || {}, 'enabled')
+                    ? defaults.vibration.enabled
+                    : Boolean((raw.vibration || {}).enabled),
+                intensity: vibrationIntensity
+            },
+            animations: {
+                mode: animationsMode
+            },
+            notifications: {
+                enabled: !Object.prototype.hasOwnProperty.call(raw.notifications || {}, 'enabled')
+                    ? defaults.notifications.enabled
+                    : Boolean((raw.notifications || {}).enabled)
+            },
+            effects: {
+                quality: effectsQuality
+            }
+        };
+    }
+
+    function readCachedUserSettings() {
+        try {
+            var raw = localStorage.getItem(USER_SETTINGS_CACHE_KEY);
+            if (!raw) {
+                return defaultUserSettings();
+            }
+
+            return normalizeUserSettings(JSON.parse(raw));
+        } catch (error) {
+            return defaultUserSettings();
+        }
+    }
+
+    function persistCachedUserSettings(settings) {
+        var normalized = normalizeUserSettings(settings);
+        try {
+            localStorage.setItem(USER_SETTINGS_CACHE_KEY, JSON.stringify(normalized));
+        } catch (error) {
+            console.warn('Не удалось сохранить кэш пользовательских настроек.', error);
+        }
+
+        return normalized;
+    }
+
+    function clearCachedUserSettings() {
+        try {
+            localStorage.removeItem(USER_SETTINGS_CACHE_KEY);
+        } catch (error) {
+            console.warn('Не удалось очистить кэш пользовательских настроек.', error);
+        }
+    }
 
     function normalizeBanInfo(rawBanInfo) {
         if (!rawBanInfo || typeof rawBanInfo !== 'object') {
@@ -852,6 +957,33 @@
             }
         }
 
+        async function clearPendingEvents() {
+            state.memoryQueue = [];
+            state.memoryIndex.clear();
+            updateSummaryDraft();
+
+            if (!state.supported) {
+                return true;
+            }
+
+            var db = await openDatabase();
+            if (!db) {
+                return true;
+            }
+
+            return new Promise(function(resolve, reject) {
+                var transaction = db.transaction(config.storeName, 'readwrite');
+                var store = transaction.objectStore(config.storeName);
+                var request = store.clear();
+                request.onsuccess = function() {
+                    resolve(true);
+                };
+                request.onerror = function() {
+                    reject(request.error || new Error('Не удалось очистить локальную очередь клиентского лога.'));
+                };
+            });
+        }
+
         return {
             config: config,
             state: state,
@@ -863,7 +995,8 @@
             logEvent: logEvent,
             prepareBatchFromMemory: prepareBatchFromMemory,
             prepareBatch: prepareBatch,
-            acknowledgeBatch: acknowledgeBatch
+            acknowledgeBatch: acknowledgeBatch,
+            clearPendingEvents: clearPendingEvents
         };
     }
 
@@ -871,8 +1004,14 @@
 
     window.BoberSharedClient = Object.freeze({
         DEVICE_BAN_STORAGE_KEY: DEVICE_BAN_STORAGE_KEY,
+        USER_SETTINGS_CACHE_KEY: USER_SETTINGS_CACHE_KEY,
         FLY_COINS_PER_SCORE: DEFAULT_FLY_COINS_PER_SCORE,
         DEFAULT_CLIENT_LOG_CONFIG: Object.freeze(Object.assign({}, DEFAULT_CLIENT_LOG_CONFIG)),
+        defaultUserSettings: defaultUserSettings,
+        normalizeUserSettings: normalizeUserSettings,
+        readCachedUserSettings: readCachedUserSettings,
+        persistCachedUserSettings: persistCachedUserSettings,
+        clearCachedUserSettings: clearCachedUserSettings,
         normalizeBanInfo: normalizeBanInfo,
         getStoredDeviceBanEndTimestamp: getStoredDeviceBanEndTimestamp,
         isStoredDeviceBanActive: isStoredDeviceBanActive,

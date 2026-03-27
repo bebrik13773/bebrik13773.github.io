@@ -2604,6 +2604,103 @@ SQL;
     }
 }
 
+function bober_default_user_settings()
+{
+    return [
+        'audio' => [
+            'musicEnabled' => true,
+            'effectsEnabled' => true,
+            'flyVolume' => 100,
+        ],
+        'vibration' => [
+            'enabled' => true,
+            'intensity' => 'medium',
+        ],
+        'animations' => [
+            'mode' => 'full',
+        ],
+        'notifications' => [
+            'enabled' => true,
+        ],
+        'effects' => [
+            'quality' => 'high',
+        ],
+    ];
+}
+
+function bober_normalize_user_settings($settings)
+{
+    $defaults = bober_default_user_settings();
+    $raw = is_array($settings) ? $settings : [];
+
+    $musicEnabled = !array_key_exists('musicEnabled', (array) ($raw['audio'] ?? []))
+        ? $defaults['audio']['musicEnabled']
+        : !empty($raw['audio']['musicEnabled']);
+    $effectsEnabled = !array_key_exists('effectsEnabled', (array) ($raw['audio'] ?? []))
+        ? $defaults['audio']['effectsEnabled']
+        : !empty($raw['audio']['effectsEnabled']);
+    $flyVolume = max(0, min(100, (int) (($raw['audio']['flyVolume'] ?? $defaults['audio']['flyVolume']))));
+
+    $vibrationEnabled = !array_key_exists('enabled', (array) ($raw['vibration'] ?? []))
+        ? $defaults['vibration']['enabled']
+        : !empty($raw['vibration']['enabled']);
+    $vibrationIntensity = trim((string) ($raw['vibration']['intensity'] ?? $defaults['vibration']['intensity']));
+    if (!in_array($vibrationIntensity, ['low', 'medium', 'high'], true)) {
+        $vibrationIntensity = $defaults['vibration']['intensity'];
+    }
+
+    $animationsMode = trim((string) ($raw['animations']['mode'] ?? $defaults['animations']['mode']));
+    if (!in_array($animationsMode, ['full', 'reduced', 'off'], true)) {
+        $animationsMode = $defaults['animations']['mode'];
+    }
+
+    $notificationsEnabled = !array_key_exists('enabled', (array) ($raw['notifications'] ?? []))
+        ? $defaults['notifications']['enabled']
+        : !empty($raw['notifications']['enabled']);
+
+    $effectsQuality = trim((string) ($raw['effects']['quality'] ?? $defaults['effects']['quality']));
+    if (!in_array($effectsQuality, ['low', 'medium', 'high'], true)) {
+        $effectsQuality = $defaults['effects']['quality'];
+    }
+
+    return [
+        'audio' => [
+            'musicEnabled' => $musicEnabled,
+            'effectsEnabled' => $effectsEnabled,
+            'flyVolume' => $flyVolume,
+        ],
+        'vibration' => [
+            'enabled' => $vibrationEnabled,
+            'intensity' => $vibrationIntensity,
+        ],
+        'animations' => [
+            'mode' => $animationsMode,
+        ],
+        'notifications' => [
+            'enabled' => $notificationsEnabled,
+        ],
+        'effects' => [
+            'quality' => $effectsQuality,
+        ],
+    ];
+}
+
+function bober_ensure_user_settings_schema($conn)
+{
+    $createSettingsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_settings` (
+    `user_id` INT NOT NULL PRIMARY KEY,
+    `settings_json` LONGTEXT NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createSettingsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу пользовательских настроек.');
+    }
+}
+
 function bober_ensure_gameplay_schema($conn)
 {
     static $schemaEnsured = false;
@@ -2615,6 +2712,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_game_schema($conn);
     bober_ensure_security_schema($conn);
     bober_ensure_fly_beaver_schema($conn);
+    bober_ensure_user_settings_schema($conn);
 
     $schemaEnsured = true;
 }
@@ -2712,6 +2810,352 @@ function bober_fetch_fly_beaver_progress($conn, $userId)
     $stmt->close();
 
     return bober_normalize_fly_beaver_progress_row($row);
+}
+
+function bober_fetch_user_settings($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return bober_default_user_settings();
+    }
+
+    bober_ensure_user_settings_schema($conn);
+
+    $stmt = $conn->prepare('SELECT settings_json FROM user_settings WHERE user_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение пользовательских настроек.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить пользовательские настройки.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$row || !is_string($row['settings_json'] ?? null) || trim((string) $row['settings_json']) === '') {
+        return bober_default_user_settings();
+    }
+
+    $decoded = json_decode((string) $row['settings_json'], true);
+    return bober_normalize_user_settings(is_array($decoded) ? $decoded : null);
+}
+
+function bober_store_user_settings($conn, $userId, $settings)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    bober_ensure_user_settings_schema($conn);
+
+    $normalized = bober_normalize_user_settings($settings);
+    $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        throw new RuntimeException('Не удалось сериализовать пользовательские настройки.');
+    }
+
+    $stmt = $conn->prepare('INSERT INTO user_settings (user_id, settings_json) VALUES (?, ?) ON DUPLICATE KEY UPDATE settings_json = VALUES(settings_json), updated_at = CURRENT_TIMESTAMP');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение пользовательских настроек.');
+    }
+
+    $stmt->bind_param('is', $userId, $json);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить пользовательские настройки.');
+    }
+    $stmt->close();
+
+    return $normalized;
+}
+
+function bober_fetch_public_leaderboard($conn, $limit = 3)
+{
+    $limit = max(1, min(25, (int) $limit));
+    $sql = <<<SQL
+SELECT u.login, MAX(u.score) AS score
+FROM users u
+LEFT JOIN user_bans b
+    ON b.user_id = u.id
+    AND b.lifted_at IS NULL
+    AND b.ban_until > CURRENT_TIMESTAMP
+WHERE u.login IS NOT NULL
+    AND u.login <> ''
+    AND LOWER(TRIM(u.login)) <> 'test'
+    AND b.id IS NULL
+GROUP BY u.id, u.login
+ORDER BY score DESC
+LIMIT {$limit}
+SQL;
+
+    $result = $conn->query($sql);
+    if ($result === false) {
+        throw new RuntimeException('Ошибка выполнения запроса таблицы лидеров.');
+    }
+
+    $leaders = [];
+    while ($row = $result->fetch_assoc()) {
+        $leaders[] = [
+            'login' => (string) ($row['login'] ?? ''),
+            'score' => max(0, (int) ($row['score'] ?? 0)),
+        ];
+    }
+    $result->free();
+
+    return $leaders;
+}
+
+function bober_fetch_account_snapshot($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count FROM users WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Ошибка подготовки запроса.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Ошибка выполнения запроса.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$row) {
+        throw new RuntimeException('Сессия устарела.');
+    }
+
+    $normalizedSkin = bober_normalize_skin_json($row['skin'] ?? null);
+    if ($normalizedSkin !== (string) ($row['skin'] ?? '')) {
+        $updateStmt = $conn->prepare('UPDATE users SET skin = ? WHERE id = ?');
+        if ($updateStmt) {
+            $updateStmt->bind_param('si', $normalizedSkin, $userId);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
+    }
+
+    $energyMax = max(1, (int) ($row['ENERGY_MAX'] ?? 5000));
+    $energy = max(0, min($energyMax, (int) ($row['energy'] ?? 0)));
+
+    return [
+        'success' => true,
+        'userId' => (int) ($row['id'] ?? $userId),
+        'login' => (string) ($row['login'] ?? ''),
+        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'skin' => $normalizedSkin,
+        'energy' => $energy,
+        'lastEnergyUpdate' => max(0, (int) ($row['last_energy_update'] ?? 0)),
+        'ENERGY_MAX' => $energyMax,
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'upgradePurchases' => [
+            'tapSmall' => max(0, (int) ($row['upgrade_tap_small_count'] ?? 0)),
+            'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
+            'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
+            'tapHuge' => max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0)),
+        ],
+        'flyBeaver' => bober_fetch_fly_beaver_progress($conn, $userId),
+        'settings' => bober_fetch_user_settings($conn, $userId),
+    ];
+}
+
+function bober_apply_user_state_update($conn, $userId, $data)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $score = max(0, (int) ($data['score'] ?? 0));
+    $plus = max(1, (int) ($data['plus'] ?? 1));
+    $skin = bober_normalize_skin_json($data['skin'] ?? null);
+    $energyMax = max(1, (int) ($data['ENERGY_MAX'] ?? 5000));
+    $energy = min($energyMax, max(0, (int) ($data['energy'] ?? 0)));
+    $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
+    $upgradePurchases = is_array($data['upgradePurchases'] ?? null) ? $data['upgradePurchases'] : [];
+    $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
+    $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
+    $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
+    $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
+    $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
+
+    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count FROM users WHERE id = ? LIMIT 1');
+    if (!$currentStmt) {
+        throw new RuntimeException('Ошибка подготовки чтения текущего состояния.');
+    }
+
+    $currentStmt->bind_param('i', $userId);
+    if (!$currentStmt->execute()) {
+        $currentStmt->close();
+        throw new RuntimeException('Ошибка чтения текущего состояния.');
+    }
+
+    $currentResult = $currentStmt->get_result();
+    $currentRow = $currentResult ? $currentResult->fetch_assoc() : null;
+    if ($currentResult) {
+        $currentResult->free();
+    }
+    $currentStmt->close();
+
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ? WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Ошибка подготовки запроса.');
+    }
+
+    $stmt->bind_param('iisisiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Ошибка выполнения запроса.');
+    }
+    $stmt->close();
+
+    if (is_array($currentRow)) {
+        $previousScore = max(0, (int) ($currentRow['score'] ?? 0));
+        $previousPlus = max(1, (int) ($currentRow['plus'] ?? 1));
+        $previousEnergyMax = max(1, (int) ($currentRow['ENERGY_MAX'] ?? 5000));
+        $previousTapSmall = max(0, (int) ($currentRow['upgrade_tap_small_count'] ?? 0));
+        $previousTapBig = max(0, (int) ($currentRow['upgrade_tap_big_count'] ?? 0));
+        $previousEnergyPurchases = max(0, (int) ($currentRow['upgrade_energy_count'] ?? 0));
+        $previousTapHuge = max(0, (int) ($currentRow['upgrade_tap_huge_count'] ?? 0));
+        $previousSkinState = bober_decode_skin_state((string) ($currentRow['skin'] ?? ''));
+        $nextSkinState = bober_decode_skin_state($skin);
+
+        if ($upgradeTapSmallCount > $previousTapSmall) {
+            bober_log_user_activity($conn, $userId, 'upgrade_tap_small_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение +1 к тапу.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousTapSmall,
+                    'next_count' => $upgradeTapSmallCount,
+                    'previous_plus' => $previousPlus,
+                    'next_plus' => $plus,
+                ],
+            ]);
+        }
+
+        if ($upgradeTapBigCount > $previousTapBig) {
+            bober_log_user_activity($conn, $userId, 'upgrade_tap_big_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение +5 к тапу.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousTapBig,
+                    'next_count' => $upgradeTapBigCount,
+                    'previous_plus' => $previousPlus,
+                    'next_plus' => $plus,
+                ],
+            ]);
+        }
+
+        if ($upgradeEnergyCount > $previousEnergyPurchases || $energyMax > $previousEnergyMax) {
+            bober_log_user_activity($conn, $userId, 'upgrade_energy_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение запаса энергии.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousEnergyPurchases,
+                    'next_count' => $upgradeEnergyCount,
+                    'previous_energy_max' => $previousEnergyMax,
+                    'next_energy_max' => $energyMax,
+                ],
+            ]);
+        }
+
+        if ($upgradeTapHugeCount > $previousTapHuge) {
+            bober_log_user_activity($conn, $userId, 'upgrade_tap_huge_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение +100 к тапу.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousTapHuge,
+                    'next_count' => $upgradeTapHugeCount,
+                    'previous_plus' => $previousPlus,
+                    'next_plus' => $plus,
+                ],
+            ]);
+        }
+
+        if (($previousSkinState['equippedSkinId'] ?? '') !== ($nextSkinState['equippedSkinId'] ?? '')) {
+            bober_log_user_activity($conn, $userId, 'equip_skin', [
+                'action_group' => 'skins',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Игрок сменил активный скин.',
+                'meta' => [
+                    'previous_skin_id' => $previousSkinState['equippedSkinId'] ?? '',
+                    'next_skin_id' => $nextSkinState['equippedSkinId'] ?? '',
+                ],
+            ]);
+        }
+
+        $previousOwned = array_values(array_diff((array) ($previousSkinState['ownedSkinIds'] ?? []), (array) ($nextSkinState['ownedSkinIds'] ?? [])));
+        $newOwned = array_values(array_diff((array) ($nextSkinState['ownedSkinIds'] ?? []), (array) ($previousSkinState['ownedSkinIds'] ?? [])));
+        if (!empty($newOwned)) {
+            bober_log_user_activity($conn, $userId, 'unlock_skin', [
+                'action_group' => 'skins',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Игрок получил новый скин.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'unlocked_skin_ids' => array_values($newOwned),
+                    'removed_skin_ids' => array_values($previousOwned),
+                ],
+            ]);
+        }
+    }
+
+    $clientLogResult = null;
+    if (is_array($clientLogBatch)) {
+        try {
+            $clientLogResult = bober_store_client_log_batch($conn, $userId, $clientLogBatch, [
+                'login' => $_SESSION['game_login'] ?? '',
+            ]);
+        } catch (Throwable $logError) {
+            $clientLogResult = [
+                'received' => 0,
+                'accepted' => 0,
+                'inserted' => 0,
+                'duplicates' => 0,
+                'warning' => bober_exception_message($logError),
+            ];
+        }
+    }
+
+    return [
+        'clientLog' => $clientLogResult,
+    ];
 }
 
 function bober_build_ban_message($ban)
