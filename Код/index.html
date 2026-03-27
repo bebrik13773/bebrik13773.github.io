@@ -9018,18 +9018,21 @@ if (skinSortSelect) {
     });
 }
 
-document.getElementById('clicker').onclick = function(e) {
+function performSingleClickerActivation(event, options = {}) {
+    const source = String(options.source || 'click');
+    const activationKey = String(options.activationKey || '');
+
     if (!requestAuthModal('login', {
         text: 'Войдите в аккаунт, чтобы кликать, сохранять прогресс и покупать улучшения.'
     })) {
-        return;
+        return false;
     }
 
     updateEnergy();
-    const interactionPayload = buildInteractionPayload(e, 1);
+    const interactionPayload = buildInteractionPayload(event, 1);
     const antiCheatSnapshot = window.clickDetector && typeof window.clickDetector.recordInteraction === 'function'
         ? window.clickDetector.recordInteraction({
-            source: 'click',
+            source: source,
             x: interactionPayload.x,
             y: interactionPayload.y,
             touchCount: 1,
@@ -9060,23 +9063,115 @@ document.getElementById('clicker').onclick = function(e) {
             targetRole: interactionPayload.targetRole,
             trusted: interactionPayload.trusted,
             uiContext: interactionPayload.uiContext,
-            antiCheatSnapshot: antiCheatSnapshot
+            antiCheatSnapshot: antiCheatSnapshot,
+            inputMethod: source === 'keyboard' ? 'keyboard' : 'pointer',
+            activationKey: activationKey
         }, {
-            source: 'click',
-            description: 'Успешный клик по бобру.'
+            source: source,
+            description: source === 'keyboard'
+                ? `Успешный клавиатурный клик по бобру клавишей ${activationKey || 'keyboard'}.`
+                : 'Успешный клик по бобру.'
         });
     } else {
         logClientEvent('clicks', 'click_no_energy', {
             requestedCost: plus,
             x: interactionPayload.x,
             y: interactionPayload.y,
-            uiContext: interactionPayload.uiContext
+            uiContext: interactionPayload.uiContext,
+            inputMethod: source === 'keyboard' ? 'keyboard' : 'pointer',
+            activationKey: activationKey
         }, {
-            source: 'click',
-            description: 'Клик по бобру без достаточного запаса энергии.'
+            source: source,
+            description: source === 'keyboard'
+                ? `Клавиатурный клик по бобру без достаточного запаса энергии (${activationKey || 'keyboard'}).`
+                : 'Клик по бобру без достаточного запаса энергии.'
         });
         showNotification('Недостаточно энергии!', 'error');
     }
+    return true;
+}
+
+function buildKeyboardClickerActivationEvent() {
+    const clicker = document.getElementById('clicker');
+    if (!clicker) {
+        return null;
+    }
+
+    const rect = clicker.getBoundingClientRect();
+    const clientX = Math.round(rect.left + (rect.width / 2));
+    const clientY = Math.round(rect.top + (rect.height / 2));
+
+    return {
+        currentTarget: clicker,
+        target: clicker,
+        clientX,
+        clientY,
+        screenX: clientX,
+        screenY: clientY
+    };
+}
+
+function isEditableKeyboardTarget(target) {
+    return Boolean(
+        target instanceof Element &&
+        target.closest('input, textarea, select, option, [contenteditable="true"], [role="textbox"]')
+    );
+}
+
+function isInteractiveKeyboardTarget(target) {
+    return Boolean(
+        target instanceof Element &&
+        target.closest('button, a, summary, [role="button"], [role="link"], #clicker')
+    );
+}
+
+function isClickerShortcutBlocked() {
+    if (document.getElementById('shop')?.style.display === 'block') {
+        return true;
+    }
+
+    if (document.getElementById('clicerMex')?.style.display === 'none') {
+        return true;
+    }
+
+    if (document.getElementById('profileMenuShell')?.classList.contains('open')) {
+        return true;
+    }
+
+    return Boolean(document.querySelector('.modal-backdrop.show[aria-hidden="false"]'));
+}
+
+document.addEventListener('keydown', function(event) {
+    const isSpace = event.code === 'Space' || event.key === ' ';
+    const isEnter = event.code === 'Enter' || event.key === 'Enter';
+    if (!isSpace && !isEnter) {
+        return;
+    }
+
+    if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+    }
+
+    if (isEditableKeyboardTarget(event.target) || isInteractiveKeyboardTarget(event.target) || isClickerShortcutBlocked()) {
+        return;
+    }
+
+    const keyboardEvent = buildKeyboardClickerActivationEvent();
+    if (!keyboardEvent) {
+        return;
+    }
+
+    event.preventDefault();
+    performSingleClickerActivation(keyboardEvent, {
+        source: 'keyboard',
+        activationKey: isSpace ? 'Space' : 'Enter'
+    });
+});
+
+document.getElementById('clicker').onclick = function(e) {
+    performSingleClickerActivation(e, {
+        source: 'click'
+    });
 };
 
 document.getElementById('submitLogin').onclick = async function() {
