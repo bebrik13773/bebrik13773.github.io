@@ -1390,7 +1390,7 @@ SQL;
                                 throw new RuntimeException('Не удалось сохранить прогресс fly-beaver.');
                             }
 
-                            bober_reconcile_clicker_top_reward_skin($conn);
+                            bober_reconcile_top_reward_skins($conn);
 
                             bober_admin_log_action($conn, 'save_user_profile', [
                                 'target_table' => 'users',
@@ -1451,7 +1451,7 @@ SQL;
                     bober_ensure_project_schema($conn);
 
                     bober_grant_skin_to_user($conn, $userId, $skinId, $equipSkin);
-                    bober_reconcile_clicker_top_reward_skin($conn);
+                    bober_reconcile_top_reward_skins($conn);
                     $nextSkinState = bober_decode_skin_state(bober_fetch_account_snapshot($conn, $userId)['skin'] ?? '');
                     $response['success'] = true;
                     $response['message'] = $equipSkin
@@ -3102,6 +3102,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         .skin-upload-preview {
+            position: relative;
             aspect-ratio: 1 / 1;
             width: 100%;
             border-radius: 22px;
@@ -3113,6 +3114,28 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             background-position: center;
             box-shadow: 0 18px 32px rgba(0, 0, 0, 0.22);
             margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .skin-upload-preview img,
+        .skin-catalog-card-preview img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .skin-upload-preview::after,
+        .skin-catalog-card-preview::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.18));
+            pointer-events: none;
+            z-index: 2;
         }
 
         .skin-upload-preview-meta {
@@ -3250,13 +3273,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         .skin-catalog-card-preview {
+            position: relative;
             aspect-ratio: 4 / 3;
             background:
                 linear-gradient(180deg, rgba(9, 14, 27, 0.04), rgba(9, 14, 27, 0.22)),
                 linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82));
-            background-size: cover;
-            background-position: center;
             border-bottom: 1px solid var(--border);
+            overflow: hidden;
         }
 
         .skin-catalog-card-body {
@@ -6628,7 +6651,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 return `
                     <article class="skin-catalog-card" data-skin-id="${escapeHtml(item.id)}">
-                        <div class="skin-catalog-card-preview" style="background-image: linear-gradient(180deg, rgba(9, 14, 27, 0.04), rgba(9, 14, 27, 0.22)), url('${escapeHtml(imageUrl)}');"></div>
+                        <div class="skin-catalog-card-preview">
+                            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.name || item.id)}" loading="lazy" decoding="async">
+                        </div>
                         <div class="skin-catalog-card-body">
                             <div class="skin-catalog-card-head">
                                 <div>
@@ -6772,14 +6797,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (previewNode) {
                 clearAddSkinPreviewObjectUrl();
                 const file = imageInput && imageInput.files ? imageInput.files[0] : null;
+                let previewImageUrl = '';
                 if (file) {
                     addSkinPreviewObjectUrl = URL.createObjectURL(file);
-                    previewNode.style.backgroundImage = `linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.2)), url("${addSkinPreviewObjectUrl}")`;
+                    previewImageUrl = addSkinPreviewObjectUrl;
                 } else if (skinEditorState.mode === 'edit' && skinEditorState.currentImage) {
-                    previewNode.style.backgroundImage = `linear-gradient(180deg, rgba(10, 12, 28, 0.04), rgba(10, 12, 28, 0.2)), url("${resolveAdminSkinImageUrl(skinEditorState.currentImage)}")`;
-                } else {
-                    previewNode.style.backgroundImage = 'linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82))';
+                    previewImageUrl = resolveAdminSkinImageUrl(skinEditorState.currentImage);
                 }
+
+                previewNode.innerHTML = previewImageUrl
+                    ? `<img src="${escapeHtml(previewImageUrl)}" alt="${escapeHtml(skinName || 'Превью скина')}">`
+                    : '';
             }
         }
 
@@ -8373,7 +8401,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         </div>
                         <div class="activity-toolbar" style="margin-top: 12px;">
                             <select class="form-control" id="accountClientLogViewSelect">
-                                <option value="pretty"${selectedAccountClientLogViewMode === 'pretty' ? ' selected' : ''}>Красивый вид</option>
+                                <option value="pretty"${selectedAccountClientLogViewMode === 'pretty' ? ' selected' : ''}>Таймлайн</option>
                                 <option value="raw"${selectedAccountClientLogViewMode === 'raw' ? ' selected' : ''}>Сырой JSON</option>
                             </select>
                             <select class="form-control" id="accountClientLogLimitSelect">

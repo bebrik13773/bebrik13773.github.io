@@ -7,24 +7,17 @@
     <style>
         :root {
             --bg-a: #0f1024;
-            --bg-b: #18123d;
-            --bg-c: #0f2b37;
-            --panel: rgba(20, 16, 42, 0.72);
-            --border: rgba(118, 223, 255, 0.24);
-            --border-strong: rgba(118, 223, 255, 0.46);
-            --text: #f5fbff;
-            --muted: rgba(234, 244, 255, 0.72);
+            --bg-b: #1a1240;
+            --panel: rgba(20, 16, 42, 0.82);
+            --border: rgba(126, 238, 255, 0.24);
             --accent: #7eeeff;
+            --text: #f5fbff;
+            --muted: rgba(234, 244, 255, 0.76);
             --shadow: 0 24px 60px rgba(2, 6, 20, 0.42);
-            --radius: 26px;
         }
 
         * {
             box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
         }
 
         body {
@@ -35,40 +28,23 @@
             background:
                 radial-gradient(circle at top left, rgba(126, 238, 255, 0.14), transparent 28%),
                 radial-gradient(circle at top right, rgba(92, 126, 255, 0.16), transparent 24%),
-                linear-gradient(180deg, var(--bg-c), var(--bg-b) 42%, var(--bg-a));
-        }
-
-        a {
-            color: var(--accent);
+                linear-gradient(180deg, var(--bg-b), var(--bg-a));
         }
 
         .page {
-            width: min(1200px, calc(100% - 32px));
+            width: min(920px, calc(100% - 28px));
             margin: 0 auto;
-            padding: 32px 0 56px;
+            padding: 28px 0 56px;
         }
 
-        .hero {
-            position: relative;
-            overflow: hidden;
+        .card {
             padding: 28px;
-            border-radius: 32px;
-            background: linear-gradient(180deg, rgba(28, 19, 56, 0.9), rgba(13, 14, 32, 0.94));
-            border: 1px solid var(--border-strong);
+            border-radius: 28px;
+            background: var(--panel);
+            border: 1px solid var(--border);
             box-shadow: var(--shadow);
-            backdrop-filter: blur(22px);
-            -webkit-backdrop-filter: blur(22px);
-        }
-
-        .hero::before {
-            content: "";
-            position: absolute;
-            inset: -20% auto auto -12%;
-            width: 260px;
-            height: 260px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(126, 238, 255, 0.22), rgba(126, 238, 255, 0));
-            pointer-events: none;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
 
         .kicker {
@@ -87,107 +63,52 @@
         }
 
         h1 {
-            margin: 18px 0 12px;
-            font-size: clamp(34px, 5vw, 58px);
+            margin: 18px 0 10px;
+            font-size: clamp(34px, 5vw, 56px);
             line-height: 0.98;
         }
 
-        .hero p {
-            margin: 0;
-            max-width: 860px;
-            color: var(--muted);
-            font-size: 17px;
-            line-height: 1.7;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 280px minmax(0, 1fr);
-            gap: 24px;
-            margin-top: 24px;
-            align-items: start;
-        }
-
-        .toc,
-        .content-card,
-        .roadmap-grid article {
-            border-radius: var(--radius);
-            background: var(--panel);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-        }
-
-        .toc {
-            position: sticky;
-            top: 16px;
-            padding: 20px;
-        }
-
-        .toc h2 {
-            margin: 0 0 16px;
-            font-size: 18px;
-        }
-
-        .toc a {
-            display: block;
-            padding: 10px 12px;
-            margin-bottom: 8px;
-            border-radius: 14px;
-            text-decoration: none;
-            color: var(--muted);
-            background: rgba(255, 255, 255, 0.03);
-            transition: 0.18s ease;
-        }
-
-        .toc a:hover {
-            color: var(--text);
-            background: rgba(126, 238, 255, 0.08);
-            transform: translateX(4px);
-        }
-
-        .content {
-            display: grid;
-            gap: 22px;
-        }
-
-        .content-card {
-            padding: 24px;
-        }
-
-        h2 {
-            margin: 0 0 14px;
-            font-size: clamp(24px, 3vw, 34px);
-        }
-
-        h3 {
-            margin: 0 0 10px;
-            font-size: 18px;
-        }
-
         p {
-            color: var(--muted);
-            line-height: 1.7;
-            font-size: 16px;
             margin: 0;
+            color: var(--muted);
+            line-height: 1.72;
+            font-size: 16px;
         }
 
-        .section-note {
-            margin: 0 0 18px;
-        }
-
-        .roadmap-grid {
+        .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 16px;
+            margin-top: 22px;
         }
 
-        .roadmap-grid article {
+        .status-item {
             padding: 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(126, 238, 255, 0.14);
         }
 
-        .inline-code {
+        .status-item strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .done {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 22px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(91, 255, 180, 0.12);
+            border: 1px solid rgba(91, 255, 180, 0.18);
+            color: #dfffee;
+            font-weight: 700;
+        }
+
+        code {
             padding: 2px 8px;
             border-radius: 999px;
             background: rgba(126, 238, 255, 0.1);
@@ -195,149 +116,40 @@
             font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
             font-size: 0.95em;
         }
-
-        @media (max-width: 900px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
-
-            .toc {
-                position: static;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .page {
-                width: min(100% - 20px, 1200px);
-                padding-top: 18px;
-            }
-
-            .hero,
-            .content-card,
-            .toc {
-                padding: 18px;
-                border-radius: 22px;
-            }
-        }
     </style>
 </head>
 <body>
     <main class="page">
-        <section class="hero">
-            <div class="kicker">Roadmap • Rendered HTML</div>
-            <h1>Future Roadmap</h1>
+        <section class="card">
+            <div class="kicker">Roadmap Status</div>
+            <h1>Активных задач в roadmap нет</h1>
             <p>
-                Основная читаемая версия roadmap теперь живёт в <span class="inline-code">FUTURE.html</span>.
-                Здесь оставлен только актуальный список задач без промтов и вспомогательных блоков.
+                Текущий пакет работ закрыт. Настройки применяются локально и синхронизируются через <code>sync-state.php</code>,
+                профиль и достижения выведены в клиент, для обеих категорий топа поддерживаются эксклюзивные награды,
+                а <code>fly-beaver</code> использует единый набор визуальных и облачных состояний.
             </p>
-        </section>
 
-        <div class="layout">
-            <nav class="toc">
-                <h2>Навигация</h2>
-                <a href="#priority">Приоритет</a>
-                <a href="#systems">Система и надежность</a>
-                <a href="#content-plan">Контент и визуал</a>
-                <a href="#meta">Профиль, топы и админка</a>
-            </nav>
-
-            <div class="content">
-                <section class="content-card" id="priority">
-                    <h2>Приоритет</h2>
-                    <p class="section-note">
-                        Ближайший рабочий список. Только задачи, которые реально нужно добивать в коде и интерфейсе.
-                    </p>
-                    <div class="roadmap-grid">
-                        <article>
-                            <h3>Финальный бобер для fly-beaver</h3>
-                            <p>Заменить временный sprite-pack на финальный цельный арт-набор и проверить его в игре на маленьком размере, в падении и в серии flap-анимаций.</p>
-                        </article>
-                        <article>
-                            <h3>Дочистка античита</h3>
-                            <p>Добить детект ПК-автокликера с anti-detect, собрать ещё несколько регрессионных логов и привести предупреждения, бан и апелляцию к предсказуемой схеме.</p>
-                        </article>
-                        <article>
-                            <h3>Надежность облака</h3>
-                            <p>Добить сохранение забегов <span class="inline-code">Летающего бобра</span>, проверить повторы, offline-очередь и сценарии с временными ошибками сервера.</p>
-                        </article>
-                        <article>
-                            <h3>Стабильный магазин скинов</h3>
-                            <p>Убрать оставшиеся артефакты рядом с картинками, довести image-safe рендер и проверить все модалки с preview на десктопе и телефоне.</p>
-                        </article>
-                        <article>
-                            <h3>Топовые награды</h3>
-                            <p>Довести уникальные топ-скины для обеих категорий, визуально выделить лидеров и подготовить медали, бейджи и статусные рамки.</p>
-                        </article>
-                    </div>
-                </section>
-
-                <section class="content-card" id="systems">
-                    <h2>Система и надежность</h2>
-                    <div class="roadmap-grid">
-                        <article>
-                            <h3>Повторная проверка sync-state</h3>
-                            <p>Пройтись по обновлению счета, энергии, лидерборда и настроек через единый sync-контур и убрать оставшиеся рассинхроны между вкладками и устройствами.</p>
-                        </article>
-                        <article>
-                            <h3>Forensic viewer</h3>
-                            <p>Сделать просмотр client-log как таймлайна, чтобы быстро разбирать апелляции, ложные баны и ошибки сохранения без ручного чтения JSON.</p>
-                        </article>
-                        <article>
-                            <h3>Тонкая настройка предупреждений</h3>
-                            <p>Разделить ПК и мобильные предупреждения античита по UX, чтобы подозрительный ритм было видно игроку и при этом не было лишнего шума.</p>
-                        </article>
-                        <article>
-                            <h3>Настройки и облако</h3>
-                            <p>Добить автосинхронизацию настроек при закрытии окна, при восстановлении сессии и после кратковременных сетевых ошибок.</p>
-                        </article>
-                    </div>
-                </section>
-
-                <section class="content-card" id="content-plan">
-                    <h2>Контент и визуал</h2>
-                    <div class="roadmap-grid">
-                        <article>
-                            <h3>Новые биомы и погода</h3>
-                            <p>Добавить смену атмосферы в <span class="inline-code">Летающем бобре</span>: туман, дождь, дневной лес, вечерний болотный свет и редкие погодные события.</p>
-                        </article>
-                        <article>
-                            <h3>Достижения и награды</h3>
-                            <p>Серии кликов, milestones по счету, награды за рекорды и редкие визуальные медали в профиле и в таблицах лидеров.</p>
-                        </article>
-                        <article>
-                            <h3>Сезонные и дорогие скины</h3>
-                            <p>Подготовить отдельные витрины для ивентовых, дорогих и уникальных скинов с нормальной категоризацией и визуальным статусом.</p>
-                        </article>
-                        <article>
-                            <h3>Эффекты без лагов</h3>
-                            <p>Продолжить упрощать ripple, glow и glass-эффекты в тяжёлых зонах интерфейса, чтобы мобильный рендер не ломался возле картинок и blur-панелей.</p>
-                        </article>
-                    </div>
-                </section>
-
-                <section class="content-card" id="meta">
-                    <h2>Профиль, топы и админка</h2>
-                    <div class="roadmap-grid">
-                        <article>
-                            <h3>Расширенный профиль</h3>
-                            <p>Показать историю рекордов, любимые скины, медали, краткую статистику по кликеру и <span class="inline-code">Летающему бобру</span>, а также удобный блок активных сессий.</p>
-                        </article>
-                        <article>
-                            <h3>Топ fly-beaver</h3>
-                            <p>Довести отдельные награды и уникальные статусы для лидеров <span class="inline-code">Летающего бобра</span>, по аналогии с кликером.</p>
-                        </article>
-                        <article>
-                            <h3>Мобильная админка</h3>
-                            <p>Добить удобный режим для телефона: карточки вместо широких таблиц, нормальные модалки, безопасные превью картинок и большие tap-targets.</p>
-                        </article>
-                        <article>
-                            <h3>Редактор каталога скинов</h3>
-                            <p>Упростить ручную выдачу, скрытие, сортировку и управление файлами изображений, чтобы редактор не требовал постоянной проверки через базу.</p>
-                        </article>
-                    </div>
-                </section>
+            <div class="status-grid">
+                <article class="status-item">
+                    <strong>Настройки</strong>
+                    <p>Рабочие режимы анимаций, эффектов, уведомлений, вибрации и звуков мини-игры.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Профиль и достижения</strong>
+                    <p>Профильная модалка, облачная сводка и автоматическое открытие достижений.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Топовые награды</strong>
+                    <p>Уникальные reward-скины для актуального топ-1 кликера и fly-beaver.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Админка и forensic</strong>
+                    <p>Таймлайн client-log, безопасный image-render и обновлённые служебные контуры.</p>
+                </article>
             </div>
-        </div>
+
+            <div class="done">Всё выполнено</div>
+        </section>
     </main>
 </body>
 </html>

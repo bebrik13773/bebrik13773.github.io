@@ -51,6 +51,39 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             overflow: hidden;
             padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
         }
+
+        body.effects-low {
+            --fly-ui-blur: 4px;
+            --fly-ui-shadow: 0 14px 26px rgba(2, 6, 23, 0.34);
+        }
+
+        body.effects-medium {
+            --fly-ui-blur: 8px;
+            --fly-ui-shadow: 0 18px 34px rgba(2, 6, 23, 0.42);
+        }
+
+        body.effects-high {
+            --fly-ui-blur: 12px;
+            --fly-ui-shadow: 0 24px 40px rgba(2, 6, 23, 0.48);
+        }
+
+        body.reduced-animations *,
+        body.reduced-animations *::before,
+        body.reduced-animations *::after {
+            animation-duration: 0.12s !important;
+            transition-duration: 0.12s !important;
+        }
+
+        body.animations-off *,
+        body.animations-off *::before,
+        body.animations-off *::after {
+            animation: none !important;
+            transition: none !important;
+        }
+
+        body.animations-off .fly-loading-spinner {
+            animation: none;
+        }
         
         #game-container {
             position: relative;
@@ -133,8 +166,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             border-radius: 18px;
             background: rgba(8, 22, 24, 0.54);
             border: 1px solid rgba(206, 255, 221, 0.18);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 24px rgba(5, 10, 20, 0.28);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+            box-shadow: var(--fly-ui-shadow, 0 10px 24px rgba(5, 10, 20, 0.28));
         }
         
         #high-score {
@@ -148,7 +181,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             border-radius: 13px;
             background: rgba(8, 22, 24, 0.48);
             border: 1px solid rgba(206, 255, 221, 0.14);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
         }
         
         #level-indicator {
@@ -162,7 +195,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             border-radius: 13px;
             background: rgba(8, 22, 24, 0.48);
             border: 1px solid rgba(206, 255, 221, 0.14);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
         }
         
         .screen {
@@ -343,8 +376,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             border-radius: 16px;
             padding: 8px 9px;
             color: #f5fbff;
-            backdrop-filter: blur(12px);
-            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(var(--fly-ui-blur, 12px));
+            box-shadow: var(--fly-ui-shadow, 0 14px 30px rgba(0, 0, 0, 0.22));
         }
 
         .cloud-panel.compact {
@@ -825,6 +858,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         hitSound.volume = 0.8;
         levelupSound.volume = 0.7;
         const isMobile = 'ontouchstart' in window;
+        const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
         const FLY_VISUAL_ASSET_PATHS = {
             beaverIdle: 'fly-assets/beaver-idle.svg',
             beaverGlide: 'fly-assets/beaver-glide.svg',
@@ -835,6 +869,124 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             logBottom: 'fly-assets/log-bottom.svg',
             cloud: 'fly-assets/cloud.svg'
         };
+        const FLY_BIOMES = Object.freeze([
+            {
+                id: 'mist-swamp',
+                label: 'Туманное болото',
+                skyTop: '#d6f2ea',
+                skyMid: '#8ab7aa',
+                skyBottom: '#17302d',
+                sunCore: 'rgba(255, 241, 195, 0.4)',
+                sunOuter: 'rgba(255, 205, 116, 0.18)',
+                farFill: '#49645c',
+                farShadow: '#27453f',
+                nearFill: '#324941',
+                nearShadow: '#1c2f28',
+                mistOpacity: 0.96,
+                backLeaf: '#406a48',
+                frontLeaf: '#33593b',
+                backAccent: '#9fd0a0',
+                frontAccent: '#8fd48f',
+                waterTop: 'rgba(72, 121, 109, 0.9)',
+                waterMid: 'rgba(42, 76, 70, 0.92)',
+                waterBottom: 'rgba(16, 36, 36, 0.98)',
+                grassTop: '#87bb62',
+                grassAccent: 'rgba(180, 228, 120, 0.48)',
+                soilTop: '#5f4b2c',
+                soilMid: '#45331d',
+                soilBottom: '#25190f',
+                cloudTint: 1,
+                ambientMode: 'pollen',
+                ambientDensity: 1
+            },
+            {
+                id: 'rain-marsh',
+                label: 'Дождливый марш',
+                skyTop: '#b8cad4',
+                skyMid: '#6f8c97',
+                skyBottom: '#102630',
+                sunCore: 'rgba(212, 232, 255, 0.14)',
+                sunOuter: 'rgba(126, 175, 255, 0.1)',
+                farFill: '#425965',
+                farShadow: '#203845',
+                nearFill: '#2e4049',
+                nearShadow: '#18272e',
+                mistOpacity: 0.72,
+                backLeaf: '#3d5d53',
+                frontLeaf: '#2d4740',
+                backAccent: '#84aa97',
+                frontAccent: '#78a993',
+                waterTop: 'rgba(58, 95, 108, 0.92)',
+                waterMid: 'rgba(31, 58, 66, 0.94)',
+                waterBottom: 'rgba(9, 22, 28, 0.99)',
+                grassTop: '#648c66',
+                grassAccent: 'rgba(146, 188, 156, 0.28)',
+                soilTop: '#56462f',
+                soilMid: '#3f301e',
+                soilBottom: '#22180f',
+                cloudTint: 0.86,
+                ambientMode: 'rain',
+                ambientDensity: 1.18
+            },
+            {
+                id: 'dusk-forest',
+                label: 'Вечерний лес',
+                skyTop: '#8f92c6',
+                skyMid: '#594f83',
+                skyBottom: '#172034',
+                sunCore: 'rgba(255, 196, 120, 0.3)',
+                sunOuter: 'rgba(255, 132, 104, 0.16)',
+                farFill: '#514d71',
+                farShadow: '#2f2746',
+                nearFill: '#2e3c4f',
+                nearShadow: '#161f2b',
+                mistOpacity: 0.56,
+                backLeaf: '#546b77',
+                frontLeaf: '#3c5362',
+                backAccent: '#c4b78b',
+                frontAccent: '#d3bd78',
+                waterTop: 'rgba(79, 96, 138, 0.82)',
+                waterMid: 'rgba(45, 55, 86, 0.92)',
+                waterBottom: 'rgba(15, 20, 38, 0.99)',
+                grassTop: '#7d8c58',
+                grassAccent: 'rgba(224, 205, 120, 0.2)',
+                soilTop: '#624e3b',
+                soilMid: '#443126',
+                soilBottom: '#251712',
+                cloudTint: 0.94,
+                ambientMode: 'firefly',
+                ambientDensity: 0.84
+            },
+            {
+                id: 'clear-day',
+                label: 'Ясный день',
+                skyTop: '#cfefff',
+                skyMid: '#8cc9dd',
+                skyBottom: '#244b55',
+                sunCore: 'rgba(255, 247, 183, 0.5)',
+                sunOuter: 'rgba(255, 213, 96, 0.22)',
+                farFill: '#6b8b78',
+                farShadow: '#3a5e54',
+                nearFill: '#3b5c4a',
+                nearShadow: '#1e332b',
+                mistOpacity: 0.38,
+                backLeaf: '#53855d',
+                frontLeaf: '#3c7147',
+                backAccent: '#b8e28f',
+                frontAccent: '#9fd784',
+                waterTop: 'rgba(89, 150, 162, 0.84)',
+                waterMid: 'rgba(48, 101, 110, 0.94)',
+                waterBottom: 'rgba(18, 42, 48, 0.99)',
+                grassTop: '#89c268',
+                grassAccent: 'rgba(210, 243, 134, 0.38)',
+                soilTop: '#735739',
+                soilMid: '#543d25',
+                soilBottom: '#2c1e11',
+                cloudTint: 1.08,
+                ambientMode: 'pollen',
+                ambientDensity: 1.08
+            }
+        ]);
         const flyVisualAssets = {
             images: {},
             ready: false,
@@ -849,6 +1001,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 ground: 0
             },
             pollen: [],
+            activeBiome: FLY_BIOMES[0],
+            ambientDensity: 1,
             treeBelts: {
                 back: { items: [], loopWidth: 0 },
                 front: { items: [], loopWidth: 0 }
@@ -969,6 +1123,22 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 : accountState.settings;
         }
 
+        function getEffectsDensityMultiplier() {
+            const quality = normalizeUserSettings(accountState.settings).effects.quality;
+            if (quality === 'low') {
+                return 0.45;
+            }
+            if (quality === 'medium') {
+                return 0.72;
+            }
+            return 1;
+        }
+
+        function pickFlyBiome() {
+            const pool = Array.isArray(FLY_BIOMES) && FLY_BIOMES.length > 0 ? FLY_BIOMES : [sceneState.activeBiome];
+            return pool[Math.floor(Math.random() * pool.length)] || pool[0];
+        }
+
         function applyFlySettings(rawSettings, options = {}) {
             accountState.settings = normalizeUserSettings(rawSettings);
             if (options.persist !== false && SHARED_CLIENT.persistCachedUserSettings) {
@@ -983,6 +1153,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             document.body.classList.toggle('reduced-animations', accountState.settings.animations.mode === 'reduced');
             document.body.classList.toggle('animations-off', accountState.settings.animations.mode === 'off');
+            document.body.classList.toggle('effects-low', accountState.settings.effects.quality === 'low');
+            document.body.classList.toggle('effects-medium', accountState.settings.effects.quality === 'medium');
+            document.body.classList.toggle('effects-high', accountState.settings.effects.quality === 'high');
+            sceneState.ambientDensity = getEffectsDensityMultiplier();
+            syncSceneState(true);
             return accountState.settings;
         }
 
@@ -1683,9 +1858,43 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             return flyVisualAssets.loadPromise;
         }
 
+        function getCurrentBiome() {
+            return sceneState.activeBiome || FLY_BIOMES[0];
+        }
+
         function createPollenParticle(seedIndex = 0) {
+            const biome = getCurrentBiome();
             const travelHeight = Math.max(80, canvas.height - 160);
+            if (biome.ambientMode === 'rain') {
+                return {
+                    kind: 'rain',
+                    x: randomBetween(-30, canvas.width + 30),
+                    y: randomBetween(-140, travelHeight),
+                    size: randomBetween(10, 18),
+                    speed: randomBetween(4.4, 6.8),
+                    drift: randomBetween(-0.7, 0.7),
+                    phase: randomBetween(0, Math.PI * 2) + seedIndex,
+                    alpha: randomBetween(0.18, 0.36),
+                    hue: 'rgba(214, 236, 255, ALPHA)'
+                };
+            }
+
+            if (biome.ambientMode === 'firefly') {
+                return {
+                    kind: 'firefly',
+                    x: randomBetween(-30, canvas.width + 30),
+                    y: randomBetween(28, travelHeight),
+                    size: randomBetween(2.2, 4.4),
+                    speed: randomBetween(0.1, 0.24),
+                    drift: randomBetween(10, 30),
+                    phase: randomBetween(0, Math.PI * 2) + seedIndex,
+                    alpha: randomBetween(0.26, 0.62),
+                    hue: seededNoise(seedIndex + 1) > 0.55 ? 'rgba(255, 232, 153, ALPHA)' : 'rgba(185, 215, 255, ALPHA)'
+                };
+            }
+
             return {
+                kind: 'pollen',
                 x: randomBetween(-30, canvas.width + 30),
                 y: randomBetween(28, travelHeight),
                 size: randomBetween(1.5, 3.8),
@@ -1704,7 +1913,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             sceneState.lastSizeKey = sizeKey;
-            sceneState.pollen = Array.from({ length: isMobile ? 14 : 24 }, (_, index) => createPollenParticle(index));
+            const biome = getCurrentBiome();
+            const particleBaseCount = isMobile ? 14 : 24;
+            const particleCount = Math.max(8, Math.round(particleBaseCount * sceneState.ambientDensity * Number(biome.ambientDensity || 1)));
+            sceneState.pollen = Array.from({ length: particleCount }, (_, index) => createPollenParticle(index));
             const createTreeBelt = (layerKey, options = {}) => {
                 const loopWidth = Math.max(canvas.width + (options.extraWidth || 560), 1120);
                 const count = Math.max(10, Math.round((canvas.width / (options.spacing || 72)) + (options.countBoost || 0)));
@@ -1736,7 +1948,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 maxScale: 1.18,
                 jitter: 54,
                 seedOffset: 12,
-                types: ['spruce', 'cedar', 'willow', 'oak']
+                types: biome.id === 'rain-marsh' ? ['willow', 'cedar', 'spruce', 'oak'] : (biome.id === 'dusk-forest' ? ['cedar', 'oak', 'spruce', 'willow'] : ['spruce', 'cedar', 'willow', 'oak'])
             });
             createTreeBelt('front', {
                 extraWidth: 1480,
@@ -1746,7 +1958,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 maxScale: 1.42,
                 jitter: 62,
                 seedOffset: 46,
-                types: ['spruce', 'cedar', 'willow', 'oak']
+                types: biome.id === 'rain-marsh' ? ['willow', 'oak', 'cedar', 'spruce'] : (biome.id === 'dusk-forest' ? ['oak', 'cedar', 'willow', 'spruce'] : ['spruce', 'cedar', 'willow', 'oak'])
             });
         }
 
@@ -1754,8 +1966,23 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             for (let index = 0; index < sceneState.pollen.length; index += 1) {
                 const particle = sceneState.pollen[index];
                 particle.phase += 0.01 * deltaFactor;
+
+                if (particle.kind === 'rain') {
+                    particle.x -= Math.max(0.25, currentGameSpeed * 0.12) * deltaFactor;
+                    particle.y += particle.speed * deltaFactor;
+
+                    if (particle.y > canvas.height - ground.height + 22 || particle.x < -40) {
+                        sceneState.pollen[index] = {
+                            ...createPollenParticle(index),
+                            x: canvas.width + randomBetween(6, 28),
+                            y: randomBetween(-160, -18)
+                        };
+                    }
+                    continue;
+                }
+
                 particle.x -= particle.speed * deltaFactor;
-                particle.y += Math.sin(particle.phase) * 0.08 * deltaFactor;
+                particle.y += Math.sin(particle.phase) * (particle.kind === 'firefly' ? 0.16 : 0.08) * deltaFactor;
 
                 if (particle.x < -32 || particle.y < 12 || particle.y > canvas.height - ground.height - 18) {
                     sceneState.pollen[index] = {
@@ -1769,9 +1996,27 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         function drawAmbientParticles() {
             for (let index = 0; index < sceneState.pollen.length; index += 1) {
                 const particle = sceneState.pollen[index];
+                if (particle.kind === 'rain') {
+                    ctx.save();
+                    ctx.globalAlpha = particle.alpha;
+                    ctx.strokeStyle = particle.hue.replace('ALPHA', particle.alpha.toFixed(3));
+                    ctx.lineWidth = 1.5;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(particle.x, particle.y);
+                    ctx.lineTo(particle.x + particle.drift * 8, particle.y + particle.size);
+                    ctx.stroke();
+                    ctx.restore();
+                    continue;
+                }
+
                 ctx.save();
                 ctx.globalAlpha = particle.alpha;
                 ctx.fillStyle = particle.hue.replace('ALPHA', particle.alpha.toFixed(3));
+                if (particle.kind === 'firefly') {
+                    ctx.shadowColor = particle.hue.replace('ALPHA', Math.min(0.42, particle.alpha + 0.12).toFixed(3));
+                    ctx.shadowBlur = particle.size * 6;
+                }
                 ctx.beginPath();
                 ctx.ellipse(
                     particle.x,
@@ -1788,18 +2033,19 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function drawSkyBackdrop() {
+            const biome = getCurrentBiome();
             const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            skyGradient.addColorStop(0, '#d6f2ea');
-            skyGradient.addColorStop(0.26, '#8ab7aa');
-            skyGradient.addColorStop(0.58, '#4d6b63');
-            skyGradient.addColorStop(1, '#17302d');
+            skyGradient.addColorStop(0, biome.skyTop);
+            skyGradient.addColorStop(0.26, biome.skyMid);
+            skyGradient.addColorStop(0.58, biome.nearFill);
+            skyGradient.addColorStop(1, biome.skyBottom);
             ctx.fillStyle = skyGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const sunGlow = ctx.createRadialGradient(canvas.width * 0.78, canvas.height * 0.14, 12, canvas.width * 0.78, canvas.height * 0.14, canvas.width * 0.34);
-            sunGlow.addColorStop(0, 'rgba(255, 241, 195, 0.4)');
-            sunGlow.addColorStop(0.38, 'rgba(255, 205, 116, 0.18)');
-            sunGlow.addColorStop(1, 'rgba(255, 205, 116, 0)');
+            sunGlow.addColorStop(0, biome.sunCore);
+            sunGlow.addColorStop(0.38, biome.sunOuter);
+            sunGlow.addColorStop(1, biome.sunOuter.replace(/[\d.]+\)$/u, '0)'));
             ctx.fillStyle = sunGlow;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1950,6 +2196,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function drawTreeBelt(layerKey, offset, baseY, opacity) {
+            const biome = getCurrentBiome();
             const belt = sceneState.treeBelts[layerKey];
             if (!belt || !Array.isArray(belt.items) || belt.items.length === 0 || !belt.loopWidth) {
                 return;
@@ -1964,13 +2211,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 const palette = layerKey === 'back'
                     ? {
                         trunk: '#314436',
-                        leaf: `rgba(${Math.round(57 * tintFactor)}, ${Math.round(92 * tintFactor)}, ${Math.round(64 * tintFactor)}, 1)`,
-                        accent: '#9fd0a0'
+                        leaf: biome.backLeaf || `rgba(${Math.round(57 * tintFactor)}, ${Math.round(92 * tintFactor)}, ${Math.round(64 * tintFactor)}, 1)`,
+                        accent: biome.backAccent || '#9fd0a0'
                     }
                     : {
                         trunk: '#2a1e18',
-                        leaf: `rgba(${Math.round(46 * tintFactor)}, ${Math.round(86 * tintFactor)}, ${Math.round(50 * tintFactor)}, 1)`,
-                        accent: '#8fd48f'
+                        leaf: biome.frontLeaf || `rgba(${Math.round(46 * tintFactor)}, ${Math.round(86 * tintFactor)}, ${Math.round(50 * tintFactor)}, 1)`,
+                        accent: biome.frontAccent || '#8fd48f'
                     };
 
                 const drawWrapped = (xBase) => {
@@ -1988,10 +2235,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function drawBogWater(topY) {
+            const biome = getCurrentBiome();
             const waterGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
-            waterGradient.addColorStop(0, 'rgba(72, 121, 109, 0.9)');
-            waterGradient.addColorStop(0.24, 'rgba(42, 76, 70, 0.92)');
-            waterGradient.addColorStop(1, 'rgba(16, 36, 36, 0.98)');
+            waterGradient.addColorStop(0, biome.waterTop);
+            waterGradient.addColorStop(0.24, biome.waterMid);
+            waterGradient.addColorStop(1, biome.waterBottom);
             ctx.fillStyle = waterGradient;
             ctx.fillRect(0, topY, canvas.width, canvas.height - topY);
 
@@ -2031,6 +2279,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function drawGroundMarsh(topY) {
+            const biome = getCurrentBiome();
             drawBogWater(topY - 56);
             drawReedField(sceneState.offsets.ground * 0.7, topY - 8, isMobile ? 0.85 : 1, 0.92);
 
@@ -2045,15 +2294,15 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             ctx.lineTo(0, canvas.height);
             ctx.closePath();
             const soilGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
-            soilGradient.addColorStop(0, '#5f4b2c');
-            soilGradient.addColorStop(0.24, '#45331d');
-            soilGradient.addColorStop(1, '#25190f');
+            soilGradient.addColorStop(0, biome.soilTop);
+            soilGradient.addColorStop(0.24, biome.soilMid);
+            soilGradient.addColorStop(1, biome.soilBottom);
             ctx.fillStyle = soilGradient;
             ctx.fill();
 
-            ctx.fillStyle = '#87bb62';
+            ctx.fillStyle = biome.grassTop;
             ctx.fillRect(0, topY, canvas.width, 10);
-            ctx.fillStyle = 'rgba(180, 228, 120, 0.48)';
+            ctx.fillStyle = biome.grassAccent;
             for (let x = 0; x <= canvas.width + 20; x += 28) {
                 ctx.fillRect(x, topY + 11, 8, 3);
             }
@@ -2071,10 +2320,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 updateAmbientParticles(deltaFactor);
             },
             draw: function() {
+                const biome = getCurrentBiome();
                 drawSkyBackdrop();
-                drawSwampRidge(sceneState.offsets.mountainsFar, canvas.height * 0.49, 26, '#49645c', '#27453f');
-                drawMistBands(sceneState.offsets.mountainsFar, canvas.height * 0.52, 0.92);
-                drawSwampRidge(sceneState.offsets.mountainsNear, canvas.height * 0.6, 18, '#324941', '#1c2f28');
+                drawSwampRidge(sceneState.offsets.mountainsFar, canvas.height * 0.49, 26, biome.farFill, biome.farShadow);
+                drawMistBands(sceneState.offsets.mountainsFar, canvas.height * 0.52, biome.mistOpacity);
+                drawSwampRidge(sceneState.offsets.mountainsNear, canvas.height * 0.6, 18, biome.nearFill, biome.nearShadow);
                 drawTreeBelt('back', sceneState.offsets.forestBack, canvas.height * 0.66, 0.78);
                 drawTreeBelt('front', sceneState.offsets.forestFront, canvas.height * 0.74, 0.98);
                 drawAmbientParticles();
@@ -2376,6 +2626,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             
             draw: function() {
                 const cloudSprite = flyVisualAssets.images.cloud;
+                const biome = getCurrentBiome();
+                const cloudAlphaMultiplier = Math.max(0.72, Number(biome.cloudTint || 1));
 
                 for (let i = 0; i < this.position.length; i++) {
                     const c = this.position[i];
@@ -2383,7 +2635,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     const height = c.size * 1.8;
 
                     ctx.save();
-                    ctx.globalAlpha = c.alpha;
+                    ctx.globalAlpha = Math.min(0.92, c.alpha * cloudAlphaMultiplier);
 
                     if (cloudSprite) {
                         ctx.drawImage(cloudSprite, c.x, c.y, width, height);
@@ -2401,10 +2653,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             },
             
             update: function(deltaFactor = 1) {
+                const biome = getCurrentBiome();
+                const densityMultiplier = getEffectsDensityMultiplier();
+                const spawnInterval = Math.max(110, 148 / Math.max(0.7, densityMultiplier * Math.max(0.85, Number(biome.cloudTint || 1)))));
                 this.spawnTicks += deltaFactor;
 
-                while (this.spawnTicks >= 148) {
-                    this.spawnTicks -= 148;
+                while (this.spawnTicks >= spawnInterval) {
+                    this.spawnTicks -= spawnInterval;
                     this.position.push({
                         x: canvas.width + 160,
                         y: Math.random() * (canvas.height / 2.9),
@@ -2440,6 +2695,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             currentRunToken = createRunToken();
             currentGameSpeed = getGameSpeedForLevel(currentLevel);
             lastFrameTime = 0;
+            sceneState.activeBiome = pickFlyBiome();
+            syncSceneState(true);
             setCloudPanelExpanded(true);
             scheduleCloudAutoCollapse();
             scoreElement.textContent = score;
@@ -2661,6 +2918,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             isMuted = !isMuted;
             this.textContent = isMuted ? '🔇' : '🔊';
             vibrate(50);
+        });
+
+        window.addEventListener('storage', function(event) {
+            if (event.key !== USER_SETTINGS_CACHE_KEY || !event.newValue) {
+                return;
+            }
+
+            try {
+                applyFlySettings(JSON.parse(event.newValue), { persist: false });
+            } catch (error) {
+                console.warn('Не удалось применить настройки fly-beaver из другой вкладки.', error);
+            }
         });
         
         async function initializeFlyBeaver() {

@@ -96,6 +96,8 @@ try {
             'flyBeaver' => $flyLeaderboard,
         ],
         'account' => $account,
+        'profile' => is_array($account) ? ($account['profile'] ?? null) : null,
+        'achievements' => is_array($account) ? ($account['achievements'] ?? []) : [],
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,
         'serverTime' => (int) round(microtime(true) * 1000),

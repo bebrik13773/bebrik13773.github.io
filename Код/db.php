@@ -303,6 +303,25 @@ function bober_clicker_top_reward_skin_defaults()
     ];
 }
 
+function bober_fly_beaver_top_reward_skin_id()
+{
+    return 'top-1-bober-fly-beaver';
+}
+
+function bober_fly_beaver_top_reward_skin_defaults()
+{
+    return [
+        'id' => bober_fly_beaver_top_reward_skin_id(),
+        'name' => 'Топ-1 бобер fly-beaver',
+        'price' => 0,
+        'image' => 'skins/top-1-bober-fly-beaver.svg',
+        'available' => false,
+        'rarity' => 'legendary',
+        'category' => 'top',
+        'issue_mode' => 'grant_only',
+    ];
+}
+
 function bober_skin_catalog_file_path()
 {
     return __DIR__ . '/skin-catalog.json';
@@ -392,6 +411,7 @@ function bober_builtin_skin_catalog()
             'issue_mode' => 'grant_only',
         ],
         bober_clicker_top_reward_skin_id() => bober_clicker_top_reward_skin_defaults(),
+        bober_fly_beaver_top_reward_skin_id() => bober_fly_beaver_top_reward_skin_defaults(),
     ];
 }
 
@@ -502,6 +522,18 @@ function bober_merge_required_skin_catalog_items(array $catalogItems)
     $existingTopSkin = is_array($catalogMap[$topSkinId] ?? null) ? $catalogMap[$topSkinId] : [];
     $catalogMap[$topSkinId] = array_merge($topSkinDefaults, $existingTopSkin, [
         'id' => $topSkinId,
+        'price' => 0,
+        'category' => 'top',
+        'issue_mode' => 'grant_only',
+        'default_owned' => false,
+        'grant_only' => true,
+    ]);
+
+    $flyTopSkinId = bober_fly_beaver_top_reward_skin_id();
+    $flyTopSkinDefaults = bober_fly_beaver_top_reward_skin_defaults();
+    $existingFlyTopSkin = is_array($catalogMap[$flyTopSkinId] ?? null) ? $catalogMap[$flyTopSkinId] : [];
+    $catalogMap[$flyTopSkinId] = array_merge($flyTopSkinDefaults, $existingFlyTopSkin, [
+        'id' => $flyTopSkinId,
         'price' => 0,
         'category' => 'top',
         'issue_mode' => 'grant_only',
@@ -2768,6 +2800,25 @@ SQL;
     }
 }
 
+function bober_ensure_user_achievements_schema($conn)
+{
+    $createAchievementsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_achievements` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `achievement_key` VARCHAR(120) NOT NULL,
+    `meta_json` LONGTEXT NULL,
+    `unlocked_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uniq_user_achievement` (`user_id`, `achievement_key`),
+    KEY `idx_user_achievements_user` (`user_id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createAchievementsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу достижений.');
+    }
+}
+
 function bober_ensure_gameplay_schema($conn)
 {
     static $schemaEnsured = false;
@@ -2780,6 +2831,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_security_schema($conn);
     bober_ensure_fly_beaver_schema($conn);
     bober_ensure_user_settings_schema($conn);
+    bober_ensure_user_achievements_schema($conn);
 
     $schemaEnsured = true;
 }
@@ -2944,6 +2996,138 @@ function bober_store_user_settings($conn, $userId, $settings)
     return $normalized;
 }
 
+function bober_collect_expected_achievement_keys(array $snapshot)
+{
+    $keys = [];
+    $score = max(0, (int) ($snapshot['score'] ?? 0));
+    $ownedSkinCount = max(0, (int) ($snapshot['ownedSkinCount'] ?? 0));
+    $clickerTop1 = !empty($snapshot['clickerTop1']);
+    $flyTop1 = !empty($snapshot['flyTop1']);
+    $flyBeaver = is_array($snapshot['flyBeaver'] ?? null) ? $snapshot['flyBeaver'] : [];
+    $flyBest = max(0, (int) ($flyBeaver['bestScore'] ?? 0));
+
+    if ($score >= 100000) {
+        $keys[] = 'clicker_100k';
+    }
+    if ($score >= 1000000) {
+        $keys[] = 'clicker_1m';
+    }
+    if ($flyBest >= 25) {
+        $keys[] = 'fly_best_25';
+    }
+    if ($flyBest >= 50) {
+        $keys[] = 'fly_best_50';
+    }
+    if ($ownedSkinCount >= 3) {
+        $keys[] = 'collector_3';
+    }
+    if ($clickerTop1) {
+        $keys[] = 'top_clicker_1';
+    }
+    if ($flyTop1) {
+        $keys[] = 'top_fly_1';
+    }
+
+    return array_values(array_unique($keys));
+}
+
+function bober_fetch_user_achievements($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    bober_ensure_user_achievements_schema($conn);
+
+    $stmt = $conn->prepare('SELECT achievement_key, unlocked_at, meta_json FROM user_achievements WHERE user_id = ? ORDER BY unlocked_at ASC, id ASC');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение достижений.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить достижения пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $decodedMeta = null;
+        if (is_string($row['meta_json'] ?? null) && trim((string) $row['meta_json']) !== '') {
+            $candidate = json_decode((string) $row['meta_json'], true);
+            $decodedMeta = is_array($candidate) ? $candidate : null;
+        }
+        $items[] = [
+            'key' => (string) ($row['achievement_key'] ?? ''),
+            'unlockedAt' => isset($row['unlocked_at']) ? (string) $row['unlocked_at'] : '',
+            'meta' => $decodedMeta,
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_refresh_user_achievements($conn, $userId, array $snapshot)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    bober_ensure_user_achievements_schema($conn);
+    $expectedKeys = bober_collect_expected_achievement_keys($snapshot);
+    if (count($expectedKeys) < 1) {
+        return bober_fetch_user_achievements($conn, $userId);
+    }
+
+    $existingStmt = $conn->prepare('SELECT achievement_key FROM user_achievements WHERE user_id = ?');
+    if (!$existingStmt) {
+        throw new RuntimeException('Не удалось подготовить чтение достижений пользователя.');
+    }
+
+    $existingStmt->bind_param('i', $userId);
+    if (!$existingStmt->execute()) {
+        $existingStmt->close();
+        throw new RuntimeException('Не удалось прочитать достижения пользователя.');
+    }
+
+    $existingResult = $existingStmt->get_result();
+    $existingKeys = [];
+    while ($existingResult instanceof mysqli_result && ($row = $existingResult->fetch_assoc())) {
+        $existingKeys[] = (string) ($row['achievement_key'] ?? '');
+    }
+    if ($existingResult instanceof mysqli_result) {
+        $existingResult->free();
+    }
+    $existingStmt->close();
+
+    $missingKeys = array_values(array_diff($expectedKeys, $existingKeys));
+    if (!empty($missingKeys)) {
+        $insertStmt = $conn->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_key, meta_json) VALUES (?, ?, NULL)');
+        if (!$insertStmt) {
+            throw new RuntimeException('Не удалось подготовить запись достижений пользователя.');
+        }
+
+        foreach ($missingKeys as $achievementKey) {
+            $insertStmt->bind_param('is', $userId, $achievementKey);
+            if (!$insertStmt->execute()) {
+                $insertStmt->close();
+                throw new RuntimeException('Не удалось сохранить новое достижение пользователя.');
+            }
+        }
+
+        $insertStmt->close();
+    }
+
+    return bober_fetch_user_achievements($conn, $userId);
+}
+
 function bober_fetch_public_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
@@ -3100,6 +3284,41 @@ function bober_reconcile_clicker_top_reward_skin($conn)
     $updateStmt->close();
 }
 
+function bober_fetch_public_fly_beaver_top_user_id($conn)
+{
+    $sql = <<<SQL
+SELECT u.id
+FROM users u
+INNER JOIN fly_beaver_progress f
+    ON f.user_id = u.id
+LEFT JOIN user_bans b
+    ON b.user_id = u.id
+    AND b.lifted_at IS NULL
+    AND b.ban_until > CURRENT_TIMESTAMP
+WHERE u.login IS NOT NULL
+    AND u.login <> ''
+    AND LOWER(TRIM(u.login)) <> 'test'
+    AND b.id IS NULL
+ORDER BY f.best_score DESC, u.score DESC, u.id ASC
+LIMIT 1
+SQL;
+
+    $result = $conn->query($sql);
+    if ($result === false) {
+        throw new RuntimeException('Ошибка определения топ-1 игрока Летающего бобра.');
+    }
+
+    $row = $result->fetch_assoc();
+    $result->free();
+
+    if (!is_array($row)) {
+        return null;
+    }
+
+    $userId = max(0, (int) ($row['id'] ?? 0));
+    return $userId > 0 ? $userId : null;
+}
+
 function bober_fetch_public_fly_beaver_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
@@ -3138,6 +3357,100 @@ SQL;
     return $leaders;
 }
 
+function bober_reconcile_fly_beaver_top_reward_skin($conn)
+{
+    $skinId = bober_fly_beaver_top_reward_skin_id();
+    $topUserId = bober_fetch_public_fly_beaver_top_user_id($conn);
+    $likePattern = '%' . $skinId . '%';
+
+    if ($topUserId !== null) {
+        $stmt = $conn->prepare('SELECT `id`, `skin` FROM `users` WHERE `id` = ? OR `skin` LIKE ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить пересчет fly-beaver top skin.');
+        }
+
+        $stmt->bind_param('is', $topUserId, $likePattern);
+    } else {
+        $stmt = $conn->prepare('SELECT `id`, `skin` FROM `users` WHERE `skin` LIKE ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить очистку fly-beaver top skin.');
+        }
+
+        $stmt->bind_param('s', $likePattern);
+    }
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить текущих владельцев fly-beaver top skin.');
+    }
+
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $rows[] = $row;
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (empty($rows)) {
+        return;
+    }
+
+    $defaultEquippedSkinId = (string) (bober_default_skin_state()['equippedSkinId'] ?? 'classic');
+    $updateStmt = $conn->prepare('UPDATE `users` SET `skin` = ? WHERE `id` = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение fly-beaver top skin.');
+    }
+
+    foreach ($rows as $row) {
+        $userId = max(0, (int) ($row['id'] ?? 0));
+        if ($userId < 1) {
+            continue;
+        }
+
+        $skinState = bober_decode_skin_state($row['skin'] ?? '');
+        $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+        $hasTopSkin = in_array($skinId, $ownedSkinIds, true);
+        $shouldOwnTopSkin = $topUserId !== null && $userId === $topUserId;
+        $changed = false;
+
+        if ($shouldOwnTopSkin && !$hasTopSkin) {
+            $ownedSkinIds[] = $skinId;
+            $changed = true;
+        } elseif (!$shouldOwnTopSkin && $hasTopSkin) {
+            $ownedSkinIds = array_values(array_filter($ownedSkinIds, static function ($ownedSkinId) use ($skinId) {
+                return $ownedSkinId !== $skinId;
+            }));
+            if (($skinState['equippedSkinId'] ?? '') === $skinId) {
+                $skinState['equippedSkinId'] = $defaultEquippedSkinId;
+            }
+            $changed = true;
+        }
+
+        if (!$changed) {
+            continue;
+        }
+
+        $skinState['ownedSkinIds'] = $ownedSkinIds;
+        $encodedSkin = bober_encode_skin_state($skinState);
+        $updateStmt->bind_param('si', $encodedSkin, $userId);
+        if (!$updateStmt->execute()) {
+            $updateStmt->close();
+            throw new RuntimeException('Не удалось обновить владельца fly-beaver top skin.');
+        }
+    }
+
+    $updateStmt->close();
+}
+
+function bober_reconcile_top_reward_skins($conn)
+{
+    bober_reconcile_clicker_top_reward_skin($conn);
+    bober_reconcile_fly_beaver_top_reward_skin($conn);
+}
+
 function bober_fetch_account_snapshot($conn, $userId)
 {
     $userId = max(0, (int) $userId);
@@ -3145,7 +3458,7 @@ function bober_fetch_account_snapshot($conn, $userId)
         throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
 
-    bober_reconcile_clicker_top_reward_skin($conn);
+    bober_reconcile_top_reward_skins($conn);
 
     $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
@@ -3181,6 +3494,29 @@ function bober_fetch_account_snapshot($conn, $userId)
 
     $energyMax = max(1, (int) ($row['ENERGY_MAX'] ?? 5000));
     $energy = max(0, min($energyMax, (int) ($row['energy'] ?? 0)));
+    $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    $skinState = bober_decode_skin_state($normalizedSkin);
+    $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+    $achievementSnapshot = [
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'ownedSkinCount' => count($ownedSkinIds),
+        'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
+        'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
+        'flyBeaver' => $flyBeaver,
+    ];
+    $achievements = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
+    $profile = [
+        'ownedSkins' => count($ownedSkinIds),
+        'achievementsUnlocked' => count($achievements),
+        'clickerTop1' => !empty($achievementSnapshot['clickerTop1']),
+        'flyTop1' => !empty($achievementSnapshot['flyTop1']),
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'energyMax' => $energyMax,
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
+        'flyPending' => max(0, (int) ($flyBeaver['pendingTransferScore'] ?? 0)),
+        'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? 0)),
+    ];
 
     return [
         'success' => true,
@@ -3200,8 +3536,10 @@ function bober_fetch_account_snapshot($conn, $userId)
             'regenBoost' => max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0)),
             'energyHuge' => max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0)),
         ],
-        'flyBeaver' => bober_fetch_fly_beaver_progress($conn, $userId),
+        'flyBeaver' => $flyBeaver,
         'settings' => bober_fetch_user_settings($conn, $userId),
+        'profile' => $profile,
+        'achievements' => $achievements,
     ];
 }
 
@@ -3257,7 +3595,7 @@ function bober_apply_user_state_update($conn, $userId, $data)
     }
     $stmt->close();
 
-    bober_reconcile_clicker_top_reward_skin($conn);
+    bober_reconcile_top_reward_skins($conn);
 
     if (is_array($currentRow)) {
         $previousScore = max(0, (int) ($currentRow['score'] ?? 0));

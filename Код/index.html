@@ -254,24 +254,21 @@ Owner decisions:
 			border: 2px solid rgba(255, 255, 255, 0.2);
 			border-radius: 18px;
 			background:
-				linear-gradient(180deg, rgba(10, 10, 25, 0.03), rgba(10, 10, 25, 0.18)),
-				var(--skin-card-image, linear-gradient(135deg, #5f38d4, #33c5c7));
-			background-size: contain;
-			background-repeat: no-repeat;
-			background-position: center 18px;
-			background-color: rgba(12, 13, 28, 0.28);
+				linear-gradient(180deg, rgba(10, 10, 25, 0.08), rgba(10, 10, 25, 0.22)),
+				linear-gradient(135deg, rgba(95, 56, 212, 0.82), rgba(51, 197, 199, 0.74));
 			color: #fff;
 			cursor: pointer;
 			min-height: 312px;
-			padding: 14px;
+			padding: 14px 14px 12px;
 			display: flex;
 			flex-direction: column;
-			justify-content: flex-end;
+			justify-content: flex-start;
 			box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22);
 			text-align: left;
 			transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 			position: relative;
 			overflow: hidden;
+			isolation: isolate;
 		}
 		.skin-shop-card:hover {
 			transform: translateY(-2px);
@@ -287,6 +284,36 @@ Owner decisions:
 			background: linear-gradient(180deg, rgba(12, 10, 24, 0.02), rgba(12, 10, 24, 0.03) 54%, rgba(12, 10, 24, 0.08) 78%, rgba(12, 10, 24, 0.2));
 			pointer-events: none;
 		}
+		.skin-shop-card-media {
+			position: relative;
+			display: block;
+			width: 100%;
+			aspect-ratio: 1 / 1;
+			border-radius: 16px;
+			overflow: hidden;
+			border: 1px solid rgba(255, 255, 255, 0.14);
+			background:
+				linear-gradient(180deg, rgba(10, 10, 25, 0.04), rgba(10, 10, 25, 0.12)),
+				linear-gradient(135deg, rgba(93, 56, 212, 0.88), rgba(51, 197, 199, 0.74));
+			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+			margin-bottom: auto;
+		}
+		.skin-shop-card-image {
+			display: block;
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+			object-position: center;
+			position: relative;
+			z-index: 1;
+		}
+		.skin-shop-card-overlay {
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(180deg, rgba(7, 10, 24, 0.02), rgba(7, 10, 24, 0.04) 58%, rgba(7, 10, 24, 0.12));
+			pointer-events: none;
+			z-index: 2;
+		}
 		.skin-shop-card > * {
 			position: relative;
 			z-index: 1;
@@ -300,10 +327,9 @@ Owner decisions:
 		}
 		.skin-shop-card.locked {
 			border-color: rgba(255, 255, 255, 0.14);
-			filter: saturate(0.92);
 		}
 		.skin-shop-card.coming-soon {
-			filter: grayscale(0.18) saturate(0.84);
+			border-color: rgba(255, 214, 133, 0.3);
 		}
 		.skin-shop-card-name {
 			font-size: 18px;
@@ -315,12 +341,13 @@ Owner decisions:
 			display: flex;
 			flex-direction: column;
 			gap: 6px;
-			padding: 9px 10px;
+			padding: 10px 10px 9px;
 			border-radius: 16px;
-			background: linear-gradient(180deg, rgba(6, 10, 24, 0.03), rgba(6, 10, 24, 0.16));
+			background: linear-gradient(180deg, rgba(6, 10, 24, 0.08), rgba(6, 10, 24, 0.22));
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+			margin-top: 12px;
 		}
 		.skin-shop-card-meta {
 			display: flex;
@@ -1427,20 +1454,30 @@ Owner decisions:
         margin-bottom: 16px;
     }
 
-    .skin-action-modal-preview {
-        width: 100%;
-        min-height: 180px;
-        border-radius: 18px;
-        background:
-            linear-gradient(180deg, rgba(8, 8, 22, 0.06), rgba(8, 8, 22, 0.5)),
-            var(--skin-action-preview, linear-gradient(135deg, #5f38d4, #33c5c7));
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        margin-bottom: 16px;
-    }
+		.skin-action-modal-preview {
+			width: 100%;
+			min-height: 180px;
+			border-radius: 18px;
+			background:
+				linear-gradient(180deg, rgba(8, 8, 22, 0.06), rgba(8, 8, 22, 0.5)),
+				linear-gradient(135deg, rgba(95, 56, 212, 0.92), rgba(51, 197, 199, 0.78));
+			border: 1px solid rgba(255, 255, 255, 0.16);
+			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+			margin-bottom: 16px;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.skin-action-modal-preview-image {
+			display: block;
+			width: 100%;
+			height: 100%;
+			min-height: 180px;
+			object-fit: contain;
+			object-position: center;
+			position: relative;
+			z-index: 1;
+		}
 
     .skin-action-modal-meta {
         display: flex;
@@ -2221,6 +2258,7 @@ Owner decisions:
         line-height: 1.45;
     }
 
+    #profileDetailsButton,
     #supportAppealButton,
     #logoutButton,
     #sessionsButton,
@@ -2254,6 +2292,7 @@ Owner decisions:
         transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
     }
 
+    #profileDetailsButton,
     #supportAppealButton,
     #logoutButton,
     #sessionsButton {
@@ -2270,6 +2309,7 @@ Owner decisions:
         white-space: normal;
     }
 
+    #profileDetailsButton,
     #supportAppealButton,
     #sessionsButton {
         border-color: rgba(255, 255, 255, 0.08);
@@ -2293,6 +2333,7 @@ Owner decisions:
     .skin-action-modal-buttons button:hover,
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
+    #profileDetailsButton:hover,
     #supportAppealButton:hover,
     #logoutButton:hover,
     #sessionsButton:hover {
@@ -2300,6 +2341,7 @@ Owner decisions:
         box-shadow: 0 18px 28px rgba(5, 10, 28, 0.26);
     }
 
+    #profileDetailsButton:hover,
     #supportAppealButton:hover,
     #sessionsButton:hover {
         box-shadow: none;
@@ -2318,6 +2360,7 @@ Owner decisions:
     .skin-action-modal-buttons button:active,
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
+    #profileDetailsButton:active,
     #supportAppealButton:active,
     #logoutButton:active,
     #sessionsButton:active {
@@ -2489,6 +2532,197 @@ Owner decisions:
     body.animations-off *::after {
         animation: none !important;
         transition: none !important;
+    }
+
+    body.effects-low {
+        --page-ripple-opacity: 0.34;
+        --page-ripple-blur: 0px;
+        --clicker-glow-opacity: 0.18;
+    }
+
+    body.effects-medium {
+        --clicker-glow-opacity: 0.34;
+    }
+
+    body.effects-low .settings-card,
+    body.effects-low .skin-action-modal,
+    body.effects-low .profile-menu-dropdown,
+    body.effects-low .skin-shop-card-footer,
+    body.effects-low .skin-shop-feature-copy,
+    body.effects-low .upgrade-card,
+    body.effects-low #leaderboard {
+        backdrop-filter: blur(6px) !important;
+        -webkit-backdrop-filter: blur(6px) !important;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    body.effects-low .page-water-ripple {
+        filter: none !important;
+    }
+
+    body.effects-low .skin-shop-card::after,
+    body.effects-low .skin-shop-card-overlay,
+    body.effects-low #pageRippleLayer,
+    body.animations-off #pageRippleLayer {
+        opacity: 0.42;
+    }
+
+    body.animations-off .tap-burst,
+    body.animations-off .page-water-ripple {
+        display: none !important;
+    }
+
+    .profile-modal {
+        width: min(100%, 760px);
+        max-height: min(88vh, 900px);
+        overflow-y: auto;
+    }
+
+    .profile-modal-hero {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 16px;
+        align-items: center;
+        padding: 16px;
+        border-radius: 22px;
+        border: 1px solid rgba(126, 241, 255, 0.16);
+        background: linear-gradient(180deg, rgba(11, 18, 40, 0.6), rgba(8, 10, 24, 0.82));
+        margin-bottom: 16px;
+    }
+
+    .profile-modal-avatar {
+        width: 68px;
+        height: 68px;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        font-size: 32px;
+        background: linear-gradient(180deg, rgba(93, 240, 217, 0.26), rgba(66, 116, 255, 0.28));
+        border: 1px solid rgba(191, 255, 249, 0.2);
+        box-shadow: 0 14px 22px rgba(5, 10, 28, 0.24);
+    }
+
+    .profile-modal-login {
+        font-size: 28px;
+        font-weight: 800;
+        color: #f5fdff;
+        margin-bottom: 4px;
+    }
+
+    .profile-modal-subtitle {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .profile-badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .profile-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(14, 24, 48, 0.6);
+        border: 1px solid rgba(126, 241, 255, 0.16);
+        color: #f3fbff;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+    }
+
+    .profile-badge.top {
+        background: rgba(255, 218, 122, 0.18);
+        border-color: rgba(255, 218, 122, 0.24);
+        color: #fff2bf;
+    }
+
+    .profile-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .profile-stat-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 24px rgba(4, 8, 22, 0.2);
+    }
+
+    .profile-stat-label {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.64);
+        margin-bottom: 6px;
+    }
+
+    .profile-stat-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: #f8ffff;
+        line-height: 1.1;
+    }
+
+    .profile-achievements-title {
+        font-size: 18px;
+        font-weight: 800;
+        color: #ddfbff;
+        margin-bottom: 12px;
+    }
+
+    .profile-achievements-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+    }
+
+    .profile-achievement-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: start;
+    }
+
+    .profile-achievement-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        background: rgba(126, 241, 255, 0.12);
+        border: 1px solid rgba(126, 241, 255, 0.14);
+    }
+
+    .profile-achievement-card strong {
+        display: block;
+        margin-bottom: 4px;
+        color: #f6fdff;
+        font-size: 15px;
+    }
+
+    .profile-achievement-card span {
+        display: block;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .profile-achievement-time {
+        margin-top: 8px;
+        color: #9feeff !important;
+        font-size: 12px !important;
     }
 
     .skin-modal-cancel,
@@ -3261,6 +3495,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
                         <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
                     </div>
+                    <button id="profileDetailsButton" type="button">Мой профиль</button>
                     <button id="supportAppealButton" type="button">Поддержка и апелляция</button>
                     <button id="sessionsButton" type="button">Мои сессии</button>
                     <button id="logoutButton" type="button">Выйти</button>
@@ -3441,7 +3676,9 @@ function showNotification(message, type = 'success', duration = 3000) {
     <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="skinActionModalTitle">
         <div class="skin-action-modal-title" id="skinActionModalTitle">Подтверждение</div>
         <div class="skin-action-modal-text" id="skinActionModalText">Вы действительно хотите продолжить?</div>
-        <div class="skin-action-modal-preview" id="skinActionModalPreview"></div>
+        <div class="skin-action-modal-preview" id="skinActionModalPreview">
+            <img class="skin-action-modal-preview-image" id="skinActionModalPreviewImage" alt="" hidden>
+        </div>
         <div class="skin-action-modal-meta">
             <span id="skinActionModalPrice">Цена: 0 коинов</span>
             <span id="skinActionModalBalance">Ваш счет: 0</span>
@@ -3547,11 +3784,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="settings-modal-grid">
             <div class="settings-card">
                 <div class="settings-card-title">Звук</div>
-                <div class="settings-card-text">Музыка, эффекты и громкость мини-игры.</div>
-                <div class="settings-field">
-                    <label for="settingsMusicEnabled">Музыка</label>
-                    <input type="checkbox" id="settingsMusicEnabled">
-                </div>
+                <div class="settings-card-text">Настройка звуков Летающего бобра: взмахов, очков, ударов и уровня.</div>
                 <div class="settings-field">
                     <label for="settingsEffectsEnabled">Эффекты</label>
                     <input type="checkbox" id="settingsEffectsEnabled">
@@ -3626,6 +3859,26 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button primary" id="settingsSaveButton">Сохранить сейчас</button>
             <button type="button" class="settings-action-button secondary" id="settingsModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="profileModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+        <div class="skin-action-modal-title" id="profileModalTitle">Профиль</div>
+        <div class="skin-action-modal-text">Статистика кликера, мини-игры, лидерских наград и достижений.</div>
+        <div class="profile-modal-hero">
+            <div class="profile-modal-avatar">🦫</div>
+            <div>
+                <div class="profile-modal-login" id="profileModalLogin">Игрок</div>
+                <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
+            </div>
+        </div>
+        <div class="profile-badge-row" id="profileModalBadges"></div>
+        <div class="profile-stats-grid" id="profileModalStats"></div>
+        <div class="profile-achievements-title">Достижения</div>
+        <div class="profile-achievements-grid" id="profileModalAchievements"></div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -3892,6 +4145,58 @@ const leaderboardState = {
     main: [],
     flyBeaver: []
 };
+const ACHIEVEMENT_DEFINITIONS = Object.freeze({
+    clicker_100k: {
+        title: 'Первая сотня тысяч',
+        description: 'Наберите 100 000 коинов в основном кликере.',
+        icon: '💯'
+    },
+    clicker_1m: {
+        title: 'Миллионер',
+        description: 'Наберите 1 000 000 коинов в основном кликере.',
+        icon: '🏦'
+    },
+    fly_best_25: {
+        title: 'Низкий пролет',
+        description: 'Получите рекорд 25 в Летающем бобре.',
+        icon: '🌿'
+    },
+    fly_best_50: {
+        title: 'Повелитель болота',
+        description: 'Получите рекорд 50 в Летающем бобре.',
+        icon: '🌫️'
+    },
+    collector_3: {
+        title: 'Коллекционер',
+        description: 'Соберите минимум 3 скина.',
+        icon: '🎨'
+    },
+    top_clicker_1: {
+        title: 'Топ-1 кликера',
+        description: 'Удерживайте первое место в основном лидерборде.',
+        icon: '👑'
+    },
+    top_fly_1: {
+        title: 'Топ-1 fly-beaver',
+        description: 'Удерживайте первое место в Летающем бобре.',
+        icon: '🏆'
+    }
+});
+
+function getDefaultProfileSummary() {
+    return {
+        ownedSkins: 0,
+        achievementsUnlocked: 0,
+        clickerTop1: false,
+        flyTop1: false,
+        score: 0,
+        plus: 1,
+        energyMax: 5000,
+        flyBest: 0,
+        flyPending: 0,
+        flyGamesPlayed: 0
+    };
+}
 
 function normalizeSkinRarity(value) {
     const normalizedValue = String(value || '').trim().toLowerCase();
@@ -4069,6 +4374,8 @@ let energyTimer = null;
 let currentLogin = localStorage.getItem('login') || '';
 let flyBeaverState = getDefaultFlyBeaverState();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
+let profileSummary = getDefaultProfileSummary();
+let unlockedAchievements = [];
 window.__boberBanInfo = null;
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
@@ -4129,6 +4436,7 @@ const authModalState = {
 const SETTINGS_SYNC_CONFIG = {
     debounceMs: 900
 };
+const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
 const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
 const LIVE_SYNC_CONFIG = {
     intervalMs: 30000
@@ -4647,7 +4955,8 @@ function syncGlobalOverlayState() {
         document.getElementById('upgradeActionModal'),
         document.getElementById('sessionConflictModal'),
         document.getElementById('authModal'),
-        document.getElementById('settingsModal')
+        document.getElementById('settingsModal'),
+        document.getElementById('profileModal')
     ].some((node) => node && node.classList.contains('show'));
     const loadingVisible = Boolean(document.getElementById('loadingOverlay') && document.getElementById('loadingOverlay').classList.contains('show'));
     document.body.classList.toggle('modal-open', hasOpenModal || loadingVisible);
@@ -4720,26 +5029,38 @@ function applySettingsVisualState() {
 
     document.body.classList.toggle('reduced-animations', animationMode === 'reduced');
     document.body.classList.toggle('animations-off', animationMode === 'off');
+    document.body.classList.toggle('effects-low', effectsQuality === 'low');
+    document.body.classList.toggle('effects-medium', effectsQuality === 'medium');
+    document.body.classList.toggle('effects-high', effectsQuality === 'high');
     document.body.dataset.effectsQuality = effectsQuality;
 
-    const rippleScale = effectsQuality === 'low' ? '4.8' : (effectsQuality === 'medium' ? '5.6' : '6.4');
-    const rippleOpacity = effectsQuality === 'low' ? '0.58' : (effectsQuality === 'medium' ? '0.74' : '0.9');
-    const rippleBlur = effectsQuality === 'low' ? '1px' : (effectsQuality === 'medium' ? '1.6px' : '2px');
-    const clickerGlowOpacity = effectsQuality === 'low' ? '0.32' : (effectsQuality === 'medium' ? '0.44' : '0.58');
+    const rippleScale = animationMode === 'off'
+        ? '0'
+        : (effectsQuality === 'low' ? '3.4' : (effectsQuality === 'medium' ? '5.1' : '6.4'));
+    const rippleOpacity = animationMode === 'off'
+        ? '0'
+        : (effectsQuality === 'low' ? '0.22' : (effectsQuality === 'medium' ? '0.56' : '0.9'));
+    const rippleBlur = effectsQuality === 'low' ? '0px' : (effectsQuality === 'medium' ? '1px' : '2px');
+    const clickerGlowOpacity = animationMode === 'off'
+        ? '0'
+        : (effectsQuality === 'low' ? '0.14' : (effectsQuality === 'medium' ? '0.34' : '0.58'));
 
-    interactionFxState.rippleScale = Number(rippleScale) || 6.4;
-    interactionFxState.rippleOpacity = Number(rippleOpacity) || 0.9;
-    interactionFxState.rippleBlur = Number.parseFloat(rippleBlur) || 2;
+    interactionFxState.rippleScale = Number.isFinite(Number(rippleScale)) ? Number(rippleScale) : 6.4;
+    interactionFxState.rippleOpacity = Number.isFinite(Number(rippleOpacity)) ? Number(rippleOpacity) : 0.9;
+    interactionFxState.rippleBlur = Number.isFinite(Number.parseFloat(rippleBlur)) ? Number.parseFloat(rippleBlur) : 2;
 
     document.body.style.setProperty('--page-ripple-scale', rippleScale);
     document.body.style.setProperty('--page-ripple-opacity', rippleOpacity);
     document.body.style.setProperty('--page-ripple-blur', rippleBlur);
     document.body.style.setProperty('--clicker-glow-opacity', clickerGlowOpacity);
+
+    if (animationMode === 'off' || effectsQuality === 'low') {
+        clearActiveRipples();
+    }
 }
 
 function updateSettingsInputs() {
     const normalized = normalizeUserSettings(userSettings);
-    const musicNode = document.getElementById('settingsMusicEnabled');
     const effectsNode = document.getElementById('settingsEffectsEnabled');
     const flyVolumeNode = document.getElementById('settingsFlyVolume');
     const flyVolumeValueNode = document.getElementById('settingsFlyVolumeValue');
@@ -4749,9 +5070,6 @@ function updateSettingsInputs() {
     const notificationsNode = document.getElementById('settingsNotificationsEnabled');
     const effectsQualityNode = document.getElementById('settingsEffectsQuality');
 
-    if (musicNode) {
-        musicNode.checked = normalized.audio.musicEnabled;
-    }
     if (effectsNode) {
         effectsNode.checked = normalized.audio.effectsEnabled;
     }
@@ -4969,6 +5287,32 @@ function trimActiveRipples() {
     }
 }
 
+function clearActiveRipples() {
+    interactionFxState.activeRipples.forEach((ripple) => ripple?.remove?.());
+    interactionFxState.activeRipples = [];
+}
+
+function shouldAnimateInteractionSource(source = 'tap') {
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    if (settings.animations.mode === 'off') {
+        return false;
+    }
+
+    if (source === 'tap') {
+        return true;
+    }
+
+    if (settings.effects.quality === 'low') {
+        return false;
+    }
+
+    if (settings.animations.mode === 'reduced' && source === 'move') {
+        return false;
+    }
+
+    return true;
+}
+
 function spawnPageRipple(pageX, pageY, paletteToken = 'main', options = {}) {
     if (document.body.classList.contains('animations-off')) {
         return;
@@ -5048,6 +5392,10 @@ function shouldIgnoreDuplicateTap(pageX, pageY) {
 
 function queueInterfaceMotion(sample) {
     if (!sample || document.hidden) {
+        return;
+    }
+
+    if (!shouldAnimateInteractionSource(sample.source || 'tap')) {
         return;
     }
 
@@ -5172,6 +5520,10 @@ function handleInterfacePointerMove(event) {
         return;
     }
 
+    if (!shouldAnimateInteractionSource('move')) {
+        return;
+    }
+
     const target = event.target instanceof Element ? event.target : null;
     if (!target || shouldSkipInterfaceReaction(target)) {
         return;
@@ -5198,6 +5550,10 @@ function handleInterfacePointerMove(event) {
 
 function handleInterfaceTouchMove(event) {
     if (!event.touches || !event.touches.length) {
+        return;
+    }
+
+    if (!shouldAnimateInteractionSource('move')) {
         return;
     }
 
@@ -5237,6 +5593,11 @@ function handleInterfaceTouchMove(event) {
 
 function handleInterfaceScroll() {
     if (document.hidden) {
+        interactionFxState.lastScrollY = window.scrollY || 0;
+        return;
+    }
+
+    if (!shouldAnimateInteractionSource('scroll')) {
         interactionFxState.lastScrollY = window.scrollY || 0;
         return;
     }
@@ -5376,7 +5737,7 @@ function updateProfileMenuUI() {
 
     if (textNode) {
         textNode.textContent = userId
-            ? 'Здесь можно безопасно завершить лишние игровые сессии и выйти из аккаунта.'
+            ? 'Здесь доступны профиль, сессии, поддержка и выход из аккаунта.'
             : 'Войдите в аккаунт, чтобы управлять сессиями и профилем.';
     }
 }
@@ -5517,6 +5878,118 @@ function closeSettingsModal(options = {}) {
             console.warn('Не удалось досинхронизировать настройки при закрытии модалки.', error);
         });
     }
+}
+
+function formatAchievementDate(value) {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return 'Синхронизировано с облаком';
+    }
+
+    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
+    if (Number.isNaN(parsedDate.getTime())) {
+        return normalizedValue;
+    }
+
+    return parsedDate.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function renderProfileModal() {
+    const loginNode = document.getElementById('profileModalLogin');
+    const subtitleNode = document.getElementById('profileModalSubtitle');
+    const badgesNode = document.getElementById('profileModalBadges');
+    const statsNode = document.getElementById('profileModalStats');
+    const achievementsNode = document.getElementById('profileModalAchievements');
+
+    if (!loginNode || !subtitleNode || !badgesNode || !statsNode || !achievementsNode) {
+        return;
+    }
+
+    const resolvedLogin = currentLogin || 'Игрок';
+    const summary = normalizeProfileSummary(profileSummary);
+    const achievementItems = normalizeAchievementList(unlockedAchievements);
+    const badgeItems = [];
+
+    if (summary.clickerTop1) {
+        badgeItems.push('<span class="profile-badge top">👑 Топ-1 кликера</span>');
+    }
+    if (summary.flyTop1) {
+        badgeItems.push('<span class="profile-badge top">🏆 Топ-1 Летающего бобра</span>');
+    }
+    badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${formatCompactNumber(summary.ownedSkins)}</span>`);
+    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || achievementItems.length)}</span>`);
+
+    const stats = [
+        { label: 'Счет', value: formatLeaderboardScore(summary.score) },
+        { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
+        { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
+        { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
+        { label: 'В очереди fly-beaver', value: formatLeaderboardScore(summary.flyPending) },
+        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) }
+    ];
+
+    loginNode.textContent = resolvedLogin;
+    subtitleNode.textContent = summary.clickerTop1 || summary.flyTop1
+        ? 'Лидерские статусы и облачные достижения обновляются автоматически.'
+        : 'Сводка по основному прогрессу, мини-игре и облачным достижениям.';
+    badgesNode.innerHTML = badgeItems.join('');
+    statsNode.innerHTML = stats.map((item) => `
+        <div class="profile-stat-card">
+            <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
+            <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
+        </div>
+    `).join('');
+
+    achievementsNode.innerHTML = achievementItems.length > 0
+        ? achievementItems.map((item) => {
+            const definition = ACHIEVEMENT_DEFINITIONS[item.key] || {
+                title: item.key,
+                description: 'Достижение разблокировано.',
+                icon: '✨'
+            };
+
+            return `
+                <article class="profile-achievement-card">
+                    <div class="profile-achievement-icon">${escapeHtmlText(definition.icon)}</div>
+                    <div>
+                        <strong>${escapeHtmlText(definition.title)}</strong>
+                        <span>${escapeHtmlText(definition.description)}</span>
+                        <span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(item.unlockedAt))}</span>
+                    </div>
+                </article>
+            `;
+        }).join('')
+        : '<div class="empty-list">Пока достижений нет. Играйте дальше, чтобы открыть первые медали.</div>';
+}
+
+function openProfileModal() {
+    const modal = document.getElementById('profileModal');
+    if (!modal || !userId) {
+        return;
+    }
+
+    closeProfileMenu();
+    renderProfileModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
+function closeProfileModal() {
+    const modal = document.getElementById('profileModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
 }
 
 function markSettingsDirty() {
@@ -6055,9 +6528,12 @@ function renderSkinShop() {
             class="skin-shop-card"
             data-skin-id="${escapeHtmlText(skinConfig.id)}"
             data-palette="${escapeHtmlText(getSkinInteractionPaletteToken(skinConfig))}"
-            style="--skin-card-image: url('${escapeHtmlText(skinConfig.image)}');"
         >
             <span class="skin-shop-badge"></span>
+            <span class="skin-shop-card-media">
+                <img class="skin-shop-card-image" src="${escapeHtmlText(skinConfig.image)}" alt="${escapeHtmlText(skinConfig.name)}" loading="lazy" decoding="async">
+                <span class="skin-shop-card-overlay"></span>
+            </span>
             <span class="skin-shop-card-footer">
                 <span class="skin-shop-card-name">${escapeHtmlText(skinConfig.name)}</span>
                 <span class="skin-shop-card-meta">
@@ -6083,6 +6559,7 @@ function renderSkinShop() {
 
 function hideSkinActionModal() {
     const modal = document.getElementById('skinActionModal');
+    const previewImageNode = document.getElementById('skinActionModalPreviewImage');
     if (!modal) {
         return;
     }
@@ -6092,6 +6569,11 @@ function hideSkinActionModal() {
     skinActionState.skinId = '';
     skinActionState.mode = '';
     skinActionState.disabledReason = '';
+    if (previewImageNode) {
+        previewImageNode.hidden = true;
+        previewImageNode.removeAttribute('src');
+        previewImageNode.alt = '';
+    }
     syncGlobalOverlayState();
 }
 
@@ -6100,6 +6582,7 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     const titleNode = document.getElementById('skinActionModalTitle');
     const textNode = document.getElementById('skinActionModalText');
     const previewNode = document.getElementById('skinActionModalPreview');
+    const previewImageNode = document.getElementById('skinActionModalPreviewImage');
     const priceNode = document.getElementById('skinActionModalPrice');
     const balanceNode = document.getElementById('skinActionModalBalance');
     const confirmNode = document.getElementById('skinActionModalConfirm');
@@ -6138,8 +6621,11 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
             : `Купить скин "${skinConfig.name}" за ${formatCompactNumber(skinConfig.price)} коинов и сразу установить его?`;
     }
 
-    if (previewNode) {
-        previewNode.style.setProperty('--skin-action-preview', `url('${skinConfig.image}')`);
+    if (previewNode && previewImageNode) {
+        previewNode.dataset.skinId = skinConfig.id;
+        previewImageNode.src = skinConfig.image;
+        previewImageNode.alt = skinConfig.name || 'Скин';
+        previewImageNode.hidden = false;
     }
 
     if (priceNode) {
@@ -6538,6 +7024,47 @@ function confirmSkinAction() {
 
 function validateRegisterLogin(loginValue) {
     return REGISTER_LOGIN_PATTERN.test(loginValue);
+}
+
+function normalizeProfileSummary(rawSummary) {
+    const defaults = getDefaultProfileSummary();
+    if (!rawSummary || typeof rawSummary !== 'object') {
+        return defaults;
+    }
+
+    return {
+        ownedSkins: Math.max(0, Number(rawSummary.ownedSkins) || 0),
+        achievementsUnlocked: Math.max(0, Number(rawSummary.achievementsUnlocked) || 0),
+        clickerTop1: Boolean(rawSummary.clickerTop1),
+        flyTop1: Boolean(rawSummary.flyTop1),
+        score: Math.max(0, Number(rawSummary.score) || 0),
+        plus: Math.max(1, Number(rawSummary.plus) || 1),
+        energyMax: Math.max(1, Number(rawSummary.energyMax) || 5000),
+        flyBest: Math.max(0, Number(rawSummary.flyBest) || 0),
+        flyPending: Math.max(0, Number(rawSummary.flyPending) || 0),
+        flyGamesPlayed: Math.max(0, Number(rawSummary.flyGamesPlayed) || 0)
+    };
+}
+
+function normalizeAchievementList(rawAchievements) {
+    if (!Array.isArray(rawAchievements)) {
+        return [];
+    }
+
+    return rawAchievements
+        .map((item) => {
+            const key = String(item && item.key ? item.key : '').trim();
+            if (!key || !ACHIEVEMENT_DEFINITIONS[key]) {
+                return null;
+            }
+
+            return {
+                key,
+                unlockedAt: String(item.unlockedAt || item.unlocked_at || '').trim(),
+                meta: item.meta && typeof item.meta === 'object' ? item.meta : {}
+            };
+        })
+        .filter(Boolean);
 }
 
 function normalizeFlyBeaverState(rawState) {
@@ -7413,10 +7940,26 @@ if (settingsModalNode) {
     });
 }
 
+const profileModalNode = document.getElementById('profileModal');
+if (profileModalNode) {
+    profileModalNode.addEventListener('click', (event) => {
+        if (event.target === profileModalNode) {
+            closeProfileModal();
+        }
+    });
+}
+
 const settingsModalCloseButton = document.getElementById('settingsModalClose');
 if (settingsModalCloseButton) {
     settingsModalCloseButton.addEventListener('click', () => {
         closeSettingsModal();
+    });
+}
+
+const profileModalCloseButton = document.getElementById('profileModalClose');
+if (profileModalCloseButton) {
+    profileModalCloseButton.addEventListener('click', () => {
+        closeProfileModal();
     });
 }
 
@@ -7465,17 +8008,20 @@ if (settingsButtonNode) {
     });
 }
 
+const profileDetailsButton = document.getElementById('profileDetailsButton');
+if (profileDetailsButton) {
+    profileDetailsButton.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы открыть профиль, достижения и облачную статистику.'
+        })) {
+            return;
+        }
+
+        openProfileModal();
+    });
+}
+
 [
-    ['settingsMusicEnabled', (event) => {
-        applyUserSettings({
-            ...userSettings,
-            audio: {
-                ...userSettings.audio,
-                musicEnabled: Boolean(event.target.checked)
-            }
-        });
-        markSettingsDirty();
-    }],
     ['settingsEffectsEnabled', (event) => {
         applyUserSettings({
             ...userSettings,
@@ -7867,6 +8413,7 @@ function resetUserState() {
     hideUpgradeActionModal();
     closeAuthModal();
     closeSettingsModal({ sync: false });
+    closeProfileModal();
     userId = null;
     score = 0;
     plus = 1;
@@ -7875,6 +8422,8 @@ function resetUserState() {
     energy_max = 5000;
     skin = getDefaultSkinState();
     upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
+    profileSummary = getDefaultProfileSummary();
+    unlockedAchievements = [];
 
     updateRegenRate();
     skinLoad();
@@ -7931,6 +8480,8 @@ function applyAuthenticatedState(data) {
     });
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     if (!settingsState.dirty && !settingsState.inFlight) {
         applyUserSettings(data.settings || userSettings, {
             persist: true,
@@ -7959,6 +8510,7 @@ function applyAuthenticatedState(data) {
     document.getElementById('password').value = '';
     updateFlyRewardUI();
     updateProfileMenuUI();
+    renderProfileModal();
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
@@ -8592,6 +9144,8 @@ function applySynchronizedAccountState(data) {
     }
 
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     if (!settingsState.dirty && !settingsState.inFlight) {
         applyUserSettings(data.settings || userSettings, {
             persist: true,
@@ -8611,6 +9165,7 @@ function applySynchronizedAccountState(data) {
     updateUpgradeShopUI();
     updateFlyRewardUI();
     updateProfileMenuUI();
+    renderProfileModal();
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
     return true;
@@ -9794,6 +10349,22 @@ document.addEventListener('visibilitychange', function() {
         if (hasPendingAutosave()) {
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
         }
+    }
+});
+
+window.addEventListener('storage', function(event) {
+    if (event.key !== USER_SETTINGS_CACHE_KEY || !event.newValue || settingsState.dirty || settingsState.inFlight) {
+        return;
+    }
+
+    try {
+        applyUserSettings(JSON.parse(event.newValue), {
+            persist: false,
+            updateInputs: true
+        });
+        updateSettingsStatus('Настройки обновлены из другой вкладки.', 'success');
+    } catch (error) {
+        console.warn('Не удалось применить настройки из другой вкладки.', error);
     }
 });
 

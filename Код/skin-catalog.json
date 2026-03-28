@@ -106,5 +106,17 @@
     "issue_mode": "grant_only",
     "default_owned": false,
     "grant_only": true
+  },
+  {
+    "id": "top-1-bober-fly-beaver",
+    "name": "Топ-1 бобер fly-beaver",
+    "price": 0,
+    "image": "skins/top-1-bober-fly-beaver.svg",
+    "available": false,
+    "rarity": "legendary",
+    "category": "top",
+    "issue_mode": "grant_only",
+    "default_owned": false,
+    "grant_only": true
   }
 ]
