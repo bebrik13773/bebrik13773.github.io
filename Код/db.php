@@ -3046,6 +3046,7 @@ function bober_support_ticket_categories()
         'account',
         'ban_appeal',
         'bugs',
+        'skins',
         'skins_shop',
         'fly_beaver',
         'other',
@@ -3064,6 +3065,9 @@ function bober_support_ticket_statuses()
 function bober_normalize_support_ticket_category($value)
 {
     $normalized = strtolower(trim((string) $value));
+    if ($normalized === 'skins_shop') {
+        return 'skins';
+    }
     return in_array($normalized, bober_support_ticket_categories(), true) ? $normalized : 'other';
 }
 
@@ -3087,8 +3091,8 @@ function bober_normalize_support_ticket_subject($value)
 {
     $subject = trim(preg_replace('/\s+/u', ' ', (string) $value));
     $length = bober_support_text_length($subject);
-    if ($length < 4) {
-        throw new InvalidArgumentException('Тема тикета должна быть не короче 4 символов.');
+    if ($length < 2) {
+        throw new InvalidArgumentException('Тема тикета должна быть не короче 2 символов.');
     }
     if ($length > 180) {
         throw new InvalidArgumentException('Тема тикета слишком длинная.');
@@ -3101,8 +3105,8 @@ function bober_normalize_support_ticket_message($value)
 {
     $message = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
     $length = bober_support_text_length($message);
-    if ($length < 10) {
-        throw new InvalidArgumentException('Сообщение тикета должно быть не короче 10 символов.');
+    if ($length < 1) {
+        throw new InvalidArgumentException('Сообщение тикета не должно быть пустым.');
     }
     if ($length > 6000) {
         throw new InvalidArgumentException('Сообщение тикета слишком длинное.');
