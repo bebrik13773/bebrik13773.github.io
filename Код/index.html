@@ -2491,6 +2491,51 @@ Owner decisions:
         -webkit-backdrop-filter: blur(12px);
     }
 
+    .auth-password-shell {
+        width: min(100%, 320px);
+        margin: 8px auto 0;
+        position: relative;
+    }
+
+    .auth-password-shell input {
+        width: 100% !important;
+        margin: 0 !important;
+        padding-right: 50px;
+    }
+
+    .auth-password-toggle {
+        appearance: none;
+        border: none;
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        transform: translateY(-50%);
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(248, 255, 255, 0.88);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.16s ease, transform 0.16s ease;
+        box-shadow: none;
+        min-width: 36px;
+        margin: 0;
+        padding: 0;
+        z-index: 1;
+    }
+
+    .auth-password-toggle:hover {
+        background: rgba(126, 241, 255, 0.14);
+        transform: translateY(calc(-50% - 1px));
+    }
+
+    .auth-password-toggle:active {
+        transform: translateY(calc(-50% + 1px));
+    }
+
     #loginForm input::placeholder,
     #registerForm input::placeholder {
         color: rgba(255, 255, 255, 0.5);
@@ -3133,6 +3178,17 @@ Owner decisions:
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         text-align: center;
+    }
+
+    #achievementUnlockModal {
+        z-index: 10170;
+        align-items: center;
+        justify-content: center;
+        padding:
+            max(var(--safe-top), 18px)
+            max(var(--safe-right), 18px)
+            max(var(--safe-bottom), 18px)
+            max(var(--safe-left), 18px);
     }
 
     .achievement-unlock-kicker {
@@ -3778,6 +3834,10 @@ Owner decisions:
             border-radius: 20px;
         }
 
+        .auth-password-shell {
+            width: 100%;
+        }
+
         #flyBeaverOpenButton {
             width: min(100%, 100%);
             min-height: 56px;
@@ -3938,7 +3998,31 @@ Owner decisions:
             max-height: none;
         }
 
+        .profile-achievements-grid {
+            grid-template-columns: 1fr;
+            max-height: 34dvh;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        #achievementUnlockModal {
+            align-items: stretch;
+            justify-content: center;
+            overflow-y: auto;
+            padding:
+                max(var(--safe-top), 12px)
+                max(var(--safe-right), 12px)
+                max(var(--safe-bottom), 12px)
+                max(var(--safe-left), 12px);
+        }
+
         .achievement-unlock-modal {
+            width: 100%;
+            max-width: none;
+            min-height: calc(100dvh - max(var(--safe-top), 12px) - max(var(--safe-bottom), 12px));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             padding: 22px 18px 18px;
             border-radius: 24px;
         }
@@ -4323,7 +4407,10 @@ function showNotification(message, type = 'success', duration = 3000) {
             <h2>Форма входа</h2>
             <p class="auth-panel-subtitle">Быстрый вход в облачное сохранение, магазин и синхронизацию сессии между устройствами.</p>
             <input type="text" id="login" placeholder="Логин" autocomplete="username">
-            <input type="password" id="password" placeholder="Пароль">
+            <div class="auth-password-shell">
+                <input type="password" id="password" placeholder="Пароль" autocomplete="current-password">
+                <button type="button" class="auth-password-toggle" id="toggleLoginPassword" aria-label="Показать пароль" aria-pressed="false">👁</button>
+            </div>
             <button id="submitLogin">Войти</button>
         </div>
 
@@ -4331,7 +4418,10 @@ function showNotification(message, type = 'success', duration = 3000) {
             <h2>Форма регистрации</h2>
             <p class="auth-panel-subtitle">Новый аккаунт создаётся сразу с автовходом и облачным сохранением прогресса.</p>
             <input type="text" id="regLogin" placeholder="Логин" maxlength="10" pattern="[A-Za-z0-9_-]{3,10}" title="3-10 символов: английские буквы, цифры, - и _" autocomplete="username">
-            <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
+            <div class="auth-password-shell">
+                <input type="password" id="regPassword" placeholder="Пароль" autocomplete="new-password">
+                <button type="button" class="auth-password-toggle" id="toggleRegisterPassword" aria-label="Показать пароль" aria-pressed="false">👁</button>
+            </div>
             <div class="auth-panel-rule">Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</div>
             <button id="submitRegister">Зарегистрироваться</button>
         </div>
@@ -4999,7 +5089,8 @@ let supportSummary = getDefaultSupportSummary();
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
 const SUPPORT_LIVE_REFRESH_CONFIG = {
-    intervalMs: 4000
+    threadIntervalMs: 4000,
+    listIntervalMs: 10000
 };
 const SKIN_CATALOG_LIVE_REFRESH_CONFIG = {
     intervalMs: 45000
@@ -5025,7 +5116,8 @@ const autosaveState = {
 };
 const supportLiveRefreshState = {
     timer: null,
-    inFlight: false
+    inFlight: false,
+    lastListRefreshAt: 0
 };
 const skinCatalogLiveRefreshState = {
     inFlight: false,
@@ -5303,7 +5395,9 @@ const settingsState = {
     lastSavedAt: 0,
     lastError: '',
     revision: 0,
-    retryRequested: false
+    retryRequested: false,
+    localUpdatedAt: 0,
+    lastAppliedServerUpdatedAt: 0
 };
 const supportState = {
     tickets: [],
@@ -5312,7 +5406,9 @@ const supportState = {
     activeTab: 'inbox',
     loadingList: false,
     loadingTicket: false,
-    composeAppeal: null
+    composeAppeal: null,
+    listSignature: '',
+    threadSignature: ''
 };
 const achievementUnlockState = {
     queue: [],
@@ -5356,6 +5452,7 @@ let userSettings = SHARED_CLIENT.readCachedUserSettings
 const bootPendingSettingsSync = readPendingSettingsSync();
 if (bootPendingSettingsSync && bootPendingSettingsSync.settings) {
     userSettings = bootPendingSettingsSync.settings;
+    settingsState.localUpdatedAt = Math.max(0, Number(bootPendingSettingsSync.updatedAt) || 0);
 }
 window.__boberUserSettings = userSettings;
 try {
@@ -5439,10 +5536,11 @@ function persistPendingSettingsSync(settings, userIdValue = userId) {
             return false;
         }
 
+        const updatedAt = Math.max(0, Number(settingsState.localUpdatedAt) || Date.now());
         localStorage.setItem(SETTINGS_PENDING_SYNC_STORAGE_KEY, JSON.stringify({
             userId: Number(userIdValue) || 0,
             settings: normalizeUserSettings(settings),
-            updatedAt: Date.now()
+            updatedAt: updatedAt
         }));
         return true;
     } catch (error) {
@@ -5472,6 +5570,60 @@ function readPendingSettingsSync() {
         console.warn('Не удалось прочитать локальный черновик настроек.', error);
         return null;
     }
+}
+
+function normalizeSettingsUpdatedAt(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, Math.floor(value));
+    }
+
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return 0;
+    }
+
+    const parsedMs = Date.parse(normalizedValue.replace(' ', 'T'));
+    return Number.isFinite(parsedMs) ? Math.max(0, Math.floor(parsedMs)) : 0;
+}
+
+function getPendingSettingsUpdatedAtForCurrentUser() {
+    const pendingSync = readPendingSettingsSync();
+    if (!pendingSync || !userId || pendingSync.userId !== Number(userId)) {
+        return 0;
+    }
+
+    return Math.max(0, Number(pendingSync.updatedAt) || 0);
+}
+
+function shouldApplyIncomingServerSettings(updatedAtValue = 0) {
+    const normalizedUpdatedAt = normalizeSettingsUpdatedAt(updatedAtValue);
+    const pendingUpdatedAt = getPendingSettingsUpdatedAtForCurrentUser();
+
+    if (settingsState.dirty || settingsState.inFlight || pendingUpdatedAt > 0) {
+        return false;
+    }
+
+    if (normalizedUpdatedAt > 0 && normalizedUpdatedAt < Math.max(0, Number(settingsState.lastAppliedServerUpdatedAt) || 0)) {
+        return false;
+    }
+
+    return true;
+}
+
+function applyServerSettingsSnapshot(settings, updatedAtValue, options = {}) {
+    const normalizedUpdatedAt = normalizeSettingsUpdatedAt(updatedAtValue);
+    if (!options.force && !shouldApplyIncomingServerSettings(updatedAtValue)) {
+        return false;
+    }
+
+    applyUserSettings(settings, options);
+    if (normalizedUpdatedAt > 0) {
+        settingsState.lastAppliedServerUpdatedAt = normalizedUpdatedAt;
+    }
+    if (!settingsState.dirty && !settingsState.inFlight) {
+        settingsState.localUpdatedAt = 0;
+    }
+    return true;
 }
 
 function clearPendingSettingsSync() {
@@ -5519,6 +5671,7 @@ async function resumePendingSettingsSync() {
     });
     settingsState.dirty = true;
     settingsState.lastError = '';
+    settingsState.localUpdatedAt = Math.max(0, Number(pendingSync.updatedAt) || Date.now());
     settingsState.revision += 1;
     updateSettingsStatus('Найдены локальные изменения настроек. Досохраняем их в облако...', 'saving');
     return saveUserSettings({ silent: true, force: true });
@@ -5673,7 +5826,9 @@ function syncGlobalOverlayState() {
         document.getElementById('sessionConflictModal'),
         document.getElementById('authModal'),
         document.getElementById('settingsModal'),
-        document.getElementById('profileModal')
+        document.getElementById('profileModal'),
+        document.getElementById('supportModal'),
+        document.getElementById('achievementUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
     const loadingVisible = Boolean(document.getElementById('loadingOverlay') && document.getElementById('loadingOverlay').classList.contains('show'));
     document.body.classList.toggle('modal-open', hasOpenModal || loadingVisible);
@@ -5891,13 +6046,14 @@ function getEffectsQualityMultiplier() {
 
 function getMaxActiveRipples() {
     const effectsQuality = normalizeUserSettings(window.__boberUserSettings || userSettings).effects.quality;
+    const isTouchViewport = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     if (effectsQuality === 'low') {
-        return 4;
+        return isTouchViewport ? 2 : 4;
     }
     if (effectsQuality === 'medium') {
-        return 5;
+        return isTouchViewport ? 3 : 5;
     }
-    return RIPPLE_ENGINE_CONFIG.maxActiveRipples;
+    return isTouchViewport ? 4 : RIPPLE_ENGINE_CONFIG.maxActiveRipples;
 }
 
 function getSkinInteractionPaletteToken(skinConfig) {
@@ -6011,6 +6167,9 @@ function clearActiveRipples() {
 
 function shouldAnimateInteractionSource(source = 'tap') {
     const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    const effectsQuality = settings.effects.quality;
+    const isTouchViewport = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const heavyUiSurfaceOpen = isHeavyUiSurfaceOpen();
     if (settings.animations.mode === 'off') {
         return false;
     }
@@ -6019,11 +6178,15 @@ function shouldAnimateInteractionSource(source = 'tap') {
         return true;
     }
 
-    if (settings.effects.quality === 'low') {
+    if (effectsQuality === 'low') {
         return false;
     }
 
-    if (settings.animations.mode === 'reduced' && source === 'move') {
+    if (source === 'move' && (settings.animations.mode === 'reduced' || isTouchViewport || heavyUiSurfaceOpen || effectsQuality !== 'high')) {
+        return false;
+    }
+
+    if (source === 'scroll' && (isTouchViewport || heavyUiSurfaceOpen || effectsQuality === 'medium')) {
         return false;
     }
 
@@ -6073,6 +6236,17 @@ function spawnPageRipple(pageX, pageY, paletteToken = 'main', options = {}) {
 
 function shouldSkipInterfaceReaction(target) {
     return Boolean(target && target.closest('.notification-container'));
+}
+
+function isHeavyUiSurfaceOpen() {
+    return Boolean(
+        document.getElementById('shop')?.style.display === 'block' ||
+        document.getElementById('supportModal')?.classList.contains('show') ||
+        document.getElementById('settingsModal')?.classList.contains('show') ||
+        document.getElementById('profileModal')?.classList.contains('show') ||
+        document.getElementById('authModal')?.classList.contains('show') ||
+        document.getElementById('achievementUnlockModal')?.classList.contains('show')
+    );
 }
 
 function isClickerReactionTarget(target) {
@@ -6589,6 +6763,11 @@ function openSettingsModal() {
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
+    if (userId) {
+        resumePendingSettingsSync().catch((error) => {
+            console.warn('Не удалось досинхронизировать настройки при открытии модалки.', error);
+        });
+    }
 }
 
 function closeSettingsModal(options = {}) {
@@ -6812,6 +6991,10 @@ function setSupportModalTab(tab) {
     if (createPanel) {
         createPanel.hidden = nextTab !== 'create';
     }
+
+    if (isSupportModalOpen()) {
+        scheduleSupportLiveRefresh(getSupportRefreshInterval());
+    }
 }
 
 function isSupportModalOpen() {
@@ -6830,7 +7013,15 @@ function stopSupportLiveRefresh() {
     }
 }
 
-function scheduleSupportLiveRefresh(delayMs = SUPPORT_LIVE_REFRESH_CONFIG.intervalMs) {
+function getSupportRefreshInterval() {
+    if (supportState.activeTab === 'inbox' && Number(supportState.selectedTicketId) > 0) {
+        return SUPPORT_LIVE_REFRESH_CONFIG.threadIntervalMs;
+    }
+
+    return SUPPORT_LIVE_REFRESH_CONFIG.listIntervalMs;
+}
+
+function scheduleSupportLiveRefresh(delayMs = getSupportRefreshInterval()) {
     stopSupportLiveRefresh();
     if (!userId || document.hidden || !isSupportModalOpen()) {
         return;
@@ -6840,7 +7031,7 @@ function scheduleSupportLiveRefresh(delayMs = SUPPORT_LIVE_REFRESH_CONFIG.interv
         refreshSupportLiveView().catch((error) => {
             console.warn('Фоновое обновление поддержки завершилось ошибкой.', error);
         });
-    }, Math.max(1500, Number(delayMs) || SUPPORT_LIVE_REFRESH_CONFIG.intervalMs));
+    }, Math.max(2500, Number(delayMs) || getSupportRefreshInterval()));
 }
 
 async function refreshSupportLiveView() {
@@ -6850,15 +7041,30 @@ async function refreshSupportLiveView() {
 
     supportLiveRefreshState.inFlight = true;
     try {
-        await loadSupportTickets({
-            limit: 50,
-            silent: true,
-            background: true
-        });
+        const now = Date.now();
+        const shouldRefreshList = supportLiveRefreshState.lastListRefreshAt < 1
+            || (now - supportLiveRefreshState.lastListRefreshAt) >= SUPPORT_LIVE_REFRESH_CONFIG.listIntervalMs;
+
+        if (shouldRefreshList) {
+            await loadSupportTickets({
+                limit: 50,
+                silent: true,
+                background: true,
+                skipSelectedTicketRefresh: true
+            });
+            supportLiveRefreshState.lastListRefreshAt = now;
+        }
+
+        if (supportState.activeTab === 'inbox' && Number(supportState.selectedTicketId) > 0) {
+            await loadSupportTicket(supportState.selectedTicketId, {
+                silent: true,
+                background: true
+            });
+        }
     } finally {
         supportLiveRefreshState.inFlight = false;
         if (isSupportModalOpen() && !document.hidden) {
-            scheduleSupportLiveRefresh(SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
+            scheduleSupportLiveRefresh(getSupportRefreshInterval());
         }
     }
 }
@@ -6899,18 +7105,38 @@ function renderSupportTicketList() {
 
     if (!userId && supportState.composeAppeal) {
         listNode.innerHTML = '<div class="empty-list">Для апелляции доступна только форма нового тикета. Входящие откроются после входа в аккаунт.</div>';
+        supportState.listSignature = 'appeal-only';
         return;
     }
 
     if (supportState.loadingList) {
         listNode.innerHTML = '<div class="empty-list">Загружаем тикеты...</div>';
+        supportState.listSignature = 'loading';
         return;
     }
 
     if (supportState.tickets.length < 1) {
         listNode.innerHTML = '<div class="empty-list">Пока тикетов нет. Создайте первый запрос во вкладке «Новый тикет».</div>';
+        supportState.listSignature = 'empty';
         return;
     }
+
+    const nextSignature = JSON.stringify({
+        selectedTicketId: Number(supportState.selectedTicketId) || 0,
+        tickets: supportState.tickets.map((ticket) => ({
+            id: ticket.id,
+            status: ticket.status,
+            unreadByUser: ticket.unreadByUser,
+            updatedAt: ticket.updatedAt,
+            lastMessagePreview: ticket.lastMessagePreview
+        }))
+    });
+
+    if (supportState.listSignature === nextSignature) {
+        return;
+    }
+
+    supportState.listSignature = nextSignature;
 
     listNode.innerHTML = supportState.tickets.map((ticket) => `
         <button type="button" class="support-ticket-card ${ticket.id === supportState.selectedTicketId ? 'active' : ''}" data-ticket-id="${ticket.id}">
@@ -6945,8 +7171,25 @@ function renderSupportTicketThread() {
     if (!ticket) {
         emptyNode.hidden = false;
         contentNode.hidden = true;
+        supportState.threadSignature = 'empty';
         return;
     }
+
+    const nextSignature = JSON.stringify({
+        id: ticket.id,
+        status: ticket.status,
+        unreadByUser: ticket.unreadByUser,
+        updatedAt: ticket.updatedAt,
+        messages: (ticket.messages || []).map((message) => `${message.id}:${message.createdAt}`)
+    });
+
+    if (supportState.threadSignature === nextSignature) {
+        return;
+    }
+
+    supportState.threadSignature = nextSignature;
+    const shouldStickToBottom = messagesNode.scrollHeight - messagesNode.scrollTop - messagesNode.clientHeight < 28;
+    const previousScrollTop = messagesNode.scrollTop;
 
     emptyNode.hidden = true;
     contentNode.hidden = false;
@@ -6965,6 +7208,8 @@ function renderSupportTicketThread() {
             </div>
         `).join('')
         : '<div class="empty-list">История переписки пока пуста.</div>';
+
+    messagesNode.scrollTop = shouldStickToBottom ? messagesNode.scrollHeight : previousScrollTop;
 
     const isClosed = ticket.status === 'closed';
     replyNode.disabled = isClosed;
@@ -7086,14 +7331,18 @@ async function loadSupportTickets(options = {}) {
         }
         renderSupportTicketList();
 
-        if (supportState.selectedTicketId > 0) {
+        if (!options.skipSelectedTicketRefresh && supportState.selectedTicketId > 0) {
             await loadSupportTicket(supportState.selectedTicketId, {
                 silent: options.silent,
                 background: isBackgroundRefresh
             });
         } else {
-            supportState.selectedTicket = null;
-            renderSupportTicketThread();
+            const stillExists = supportState.tickets.some((ticket) => ticket.id === supportState.selectedTicketId);
+            if (!stillExists) {
+                supportState.selectedTicket = null;
+                supportState.selectedTicketId = 0;
+                renderSupportTicketThread();
+            }
         }
     } catch (error) {
         console.error('Не удалось загрузить тикеты поддержки:', error);
@@ -7180,7 +7429,8 @@ function openSupportCenter(options = {}) {
         loadSupportTickets().catch((error) => {
             console.warn('Не удалось обновить тикеты при открытии поддержки.', error);
         }).finally(() => {
-            scheduleSupportLiveRefresh(SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
+            supportLiveRefreshState.lastListRefreshAt = Date.now();
+            scheduleSupportLiveRefresh(getSupportRefreshInterval());
         });
     }
 }
@@ -7194,6 +7444,8 @@ function closeSupportModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     supportState.composeAppeal = null;
+    supportState.listSignature = '';
+    supportState.threadSignature = '';
     stopSupportLiveRefresh();
     syncGlobalOverlayState();
 }
@@ -7242,6 +7494,7 @@ async function submitSupportTicket() {
             supportState.composeAppeal = null;
             closeSupportModal();
         }
+        supportLiveRefreshState.lastListRefreshAt = Date.now();
         applySupportSummary(data.summary || supportSummary);
         applySupportComposeDraft();
         showNotification(data.message || 'Тикет создан.', 'success');
@@ -7288,6 +7541,7 @@ async function submitSupportReply() {
         applySupportSummary(data.summary || supportSummary);
         renderSupportTicketList();
         renderSupportTicketThread();
+        supportLiveRefreshState.lastListRefreshAt = Date.now();
         showNotification(data.message || 'Ответ отправлен.', 'success');
     } catch (error) {
         console.error('Не удалось ответить в тикет:', error);
@@ -7302,6 +7556,7 @@ function markSettingsDirty() {
     settingsState.lastError = '';
     settingsState.lastSavedAt = 0;
     settingsState.revision += 1;
+    settingsState.localUpdatedAt = Date.now();
     persistCachedUserSettings(userSettings);
     persistPendingSettingsSync(userSettings);
     if (settingsState.timer) {
@@ -7335,6 +7590,7 @@ async function saveUserSettings(options = {}) {
     settingsState.inFlight = true;
     settingsState.retryRequested = false;
     const revisionAtStart = settingsState.revision;
+    const localUpdatedAtAtStart = Math.max(0, Number(settingsState.localUpdatedAt) || Date.now());
     const settingsSnapshot = persistCachedUserSettings(normalizeUserSettings(userSettings));
     updateSettingsStatus('Сохраняем настройки в облако...', 'saving');
     persistPendingSettingsSync(settingsSnapshot);
@@ -7353,10 +7609,16 @@ async function saveUserSettings(options = {}) {
             const resolvedServerSettings = data.account
                 ? (data.account.settings || data.settings || settingsSnapshot)
                 : (data.settings || settingsSnapshot);
+            const resolvedServerUpdatedAt = normalizeSettingsUpdatedAt(
+                data.settingsUpdatedAt ||
+                data.account?.settingsUpdatedAt ||
+                0
+            );
             const hasNewerLocalChanges = settingsState.revision !== revisionAtStart;
 
             if (!hasNewerLocalChanges) {
-                applyUserSettings(resolvedServerSettings, {
+                applyServerSettingsSnapshot(resolvedServerSettings, resolvedServerUpdatedAt, {
+                    force: true,
                     persist: true,
                     updateInputs: true
                 });
@@ -7364,6 +7626,10 @@ async function saveUserSettings(options = {}) {
                 settingsState.dirty = false;
                 settingsState.lastSavedAt = Date.now();
                 settingsState.lastError = '';
+                settingsState.localUpdatedAt = 0;
+                settingsState.lastAppliedServerUpdatedAt = resolvedServerUpdatedAt > 0
+                    ? resolvedServerUpdatedAt
+                    : Math.max(localUpdatedAtAtStart, settingsState.lastAppliedServerUpdatedAt);
                 clearPendingSettingsSync();
                 updateSettingsStatus(`Настройки синхронизированы в ${formatSaveTime(settingsState.lastSavedAt)}`, 'success');
                 if (!silent) {
@@ -8420,6 +8686,19 @@ function markAchievementUnlockSeen(item) {
     persistSeenAchievementUnlocks();
 }
 
+function isAchievementUnlockQueuedOrActive(item) {
+    const seenKey = buildAchievementSeenKey(item);
+    if (!seenKey || seenKey === '::') {
+        return false;
+    }
+
+    if (achievementUnlockState.active && buildAchievementSeenKey(achievementUnlockState.active) === seenKey) {
+        return true;
+    }
+
+    return achievementUnlockState.queue.some((queuedItem) => buildAchievementSeenKey(queuedItem) === seenKey);
+}
+
 function updateSupportBadgeUI() {
     supportSummary = normalizeSupportSummary(supportSummary);
     const unread = Math.max(0, Number(supportSummary.unreadReplies) || 0);
@@ -8525,6 +8804,7 @@ function renderAchievementUnlockModal() {
 
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
+    markAchievementUnlockSeen(activeUnlock);
     syncGlobalOverlayState();
 }
 
@@ -8567,8 +8847,11 @@ function enqueueAchievementUnlocks(rawUnlocks) {
             return;
         }
 
+        if (isAchievementUnlockQueuedOrActive(item)) {
+            return;
+        }
+
         achievementUnlockState.queue.push(item);
-        markAchievementUnlockSeen(item);
     });
 
     showNextAchievementUnlock();
@@ -9412,6 +9695,25 @@ if (authTabRegisterButton) {
     });
 }
 
+function bindPasswordToggle(toggleId, inputId) {
+    const toggleNode = document.getElementById(toggleId);
+    const inputNode = document.getElementById(inputId);
+    if (!toggleNode || !inputNode) {
+        return;
+    }
+
+    toggleNode.addEventListener('click', () => {
+        const reveal = inputNode.type === 'password';
+        inputNode.type = reveal ? 'text' : 'password';
+        toggleNode.textContent = reveal ? '🙈' : '👁';
+        toggleNode.setAttribute('aria-label', reveal ? 'Скрыть пароль' : 'Показать пароль');
+        toggleNode.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+    });
+}
+
+bindPasswordToggle('toggleLoginPassword', 'password');
+bindPasswordToggle('toggleRegisterPassword', 'regPassword');
+
 const settingsModalNode = document.getElementById('settingsModal');
 if (settingsModalNode) {
     settingsModalNode.addEventListener('click', (event) => {
@@ -9661,9 +9963,10 @@ if (profileDetailsButton) {
 ].forEach(([id, handler]) => {
     const node = document.getElementById(id);
     if (node) {
-        const eventName = node.type === 'range' || node.tagName === 'SELECT' ? 'input' : 'change';
-        node.addEventListener(eventName, handler);
-        if (eventName !== 'change') {
+        if (node.type === 'range') {
+            node.addEventListener('input', handler);
+            node.addEventListener('change', handler);
+        } else {
             node.addEventListener('change', handler);
         }
     }
@@ -10014,6 +10317,8 @@ function resetUserState() {
     settingsState.lastError = '';
     settingsState.retryRequested = false;
     settingsState.timer = null;
+    settingsState.localUpdatedAt = 0;
+    settingsState.lastAppliedServerUpdatedAt = 0;
     updateAdminVisibility('');
     setAuthenticatedUI(false);
     document.getElementById('password').value = '';
@@ -10061,12 +10366,10 @@ function applyAuthenticatedState(data) {
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
-    if (!settingsState.dirty && !settingsState.inFlight) {
-        applyUserSettings(data.settings || userSettings, {
-            persist: true,
-            updateInputs: true
-        });
-    }
+    applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {
+        persist: true,
+        updateInputs: true
+    });
 
     skin = normalizeSkinState(data.skin);
     skinLoad();
@@ -10743,12 +11046,10 @@ function applySynchronizedAccountState(data) {
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
-    if (!settingsState.dirty && !settingsState.inFlight) {
-        applyUserSettings(data.settings || userSettings, {
-            persist: true,
-            updateInputs: true
-        });
-    }
+    applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {
+        persist: true,
+        updateInputs: true
+    });
 
     const serverEnergy = Number(data.energy);
     energy = Number.isFinite(serverEnergy) && serverEnergy >= 0 ? Math.min(energy_max, serverEnergy) : energy;
@@ -11501,6 +11802,13 @@ function shopClose() {
     document.getElementById('shopExit').style.bottom = '';
     document.getElementById('shopExit').style.right = '';
     document.getElementById('shopExit').style.zIndex = '';
+    const shopNode = document.getElementById('shop');
+    if (shopNode) {
+        shopNode.scrollTop = 0;
+    }
+    window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
 }
 
 async function openFlyBeaverGame() {
@@ -11961,6 +12269,11 @@ document.addEventListener('visibilitychange', function() {
             });
             scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
         });
+        if (userId) {
+            resumePendingSettingsSync().catch((error) => {
+                console.warn('Не удалось досохранить настройки после возврата во вкладку.', error);
+            });
+        }
         if (hasPendingAutosave()) {
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
         }
@@ -11972,17 +12285,50 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
+window.addEventListener('pageshow', function() {
+    if (userId) {
+        resumePendingSettingsSync().catch((error) => {
+            console.warn('Не удалось досохранить настройки после pageshow.', error);
+        });
+    }
+});
+
+window.addEventListener('online', function() {
+    if (userId) {
+        resumePendingSettingsSync().catch((error) => {
+            console.warn('Не удалось досохранить настройки после восстановления сети.', error);
+        });
+    }
+});
+
 window.addEventListener('storage', function(event) {
-    if (event.key !== USER_SETTINGS_CACHE_KEY || !event.newValue || settingsState.dirty || settingsState.inFlight) {
+    if (!event.key || !event.newValue || settingsState.dirty || settingsState.inFlight) {
         return;
     }
 
     try {
-        applyUserSettings(JSON.parse(event.newValue), {
-            persist: false,
-            updateInputs: true
-        });
-        updateSettingsStatus('Настройки обновлены из другой вкладки.', 'success');
+        if (event.key === USER_SETTINGS_CACHE_KEY) {
+            applyUserSettings(JSON.parse(event.newValue), {
+                persist: false,
+                updateInputs: true
+            });
+            updateSettingsStatus('Настройки обновлены из другой вкладки.', 'success');
+            return;
+        }
+
+        if (event.key === SETTINGS_PENDING_SYNC_STORAGE_KEY) {
+            const pendingSync = readPendingSettingsSync();
+            if (!pendingSync || !userId || pendingSync.userId !== Number(userId)) {
+                return;
+            }
+
+            applyUserSettings(pendingSync.settings, {
+                persist: false,
+                updateInputs: true
+            });
+            settingsState.localUpdatedAt = Math.max(0, Number(pendingSync.updatedAt) || settingsState.localUpdatedAt);
+            updateSettingsStatus('Настройки обновлены из другой вкладки. Дождёмся облачной синхронизации...', 'saving');
+        }
     } catch (error) {
         console.warn('Не удалось применить настройки из другой вкладки.', error);
     }
@@ -12004,6 +12350,8 @@ class AutoClickerDetector {
         this.warningCooldownUntil = 0;
         this.isMobile = this.checkMobileDevice();
         this.banRequestInFlight = false;
+        this.keyboardHistoryStorageKey = 'bober_keyboard_suspicion_history';
+        this.keyboardWarningHistory = this.readKeyboardWarningHistory();
         
         this.config = this.buildConfig();
         
@@ -12118,8 +12466,53 @@ class AutoClickerDetector {
             desktopNearHundredMinRangeRatio: 0.75,
             desktopNearHundredMaxShortBurstRatio: 0.18,
             desktopNearHundredMinCps: 8.1,
-            desktopNearHundredMinSinglePointerRatio: 0.88
+            desktopNearHundredMinSinglePointerRatio: 0.88,
+            keyboardSuspicionMinCps: 14,
+            keyboardSuspicionMinDurationMs: 5000,
+            keyboardRepeatWindowMs: 24 * 60 * 60 * 1000
         };
+    }
+
+    readKeyboardWarningHistory() {
+        try {
+            const rawValue = localStorage.getItem(this.keyboardHistoryStorageKey);
+            if (!rawValue) {
+                return [];
+            }
+
+            const parsed = JSON.parse(rawValue);
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed
+                .map((item) => Math.max(0, Number(item) || 0))
+                .filter((item) => item > 0)
+                .slice(-12);
+        } catch (error) {
+            return [];
+        }
+    }
+
+    persistKeyboardWarningHistory() {
+        try {
+            localStorage.setItem(this.keyboardHistoryStorageKey, JSON.stringify(this.keyboardWarningHistory.slice(-12)));
+        } catch (error) {
+            console.warn('Не удалось сохранить историю keyboard-античита.', error);
+        }
+    }
+
+    pruneKeyboardWarningHistory(now = Date.now()) {
+        const cutoff = now - this.config.keyboardRepeatWindowMs;
+        this.keyboardWarningHistory = this.keyboardWarningHistory.filter((item) => item >= cutoff);
+        return this.keyboardWarningHistory.length;
+    }
+
+    recordKeyboardWarning(now = Date.now()) {
+        this.pruneKeyboardWarningHistory(now);
+        this.keyboardWarningHistory.push(now);
+        this.persistKeyboardWarningHistory();
+        return this.keyboardWarningHistory.length;
     }
 
     recordInteraction(payload = {}) {
@@ -12184,6 +12577,9 @@ class AutoClickerDetector {
         if (analysis.action === 'warn') {
             this.warningCount += 1;
             this.warningCooldownUntil = now + this.config.warningCooldownMs;
+            if (analysis.metrics && analysis.metrics.keyboardSustainedPattern) {
+                this.recordKeyboardWarning(Date.now());
+            }
 
             if (this.warningCount === 1) {
                 this.showWarning('ПРЕДУПРЕЖДЕНИЕ', 'Обнаружен слишком ровный темп кликов.', analysis.reason);
@@ -12484,10 +12880,19 @@ class AutoClickerDetector {
         const touchSourceRatio = recentClicks.length > 0
             ? recentClicks.filter(click => String(click.source || '') === 'touchstart').length / recentClicks.length
             : 0;
+        const keyboardSourceRatio = recentClicks.length > 0
+            ? recentClicks.filter(click => String(click.source || '') === 'keyboard').length / recentClicks.length
+            : 0;
         const singlePointerRatio = recentClicks.length > 0
             ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) === 1).length / recentClicks.length
             : 0;
+        const keyboardDominant = !this.isMobile && keyboardSourceRatio >= 0.6;
+        const keyboardSustainedPattern = keyboardDominant &&
+            recentClicks.length >= 24 &&
+            (recentClicks[recentClicks.length - 1].time - recentClicks[0].time) >= this.config.keyboardSuspicionMinDurationMs &&
+            cps >= this.config.keyboardSuspicionMinCps;
         const desktopShortExactWindow = !this.isMobile &&
+            !keyboardDominant &&
             lowTouchAutomationRisk &&
             singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
             ? this.findDesktopPatternWindow(intervals, {
@@ -12508,6 +12913,7 @@ class AutoClickerDetector {
             })
             : null;
         const desktopNearHundredWindow = !this.isMobile &&
+            !keyboardDominant &&
             lowTouchAutomationRisk &&
             singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
             ? this.findDesktopPatternWindow(intervals, {
@@ -12530,18 +12936,21 @@ class AutoClickerDetector {
         const desktopShortExactPattern = Boolean(desktopShortExactWindow);
         const desktopNearHundredMsPattern = Boolean(desktopNearHundredWindow) && !desktopShortExactPattern;
 
-        const suspiciousCadence = effectiveCps >= this.config.suspiciousCPS &&
+        const suspiciousCadence = !keyboardDominant &&
+            effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.lowCvThreshold &&
             stableRatio >= this.config.stableRatioThreshold &&
             longestStableStreak >= this.config.minStableStreak;
 
-        const hardCadence = effectiveCps >= this.config.suspiciousCPS &&
+        const hardCadence = !keyboardDominant &&
+            effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.hardCvThreshold &&
             stableRatio >= this.config.hardStableRatioThreshold &&
             dominantRatio >= this.config.hardStableRatioThreshold &&
             longestStableStreak >= this.config.hardStableStreak;
 
-        const exactHundredMsPattern = recentClicks.length >= this.config.exactPatternMinSamples &&
+        const exactHundredMsPattern = !keyboardDominant &&
+            recentClicks.length >= this.config.exactPatternMinSamples &&
             lowTouchAutomationRisk &&
             effectiveCps >= this.config.exactPatternMinEffectiveCps &&
             medianInterval >= this.config.exactPatternMinInterval &&
@@ -12586,7 +12995,7 @@ class AutoClickerDetector {
             !strongHundredMsPattern &&
             (extremeSpeed || suspiciousCadence || hardCadence || shortBurstRatio >= 0.6);
 
-        if (!suspiciousCadence && !hardCadence && !exactHundredMsPattern && !desktopShortExactPattern && !desktopNearHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
+        if (!keyboardSustainedPattern && !suspiciousCadence && !hardCadence && !exactHundredMsPattern && !desktopShortExactPattern && !desktopNearHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
             return {
                 action: 'ignore'
             };
@@ -12657,6 +13066,11 @@ class AutoClickerDetector {
             reasons.push('слишком много сверхкоротких интервалов');
         }
 
+        if (keyboardSustainedPattern) {
+            addedHeat += 2;
+            reasons.push(`подозрительно высокая скорость клавиатурных кликов ${cps.toFixed(1)} CPS`);
+        }
+
         this.heat = Math.min(20, this.heat + addedHeat);
 
         const metrics = this.buildMetrics(recentClicks, {
@@ -12673,6 +13087,9 @@ class AutoClickerDetector {
             dominantRatio: dominantRatio,
             longestStableStreak: longestStableStreak,
             touchSourceRatio: touchSourceRatio,
+            keyboardSourceRatio: keyboardSourceRatio,
+            keyboardDominant: keyboardDominant,
+            keyboardSustainedPattern: keyboardSustainedPattern,
             singlePointerRatio: singlePointerRatio,
             desktopShortExactPattern: desktopShortExactPattern,
             desktopShortExactWindowSize: desktopShortExactWindow ? desktopShortExactWindow.size : 0,
@@ -12690,10 +13107,13 @@ class AutoClickerDetector {
 
         const shouldBanFromHeat = this.isMobile
             ? (!multiTouchGuard && this.warningCount >= 2 && this.heat >= this.config.banHeatThreshold)
-            : this.heat >= this.config.banHeatThreshold;
+            : (!keyboardDominant && this.heat >= this.config.banHeatThreshold);
+        const keyboardRepeatBan = keyboardSustainedPattern &&
+            this.pruneKeyboardWarningHistory(Date.now()) >= 1 &&
+            this.heat >= this.config.warningHeatThreshold;
         const shouldBanImmediately = this.isMobile
             ? strongHundredMsPattern || shouldBanFromHeat
-            : extremeSpeed || hardCadence || exactHundredMsPattern || desktopShortExactPattern || (desktopNearHundredMsPattern && this.warningCount >= 1) || shouldBanFromHeat;
+            : ((!keyboardDominant && (extremeSpeed || hardCadence || exactHundredMsPattern || desktopShortExactPattern || (desktopNearHundredMsPattern && this.warningCount >= 1))) || keyboardRepeatBan || shouldBanFromHeat);
 
         if (shouldBanImmediately) {
             return {
@@ -12703,7 +13123,7 @@ class AutoClickerDetector {
             };
         }
 
-        if ((this.heat >= this.config.warningHeatThreshold || mobileCpsOnlySuspicion) && now >= this.warningCooldownUntil) {
+        if ((this.heat >= this.config.warningHeatThreshold || mobileCpsOnlySuspicion || keyboardSustainedPattern) && now >= this.warningCooldownUntil) {
             return {
                 action: 'warn',
                 reason: reasons[0] || 'подозрительная автоматизированная активность',

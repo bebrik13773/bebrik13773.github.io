@@ -3028,16 +3028,19 @@ function bober_fetch_fly_beaver_progress($conn, $userId)
     return bober_normalize_fly_beaver_progress_row($row);
 }
 
-function bober_fetch_user_settings($conn, $userId)
+function bober_fetch_user_settings_record($conn, $userId)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
-        return bober_default_user_settings();
+        return [
+            'settings' => bober_default_user_settings(),
+            'updatedAt' => '',
+        ];
     }
 
     bober_ensure_user_settings_schema($conn);
 
-    $stmt = $conn->prepare('SELECT settings_json FROM user_settings WHERE user_id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT settings_json, updated_at FROM user_settings WHERE user_id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение пользовательских настроек.');
     }
@@ -3056,11 +3059,23 @@ function bober_fetch_user_settings($conn, $userId)
     $stmt->close();
 
     if (!$row || !is_string($row['settings_json'] ?? null) || trim((string) $row['settings_json']) === '') {
-        return bober_default_user_settings();
+        return [
+            'settings' => bober_default_user_settings(),
+            'updatedAt' => '',
+        ];
     }
 
     $decoded = json_decode((string) $row['settings_json'], true);
-    return bober_normalize_user_settings(is_array($decoded) ? $decoded : null);
+    return [
+        'settings' => bober_normalize_user_settings(is_array($decoded) ? $decoded : null),
+        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
+    ];
+}
+
+function bober_fetch_user_settings($conn, $userId)
+{
+    $record = bober_fetch_user_settings_record($conn, $userId);
+    return is_array($record['settings'] ?? null) ? $record['settings'] : bober_default_user_settings();
 }
 
 function bober_store_user_settings($conn, $userId, $settings)
@@ -3090,7 +3105,7 @@ function bober_store_user_settings($conn, $userId, $settings)
     }
     $stmt->close();
 
-    return $normalized;
+    return bober_fetch_user_settings_record($conn, $userId);
 }
 
 function bober_support_ticket_categories()
@@ -4349,6 +4364,8 @@ function bober_fetch_account_snapshot($conn, $userId)
         'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? 0)),
     ];
 
+    $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
+
     return [
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
@@ -4368,7 +4385,8 @@ function bober_fetch_account_snapshot($conn, $userId)
             'energyHuge' => $upgradeEnergyHugeCount,
         ],
         'flyBeaver' => $flyBeaver,
-        'settings' => bober_fetch_user_settings($conn, $userId),
+        'settings' => is_array($settingsRecord['settings'] ?? null) ? $settingsRecord['settings'] : bober_default_user_settings(),
+        'settingsUpdatedAt' => isset($settingsRecord['updatedAt']) ? (string) $settingsRecord['updatedAt'] : '',
         'profile' => $profile,
         'achievements' => $achievements,
         'achievementUnlocks' => $achievementUnlocks,

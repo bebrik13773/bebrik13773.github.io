@@ -587,12 +587,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .fly-achievement-overlay {
-            position: absolute;
+            position: fixed;
             inset: 0;
             display: none;
             align-items: center;
             justify-content: center;
-            z-index: 33;
+            z-index: 10035;
             padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px) calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 16px);
             background: linear-gradient(180deg, rgba(7, 18, 16, 0.78), rgba(4, 10, 10, 0.94));
             backdrop-filter: blur(14px);
@@ -766,6 +766,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             .fly-achievement-title {
                 font-size: 24px;
+            }
+
+            .fly-achievement-overlay {
+                align-items: stretch;
+            }
+
+            .fly-achievement-card {
+                width: 100%;
+                min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 32px);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }
 
             .hud-shell {
@@ -964,6 +976,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         levelupSound.volume = 0.7;
         const isMobile = 'ontouchstart' in window;
         const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
+        const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
         const FLY_VISUAL_ASSET_PATHS = {
             beaverIdle: 'fly-assets/beaver-idle.svg',
             beaverGlide: 'fly-assets/beaver-glide.svg',
@@ -1211,7 +1224,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         } catch (error) {
             console.warn('Не удалось прочитать историю достижений fly-beaver.', error);
         }
-        applyFlySettings(accountState.settings, { persist: false });
+        applyLatestFlySettingsSnapshot({ persist: false });
 
         function getGameSpeedForLevel(level) {
             return baseGameSpeed + (Math.max(1, level) - 1) * 0.3;
@@ -1260,6 +1273,19 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             persistSeenAchievementUnlocks();
         }
 
+        function isAchievementUnlockQueuedOrActive(item) {
+            const seenKey = buildSeenAchievementKey(item);
+            if (!seenKey || seenKey === '::') {
+                return false;
+            }
+
+            if (flyAchievementState.active && buildSeenAchievementKey(flyAchievementState.active) === seenKey) {
+                return true;
+            }
+
+            return flyAchievementState.queue.some((queuedItem) => buildSeenAchievementKey(queuedItem) === seenKey);
+        }
+
         function renderAchievementUnlockOverlay() {
             if (!flyAchievementOverlay || !flyAchievementState.active || !flyAchievementIcon || !flyAchievementTitle || !flyAchievementText || !flyAchievementReward) {
                 return;
@@ -1282,6 +1308,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             flyAchievementOverlay.classList.add('show');
             flyAchievementOverlay.setAttribute('aria-hidden', 'false');
+            markAchievementUnlockSeen(activeUnlock);
         }
 
         function closeAchievementUnlockOverlay() {
@@ -1321,8 +1348,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     return;
                 }
 
+                if (isAchievementUnlockQueuedOrActive(item)) {
+                    return;
+                }
+
                 flyAchievementState.queue.push(item);
-                markAchievementUnlockSeen(item);
             });
 
             showNextAchievementUnlock();
@@ -1396,6 +1426,34 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             sceneState.ambientDensity = getEffectsDensityMultiplier();
             syncSceneState(true);
             return accountState.settings;
+        }
+
+        function readPendingFlySettingsSnapshot() {
+            try {
+                const rawValue = localStorage.getItem(SETTINGS_PENDING_SYNC_STORAGE_KEY);
+                if (!rawValue) {
+                    return null;
+                }
+
+                const parsed = JSON.parse(rawValue);
+                if (!parsed || typeof parsed !== 'object' || !parsed.settings) {
+                    return null;
+                }
+
+                return parsed.settings;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function applyLatestFlySettingsSnapshot(options = {}) {
+            const pendingSettings = readPendingFlySettingsSnapshot();
+            const cachedSettings = SHARED_CLIENT.readCachedUserSettings
+                ? SHARED_CLIENT.readCachedUserSettings()
+                : null;
+            applyFlySettings(pendingSettings || cachedSettings || accountState.settings, {
+                persist: options.persist === true
+            });
         }
 
         function readPendingFlyRunQueue() {
@@ -3172,14 +3230,28 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         });
 
         window.addEventListener('storage', function(event) {
-            if (event.key !== USER_SETTINGS_CACHE_KEY || !event.newValue) {
+            if ((event.key !== USER_SETTINGS_CACHE_KEY && event.key !== SETTINGS_PENDING_SYNC_STORAGE_KEY) || !event.newValue) {
                 return;
             }
 
             try {
-                applyFlySettings(JSON.parse(event.newValue), { persist: false });
+                applyLatestFlySettingsSnapshot({ persist: false });
             } catch (error) {
                 console.warn('Не удалось применить настройки fly-beaver из другой вкладки.', error);
+            }
+        });
+
+        window.addEventListener('pageshow', function() {
+            applyLatestFlySettingsSnapshot({ persist: false });
+        });
+
+        window.addEventListener('focus', function() {
+            applyLatestFlySettingsSnapshot({ persist: false });
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                applyLatestFlySettingsSnapshot({ persist: false });
             }
         });
         

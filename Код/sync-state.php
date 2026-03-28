@@ -22,6 +22,7 @@ try {
         'openTickets' => 0,
     ];
     $achievementUnlocks = [];
+    $settingsUpdatedAt = '';
     $saveResult = null;
     $settingsSaved = false;
 
@@ -81,12 +82,15 @@ try {
         }
 
         if ($wantsSettingsSave) {
-            $settings = bober_store_user_settings($conn, $sessionUserId, $data['settings']);
+            $settingsRecord = bober_store_user_settings($conn, $sessionUserId, $data['settings']);
+            $settings = is_array($settingsRecord['settings'] ?? null) ? $settingsRecord['settings'] : $settings;
+            $settingsUpdatedAt = isset($settingsRecord['updatedAt']) ? (string) $settingsRecord['updatedAt'] : '';
             $settingsSaved = true;
         }
 
         $account = bober_fetch_account_snapshot($conn, $sessionUserId);
         $settings = $account['settings'] ?? $settings;
+        $settingsUpdatedAt = (string) ($account['settingsUpdatedAt'] ?? $settingsUpdatedAt);
         $flyBeaver = $account['flyBeaver'] ?? $flyBeaver;
         $supportSummary = is_array($account['supportSummary'] ?? null) ? $account['supportSummary'] : $supportSummary;
         $achievementUnlocks = is_array($account['achievementUnlocks'] ?? null) ? $account['achievementUnlocks'] : [];
@@ -108,6 +112,7 @@ try {
         'achievementUnlocks' => $achievementUnlocks,
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,
+        'settingsUpdatedAt' => $settingsUpdatedAt,
         'supportSummary' => $supportSummary,
         'serverTime' => (int) round(microtime(true) * 1000),
         'saved' => $saveResult !== null,
