@@ -297,6 +297,10 @@ Owner decisions:
 				linear-gradient(135deg, rgba(93, 56, 212, 0.88), rgba(51, 197, 199, 0.74));
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 			margin-bottom: auto;
+			isolation: isolate;
+			contain: layout paint;
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
 		}
 		.skin-shop-card-image {
 			display: block;
@@ -306,6 +310,11 @@ Owner decisions:
 			object-position: center;
 			position: relative;
 			z-index: 1;
+			filter: none !important;
+			transform: none !important;
+			backface-visibility: visible;
+			-webkit-user-drag: none;
+			user-select: none;
 		}
 		.skin-shop-card-overlay {
 			position: absolute;
@@ -1466,6 +1475,10 @@ Owner decisions:
 			margin-bottom: 16px;
 			position: relative;
 			overflow: hidden;
+			isolation: isolate;
+			contain: layout paint;
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
 		}
 
 		.skin-action-modal-preview-image {
@@ -1477,6 +1490,11 @@ Owner decisions:
 			object-position: center;
 			position: relative;
 			z-index: 1;
+			filter: none !important;
+			transform: none !important;
+			backface-visibility: visible;
+			-webkit-user-drag: none;
+			user-select: none;
 		}
 
     .skin-action-modal-meta {
@@ -3076,8 +3094,10 @@ Owner decisions:
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
         position: relative;
         isolation: isolate;
-        contain: paint;
+        contain: layout paint;
         overflow: hidden;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .skin-shop-feature-image {
@@ -3087,9 +3107,9 @@ Owner decisions:
         display: block;
         object-fit: contain;
         object-position: center;
-        filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.22));
-        transform: translateZ(0);
-        backface-visibility: hidden;
+        filter: none !important;
+        transform: none !important;
+        backface-visibility: visible;
         -webkit-user-drag: none;
         user-select: none;
         pointer-events: none;
@@ -3652,6 +3672,12 @@ function showNotification(message, type = 'success', duration = 3000) {
             <option value="neon">Неон</option>
             <option value="seasonal">Сезон</option>
             <option value="pixel">Пиксель</option>
+            <option value="space">Космос</option>
+            <option value="cyber">Кибер</option>
+            <option value="royal">Королевские</option>
+            <option value="sport">Спорт</option>
+            <option value="retro">Ретро</option>
+            <option value="meme">Мемы</option>
             <option value="admin">Админские</option>
             <option value="other">Другое</option>
         </select>
@@ -4129,6 +4155,8 @@ const FALLBACK_SKIN_CATALOG = Object.freeze([
     { id: 'sock', name: 'Носок бобер', price: 30000, image: 'skins/nosok-bober.jpg', defaultOwned: false, available: true, rarity: 'epic', category: 'fun', issue_mode: 'shop' },
     { id: 'chocolate', name: 'Шоколад бобер', price: 50000, image: 'skins/Shok-upok-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'food', issue_mode: 'shop' },
     { id: 'strange', name: 'Странный бобер', price: 30000, image: 'skins/strany-bober.jpg', defaultOwned: false, available: true, rarity: 'rare', category: 'mystic', issue_mode: 'shop' },
+    { id: 'top-1-bober-kliker', name: 'Топ-1 бобер кликера', price: 0, image: 'skins/top-1-bober-kliker.png', defaultOwned: false, available: false, rarity: 'legendary', category: 'top', issue_mode: 'grant_only' },
+    { id: 'top-1-bober-fly-beaver', name: 'Топ-1 летающий бобер', price: 0, image: 'skins/top-1-letayuschiy-bober.png', defaultOwned: false, available: false, rarity: 'legendary', category: 'top', issue_mode: 'grant_only' },
     { id: 'dev', name: 'Dev бобер', price: 90000, image: 'skins/dev.png', defaultOwned: false, available: false, comingSoon: true, rarity: 'admin', category: 'admin', issue_mode: 'grant_only' }
 ]);
 let SKIN_CATALOG = [];
@@ -4252,6 +4280,12 @@ function getSkinCategoryLabel(category) {
         neon: 'Неон',
         seasonal: 'Сезон',
         pixel: 'Пиксель',
+        space: 'Космос',
+        cyber: 'Кибер',
+        royal: 'Королевские',
+        sport: 'Спорт',
+        retro: 'Ретро',
+        meme: 'Мемы',
         admin: 'Админский',
         other: 'Другое'
     };
@@ -5362,13 +5396,17 @@ function isClickerReactionTarget(target) {
     return Boolean(target && target.closest('#clicker'));
 }
 
+function isImageHeavyReactionTarget(target) {
+    return Boolean(target && target.closest('.skin-shop-card-media, .skin-shop-feature-preview, .skin-action-modal-preview, .skin-upload-preview, .skin-catalog-card-preview'));
+}
+
 function shouldSuppressShopMotionReaction(target) {
     const shopNode = document.getElementById('shop');
     return Boolean(
         shopNode &&
         shopNode.style.display === 'block' &&
         target &&
-        target.closest('#shop')
+        (target.closest('#shop') || isImageHeavyReactionTarget(target))
     );
 }
 
@@ -5487,6 +5525,10 @@ function handleInterfaceRipple(event) {
         return;
     }
 
+    if (isImageHeavyReactionTarget(target)) {
+        return;
+    }
+
     const touchList = event.touches && event.touches.length
         ? event.touches
         : event.changedTouches && event.changedTouches.length
@@ -5533,6 +5575,10 @@ function handleInterfacePointerMove(event) {
         return;
     }
 
+    if (isImageHeavyReactionTarget(target)) {
+        return;
+    }
+
     if (shouldSuppressShopMotionReaction(target)) {
         return;
     }
@@ -5576,6 +5622,10 @@ function handleInterfaceTouchMove(event) {
         return;
     }
 
+    if (isImageHeavyReactionTarget(target)) {
+        return;
+    }
+
     if (shouldSuppressShopMotionReaction(target)) {
         return;
     }
@@ -5616,6 +5666,10 @@ function handleInterfaceScroll() {
     const clientY = Math.max(0, Math.min(height - 1, baseClientY + Math.max(-84, Math.min(84, deltaY * 0.22))));
     const target = document.elementFromPoint(clientX, clientY) || document.body;
     if (shouldSkipInterfaceReaction(target)) {
+        return;
+    }
+
+    if (isImageHeavyReactionTarget(target)) {
         return;
     }
 

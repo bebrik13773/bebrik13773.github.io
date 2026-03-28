@@ -3115,6 +3115,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             box-shadow: 0 18px 32px rgba(0, 0, 0, 0.22);
             margin-bottom: 14px;
             overflow: hidden;
+            isolation: isolate;
+            contain: layout paint;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
 
         .skin-upload-preview img,
@@ -3126,6 +3130,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             object-position: center;
             position: relative;
             z-index: 1;
+            filter: none !important;
+            transform: none !important;
+            backface-visibility: visible;
+            -webkit-user-drag: none;
+            user-select: none;
         }
 
         .skin-upload-preview::after,
@@ -3280,6 +3289,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 linear-gradient(135deg, rgba(110, 99, 255, 0.85), rgba(17, 210, 255, 0.82));
             border-bottom: 1px solid var(--border);
             overflow: hidden;
+            isolation: isolate;
+            contain: layout paint;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
 
         .skin-catalog-card-body {
@@ -4668,6 +4681,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <select class="form-control account-sort-select" id="skinCatalogCategorySelect" aria-label="Фильтр по категории">
                             <option value="all">Все категории</option>
                             <option value="classic">Классика</option>
+                            <option value="top">Топ</option>
                             <option value="food">Еда</option>
                             <option value="fun">Фан</option>
                             <option value="mystic">Мистика</option>
@@ -4676,6 +4690,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <option value="neon">Неон</option>
                             <option value="seasonal">Сезон</option>
                             <option value="pixel">Пиксель</option>
+                            <option value="space">Космос</option>
+                            <option value="cyber">Кибер</option>
+                            <option value="royal">Королевские</option>
+                            <option value="sport">Спорт</option>
+                            <option value="retro">Ретро</option>
+                            <option value="meme">Мемы</option>
                             <option value="admin">Админ</option>
                             <option value="other">Другое</option>
                         </select>
@@ -5215,6 +5235,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <option value="neon">Неон</option>
                                 <option value="seasonal">Сезон</option>
                                 <option value="pixel">Пиксель</option>
+                                <option value="space">Космос</option>
+                                <option value="cyber">Кибер</option>
+                                <option value="royal">Королевские</option>
+                                <option value="sport">Спорт</option>
+                                <option value="retro">Ретро</option>
+                                <option value="meme">Мемы</option>
                                 <option value="admin">Админ</option>
                                 <option value="other">Другое</option>
                             </select>
@@ -7233,6 +7259,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 neon: 'Неон',
                 seasonal: 'Сезон',
                 pixel: 'Пиксель',
+                space: 'Космос',
+                cyber: 'Кибер',
+                royal: 'Королевские',
+                sport: 'Спорт',
+                retro: 'Ретро',
+                meme: 'Мемы',
                 admin: 'Админ',
                 other: 'Другое'
             };

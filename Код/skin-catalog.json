@@ -109,9 +109,9 @@
   },
   {
     "id": "top-1-bober-fly-beaver",
-    "name": "Топ-1 бобер fly-beaver",
+    "name": "Топ-1 летающий бобер",
     "price": 0,
-    "image": "skins/top-1-bober-fly-beaver.svg",
+    "image": "skins/top-1-letayuschiy-bober.png",
     "available": false,
     "rarity": "legendary",
     "category": "top",

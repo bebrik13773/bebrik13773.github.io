@@ -312,9 +312,9 @@ function bober_fly_beaver_top_reward_skin_defaults()
 {
     return [
         'id' => bober_fly_beaver_top_reward_skin_id(),
-        'name' => 'Топ-1 бобер fly-beaver',
+        'name' => 'Топ-1 летающий бобер',
         'price' => 0,
-        'image' => 'skins/top-1-bober-fly-beaver.svg',
+        'image' => 'skins/top-1-letayuschiy-bober.png',
         'available' => false,
         'rarity' => 'legendary',
         'category' => 'top',
@@ -422,7 +422,7 @@ function bober_skin_rarity_values()
 
 function bober_skin_category_values()
 {
-    return ['classic', 'top', 'food', 'fun', 'mystic', 'event', 'nature', 'neon', 'seasonal', 'pixel', 'admin', 'other'];
+    return ['classic', 'top', 'food', 'fun', 'mystic', 'event', 'nature', 'neon', 'seasonal', 'pixel', 'space', 'cyber', 'royal', 'sport', 'retro', 'meme', 'admin', 'other'];
 }
 
 function bober_skin_issue_mode_values()
