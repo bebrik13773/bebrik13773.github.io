@@ -2894,7 +2894,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             update: function(deltaFactor = 1) {
                 const biome = getCurrentBiome();
                 const densityMultiplier = getEffectsDensityMultiplier();
-                const spawnInterval = Math.max(110, 148 / Math.max(0.7, densityMultiplier * Math.max(0.85, Number(biome.cloudTint || 1)))));
+                const spawnInterval = Math.max(110, 148 / Math.max(0.7, densityMultiplier * Math.max(0.85, Number(biome.cloudTint || 1))));
                 this.spawnTicks += deltaFactor;
 
                 while (this.spawnTicks >= spawnInterval) {
