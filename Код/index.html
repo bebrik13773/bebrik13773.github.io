@@ -2838,13 +2838,28 @@ Owner decisions:
         margin-top: 16px;
     }
 
+    .support-modal {
+        width: min(100%, 980px);
+        max-height: min(88vh, 940px);
+    }
+
     .support-modal-panel {
-        padding: 14px;
-        border-radius: 18px;
-        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 12px 24px rgba(4, 8, 22, 0.18);
+        padding: 16px;
+        border-radius: 22px;
+        background: linear-gradient(180deg, rgba(250, 248, 255, 0.98), rgba(240, 236, 249, 0.98));
+        border: 1px solid rgba(148, 157, 196, 0.22);
+        box-shadow: 0 18px 34px rgba(6, 10, 28, 0.16);
         min-height: 180px;
+        color: #222946;
+    }
+
+    .support-panel-title {
+        font-size: 14px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #616c96;
+        margin-bottom: 12px;
     }
 
     .support-summary-row {
@@ -2860,9 +2875,9 @@ Owner decisions:
         gap: 8px;
         padding: 8px 12px;
         border-radius: 999px;
-        background: rgba(12, 26, 48, 0.58);
-        border: 1px solid rgba(126, 241, 255, 0.14);
-        color: #e9fbff;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(195, 203, 231, 0.78);
+        color: #39446d;
         font-size: 12px;
         font-weight: 800;
     }
@@ -2875,28 +2890,31 @@ Owner decisions:
 
     .support-ticket-card {
         width: 100%;
-        padding: 12px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.04);
-        color: #f3fbff;
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(206, 213, 236, 0.9);
+        background: rgba(255, 255, 255, 0.94);
+        color: #26304f;
         text-align: left;
         display: flex;
         flex-direction: column;
         gap: 8px;
         cursor: pointer;
-        transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+        box-shadow: 0 10px 22px rgba(14, 18, 43, 0.08);
+        transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
     }
 
     .support-ticket-card:hover {
-        border-color: rgba(126, 241, 255, 0.3);
-        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(111, 130, 255, 0.42);
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 14px 28px rgba(14, 18, 43, 0.12);
         transform: translateY(-1px);
     }
 
     .support-ticket-card.active {
-        border-color: rgba(126, 241, 255, 0.4);
-        background: rgba(126, 241, 255, 0.08);
+        border-color: rgba(100, 121, 255, 0.52);
+        background: linear-gradient(180deg, rgba(244, 247, 255, 0.98), rgba(235, 240, 252, 0.98));
+        box-shadow: 0 16px 30px rgba(14, 18, 43, 0.14);
     }
 
     .support-ticket-card-head,
@@ -2911,12 +2929,12 @@ Owner decisions:
     .support-ticket-thread-title {
         font-size: 15px;
         font-weight: 800;
-        color: #f8ffff;
+        color: #1d2745;
     }
 
     .support-ticket-meta,
     .support-ticket-thread-meta {
-        color: rgba(255, 255, 255, 0.68);
+        color: #66718f;
         font-size: 12px;
         line-height: 1.45;
         margin-top: 4px;
@@ -2929,9 +2947,9 @@ Owner decisions:
         justify-content: center;
         padding: 7px 10px;
         border-radius: 999px;
-        background: rgba(93, 240, 217, 0.12);
-        border: 1px solid rgba(93, 240, 217, 0.18);
-        color: #bffef4;
+        background: rgba(93, 113, 240, 0.08);
+        border: 1px solid rgba(93, 113, 240, 0.16);
+        color: #5364b0;
         font-size: 11px;
         font-weight: 900;
         text-transform: uppercase;
@@ -2961,7 +2979,7 @@ Owner decisions:
     }
 
     .support-ticket-preview {
-        color: rgba(255, 255, 255, 0.74);
+        color: #4e5978;
         font-size: 13px;
         line-height: 1.45;
     }
@@ -2970,7 +2988,7 @@ Owner decisions:
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        color: #9feeff;
+        color: #4962d4;
         font-size: 12px;
         font-weight: 800;
     }
@@ -2987,22 +3005,23 @@ Owner decisions:
 
     .support-ticket-message {
         max-width: min(100%, 680px);
-        padding: 12px 14px;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid rgba(206, 213, 236, 0.9);
+        box-shadow: 0 12px 24px rgba(14, 18, 43, 0.08);
     }
 
     .support-ticket-message.user {
         align-self: flex-end;
-        background: rgba(93, 240, 217, 0.1);
-        border-color: rgba(93, 240, 217, 0.18);
+        background: linear-gradient(180deg, rgba(233, 245, 255, 0.98), rgba(225, 240, 252, 0.98));
+        border-color: rgba(164, 199, 231, 0.9);
     }
 
     .support-ticket-message.admin {
         align-self: flex-start;
-        background: rgba(104, 122, 170, 0.2);
-        border-color: rgba(192, 214, 255, 0.18);
+        background: linear-gradient(180deg, rgba(244, 247, 255, 0.98), rgba(237, 240, 249, 0.98));
+        border-color: rgba(196, 204, 231, 0.9);
     }
 
     .support-ticket-message-head {
@@ -3010,17 +3029,36 @@ Owner decisions:
         justify-content: space-between;
         gap: 10px;
         margin-bottom: 6px;
-        color: rgba(255, 255, 255, 0.66);
+        color: #6a7594;
         font-size: 12px;
         font-weight: 700;
     }
 
     .support-ticket-message-body {
-        color: #f8feff;
+        color: #222946;
         font-size: 14px;
         line-height: 1.5;
         white-space: pre-wrap;
         word-break: break-word;
+    }
+
+    .support-form-card {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(206, 213, 236, 0.88);
+        box-shadow: 0 10px 24px rgba(14, 18, 43, 0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .support-form-card-title {
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #69739a;
     }
 
     .support-ticket-reply-box,
@@ -3032,6 +3070,11 @@ Owner decisions:
 
     .support-ticket-reply-box {
         margin-top: 14px;
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(206, 213, 236, 0.88);
+        box-shadow: 0 10px 24px rgba(14, 18, 43, 0.07);
     }
 
     .support-field {
@@ -3045,17 +3088,19 @@ Owner decisions:
 
     .support-ticket-create-panel textarea,
     .support-ticket-reply-box textarea,
-    .support-ticket-create-panel input[type="text"] {
+    .support-ticket-create-panel input[type="text"],
+    .support-ticket-create-panel select {
         width: 100%;
         min-height: 48px;
-        border-radius: 16px;
-        border: 1px solid rgba(126, 241, 255, 0.18);
-        background: rgba(9, 13, 27, 0.62);
-        color: #fff;
+        border-radius: 14px;
+        border: 1px solid rgba(200, 208, 234, 0.92);
+        background: rgba(255, 255, 255, 0.98);
+        color: #222946;
         padding: 12px 14px;
         font-size: 14px;
         resize: vertical;
         box-sizing: border-box;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
     }
 
     .support-ticket-create-panel textarea,
@@ -3071,7 +3116,7 @@ Owner decisions:
 
     .support-compose-note,
     .support-ticket-thread-empty {
-        color: rgba(255, 255, 255, 0.72);
+        color: #6a7594;
         font-size: 13px;
         line-height: 1.5;
     }
@@ -4386,6 +4431,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
         <div class="support-modal-layout">
             <div class="support-modal-panel support-ticket-list-panel" id="supportTicketListPanel">
+                <div class="support-panel-title">Входящие</div>
                 <div class="support-summary-row">
                     <span class="support-summary-chip" id="supportSummaryUnreadChip">Ответов: 0</span>
                     <span class="support-summary-chip" id="supportSummaryOpenChip">Открыто: 0</span>
@@ -4393,6 +4439,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                 <div class="support-ticket-list" id="supportTicketList"></div>
             </div>
             <div class="support-modal-panel support-ticket-thread-panel" id="supportTicketThreadPanel">
+                <div class="support-panel-title">Переписка</div>
                 <div class="support-ticket-thread-empty" id="supportTicketThreadEmpty">Выберите тикет слева или создайте новый.</div>
                 <div id="supportTicketThreadContent" hidden>
                     <div class="support-ticket-thread-head">
@@ -4412,26 +4459,33 @@ function showNotification(message, type = 'success', duration = 3000) {
                 </div>
             </div>
             <div class="support-modal-panel support-ticket-create-panel" id="supportTicketCreatePanel" hidden>
-                <div class="settings-field support-field">
-                    <label for="supportTicketCategory">Категория</label>
-                    <select id="supportTicketCategory">
-                        <option value="account">Аккаунт</option>
-                        <option value="ban_appeal">Бан / апелляция</option>
-                        <option value="bugs">Ошибки и баги</option>
-                        <option value="skins_shop">Скины и магазин</option>
-                        <option value="fly_beaver">Летающий бобер</option>
-                        <option value="other">Другое</option>
-                    </select>
+                <div class="support-panel-title">Новый тикет</div>
+                <div class="support-form-card">
+                    <div class="support-form-card-title">Запрос</div>
+                    <div class="settings-field support-field">
+                        <label for="supportTicketCategory">Категория</label>
+                        <select id="supportTicketCategory">
+                            <option value="account">Аккаунт</option>
+                            <option value="ban_appeal">Бан / апелляция</option>
+                            <option value="bugs">Ошибки и баги</option>
+                            <option value="skins">Скины и магазин</option>
+                            <option value="fly_beaver">Летающий бобер</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                    <div class="settings-field support-field">
+                        <label for="supportTicketSubject">Тема</label>
+                        <input type="text" id="supportTicketSubject" maxlength="180" placeholder="Кратко опишите проблему">
+                    </div>
                 </div>
-                <div class="settings-field support-field">
-                    <label for="supportTicketSubject">Тема</label>
-                    <input type="text" id="supportTicketSubject" maxlength="180" placeholder="Кратко опишите проблему">
+                <div class="support-form-card">
+                    <div class="support-form-card-title">Описание</div>
+                    <div class="settings-field support-field support-field-column">
+                        <label for="supportTicketMessage">Сообщение</label>
+                        <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
+                    </div>
+                    <div class="support-compose-note" id="supportComposeNote">Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.</div>
                 </div>
-                <div class="settings-field support-field support-field-column">
-                    <label for="supportTicketMessage">Сообщение</label>
-                    <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
-                </div>
-                <div class="support-compose-note" id="supportComposeNote">Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.</div>
                 <div class="support-ticket-actions">
                     <button type="button" class="settings-action-button primary" id="supportCreateTicketButton">Создать тикет</button>
                 </div>
@@ -5294,7 +5348,7 @@ const SUPPORT_CATEGORY_LABELS = Object.freeze({
     account: 'Аккаунт',
     ban_appeal: 'Бан / апелляция',
     bugs: 'Ошибки и баги',
-    skins_shop: 'Скины и магазин',
+    skins: 'Скины и магазин',
     fly_beaver: 'Летающий бобер',
     other: 'Другое'
 });
