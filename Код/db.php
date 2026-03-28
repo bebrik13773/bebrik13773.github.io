@@ -2845,6 +2845,41 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу тикетов поддержки.');
     }
 
+    $supportTicketAlterStatements = [
+        'user_id' => "ALTER TABLE `support_tickets` ADD COLUMN `user_id` INT NOT NULL DEFAULT 0 AFTER `id`",
+        'category' => "ALTER TABLE `support_tickets` ADD COLUMN `category` VARCHAR(64) NOT NULL DEFAULT 'other' AFTER `user_id`",
+        'subject' => "ALTER TABLE `support_tickets` ADD COLUMN `subject` VARCHAR(180) NOT NULL DEFAULT '' AFTER `category`",
+        'status' => "ALTER TABLE `support_tickets` ADD COLUMN `status` VARCHAR(32) NOT NULL DEFAULT 'waiting_support' AFTER `subject`",
+        'unread_by_user' => "ALTER TABLE `support_tickets` ADD COLUMN `unread_by_user` INT NOT NULL DEFAULT 0 AFTER `status`",
+        'unread_by_admin' => "ALTER TABLE `support_tickets` ADD COLUMN `unread_by_admin` INT NOT NULL DEFAULT 0 AFTER `unread_by_user`",
+        'created_at' => "ALTER TABLE `support_tickets` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `unread_by_admin`",
+        'updated_at' => "ALTER TABLE `support_tickets` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
+        'last_user_message_at' => "ALTER TABLE `support_tickets` ADD COLUMN `last_user_message_at` TIMESTAMP NULL DEFAULT NULL AFTER `updated_at`",
+        'last_admin_message_at' => "ALTER TABLE `support_tickets` ADD COLUMN `last_admin_message_at` TIMESTAMP NULL DEFAULT NULL AFTER `last_user_message_at`",
+    ];
+
+    foreach ($supportTicketAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'support_tickets', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру тикетов поддержки.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_user') && !$conn->query("CREATE INDEX `idx_support_tickets_user` ON `support_tickets` (`user_id`, `updated_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс тикетов по пользователю.');
+    }
+
+    if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_status') && !$conn->query("CREATE INDEX `idx_support_tickets_status` ON `support_tickets` (`status`, `updated_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс тикетов по статусу.');
+    }
+
+    if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_admin_unread') && !$conn->query("CREATE INDEX `idx_support_tickets_admin_unread` ON `support_tickets` (`unread_by_admin`, `updated_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс непрочитанных тикетов для админа.');
+    }
+
+    if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_user_unread') && !$conn->query("CREATE INDEX `idx_support_tickets_user_unread` ON `support_tickets` (`unread_by_user`, `updated_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс непрочитанных тикетов для игрока.');
+    }
+
     $createMessagesSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `support_ticket_messages` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -2859,6 +2894,24 @@ SQL;
 
     if (!$conn->query($createMessagesSql)) {
         throw new RuntimeException('Не удалось создать таблицу сообщений тикетов.');
+    }
+
+    $supportMessageAlterStatements = [
+        'ticket_id' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `ticket_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `id`",
+        'author_type' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `author_type` VARCHAR(16) NOT NULL DEFAULT 'user' AFTER `ticket_id`",
+        'author_user_id' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `author_user_id` INT NULL DEFAULT NULL AFTER `author_type`",
+        'message_text' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `message_text` LONGTEXT NOT NULL AFTER `author_user_id`",
+        'created_at' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `message_text`",
+    ];
+
+    foreach ($supportMessageAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'support_ticket_messages', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру сообщений тикетов.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'support_ticket_messages', 'idx_support_ticket_messages_ticket') && !$conn->query("CREATE INDEX `idx_support_ticket_messages_ticket` ON `support_ticket_messages` (`ticket_id`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс сообщений тикетов.');
     }
 }
 
