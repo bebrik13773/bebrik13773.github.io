@@ -4461,25 +4461,20 @@ function showNotification(message, type = 'success', duration = 3000) {
             <div class="support-modal-panel support-ticket-create-panel" id="supportTicketCreatePanel" hidden>
                 <div class="support-panel-title">Новый тикет</div>
                 <div class="support-form-card">
-                    <div class="support-form-card-title">Запрос</div>
+                    <div class="support-form-card-title">Вопрос 1</div>
                     <div class="settings-field support-field">
-                        <label for="supportTicketCategory">Категория</label>
-                        <select id="supportTicketCategory">
-                            <option value="account">Аккаунт</option>
-                            <option value="ban_appeal">Бан / апелляция</option>
-                            <option value="bugs">Ошибки и баги</option>
-                            <option value="skins">Скины и магазин</option>
-                            <option value="fly_beaver">Летающий бобер</option>
-                            <option value="other">Другое</option>
+                        <label for="supportTicketTopic">Тема обращения</label>
+                        <select id="supportTicketTopic">
+                            <option value="feedback">Отзыв</option>
+                            <option value="question">Вопрос</option>
+                            <option value="bug_report">Сообщение об ошибке</option>
+                            <option value="feature_request">Запрос новой функциональности</option>
+                            <option value="ban_appeal">Меня забанили!</option>
                         </select>
-                    </div>
-                    <div class="settings-field support-field">
-                        <label for="supportTicketSubject">Тема</label>
-                        <input type="text" id="supportTicketSubject" maxlength="180" placeholder="Кратко опишите проблему">
                     </div>
                 </div>
                 <div class="support-form-card">
-                    <div class="support-form-card-title">Описание</div>
+                    <div class="support-form-card-title">Вопрос 2</div>
                     <div class="settings-field support-field support-field-column">
                         <label for="supportTicketMessage">Сообщение</label>
                         <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
@@ -5371,6 +5366,44 @@ const SUPPORT_STATUS_LABELS = Object.freeze({
     waiting_support: 'Ждем поддержку',
     waiting_user: 'Ждем вас',
     closed: 'Закрыт'
+});
+
+const SUPPORT_TOPIC_DEFINITIONS = Object.freeze({
+    feedback: {
+        label: 'Отзыв',
+        category: 'other',
+        subject: 'Отзыв',
+        placeholder: 'Напишите, что вам понравилось, что неудобно и что стоит улучшить.',
+        note: 'Отзыв будет привязан к текущему аккаунту и появится во входящих поддержки.'
+    },
+    question: {
+        label: 'Вопрос',
+        category: 'other',
+        subject: 'Вопрос',
+        placeholder: 'Опишите, что именно хотите уточнить. Чем конкретнее вопрос, тем быстрее ответ.',
+        note: 'Вопрос будет привязан к текущему аккаунту и появится во входящих поддержки.'
+    },
+    bug_report: {
+        label: 'Сообщение об ошибке',
+        category: 'bugs',
+        subject: 'Сообщение об ошибке',
+        placeholder: 'Опишите, что сломалось, где это произошло и как это можно повторить.',
+        note: 'Сообщение об ошибке будет отправлено в поддержку вместе с текущим аккаунтом.'
+    },
+    feature_request: {
+        label: 'Запрос новой функциональности',
+        category: 'other',
+        subject: 'Запрос новой функциональности',
+        placeholder: 'Опишите, какую функцию вы хотите добавить и зачем она нужна.',
+        note: 'Запрос функции будет отправлен как обычный тикет поддержки.'
+    },
+    ban_appeal: {
+        label: 'Меня забанили!',
+        category: 'ban_appeal',
+        subject: 'Меня забанили!',
+        placeholder: 'Опишите, почему бан выглядит ошибочным и что происходило перед ним.',
+        note: 'Апелляция будет отправлена в поддержку с данными текущего аккаунта.'
+    }
 });
 
 function normalizeUserSettings(settings) {
@@ -6688,6 +6721,51 @@ function getSupportStatusLabel(status) {
     return SUPPORT_STATUS_LABELS[String(status || 'waiting_support').trim()] || SUPPORT_STATUS_LABELS.waiting_support;
 }
 
+function getSupportTopicDefinition(topic) {
+    return SUPPORT_TOPIC_DEFINITIONS[String(topic || 'question').trim()] || SUPPORT_TOPIC_DEFINITIONS.question;
+}
+
+function mapSupportCategoryToTopic(category) {
+    const normalizedCategory = String(category || '').trim();
+    if (normalizedCategory === 'ban_appeal') {
+        return 'ban_appeal';
+    }
+    if (normalizedCategory === 'bugs') {
+        return 'bug_report';
+    }
+    return 'question';
+}
+
+function buildSupportTicketSubject(topic, message) {
+    const definition = getSupportTopicDefinition(topic);
+    const compactMessage = String(message || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!compactMessage) {
+        return definition.subject;
+    }
+
+    const preview = compactMessage.length > 72
+        ? `${compactMessage.slice(0, 72).trim()}...`
+        : compactMessage;
+    return `${definition.subject}: ${preview}`;
+}
+
+function updateSupportComposeFormState() {
+    const topicNode = document.getElementById('supportTicketTopic');
+    const messageNode = document.getElementById('supportTicketMessage');
+    const noteNode = document.getElementById('supportComposeNote');
+    if (!topicNode || !messageNode || !noteNode) {
+        return;
+    }
+
+    const definition = getSupportTopicDefinition(topicNode.value);
+    messageNode.placeholder = definition.placeholder;
+    if (!supportState.composeAppeal) {
+        noteNode.textContent = definition.note;
+    }
+}
+
 function setSupportModalTab(tab) {
     const nextTab = tab === 'create' ? 'create' : 'inbox';
     supportState.activeTab = nextTab;
@@ -6921,6 +6999,7 @@ function buildSupportAppealDraft(banInfo = null) {
     lines.push('Опишите, что происходило перед проблемой или баном:');
 
     return {
+        topic: normalizedBan ? 'ban_appeal' : 'question',
         category: normalizedBan ? 'ban_appeal' : 'other',
         subject,
         message: lines.join('\n'),
@@ -6931,27 +7010,25 @@ function buildSupportAppealDraft(banInfo = null) {
 }
 
 function applySupportComposeDraft() {
-    const categoryNode = document.getElementById('supportTicketCategory');
-    const subjectNode = document.getElementById('supportTicketSubject');
+    const topicNode = document.getElementById('supportTicketTopic');
     const messageNode = document.getElementById('supportTicketMessage');
     const noteNode = document.getElementById('supportComposeNote');
     const draft = supportState.composeAppeal;
 
-    if (!categoryNode || !subjectNode || !messageNode || !noteNode) {
+    if (!topicNode || !messageNode || !noteNode) {
         return;
     }
 
     if (!draft) {
-        categoryNode.value = 'account';
-        subjectNode.value = '';
+        topicNode.value = 'question';
         messageNode.value = '';
-        noteNode.textContent = 'Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.';
+        updateSupportComposeFormState();
         return;
     }
 
-    categoryNode.value = draft.category || 'ban_appeal';
-    subjectNode.value = draft.subject || '';
+    topicNode.value = draft.topic || mapSupportCategoryToTopic(draft.category);
     messageNode.value = draft.message || '';
+    updateSupportComposeFormState();
     noteNode.textContent = userId
         ? 'Заявка будет отправлена из текущего аккаунта и сразу появится в вашем списке тикетов.'
         : 'Апелляция будет привязана к указанному аккаунту по логину и user ID.';
@@ -7101,19 +7178,22 @@ function closeSupportModal() {
 }
 
 async function submitSupportTicket() {
-    const categoryNode = document.getElementById('supportTicketCategory');
-    const subjectNode = document.getElementById('supportTicketSubject');
+    const topicNode = document.getElementById('supportTicketTopic');
     const messageNode = document.getElementById('supportTicketMessage');
     const button = document.getElementById('supportCreateTicketButton');
-    if (!categoryNode || !subjectNode || !messageNode || !button) {
+    if (!topicNode || !messageNode || !button) {
         return;
     }
 
+    const topic = String(topicNode.value || 'question');
+    const topicDefinition = getSupportTopicDefinition(topic);
+    const message = messageNode.value.trim();
+
     const payload = {
         action: 'create_ticket',
-        category: categoryNode.value,
-        subject: subjectNode.value.trim(),
-        message: messageNode.value.trim()
+        category: topicDefinition.category,
+        subject: buildSupportTicketSubject(topic, message),
+        message
     };
     if (!userId && supportState.composeAppeal) {
         payload.appealUserId = Number(supportState.composeAppeal.appealUserId) || 0;
@@ -9405,6 +9485,16 @@ const supportCreateTicketButton = document.getElementById('supportCreateTicketBu
 if (supportCreateTicketButton) {
     supportCreateTicketButton.addEventListener('click', () => {
         submitSupportTicket();
+    });
+}
+
+const supportTicketTopicNode = document.getElementById('supportTicketTopic');
+if (supportTicketTopicNode) {
+    supportTicketTopicNode.addEventListener('input', () => {
+        updateSupportComposeFormState();
+    });
+    supportTicketTopicNode.addEventListener('change', () => {
+        updateSupportComposeFormState();
     });
 }
 
