@@ -144,7 +144,6 @@ Owner decisions:
         #clicker {
 			width: 200px;
 			height: 200px;
-			background-image: url(skins/bober.png);
             color: white;
             font-size: 24px;
             border: none;
@@ -182,8 +181,6 @@ Owner decisions:
             width: 300px;
 			background-color: #33c5c7;
             height: 300px;
-            background-image: url(skins/bober.png);
-            background-size: cover;
             border: none;
             border-radius: 10px;
             cursor: pointer;
@@ -3268,11 +3265,31 @@ Owner decisions:
 
     #clicker {
         position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border-radius: 28px;
         border: 2px solid rgba(255,255,255,0.18);
         box-shadow: 0 26px 46px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255,255,255,0.08);
         background-color: rgba(255, 255, 255, 0.06);
         overflow: visible;
+    }
+
+    #clickerImage {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center;
+        border-radius: 26px;
+        position: relative;
+        z-index: 1;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-drag: none;
+        filter: none !important;
+        transform: none !important;
+        backface-visibility: visible;
     }
 
     #clicker::before {
@@ -3285,6 +3302,7 @@ Owner decisions:
             radial-gradient(circle at 26% 18%, rgba(255, 255, 255, 0.12), transparent 24%);
         opacity: var(--clicker-glow-opacity);
         pointer-events: none;
+        z-index: 2;
         transition: opacity 0.18s ease;
     }
 
@@ -3297,6 +3315,7 @@ Owner decisions:
         opacity: 0;
         transform: scale(0.96);
         pointer-events: none;
+        z-index: 3;
     }
 
     #clicker.tap-burst::after {
@@ -4036,7 +4055,9 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
         </div>
     </div>
-    <button id="clicker"></button>
+    <button id="clicker" type="button" aria-label="Кликер">
+        <img id="clickerImage" src="skins/bober.png" alt="Бобер" loading="eager" decoding="async" draggable="false">
+    </button>
     <p id="score">Счет: 0</p>
     <div id="energy-container">
         <span id="energy-icon" style="font-size: 28px; vertical-align: middle;">⚡</span>
@@ -7559,7 +7580,13 @@ function updateEnergyUI() {
 
 function skinLoad() {
     const equippedSkin = getSkinConfigById((skin && skin.equippedSkinId) || '') || getSkinConfigById(DEFAULT_SKIN_ID);
-    document.getElementById('clicker').style.backgroundImage = equippedSkin ? `url(${equippedSkin.image})` : `url(${getSkinConfigById(DEFAULT_SKIN_ID).image})`;
+    const clickerImageNode = document.getElementById('clickerImage');
+    if (!clickerImageNode) {
+        return;
+    }
+
+    clickerImageNode.src = equippedSkin ? equippedSkin.image : getSkinConfigById(DEFAULT_SKIN_ID).image;
+    clickerImageNode.alt = equippedSkin ? equippedSkin.name : 'Бобер';
 }
 
 function isSkinOwned(skinId) {
