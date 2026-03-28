@@ -5139,7 +5139,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                         <div class="card-title" id="supportTicketDetailTitle" style="margin-bottom: 6px;">Тикет</div>
                                         <div class="card-subtitle" id="supportTicketDetailMeta">Метаданные тикета</div>
                                     </div>
-                                    <div class="status-pill active" id="supportTicketDetailStatus">Открыт</div>
+                                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+                                        <button class="btn btn-outline btn-small" id="supportOpenProfileBtn" type="button">
+                                            <span class="material-icons">person_search</span>
+                                            Открыть профиль
+                                        </button>
+                                        <div class="status-pill active" id="supportTicketDetailStatus">Открыт</div>
+                                    </div>
                                 </div>
                                 <div class="support-ticket-thread" id="supportTicketMessages"></div>
                                 <div class="support-ticket-admin-actions">
@@ -6685,6 +6691,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const supportOpenProfileBtn = document.getElementById('supportOpenProfileBtn');
+            if (supportOpenProfileBtn) {
+                supportOpenProfileBtn.addEventListener('click', function() {
+                    openSelectedSupportTicketProfileAdmin();
+                });
+            }
+
             const replySupportBtn = document.getElementById('replySupportBtn');
             if (replySupportBtn) {
                 replySupportBtn.addEventListener('click', function() {
@@ -7292,19 +7305,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const titleNode = document.getElementById('supportTicketDetailTitle');
             const metaNode = document.getElementById('supportTicketDetailMeta');
             const statusNode = document.getElementById('supportTicketDetailStatus');
+            const openProfileButton = document.getElementById('supportOpenProfileBtn');
             const messagesNode = document.getElementById('supportTicketMessages');
             const statusSelect = document.getElementById('supportStatusSelect');
             const replyInput = document.getElementById('supportReplyInput');
             const replyButton = document.getElementById('replySupportBtn');
             const saveStatusButton = document.getElementById('saveSupportStatusBtn');
 
-            if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !messagesNode || !statusSelect || !replyInput || !replyButton || !saveStatusButton) {
+            if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !openProfileButton || !messagesNode || !statusSelect || !replyInput || !replyButton || !saveStatusButton) {
                 return;
             }
 
             if (!selectedSupportTicket || Number(selectedSupportTicket.id) < 1) {
                 emptyNode.style.display = 'flex';
                 contentNode.style.display = 'none';
+                openProfileButton.disabled = true;
                 return;
             }
 
@@ -7314,6 +7329,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             metaNode.textContent = `${selectedSupportTicket.login || 'Игрок'} • ${getSupportCategoryLabel(selectedSupportTicket.category)} • открыт ${formatAdminDateTime(selectedSupportTicket.createdAt)} • обновлен ${formatAdminDateTime(selectedSupportTicket.updatedAt)}`;
             statusNode.className = `status-pill ${selectedSupportTicket.status === 'closed' ? 'banned' : 'active'}`;
             statusNode.textContent = getSupportStatusLabel(selectedSupportTicket.status);
+            openProfileButton.disabled = Number(selectedSupportTicket.userId || 0) < 1;
             statusSelect.value = selectedSupportTicket.status || 'waiting_support';
             replyInput.disabled = selectedSupportTicket.status === 'closed';
             replyButton.disabled = selectedSupportTicket.status === 'closed';
@@ -7914,7 +7930,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
         }
 
-        function showAccountsView() {
+        function showAccountsView(options = {}) {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
@@ -7930,7 +7946,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (skinCatalogItems.length === 0) {
                 loadSkinCatalogAdmin();
             }
-            loadAccounts(document.getElementById('accountSearchInput').value.trim(), currentAccountSort, currentAccountFilter);
+            loadAccounts(
+                document.getElementById('accountSearchInput').value.trim(),
+                currentAccountSort,
+                currentAccountFilter,
+                options
+            );
         }
         
         // Функция показа статистики
@@ -8166,6 +8187,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAccountSort = sort || currentAccountSort;
             currentAccountFilter = filter || currentAccountFilter;
             const forceRefresh = Boolean(options.forceRefresh);
+            const preferredUserId = Math.max(0, Number(options.preferredUserId) || 0);
 
             const meta = document.getElementById('accountListMeta');
             const list = document.getElementById('accountList');
@@ -8207,7 +8229,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 renderAccountsList(data.users || [], Number(data.total || 0), search, currentAccountSort, currentAccountFilter);
 
-                if (Array.isArray(data.users) && data.users.length > 0) {
+                if (preferredUserId > 0) {
+                    loadUserProfile(preferredUserId);
+                } else if (Array.isArray(data.users) && data.users.length > 0) {
                     const hasSelected = data.users.some(user => Number(user.id) === Number(selectedAccountId));
                     const nextUserId = hasSelected ? selectedAccountId : Number(data.users[0].id);
                     if (nextUserId > 0) {
@@ -8363,6 +8387,19 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     </div>
                 `;
                 showNotification(error.message || 'Ошибка загрузки пользователя', 'error');
+            });
+        }
+
+        function openSelectedSupportTicketProfileAdmin() {
+            const ticket = selectedSupportTicket;
+            const targetUserId = Math.max(0, Number(ticket && ticket.userId) || 0);
+            if (targetUserId < 1) {
+                showNotification('У этого тикета нет привязки к аккаунту игрока.', 'warning');
+                return;
+            }
+
+            showAccountsView({
+                preferredUserId: targetUserId
             });
         }
 
