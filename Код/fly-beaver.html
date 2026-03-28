@@ -1163,6 +1163,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const FLY_TRANSFER_MIN_SCORE = 30;
         const FLY_CREDIT_MIN_SCORE = 10;
         const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
+        const FLY_HOURLY_COINS_LIMIT = 250000;
         let accountState = {
             userId: null,
             login: '',
@@ -1747,7 +1748,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 claimFlyScoreButton.style.display = 'block';
                 claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
                 cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = ${FLY_COINS_PER_SCORE} коинов. Лимит вывода: 100000 коинов в час.`;
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = ${FLY_COINS_PER_SCORE} коинов. Лимит вывода: ${FLY_HOURLY_COINS_LIMIT.toLocaleString('ru-RU')} коинов в час.`;
                 setCloudSummary(`К выдаче: +${rewardCoins.toLocaleString('ru-RU')} коинов`);
                 setCloudPanelExpanded(true);
                 syncGameOverCloudCard();

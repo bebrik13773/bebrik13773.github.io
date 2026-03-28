@@ -35,7 +35,7 @@ try {
 
     $minimumTransferScore = 30;
     $coinsPerScore = 500;
-    $hourlyCoinsLimit = 100000;
+    $hourlyCoinsLimit = 250000;
     $hourlyWindowSeconds = 60 * 60;
     $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
     $windowStartedAtRaw = isset($row['transfer_window_started_at']) ? trim((string) $row['transfer_window_started_at']) : '';
@@ -142,14 +142,14 @@ try {
 
     if ($awardedCoins > 0) {
         if ($awardedScore < $requestedScore) {
-            $message = 'Переведена часть очков из Летающего бобра. Достигнут лимит вывода: максимум 100000 коинов в час, остаток остался в очереди.';
+            $message = 'Переведена часть очков из Летающего бобра. Достигнут лимит вывода: максимум 250000 коинов в час, остаток остался в очереди.';
         } else {
             $message = 'Очки из Летающего бобра переведены в основной кликер по курсу 1 очко = 500 коинов.';
         }
     } elseif ($requestedScore < $minimumTransferScore) {
         $message = 'Для перевода нужно минимум 30 очков из Летающего бобра.';
     } elseif ($remainingCoins < ($minimumTransferScore * $coinsPerScore)) {
-        $message = 'Сейчас достигнут лимит вывода: максимум 100000 коинов в час. Попробуйте позже.';
+        $message = 'Сейчас достигнут лимит вывода: максимум 250000 коинов в час. Попробуйте позже.';
     } else {
         $message = 'Перевод сейчас недоступен. Попробуйте позже.';
     }
