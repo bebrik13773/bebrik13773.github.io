@@ -12880,7 +12880,13 @@ class AutoClickerDetector {
             ? 'бессрочно'
             : `${durationDays} дн.${isRepeat ? ' Повторный бан.' : ' Первый бан.'}`;
 
+        const existingBanOverlay = document.getElementById('boberBanOverlay');
+        if (existingBanOverlay) {
+            existingBanOverlay.remove();
+        }
+
         const banScreen = document.createElement('div');
+        banScreen.id = 'boberBanOverlay';
         banScreen.innerHTML = `
             <div style="
                 position: fixed;
@@ -13001,7 +13007,6 @@ class AutoClickerDetector {
             e.stopPropagation();
         });
         
-        document.body.innerHTML = '';
         document.body.appendChild(banScreen);
         document.body.style.overflow = 'hidden';
     }
