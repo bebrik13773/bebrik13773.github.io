@@ -586,6 +586,91 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             box-shadow: 0 6px 0 #7a4b1e, 0 8px 10px rgba(0,0,0,0.35);
         }
 
+        .fly-achievement-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 33;
+            padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px) calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 16px);
+            background: linear-gradient(180deg, rgba(7, 18, 16, 0.78), rgba(4, 10, 10, 0.94));
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .fly-achievement-overlay.show {
+            display: flex;
+        }
+
+        .fly-achievement-card {
+            width: min(100%, 360px);
+            padding: 24px 22px 20px;
+            border-radius: 28px;
+            border: 1px solid rgba(214, 246, 196, 0.24);
+            background: linear-gradient(180deg, rgba(18, 38, 31, 0.97), rgba(9, 24, 21, 0.99));
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.34);
+            text-align: center;
+            color: #fff;
+        }
+
+        .fly-achievement-kicker {
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #c6f8a8;
+            margin-bottom: 12px;
+        }
+
+        .fly-achievement-icon {
+            width: 88px;
+            height: 88px;
+            margin: 0 auto 14px;
+            border-radius: 26px;
+            display: grid;
+            place-items: center;
+            font-size: 42px;
+            background: linear-gradient(180deg, rgba(198, 247, 162, 0.24), rgba(111, 180, 104, 0.16));
+            border: 1px solid rgba(214, 246, 196, 0.22);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .fly-achievement-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #f7fff1;
+            margin-bottom: 8px;
+        }
+
+        .fly-achievement-text {
+            font-size: 15px;
+            line-height: 1.55;
+            color: rgba(255,255,255,0.82);
+            margin-bottom: 16px;
+        }
+
+        .fly-achievement-reward {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: rgba(198, 247, 162, 0.14);
+            border: 1px solid rgba(198, 247, 162, 0.2);
+            color: #efffd9;
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 18px;
+        }
+
+        .fly-achievement-button {
+            width: 100%;
+            min-width: 0;
+            margin-top: 0;
+        }
+
         @keyframes flyLoadingSpin {
             to {
                 transform: rotate(360deg);
@@ -677,6 +762,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             .screen {
                 padding: calc(var(--safe-top) + 74px) 18px calc(var(--safe-bottom) + 16px);
+            }
+
+            .fly-achievement-title {
+                font-size: 24px;
             }
 
             .hud-shell {
@@ -803,6 +892,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.82);">Летающий бобер работает только в портретной ориентации. В альбомной игра ставится на паузу, чтобы сцена не ломалась.</div>
             </div>
         </div>
+        <div class="fly-achievement-overlay" id="flyAchievementOverlay" aria-hidden="true">
+            <div class="fly-achievement-card" role="dialog" aria-modal="true" aria-labelledby="flyAchievementTitle">
+                <div class="fly-achievement-kicker">Новое достижение</div>
+                <div class="fly-achievement-icon" id="flyAchievementIcon">✨</div>
+                <div class="fly-achievement-title" id="flyAchievementTitle">Достижение</div>
+                <div class="fly-achievement-text" id="flyAchievementText">Описание достижения.</div>
+                <div class="fly-achievement-reward" id="flyAchievementReward">+0 коинов</div>
+                <button type="button" class="fly-achievement-button" id="flyAchievementAcknowledge">Продолжить</button>
+            </div>
+        </div>
     </div>
 
     <script src="shared-client.js"></script>
@@ -845,6 +944,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const flyLoadingOverlay = document.getElementById('flyLoadingOverlay');
         const flyLoadingTitle = document.getElementById('flyLoadingTitle');
         const flyLoadingText = document.getElementById('flyLoadingText');
+        const flyAchievementOverlay = document.getElementById('flyAchievementOverlay');
+        const flyAchievementIcon = document.getElementById('flyAchievementIcon');
+        const flyAchievementTitle = document.getElementById('flyAchievementTitle');
+        const flyAchievementText = document.getElementById('flyAchievementText');
+        const flyAchievementReward = document.getElementById('flyAchievementReward');
+        const flyAchievementAcknowledge = document.getElementById('flyAchievementAcknowledge');
         
         // Создаем аудио элементы
         const flapSound = new Audio('/sounds/flap.mp3');
@@ -1050,9 +1155,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let landscapeBlocked = false;
         let orientationPausedRun = false;
         const SHARED_CLIENT = window.BoberSharedClient || {};
+        const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
         const TARGET_FRAME_MS = 1000 / 60;
         const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
         const PENDING_FLY_RUNS_STORAGE_KEY = 'bober_fly_pending_runs';
+        const SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY = 'bober_fly_seen_achievement_unlocks';
         const FLY_TRANSFER_MIN_SCORE = 30;
         const FLY_CREDIT_MIN_SCORE = 10;
         const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
@@ -1081,14 +1188,143 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
         };
         let pendingFlyRunQueue = [];
+        const flyAchievementState = {
+            queue: [],
+            active: null,
+            seen: new Set()
+        };
         
         highScoreElement.textContent = `Рекорд: ${highScore}`;
         levelIndicator.textContent = `Уровень: ${currentLevel}`;
         pendingFlyRunQueue = readPendingFlyRunQueue();
+        try {
+            const rawSeenAchievements = localStorage.getItem(SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY);
+            if (rawSeenAchievements) {
+                const parsedSeenAchievements = JSON.parse(rawSeenAchievements);
+                if (Array.isArray(parsedSeenAchievements)) {
+                    parsedSeenAchievements
+                        .filter((item) => typeof item === 'string' && item.trim() !== '')
+                        .forEach((item) => flyAchievementState.seen.add(item));
+                }
+            }
+        } catch (error) {
+            console.warn('Не удалось прочитать историю достижений fly-beaver.', error);
+        }
         applyFlySettings(accountState.settings, { persist: false });
 
         function getGameSpeedForLevel(level) {
             return baseGameSpeed + (Math.max(1, level) - 1) * 0.3;
+        }
+
+        function normalizeAchievementList(rawAchievements) {
+            if (!Array.isArray(rawAchievements)) {
+                return [];
+            }
+
+            return rawAchievements
+                .map((item) => {
+                    const key = String(item && item.key ? item.key : '').trim();
+                    if (!key || !ACHIEVEMENT_DEFINITIONS[key]) {
+                        return null;
+                    }
+
+                    return {
+                        key,
+                        unlockedAt: String(item.unlockedAt || item.unlocked_at || '').trim(),
+                        meta: item.meta && typeof item.meta === 'object' ? item.meta : {}
+                    };
+                })
+                .filter(Boolean);
+        }
+
+        function buildSeenAchievementKey(item) {
+            return `${String(item?.key || '').trim()}::${String(item?.unlockedAt || '').trim()}`;
+        }
+
+        function persistSeenAchievementUnlocks() {
+            try {
+                localStorage.setItem(SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(Array.from(flyAchievementState.seen).slice(-300)));
+            } catch (error) {
+                console.warn('Не удалось сохранить историю достижений fly-beaver.', error);
+            }
+        }
+
+        function markAchievementUnlockSeen(item) {
+            const seenKey = buildSeenAchievementKey(item);
+            if (!seenKey || seenKey === '::') {
+                return;
+            }
+
+            flyAchievementState.seen.add(seenKey);
+            persistSeenAchievementUnlocks();
+        }
+
+        function renderAchievementUnlockOverlay() {
+            if (!flyAchievementOverlay || !flyAchievementState.active || !flyAchievementIcon || !flyAchievementTitle || !flyAchievementText || !flyAchievementReward) {
+                return;
+            }
+
+            const activeUnlock = flyAchievementState.active;
+            const definition = ACHIEVEMENT_DEFINITIONS[activeUnlock.key] || {
+                title: activeUnlock.key,
+                description: 'Достижение разблокировано.',
+                icon: '✨'
+            };
+            const rewardCoins = Math.max(0, Number(activeUnlock.meta?.rewardCoins) || 0);
+
+            flyAchievementIcon.textContent = definition.icon || '✨';
+            flyAchievementTitle.textContent = definition.title || activeUnlock.key;
+            flyAchievementText.textContent = definition.description || 'Достижение разблокировано.';
+            flyAchievementReward.textContent = rewardCoins > 0
+                ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
+                : 'Награда получена';
+
+            flyAchievementOverlay.classList.add('show');
+            flyAchievementOverlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAchievementUnlockOverlay() {
+            if (!flyAchievementOverlay) {
+                return;
+            }
+
+            flyAchievementOverlay.classList.remove('show');
+            flyAchievementOverlay.setAttribute('aria-hidden', 'true');
+            flyAchievementState.active = null;
+
+            if (flyAchievementState.queue.length > 0) {
+                window.setTimeout(() => {
+                    showNextAchievementUnlock();
+                }, 90);
+            }
+        }
+
+        function showNextAchievementUnlock() {
+            if (flyAchievementState.active || flyAchievementState.queue.length < 1 || gameRunning || gamePaused) {
+                return;
+            }
+
+            flyAchievementState.active = flyAchievementState.queue.shift();
+            renderAchievementUnlockOverlay();
+        }
+
+        function enqueueAchievementUnlocks(rawUnlocks) {
+            const items = normalizeAchievementList(rawUnlocks);
+            if (items.length < 1) {
+                return;
+            }
+
+            items.forEach((item) => {
+                const seenKey = buildSeenAchievementKey(item);
+                if (!seenKey || seenKey === '::' || flyAchievementState.seen.has(seenKey)) {
+                    return;
+                }
+
+                flyAchievementState.queue.push(item);
+                markAchievementUnlockSeen(item);
+            });
+
+            showNextAchievementUnlock();
         }
 
         function normalizeCloudFlyState(rawState) {
@@ -1569,6 +1805,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                     accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
                     highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                    enqueueAchievementUnlocks(data.achievementUnlocks);
                     removePendingFlyRun(queuedRun.runToken);
                     updateCloudPanel();
                 } catch (error) {
@@ -1594,6 +1831,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
                 accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
                 applyFlySettings(data.settings || accountState.settings);
+                enqueueAchievementUnlocks(data.achievementUnlocks);
 
                 highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
                 setCloudStatus('connected', `Облако: ${accountState.login || 'аккаунт'}`, 'Сессия подключена. Забеги сохраняются в облако.');
@@ -1670,6 +1908,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                 accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
                 highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                enqueueAchievementUnlocks(data.achievementUnlocks);
                 updateCloudPanel();
                 const saveStatusType = data.duplicate
                     ? 'connected'
@@ -2776,6 +3015,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 : 'Локальный режим: забег не отправляется в облако без входа.');
             setCloudPanelExpanded(true);
             gameOverScreen.style.display = 'flex';
+            showNextAchievementUnlock();
         }
         
         // Функция выхода из игры
@@ -2861,6 +3101,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         claimFlyScoreButton.addEventListener('click', claimFlyReward);
         if (gameOverClaimFlyScoreButton) {
             gameOverClaimFlyScoreButton.addEventListener('click', claimFlyReward);
+        }
+        if (flyAchievementAcknowledge) {
+            flyAchievementAcknowledge.addEventListener('click', closeAchievementUnlockOverlay);
+        }
+        if (flyAchievementOverlay) {
+            flyAchievementOverlay.addEventListener('click', function(event) {
+                if (event.target === flyAchievementOverlay) {
+                    closeAchievementUnlockOverlay();
+                }
+            });
         }
         cloudToggleButton.addEventListener('click', function() {
             setCloudPanelExpanded(!isCloudPanelExpanded);

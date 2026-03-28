@@ -2276,6 +2276,37 @@ Owner decisions:
         line-height: 1.45;
     }
 
+    .profile-menu-unread-badge,
+    .profile-menu-button-badge {
+        min-width: 22px;
+        height: 22px;
+        padding: 0 7px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, rgba(255, 96, 134, 0.96), rgba(211, 40, 92, 0.96));
+        color: #fff7fb;
+        font-size: 11px;
+        font-weight: 900;
+        box-shadow: 0 10px 20px rgba(109, 12, 40, 0.28);
+    }
+
+    .profile-menu-unread-badge[hidden],
+    .profile-menu-button-badge[hidden] {
+        display: none !important;
+    }
+
+    .profile-menu-unread-badge {
+        margin-left: auto;
+        margin-right: 6px;
+    }
+
+    #supportAppealButton {
+        justify-content: space-between;
+        gap: 12px;
+    }
+
     #profileDetailsButton,
     #supportAppealButton,
     #logoutButton,
@@ -2741,6 +2772,379 @@ Owner decisions:
         margin-top: 8px;
         color: #9feeff !important;
         font-size: 12px !important;
+    }
+
+    .support-modal {
+        width: min(100%, 920px);
+        max-width: calc(100vw - 32px);
+        max-height: min(calc(100dvh - 32px), 920px);
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .support-modal-tabs {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding: 6px;
+        margin-top: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.06);
+        overflow: hidden;
+    }
+
+    .support-modal-tabs::before {
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: calc(50% - 4px);
+        height: calc(100% - 12px);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(86, 245, 224, 0.92), rgba(27, 166, 196, 0.94));
+        box-shadow: 0 12px 20px rgba(8, 72, 88, 0.24);
+        transform: translateX(var(--support-tab-offset, 0px));
+        transition: transform 0.22s ease;
+    }
+
+    .support-modal-tab {
+        position: relative;
+        z-index: 1;
+        appearance: none;
+        border: 0;
+        border-radius: 14px;
+        background: transparent;
+        color: rgba(236, 248, 255, 0.78);
+        font-size: 14px;
+        font-weight: 800;
+        padding: 11px 12px;
+        cursor: pointer;
+        transition: color 0.2s ease, transform 0.16s ease;
+    }
+
+    .support-modal-tab.active {
+        color: #09212a;
+    }
+
+    .support-modal-tab:active {
+        transform: scale(0.98);
+    }
+
+    .support-modal-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 14px;
+        margin-top: 16px;
+    }
+
+    .support-modal-panel {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 24px rgba(4, 8, 22, 0.18);
+        min-height: 180px;
+    }
+
+    .support-summary-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .support-summary-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(12, 26, 48, 0.58);
+        border: 1px solid rgba(126, 241, 255, 0.14);
+        color: #e9fbff;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .support-ticket-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .support-ticket-card {
+        width: 100%;
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        color: #f3fbff;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        cursor: pointer;
+        transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+    }
+
+    .support-ticket-card:hover {
+        border-color: rgba(126, 241, 255, 0.3);
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(-1px);
+    }
+
+    .support-ticket-card.active {
+        border-color: rgba(126, 241, 255, 0.4);
+        background: rgba(126, 241, 255, 0.08);
+    }
+
+    .support-ticket-card-head,
+    .support-ticket-thread-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .support-ticket-title,
+    .support-ticket-thread-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #f8ffff;
+    }
+
+    .support-ticket-meta,
+    .support-ticket-thread-meta {
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 12px;
+        line-height: 1.45;
+        margin-top: 4px;
+    }
+
+    .support-ticket-status,
+    .support-ticket-thread-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(93, 240, 217, 0.12);
+        border: 1px solid rgba(93, 240, 217, 0.18);
+        color: #bffef4;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }
+
+    .support-ticket-status.closed,
+    .support-ticket-thread-status.closed {
+        background: rgba(156, 172, 201, 0.16);
+        border-color: rgba(156, 172, 201, 0.22);
+        color: #dbe7ff;
+    }
+
+    .support-ticket-status.waiting_support,
+    .support-ticket-thread-status.waiting_support {
+        background: rgba(255, 196, 109, 0.16);
+        border-color: rgba(255, 196, 109, 0.24);
+        color: #ffe3a9;
+    }
+
+    .support-ticket-status.waiting_user,
+    .support-ticket-thread-status.waiting_user {
+        background: rgba(102, 217, 255, 0.16);
+        border-color: rgba(102, 217, 255, 0.24);
+        color: #cdf6ff;
+    }
+
+    .support-ticket-preview {
+        color: rgba(255, 255, 255, 0.74);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .support-ticket-unread {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #9feeff;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .support-ticket-thread-messages {
+        margin-top: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-height: min(48vh, 420px);
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .support-ticket-message {
+        max-width: min(100%, 680px);
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .support-ticket-message.user {
+        align-self: flex-end;
+        background: rgba(93, 240, 217, 0.1);
+        border-color: rgba(93, 240, 217, 0.18);
+    }
+
+    .support-ticket-message.admin {
+        align-self: flex-start;
+        background: rgba(104, 122, 170, 0.2);
+        border-color: rgba(192, 214, 255, 0.18);
+    }
+
+    .support-ticket-message-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+        color: rgba(255, 255, 255, 0.66);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .support-ticket-message-body {
+        color: #f8feff;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .support-ticket-reply-box,
+    .support-ticket-create-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .support-ticket-reply-box {
+        margin-top: 14px;
+    }
+
+    .support-field {
+        align-items: stretch;
+    }
+
+    .support-field-column {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .support-ticket-create-panel textarea,
+    .support-ticket-reply-box textarea,
+    .support-ticket-create-panel input[type="text"] {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 16px;
+        border: 1px solid rgba(126, 241, 255, 0.18);
+        background: rgba(9, 13, 27, 0.62);
+        color: #fff;
+        padding: 12px 14px;
+        font-size: 14px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+    .support-ticket-create-panel textarea,
+    .support-ticket-reply-box textarea {
+        min-height: 132px;
+    }
+
+    .support-ticket-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .support-compose-note,
+    .support-ticket-thread-empty {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .support-modal-actions {
+        margin-top: 14px;
+    }
+
+    .achievement-unlock-modal {
+        width: min(100%, 460px);
+        max-width: calc(100vw - 28px);
+        padding: 26px 22px 22px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, rgba(23, 15, 52, 0.98), rgba(10, 9, 28, 0.98));
+        border: 1px solid rgba(126, 241, 255, 0.22);
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.34);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        text-align: center;
+    }
+
+    .achievement-unlock-kicker {
+        color: #9feeff;
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 10px;
+    }
+
+    .achievement-unlock-icon {
+        width: 94px;
+        height: 94px;
+        margin: 0 auto 14px;
+        border-radius: 28px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, rgba(93, 240, 217, 0.18), rgba(93, 140, 255, 0.16));
+        border: 1px solid rgba(191, 255, 249, 0.2);
+        font-size: 46px;
+        box-shadow: 0 20px 30px rgba(5, 10, 28, 0.22);
+    }
+
+    .achievement-unlock-title {
+        font-size: 28px;
+        font-weight: 900;
+        color: #f7ffff;
+        margin-bottom: 10px;
+    }
+
+    .achievement-unlock-text {
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 15px;
+        line-height: 1.55;
+        margin-bottom: 16px;
+    }
+
+    .achievement-unlock-reward {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(255, 216, 122, 0.16);
+        border: 1px solid rgba(255, 216, 122, 0.22);
+        color: #ffe7a6;
+        font-size: 16px;
+        font-weight: 900;
+        margin-bottom: 18px;
+    }
+
+    .achievement-unlock-button {
+        width: 100%;
     }
 
     .skin-modal-cancel,
@@ -3410,6 +3814,12 @@ Owner decisions:
             grid-template-columns: 1fr;
         }
 
+        .settings-modal,
+        .profile-modal,
+        .support-modal {
+            max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
+        }
+
         .settings-field {
             flex-direction: column;
             align-items: stretch;
@@ -3417,6 +3827,60 @@ Owner decisions:
 
         .settings-value {
             text-align: left;
+        }
+
+        .settings-modal-actions {
+            position: static;
+            bottom: auto;
+            padding-top: 10px;
+            padding-bottom: 0;
+            background: none;
+            gap: 10px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-items: start;
+        }
+
+        .settings-modal-actions .settings-action-button,
+        .support-modal-actions .settings-action-button {
+            flex: 0 0 auto;
+            width: 100%;
+            min-height: 48px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            box-shadow: 0 6px 0 rgba(10, 31, 46, 0.5), 0 10px 14px rgba(0, 0, 0, 0.16);
+        }
+
+        .settings-action-button.secondary {
+            box-shadow: 0 6px 0 rgba(34, 42, 73, 0.72), 0 10px 14px rgba(0, 0, 0, 0.16);
+        }
+
+        .profile-modal .settings-modal-actions .settings-action-button {
+            width: 100%;
+            max-width: 220px;
+            justify-self: end;
+        }
+
+        .profile-modal .settings-modal-actions,
+        .support-modal .settings-modal-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .support-modal-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .support-ticket-thread-messages {
+            max-height: none;
+        }
+
+        .achievement-unlock-modal {
+            padding: 22px 18px 18px;
+            border-radius: 24px;
+        }
+
+        .achievement-unlock-title {
+            font-size: 24px;
         }
 
         #shopExit {
@@ -3508,6 +3972,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <span class="profile-menu-label">Профиль</span>
                         <span class="profile-menu-login" id="profileMenuLogin">Игрок</span>
                     </span>
+                    <span class="profile-menu-unread-badge" id="profileMenuUnreadBadge" hidden>0</span>
                     <span class="profile-menu-chevron">▼</span>
                 </button>
                 <div class="profile-menu-dropdown" id="profileMenuDropdown">
@@ -3516,7 +3981,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
                     </div>
                     <button id="profileDetailsButton" type="button">Мой профиль</button>
-                    <button id="supportAppealButton" type="button">Поддержка и апелляция</button>
+                    <button id="supportAppealButton" type="button">
+                        <span>Поддержка и входящие</span>
+                        <span class="profile-menu-button-badge" id="supportAppealBadge" hidden>0</span>
+                    </button>
                     <button id="sessionsButton" type="button">Мои сессии</button>
                     <button id="logoutButton" type="button">Выйти</button>
                 </div>
@@ -3908,6 +4376,82 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
+<div class="modal-backdrop" id="supportModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal support-modal" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
+        <div class="skin-action-modal-title" id="supportModalTitle">Поддержка</div>
+        <div class="skin-action-modal-text" id="supportModalText">Здесь находятся ваши тикеты, ответы поддержки и новая заявка.</div>
+        <div class="support-modal-tabs" id="supportModalTabs">
+            <button type="button" class="support-modal-tab active" data-tab="inbox">Мои тикеты</button>
+            <button type="button" class="support-modal-tab" data-tab="create">Новый тикет</button>
+        </div>
+        <div class="support-modal-layout">
+            <div class="support-modal-panel support-ticket-list-panel" id="supportTicketListPanel">
+                <div class="support-summary-row">
+                    <span class="support-summary-chip" id="supportSummaryUnreadChip">Ответов: 0</span>
+                    <span class="support-summary-chip" id="supportSummaryOpenChip">Открыто: 0</span>
+                </div>
+                <div class="support-ticket-list" id="supportTicketList"></div>
+            </div>
+            <div class="support-modal-panel support-ticket-thread-panel" id="supportTicketThreadPanel">
+                <div class="support-ticket-thread-empty" id="supportTicketThreadEmpty">Выберите тикет слева или создайте новый.</div>
+                <div id="supportTicketThreadContent" hidden>
+                    <div class="support-ticket-thread-head">
+                        <div>
+                            <div class="support-ticket-thread-title" id="supportTicketThreadTitle">Тикет</div>
+                            <div class="support-ticket-thread-meta" id="supportTicketThreadMeta">Статус и категория</div>
+                        </div>
+                        <div class="support-ticket-thread-status" id="supportTicketThreadStatus">Ожидает</div>
+                    </div>
+                    <div class="support-ticket-thread-messages" id="supportTicketMessages"></div>
+                    <div class="support-ticket-reply-box">
+                        <textarea id="supportReplyMessage" placeholder="Напишите ответ в тикет..."></textarea>
+                        <div class="support-ticket-actions">
+                            <button type="button" class="settings-action-button primary" id="supportReplyButton">Отправить ответ</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="support-modal-panel support-ticket-create-panel" id="supportTicketCreatePanel" hidden>
+                <div class="settings-field support-field">
+                    <label for="supportTicketCategory">Категория</label>
+                    <select id="supportTicketCategory">
+                        <option value="account">Аккаунт</option>
+                        <option value="ban_appeal">Бан / апелляция</option>
+                        <option value="bugs">Ошибки и баги</option>
+                        <option value="skins_shop">Скины и магазин</option>
+                        <option value="fly_beaver">Летающий бобер</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+                <div class="settings-field support-field">
+                    <label for="supportTicketSubject">Тема</label>
+                    <input type="text" id="supportTicketSubject" maxlength="180" placeholder="Кратко опишите проблему">
+                </div>
+                <div class="settings-field support-field support-field-column">
+                    <label for="supportTicketMessage">Сообщение</label>
+                    <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
+                </div>
+                <div class="support-compose-note" id="supportComposeNote">Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.</div>
+                <div class="support-ticket-actions">
+                    <button type="button" class="settings-action-button primary" id="supportCreateTicketButton">Создать тикет</button>
+                </div>
+            </div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions support-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="supportModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="achievementUnlockModal" aria-hidden="true" data-palette="modal">
+    <div class="achievement-unlock-modal" role="dialog" aria-modal="true" aria-labelledby="achievementUnlockTitle">
+        <div class="achievement-unlock-kicker">Новое достижение</div>
+        <div class="achievement-unlock-icon" id="achievementUnlockIcon">✨</div>
+        <div class="achievement-unlock-title" id="achievementUnlockTitle">Достижение</div>
+        <div class="achievement-unlock-text" id="achievementUnlockText">Описание достижения.</div>
+        <div class="achievement-unlock-reward" id="achievementUnlockReward">+0 коинов</div>
+        <button type="button" class="settings-action-button primary achievement-unlock-button" id="achievementUnlockAcknowledge">Забрать и продолжить</button>
+    </div>
+</div>
     <script>
 //Последнее изменение
 // === КОНФИГУРАЦИЯ ===
@@ -4173,43 +4717,7 @@ const leaderboardState = {
     main: [],
     flyBeaver: []
 };
-const ACHIEVEMENT_DEFINITIONS = Object.freeze({
-    clicker_100k: {
-        title: 'Первая сотня тысяч',
-        description: 'Наберите 100 000 коинов в основном кликере.',
-        icon: '💯'
-    },
-    clicker_1m: {
-        title: 'Миллионер',
-        description: 'Наберите 1 000 000 коинов в основном кликере.',
-        icon: '🏦'
-    },
-    fly_best_25: {
-        title: 'Низкий пролет',
-        description: 'Получите рекорд 25 в Летающем бобре.',
-        icon: '🌿'
-    },
-    fly_best_50: {
-        title: 'Повелитель болота',
-        description: 'Получите рекорд 50 в Летающем бобре.',
-        icon: '🌫️'
-    },
-    collector_3: {
-        title: 'Коллекционер',
-        description: 'Соберите минимум 3 скина.',
-        icon: '🎨'
-    },
-    top_clicker_1: {
-        title: 'Топ-1 кликера',
-        description: 'Удерживайте первое место в основном лидерборде.',
-        icon: '👑'
-    },
-    top_fly_1: {
-        title: 'Топ-1 fly-beaver',
-        description: 'Удерживайте первое место в Летающем бобре.',
-        icon: '🏆'
-    }
-});
+const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 
 function getDefaultProfileSummary() {
     return {
@@ -4223,6 +4731,13 @@ function getDefaultProfileSummary() {
         flyBest: 0,
         flyPending: 0,
         flyGamesPlayed: 0
+    };
+}
+
+function getDefaultSupportSummary() {
+    return {
+        unreadReplies: 0,
+        openTickets: 0
     };
 }
 
@@ -4410,7 +4925,9 @@ let flyBeaverState = getDefaultFlyBeaverState();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
 let unlockedAchievements = [];
+let supportSummary = getDefaultSupportSummary();
 window.__boberBanInfo = null;
+const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
@@ -4704,6 +5221,20 @@ const settingsState = {
     revision: 0,
     retryRequested: false
 };
+const supportState = {
+    tickets: [],
+    selectedTicketId: 0,
+    selectedTicket: null,
+    activeTab: 'inbox',
+    loadingList: false,
+    loadingTicket: false,
+    composeAppeal: null
+};
+const achievementUnlockState = {
+    queue: [],
+    active: null,
+    seen: new Set()
+};
 const liveSyncState = {
     timer: null,
     inFlight: false,
@@ -4743,6 +5274,36 @@ if (bootPendingSettingsSync && bootPendingSettingsSync.settings) {
     userSettings = bootPendingSettingsSync.settings;
 }
 window.__boberUserSettings = userSettings;
+try {
+    const rawSeenAchievementUnlocks = localStorage.getItem(SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY);
+    if (rawSeenAchievementUnlocks) {
+        const parsedSeenAchievementUnlocks = JSON.parse(rawSeenAchievementUnlocks);
+        if (Array.isArray(parsedSeenAchievementUnlocks)) {
+            parsedSeenAchievementUnlocks
+                .map((item) => String(item || '').trim())
+                .filter(Boolean)
+                .slice(-300)
+                .forEach((item) => achievementUnlockState.seen.add(item));
+        }
+    }
+} catch (error) {
+    console.warn('Не удалось восстановить локальную историю достижений.', error);
+}
+
+const SUPPORT_CATEGORY_LABELS = Object.freeze({
+    account: 'Аккаунт',
+    ban_appeal: 'Бан / апелляция',
+    bugs: 'Ошибки и баги',
+    skins_shop: 'Скины и магазин',
+    fly_beaver: 'Летающий бобер',
+    other: 'Другое'
+});
+
+const SUPPORT_STATUS_LABELS = Object.freeze({
+    waiting_support: 'Ждем поддержку',
+    waiting_user: 'Ждем вас',
+    closed: 'Закрыт'
+});
 
 function normalizeUserSettings(settings) {
     return SHARED_CLIENT.normalizeUserSettings
@@ -5791,7 +6352,9 @@ function updateProfileMenuUI() {
 
     if (textNode) {
         textNode.textContent = userId
-            ? 'Здесь доступны профиль, сессии, поддержка и выход из аккаунта.'
+            ? (supportSummary.unreadReplies > 0
+                ? `Есть ${formatCompactNumber(supportSummary.unreadReplies)} новых ответов поддержки.`
+                : 'Здесь доступны профиль, сессии, поддержка и выход из аккаунта.')
             : 'Войдите в аккаунт, чтобы управлять сессиями и профилем.';
     }
 }
@@ -5978,6 +6541,7 @@ function renderProfileModal() {
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${formatCompactNumber(summary.ownedSkins)}</span>`);
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || achievementItems.length)}</span>`);
+    badgeItems.push(`<span class="profile-badge">💬 Ответов: ${formatCompactNumber(supportSummary.unreadReplies || 0)}</span>`);
 
     const stats = [
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
@@ -5985,7 +6549,8 @@ function renderProfileModal() {
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'В очереди fly-beaver', value: formatLeaderboardScore(summary.flyPending) },
-        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) }
+        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
+        { label: 'Открытых тикетов', value: formatLeaderboardScore(supportSummary.openTickets || 0) }
     ];
 
     loginNode.textContent = resolvedLogin;
@@ -6014,6 +6579,7 @@ function renderProfileModal() {
                     <div>
                         <strong>${escapeHtmlText(definition.title)}</strong>
                         <span>${escapeHtmlText(definition.description)}</span>
+                        ${Number(item.meta?.rewardCoins) > 0 ? `<span>Награда: +${escapeHtmlText((Number(item.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>` : ''}
                         <span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(item.unlockedAt))}</span>
                     </div>
                 </article>
@@ -6044,6 +6610,427 @@ function closeProfileModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+}
+
+function getSupportCategoryLabel(category) {
+    return SUPPORT_CATEGORY_LABELS[String(category || 'other').trim()] || SUPPORT_CATEGORY_LABELS.other;
+}
+
+function getSupportStatusLabel(status) {
+    return SUPPORT_STATUS_LABELS[String(status || 'waiting_support').trim()] || SUPPORT_STATUS_LABELS.waiting_support;
+}
+
+function setSupportModalTab(tab) {
+    const nextTab = tab === 'create' ? 'create' : 'inbox';
+    supportState.activeTab = nextTab;
+    const tabsShell = document.getElementById('supportModalTabs');
+    const listPanel = document.getElementById('supportTicketListPanel');
+    const threadPanel = document.getElementById('supportTicketThreadPanel');
+    const createPanel = document.getElementById('supportTicketCreatePanel');
+
+    if (tabsShell) {
+        tabsShell.style.setProperty('--support-tab-offset', nextTab === 'create' ? 'calc(100% + 8px)' : '0px');
+    }
+
+    document.querySelectorAll('.support-modal-tab').forEach((node) => {
+        node.classList.toggle('active', node.dataset.tab === nextTab);
+    });
+
+    if (listPanel) {
+        listPanel.hidden = nextTab !== 'inbox';
+    }
+    if (threadPanel) {
+        threadPanel.hidden = nextTab !== 'inbox';
+    }
+    if (createPanel) {
+        createPanel.hidden = nextTab !== 'create';
+    }
+}
+
+function renderSupportTicketList() {
+    const listNode = document.getElementById('supportTicketList');
+    if (!listNode) {
+        return;
+    }
+
+    if (!userId && supportState.composeAppeal) {
+        listNode.innerHTML = '<div class="empty-list">Для апелляции доступна только форма нового тикета. Входящие откроются после входа в аккаунт.</div>';
+        return;
+    }
+
+    if (supportState.loadingList) {
+        listNode.innerHTML = '<div class="empty-list">Загружаем тикеты...</div>';
+        return;
+    }
+
+    if (supportState.tickets.length < 1) {
+        listNode.innerHTML = '<div class="empty-list">Пока тикетов нет. Создайте первый запрос во вкладке «Новый тикет».</div>';
+        return;
+    }
+
+    listNode.innerHTML = supportState.tickets.map((ticket) => `
+        <button type="button" class="support-ticket-card ${ticket.id === supportState.selectedTicketId ? 'active' : ''}" data-ticket-id="${ticket.id}">
+            <div class="support-ticket-card-head">
+                <div>
+                    <div class="support-ticket-title">${escapeHtmlText(ticket.subject || 'Тикет')}</div>
+                    <div class="support-ticket-meta">${escapeHtmlText(getSupportCategoryLabel(ticket.category))} • ${escapeHtmlText(formatSupportTicketDate(ticket.updatedAt || ticket.createdAt))}</div>
+                </div>
+                <div class="support-ticket-status ${escapeHtmlText(ticket.status)}">${escapeHtmlText(getSupportStatusLabel(ticket.status))}</div>
+            </div>
+            <div class="support-ticket-preview">${escapeHtmlText(ticket.lastMessagePreview || 'Сообщений пока нет.')}</div>
+            ${ticket.unreadByUser > 0 ? `<div class="support-ticket-unread">Новых ответов: ${escapeHtmlText(String(ticket.unreadByUser))}</div>` : ''}
+        </button>
+    `).join('');
+}
+
+function renderSupportTicketThread() {
+    const emptyNode = document.getElementById('supportTicketThreadEmpty');
+    const contentNode = document.getElementById('supportTicketThreadContent');
+    const titleNode = document.getElementById('supportTicketThreadTitle');
+    const metaNode = document.getElementById('supportTicketThreadMeta');
+    const statusNode = document.getElementById('supportTicketThreadStatus');
+    const messagesNode = document.getElementById('supportTicketMessages');
+    const replyNode = document.getElementById('supportReplyMessage');
+    const replyButton = document.getElementById('supportReplyButton');
+
+    if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !messagesNode || !replyNode || !replyButton) {
+        return;
+    }
+
+    const ticket = supportState.selectedTicket;
+    if (!ticket) {
+        emptyNode.hidden = false;
+        contentNode.hidden = true;
+        return;
+    }
+
+    emptyNode.hidden = true;
+    contentNode.hidden = false;
+    titleNode.textContent = ticket.subject || 'Тикет поддержки';
+    metaNode.textContent = `${getSupportCategoryLabel(ticket.category)} • открыт ${formatSupportTicketDate(ticket.createdAt)} • обновлен ${formatSupportTicketDate(ticket.updatedAt)}`;
+    statusNode.textContent = getSupportStatusLabel(ticket.status);
+    statusNode.className = `support-ticket-thread-status ${ticket.status}`;
+    messagesNode.innerHTML = (ticket.messages || []).length > 0
+        ? ticket.messages.map((message) => `
+            <div class="support-ticket-message ${escapeHtmlText(message.authorType === 'admin' ? 'admin' : 'user')}">
+                <div class="support-ticket-message-head">
+                    <span>${escapeHtmlText(message.authorType === 'admin' ? 'Поддержка' : 'Вы')}</span>
+                    <span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>
+                </div>
+                <div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>
+            </div>
+        `).join('')
+        : '<div class="empty-list">История переписки пока пуста.</div>';
+
+    const isClosed = ticket.status === 'closed';
+    replyNode.disabled = isClosed;
+    replyButton.disabled = isClosed;
+    replyNode.placeholder = isClosed
+        ? 'Этот тикет закрыт. Чтобы продолжить диалог, создайте новый.'
+        : 'Напишите ответ в тикет...';
+}
+
+function applySupportSummary(summary) {
+    supportSummary = normalizeSupportSummary(summary);
+    updateSupportBadgeUI();
+}
+
+function upsertSupportTicket(ticket) {
+    const normalizedTicket = normalizeSupportTicket(ticket);
+    if (!normalizedTicket || normalizedTicket.id < 1) {
+        return null;
+    }
+
+    const nextTickets = supportState.tickets.filter((item) => item.id !== normalizedTicket.id);
+    nextTickets.unshift({
+        ...normalizedTicket,
+        messages: Array.isArray(normalizedTicket.messages) ? normalizedTicket.messages : []
+    });
+    supportState.tickets = nextTickets;
+    return normalizedTicket;
+}
+
+function buildSupportAppealDraft(banInfo = null) {
+    const normalizedBan = normalizeBanInfoObject(banInfo || window.__boberBanInfo) || null;
+    const accountLabel = currentLogin || localStorage.getItem('login') || 'неизвестен';
+    const resolvedUserId = Number(userId || Number(localStorage.getItem('bober_last_user_id') || 0) || 0);
+    const deviceId = getClientLogDeviceId();
+    const subject = normalizedBan
+        ? `Апелляция по бану: ${accountLabel}`
+        : `Запрос в поддержку: ${accountLabel}`;
+    const lines = [
+        `Логин: ${accountLabel}`,
+        `User ID: ${resolvedUserId > 0 ? resolvedUserId : 'неизвестен'}`,
+        `Device ID: ${deviceId}`
+    ];
+
+    if (normalizedBan) {
+        lines.push(`Причина бана: ${normalizedBan.reason || 'не указана'}`);
+        lines.push(`Срок: ${normalizedBan.isPermanent ? 'бессрочно' : `${Math.max(0, Number(normalizedBan.durationDays) || 0)} дн.`}`);
+        if (normalizedBan.banUntil) {
+            lines.push(`До: ${normalizedBan.banUntil}`);
+        }
+    }
+
+    lines.push('');
+    lines.push('Опишите, что происходило перед проблемой или баном:');
+
+    return {
+        category: normalizedBan ? 'ban_appeal' : 'other',
+        subject,
+        message: lines.join('\n'),
+        appealLogin: accountLabel,
+        appealUserId: resolvedUserId > 0 ? resolvedUserId : 0,
+        deviceId
+    };
+}
+
+function applySupportComposeDraft() {
+    const categoryNode = document.getElementById('supportTicketCategory');
+    const subjectNode = document.getElementById('supportTicketSubject');
+    const messageNode = document.getElementById('supportTicketMessage');
+    const noteNode = document.getElementById('supportComposeNote');
+    const draft = supportState.composeAppeal;
+
+    if (!categoryNode || !subjectNode || !messageNode || !noteNode) {
+        return;
+    }
+
+    if (!draft) {
+        categoryNode.value = 'account';
+        subjectNode.value = '';
+        messageNode.value = '';
+        noteNode.textContent = 'Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.';
+        return;
+    }
+
+    categoryNode.value = draft.category || 'ban_appeal';
+    subjectNode.value = draft.subject || '';
+    messageNode.value = draft.message || '';
+    noteNode.textContent = userId
+        ? 'Заявка будет отправлена из текущего аккаунта и сразу появится в вашем списке тикетов.'
+        : 'Апелляция будет привязана к указанному аккаунту по логину и user ID.';
+}
+
+async function loadSupportTickets(options = {}) {
+    if (!userId) {
+        renderSupportTicketList();
+        renderSupportTicketThread();
+        return;
+    }
+
+    supportState.loadingList = true;
+    renderSupportTicketList();
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'list_tickets',
+                limit: options.limit || 50
+            })
+        });
+
+        supportState.tickets = Array.isArray(data.tickets) ? data.tickets.map(normalizeSupportTicket).filter(Boolean) : [];
+        applySupportSummary(data.summary || supportSummary);
+        if (!supportState.selectedTicketId && supportState.tickets.length > 0) {
+            supportState.selectedTicketId = supportState.tickets[0].id;
+        }
+        renderSupportTicketList();
+
+        if (supportState.selectedTicketId > 0) {
+            await loadSupportTicket(supportState.selectedTicketId);
+        } else {
+            supportState.selectedTicket = null;
+            renderSupportTicketThread();
+        }
+    } catch (error) {
+        console.error('Не удалось загрузить тикеты поддержки:', error);
+        showNotification(error.message || 'Не удалось загрузить тикеты поддержки.', 'error');
+        supportState.tickets = [];
+        renderSupportTicketList();
+        supportState.selectedTicket = null;
+        renderSupportTicketThread();
+    } finally {
+        supportState.loadingList = false;
+        renderSupportTicketList();
+    }
+}
+
+async function loadSupportTicket(ticketId) {
+    if (!userId || Number(ticketId) < 1) {
+        supportState.selectedTicket = null;
+        renderSupportTicketThread();
+        return;
+    }
+
+    supportState.loadingTicket = true;
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'get_ticket',
+                ticketId: Number(ticketId)
+            })
+        });
+
+        const normalizedTicket = normalizeSupportTicket(data.ticket);
+        supportState.selectedTicketId = normalizedTicket ? normalizedTicket.id : 0;
+        supportState.selectedTicket = upsertSupportTicket(normalizedTicket);
+        applySupportSummary(data.summary || supportSummary);
+        renderSupportTicketList();
+        renderSupportTicketThread();
+    } catch (error) {
+        console.error('Не удалось открыть тикет поддержки:', error);
+        showNotification(error.message || 'Не удалось открыть тикет.', 'error');
+    } finally {
+        supportState.loadingTicket = false;
+    }
+}
+
+function openSupportCenter(options = {}) {
+    const modal = document.getElementById('supportModal');
+    if (!modal) {
+        return;
+    }
+
+    if (!userId && !options.appealContext) {
+        requestAuthModal('login', {
+            title: 'Нужен аккаунт поддержки',
+            text: 'Чтобы писать в поддержку и получать ответы, войдите в аккаунт.'
+        });
+        return;
+    }
+
+    closeProfileMenu();
+    closeProfileModal();
+    supportState.composeAppeal = options.appealContext || null;
+    applySupportComposeDraft();
+    setSupportModalTab(options.appealContext ? 'create' : (options.tab || supportState.activeTab || 'inbox'));
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    renderSupportTicketList();
+    renderSupportTicketThread();
+
+    if (userId) {
+        loadSupportTickets().catch((error) => {
+            console.warn('Не удалось обновить тикеты при открытии поддержки.', error);
+        });
+    }
+}
+
+function closeSupportModal() {
+    const modal = document.getElementById('supportModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    supportState.composeAppeal = null;
+    syncGlobalOverlayState();
+}
+
+async function submitSupportTicket() {
+    const categoryNode = document.getElementById('supportTicketCategory');
+    const subjectNode = document.getElementById('supportTicketSubject');
+    const messageNode = document.getElementById('supportTicketMessage');
+    const button = document.getElementById('supportCreateTicketButton');
+    if (!categoryNode || !subjectNode || !messageNode || !button) {
+        return;
+    }
+
+    const payload = {
+        action: 'create_ticket',
+        category: categoryNode.value,
+        subject: subjectNode.value.trim(),
+        message: messageNode.value.trim()
+    };
+    if (!userId && supportState.composeAppeal) {
+        payload.appealUserId = Number(supportState.composeAppeal.appealUserId) || 0;
+        payload.appealLogin = supportState.composeAppeal.appealLogin || '';
+    }
+
+    button.disabled = true;
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const normalizedTicket = normalizeSupportTicket(data.ticket);
+        if (userId && normalizedTicket) {
+            supportState.selectedTicket = upsertSupportTicket(normalizedTicket);
+            supportState.selectedTicketId = normalizedTicket.id;
+            setSupportModalTab('inbox');
+            renderSupportTicketList();
+            renderSupportTicketThread();
+        } else {
+            supportState.composeAppeal = null;
+            closeSupportModal();
+        }
+        applySupportSummary(data.summary || supportSummary);
+        applySupportComposeDraft();
+        showNotification(data.message || 'Тикет создан.', 'success');
+    } catch (error) {
+        console.error('Не удалось создать тикет поддержки:', error);
+        showNotification(error.message || 'Не удалось создать тикет поддержки.', 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function submitSupportReply() {
+    const replyNode = document.getElementById('supportReplyMessage');
+    const button = document.getElementById('supportReplyButton');
+    const ticketId = Number(supportState.selectedTicketId) || 0;
+    if (!replyNode || !button || ticketId < 1 || !userId) {
+        return;
+    }
+
+    const message = replyNode.value.trim();
+    if (!message) {
+        showNotification('Введите сообщение для ответа в тикет.', 'warning');
+        return;
+    }
+
+    button.disabled = true;
+    try {
+        const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'reply_ticket',
+                ticketId,
+                message
+            })
+        });
+
+        const normalizedTicket = normalizeSupportTicket(data.ticket);
+        supportState.selectedTicket = upsertSupportTicket(normalizedTicket);
+        supportState.selectedTicketId = normalizedTicket ? normalizedTicket.id : supportState.selectedTicketId;
+        replyNode.value = '';
+        applySupportSummary(data.summary || supportSummary);
+        renderSupportTicketList();
+        renderSupportTicketThread();
+        showNotification(data.message || 'Ответ отправлен.', 'success');
+    } catch (error) {
+        console.error('Не удалось ответить в тикет:', error);
+        showNotification(error.message || 'Не удалось отправить ответ.', 'error');
+    } finally {
+        button.disabled = false;
+    }
 }
 
 function markSettingsDirty() {
@@ -7100,6 +8087,18 @@ function normalizeProfileSummary(rawSummary) {
     };
 }
 
+function normalizeSupportSummary(rawSummary) {
+    const defaults = getDefaultSupportSummary();
+    if (!rawSummary || typeof rawSummary !== 'object') {
+        return defaults;
+    }
+
+    return {
+        unreadReplies: Math.max(0, Number(rawSummary.unreadReplies) || 0),
+        openTickets: Math.max(0, Number(rawSummary.openTickets) || 0)
+    };
+}
+
 function normalizeAchievementList(rawAchievements) {
     if (!Array.isArray(rawAchievements)) {
         return [];
@@ -7119,6 +8118,190 @@ function normalizeAchievementList(rawAchievements) {
             };
         })
         .filter(Boolean);
+}
+
+function normalizeAchievementUnlockList(rawAchievements) {
+    return normalizeAchievementList(rawAchievements).map((item) => ({
+        key: item.key,
+        unlockedAt: item.unlockedAt,
+        meta: item.meta || {}
+    }));
+}
+
+function buildAchievementSeenKey(item) {
+    return `${String(item?.key || '').trim()}::${String(item?.unlockedAt || '').trim()}`;
+}
+
+function persistSeenAchievementUnlocks() {
+    try {
+        localStorage.setItem(SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY, JSON.stringify(Array.from(achievementUnlockState.seen).slice(-300)));
+    } catch (error) {
+        console.warn('Не удалось сохранить локальную историю достижений.', error);
+    }
+}
+
+function markAchievementUnlockSeen(item) {
+    const seenKey = buildAchievementSeenKey(item);
+    if (!seenKey || seenKey === '::') {
+        return;
+    }
+
+    achievementUnlockState.seen.add(seenKey);
+    persistSeenAchievementUnlocks();
+}
+
+function updateSupportBadgeUI() {
+    supportSummary = normalizeSupportSummary(supportSummary);
+    const unread = Math.max(0, Number(supportSummary.unreadReplies) || 0);
+    const openTickets = Math.max(0, Number(supportSummary.openTickets) || 0);
+    const topBadge = document.getElementById('profileMenuUnreadBadge');
+    const menuBadge = document.getElementById('supportAppealBadge');
+    const unreadChip = document.getElementById('supportSummaryUnreadChip');
+    const openChip = document.getElementById('supportSummaryOpenChip');
+
+    if (topBadge) {
+        topBadge.hidden = unread < 1;
+        topBadge.textContent = unread > 99 ? '99+' : String(unread);
+    }
+
+    if (menuBadge) {
+        menuBadge.hidden = unread < 1;
+        menuBadge.textContent = unread > 99 ? '99+' : String(unread);
+    }
+
+    if (unreadChip) {
+        unreadChip.textContent = `Ответов: ${formatCompactNumber(unread)}`;
+    }
+
+    if (openChip) {
+        openChip.textContent = `Открыто: ${formatCompactNumber(openTickets)}`;
+    }
+}
+
+function normalizeSupportTicket(rawTicket) {
+    if (!rawTicket || typeof rawTicket !== 'object') {
+        return null;
+    }
+
+    return {
+        id: Math.max(0, Number(rawTicket.id) || 0),
+        userId: Math.max(0, Number(rawTicket.userId) || 0),
+        login: String(rawTicket.login || '').trim(),
+        category: String(rawTicket.category || 'other').trim(),
+        subject: String(rawTicket.subject || '').trim(),
+        status: String(rawTicket.status || 'waiting_support').trim(),
+        unreadByUser: Math.max(0, Number(rawTicket.unreadByUser) || 0),
+        unreadByAdmin: Math.max(0, Number(rawTicket.unreadByAdmin) || 0),
+        createdAt: String(rawTicket.createdAt || '').trim(),
+        updatedAt: String(rawTicket.updatedAt || '').trim(),
+        lastUserMessageAt: rawTicket.lastUserMessageAt || '',
+        lastAdminMessageAt: rawTicket.lastAdminMessageAt || '',
+        lastMessagePreview: String(rawTicket.lastMessagePreview || '').trim(),
+        messages: Array.isArray(rawTicket.messages)
+            ? rawTicket.messages.map((message) => ({
+                id: Math.max(0, Number(message.id) || 0),
+                authorType: String(message.authorType || 'user').trim(),
+                authorUserId: Number(message.authorUserId) > 0 ? Number(message.authorUserId) : null,
+                message: String(message.message || '').trim(),
+                createdAt: String(message.createdAt || '').trim()
+            }))
+            : []
+    };
+}
+
+function formatSupportTicketDate(value) {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return 'только что';
+    }
+
+    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
+    if (Number.isNaN(parsedDate.getTime())) {
+        return normalizedValue;
+    }
+
+    return parsedDate.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function renderAchievementUnlockModal() {
+    const modal = document.getElementById('achievementUnlockModal');
+    const titleNode = document.getElementById('achievementUnlockTitle');
+    const textNode = document.getElementById('achievementUnlockText');
+    const iconNode = document.getElementById('achievementUnlockIcon');
+    const rewardNode = document.getElementById('achievementUnlockReward');
+    if (!modal || !achievementUnlockState.active || !titleNode || !textNode || !iconNode || !rewardNode) {
+        return;
+    }
+
+    const activeUnlock = achievementUnlockState.active;
+    const definition = ACHIEVEMENT_DEFINITIONS[activeUnlock.key] || {
+        title: activeUnlock.key,
+        description: 'Достижение разблокировано.',
+        icon: '✨'
+    };
+    const rewardCoins = Math.max(0, Number(activeUnlock.meta?.rewardCoins) || 0);
+
+    titleNode.textContent = definition.title;
+    textNode.textContent = definition.description;
+    iconNode.textContent = definition.icon;
+    rewardNode.textContent = rewardCoins > 0
+        ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
+        : 'Награда получена';
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
+function closeAchievementUnlockModal() {
+    const modal = document.getElementById('achievementUnlockModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    achievementUnlockState.active = null;
+    syncGlobalOverlayState();
+
+    if (achievementUnlockState.queue.length > 0) {
+        window.setTimeout(() => {
+            showNextAchievementUnlock();
+        }, 90);
+    }
+}
+
+function showNextAchievementUnlock() {
+    if (achievementUnlockState.active || achievementUnlockState.queue.length < 1) {
+        return;
+    }
+
+    achievementUnlockState.active = achievementUnlockState.queue.shift();
+    renderAchievementUnlockModal();
+}
+
+function enqueueAchievementUnlocks(rawUnlocks) {
+    const items = normalizeAchievementUnlockList(rawUnlocks);
+    if (items.length < 1) {
+        return;
+    }
+
+    items.forEach((item) => {
+        const seenKey = buildAchievementSeenKey(item);
+        if (!seenKey || seenKey === '::' || achievementUnlockState.seen.has(seenKey)) {
+            return;
+        }
+
+        achievementUnlockState.queue.push(item);
+        markAchievementUnlockSeen(item);
+    });
+
+    showNextAchievementUnlock();
 }
 
 function normalizeFlyBeaverState(rawState) {
@@ -7386,40 +8569,14 @@ function setBanInfo(banInfo, options = {}) {
 }
 
 function buildSupportAppealText(banInfo = null) {
-    const normalizedBan = normalizeBanInfoObject(banInfo || window.__boberBanInfo) || null;
-    const accountLabel = currentLogin || 'неизвестен';
-    const resolvedUserId = Number(userId || 0);
-    const deviceId = getClientLogDeviceId();
-    const lines = [
-        'Здравствуйте! Хочу подать апелляцию / запросить помощь.',
-        `Логин: ${accountLabel}`,
-        `User ID: ${resolvedUserId > 0 ? resolvedUserId : 'неизвестен'}`,
-        `Device ID: ${deviceId}`
-    ];
-
-    if (normalizedBan) {
-        lines.push(`Причина бана: ${normalizedBan.reason || 'не указана'}`);
-        lines.push(`Срок: ${normalizedBan.isPermanent ? 'бессрочно' : `${Math.max(0, Number(normalizedBan.durationDays) || 0)} дн.`}`);
-        if (normalizedBan.banUntil) {
-            lines.push(`До: ${normalizedBan.banUntil}`);
-        }
-    }
-
-    lines.push('Описание проблемы:');
-    lines.push('Кратко опишите, что происходило перед ошибкой или баном.');
-    return lines.join('\n');
+    return buildSupportAppealDraft(banInfo).message;
 }
 
 async function openSupportAppeal(banInfo = null) {
-    const appealText = buildSupportAppealText(banInfo);
-    if (SHARED_CLIENT.safeCopyTextToClipboard) {
-        const copied = await SHARED_CLIENT.safeCopyTextToClipboard(appealText);
-        if (copied) {
-            showNotification('Текст апелляции скопирован. Вставьте его в поддержку.', 'success');
-        }
-    }
-
-    window.open('https://forms.yandex.ru/u/68e2472302848f9edc066ce2', '_blank', 'noopener,noreferrer');
+    openSupportCenter({
+        tab: 'create',
+        appealContext: buildSupportAppealDraft(banInfo)
+    });
 }
 
 function normalizeBanPayload(payload) {
@@ -8003,6 +9160,24 @@ if (profileModalNode) {
     });
 }
 
+const supportModalNode = document.getElementById('supportModal');
+if (supportModalNode) {
+    supportModalNode.addEventListener('click', (event) => {
+        if (event.target === supportModalNode) {
+            closeSupportModal();
+        }
+    });
+}
+
+const achievementUnlockModalNode = document.getElementById('achievementUnlockModal');
+if (achievementUnlockModalNode) {
+    achievementUnlockModalNode.addEventListener('click', (event) => {
+        if (event.target === achievementUnlockModalNode) {
+            closeAchievementUnlockModal();
+        }
+    });
+}
+
 const settingsModalCloseButton = document.getElementById('settingsModalClose');
 if (settingsModalCloseButton) {
     settingsModalCloseButton.addEventListener('click', () => {
@@ -8014,6 +9189,20 @@ const profileModalCloseButton = document.getElementById('profileModalClose');
 if (profileModalCloseButton) {
     profileModalCloseButton.addEventListener('click', () => {
         closeProfileModal();
+    });
+}
+
+const supportModalCloseButton = document.getElementById('supportModalClose');
+if (supportModalCloseButton) {
+    supportModalCloseButton.addEventListener('click', () => {
+        closeSupportModal();
+    });
+}
+
+const achievementUnlockAcknowledgeButton = document.getElementById('achievementUnlockAcknowledge');
+if (achievementUnlockAcknowledgeButton) {
+    achievementUnlockAcknowledgeButton.addEventListener('click', () => {
+        closeAchievementUnlockModal();
     });
 }
 
@@ -8046,6 +9235,49 @@ if (settingsClearLogsButton) {
             console.error('Не удалось очистить локальные forensic-логи.', error);
             updateSettingsStatus(error.message || 'Не удалось очистить локальные forensic-логи.', 'error');
         });
+    });
+}
+
+const supportCreateTicketButton = document.getElementById('supportCreateTicketButton');
+if (supportCreateTicketButton) {
+    supportCreateTicketButton.addEventListener('click', () => {
+        submitSupportTicket();
+    });
+}
+
+const supportReplyButton = document.getElementById('supportReplyButton');
+if (supportReplyButton) {
+    supportReplyButton.addEventListener('click', () => {
+        submitSupportReply();
+    });
+}
+
+const supportModalTabsNode = document.getElementById('supportModalTabs');
+if (supportModalTabsNode) {
+    supportModalTabsNode.addEventListener('click', (event) => {
+        const tabButton = event.target.closest('.support-modal-tab');
+        if (!tabButton) {
+            return;
+        }
+
+        setSupportModalTab(tabButton.dataset.tab || 'inbox');
+    });
+}
+
+const supportTicketListNode = document.getElementById('supportTicketList');
+if (supportTicketListNode) {
+    supportTicketListNode.addEventListener('click', (event) => {
+        const ticketButton = event.target.closest('.support-ticket-card');
+        if (!ticketButton) {
+            return;
+        }
+
+        const ticketId = Number(ticketButton.dataset.ticketId) || 0;
+        if (ticketId > 0) {
+            loadSupportTicket(ticketId).catch((error) => {
+                console.warn('Не удалось открыть тикет из списка.', error);
+            });
+        }
     });
 }
 
@@ -8468,6 +9700,8 @@ function resetUserState() {
     closeAuthModal();
     closeSettingsModal({ sync: false });
     closeProfileModal();
+    closeSupportModal();
+    closeAchievementUnlockModal();
     userId = null;
     score = 0;
     plus = 1;
@@ -8478,6 +9712,13 @@ function resetUserState() {
     upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
     profileSummary = getDefaultProfileSummary();
     unlockedAchievements = [];
+    supportSummary = getDefaultSupportSummary();
+    supportState.tickets = [];
+    supportState.selectedTicketId = 0;
+    supportState.selectedTicket = null;
+    supportState.composeAppeal = null;
+    achievementUnlockState.queue = [];
+    achievementUnlockState.active = null;
 
     updateRegenRate();
     skinLoad();
@@ -8501,6 +9742,7 @@ function resetUserState() {
     setSaveStatus('idle', 'Автосохранение выключено');
     updateFlyRewardUI();
     updateProfileMenuUI();
+    updateSupportBadgeUI();
     applyUserSettings(SHARED_CLIENT.readCachedUserSettings ? SHARED_CLIENT.readCachedUserSettings() : userSettings, {
         persist: true,
         updateInputs: true
@@ -8524,6 +9766,7 @@ function applyAuthenticatedState(data) {
         localStorage.setItem('login', resolvedLogin);
         document.getElementById('login').value = resolvedLogin;
     }
+    localStorage.setItem('bober_last_user_id', String(userId));
 
     score = Number.isFinite(Number(data.score)) ? Number(data.score) : 0;
     plus = Number.isFinite(Number(data.plus)) ? Number(data.plus) : 1;
@@ -8536,6 +9779,8 @@ function applyAuthenticatedState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
+    applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
+    enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     if (!settingsState.dirty && !settingsState.inFlight) {
         applyUserSettings(data.settings || userSettings, {
             persist: true,
@@ -8564,6 +9809,7 @@ function applyAuthenticatedState(data) {
     document.getElementById('password').value = '';
     updateFlyRewardUI();
     updateProfileMenuUI();
+    updateSupportBadgeUI();
     renderProfileModal();
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
@@ -8992,9 +10238,19 @@ async function saveStateToServer(reason = 'auto') {
 
         if (data && data.success) {
             await acknowledgeClientLogBatch(transport.clientLogBatch);
+            if (data.account) {
+                applySynchronizedAccountState(data.account);
+            }
+            if (data.supportSummary) {
+                applySupportSummary(data.supportSummary);
+            }
+            if (data.achievementUnlocks) {
+                enqueueAchievementUnlocks(data.achievementUnlocks);
+            }
             return {
                 success: true,
-                message: data.message || 'Прогресс сохранен.'
+                message: data.message || 'Прогресс сохранен.',
+                payload: data
             };
         }
 
@@ -9200,6 +10456,8 @@ function applySynchronizedAccountState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
+    applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
+    enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     if (!settingsState.dirty && !settingsState.inFlight) {
         applyUserSettings(data.settings || userSettings, {
             persist: true,
@@ -9219,6 +10477,7 @@ function applySynchronizedAccountState(data) {
     updateUpgradeShopUI();
     updateFlyRewardUI();
     updateProfileMenuUI();
+    updateSupportBadgeUI();
     renderProfileModal();
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
@@ -9300,6 +10559,13 @@ async function synchronizeMainState(options = {}) {
             applySynchronizedAccountState(data.account);
         } else if (data.account && data.account.userId) {
             applySynchronizedAccountState(data.account);
+        }
+
+        if (data.supportSummary) {
+            applySupportSummary(data.supportSummary);
+        }
+        if (data.achievementUnlocks) {
+            enqueueAchievementUnlocks(data.achievementUnlocks);
         }
 
         if (includedDirtyState) {
@@ -9592,7 +10858,12 @@ const supportAppealButton = document.getElementById('supportAppealButton');
 if (supportAppealButton) {
     supportAppealButton.addEventListener('click', () => {
         closeProfileMenu();
-        openSupportAppeal(window.__boberBanInfo || null);
+        if (window.__boberBanInfo) {
+            openSupportAppeal(window.__boberBanInfo);
+            return;
+        }
+
+        openSupportCenter({ tab: 'inbox' });
     });
 }
 

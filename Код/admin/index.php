@@ -1257,6 +1257,103 @@ SQL;
             }
         }
 
+        if ($action === 'get_support_tickets') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                $response['success'] = true;
+                $response['tickets'] = bober_fetch_admin_support_tickets($conn, [
+                    'status' => (string) ($_POST['status'] ?? ''),
+                    'category' => (string) ($_POST['category'] ?? ''),
+                    'unread' => (string) ($_POST['unread'] ?? 'all'),
+                    'search' => (string) ($_POST['search'] ?? ''),
+                    'limit' => (int) ($_POST['limit'] ?? 80),
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_support_ticket') {
+            if (requireAdminAuth($response)) {
+                $ticketId = max(0, (int) ($_POST['ticket_id'] ?? 0));
+                if ($ticketId < 1) {
+                    $response['message'] = 'Не удалось определить тикет поддержки.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+                    $response['success'] = true;
+                    $response['ticket'] = bober_fetch_admin_support_ticket($conn, $ticketId, true);
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'reply_support_ticket') {
+            if (requireAdminAuth($response)) {
+                $ticketId = max(0, (int) ($_POST['ticket_id'] ?? 0));
+                $message = (string) ($_POST['message'] ?? '');
+
+                if ($ticketId < 1) {
+                    $response['message'] = 'Не удалось определить тикет для ответа.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+                    $conn->begin_transaction();
+
+                    $ticket = bober_reply_support_ticket_as_admin($conn, $ticketId, $message);
+                    $conn->commit();
+
+                    $response['success'] = true;
+                    $response['message'] = 'Ответ отправлен пользователю.';
+                    $response['ticket'] = $ticket;
+
+                    bober_admin_log_action($conn, 'reply_support_ticket', [
+                        'target_table' => 'support_tickets',
+                        'query_text' => 'REPLY TO SUPPORT TICKET #' . $ticketId,
+                        'affected_rows' => 2,
+                        'meta' => [
+                            'ticket_id' => $ticketId,
+                            'user_id' => $ticket['userId'] ?? 0,
+                            'status' => $ticket['status'] ?? 'waiting_user',
+                        ],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'update_support_ticket_status') {
+            if (requireAdminAuth($response)) {
+                $ticketId = max(0, (int) ($_POST['ticket_id'] ?? 0));
+                $status = (string) ($_POST['status'] ?? '');
+
+                if ($ticketId < 1) {
+                    $response['message'] = 'Не удалось определить тикет для смены статуса.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+                    $ticket = bober_update_support_ticket_status($conn, $ticketId, $status);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Статус тикета обновлен.';
+                    $response['ticket'] = $ticket;
+
+                    bober_admin_log_action($conn, 'update_support_ticket_status', [
+                        'target_table' => 'support_tickets',
+                        'query_text' => 'UPDATE SUPPORT TICKET STATUS #' . $ticketId,
+                        'affected_rows' => 1,
+                        'meta' => [
+                            'ticket_id' => $ticketId,
+                            'status' => $ticket['status'] ?? '',
+                        ],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'save_user_profile') {
             if (requireAdminAuth($response)) {
                 $userId = max(0, (int) ($_POST['user_id'] ?? 0));
@@ -4270,14 +4367,162 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             padding: 12px 0;
         }
 
+        .support-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .support-shell {
+            display: grid;
+            grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+            gap: 18px;
+        }
+
+        .support-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 62vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        .support-ticket-admin-card {
+            width: 100%;
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(15, 24, 42, 0.82), rgba(10, 16, 30, 0.92));
+            text-align: left;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .support-ticket-admin-card:hover {
+            transform: translateY(-1px);
+            border-color: rgba(59, 177, 255, 0.34);
+            box-shadow: 0 16px 28px rgba(3, 10, 24, 0.2);
+        }
+
+        .support-ticket-admin-card.active {
+            border-color: rgba(59, 177, 255, 0.52);
+            box-shadow: 0 18px 32px rgba(3, 10, 24, 0.24);
+        }
+
+        .support-ticket-admin-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .support-ticket-admin-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--on-surface);
+            margin-bottom: 4px;
+        }
+
+        .support-ticket-admin-meta {
+            font-size: 12px;
+            color: var(--muted-text);
+            line-height: 1.5;
+        }
+
+        .support-ticket-admin-preview {
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--muted-text);
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .support-ticket-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .support-ticket-detail {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .support-ticket-detail-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .support-ticket-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 420px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        .support-ticket-thread-message {
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: var(--field-bg);
+        }
+
+        .support-ticket-thread-message.admin {
+            background: linear-gradient(180deg, rgba(37, 88, 128, 0.24), rgba(18, 45, 66, 0.32));
+            border-color: rgba(59, 177, 255, 0.24);
+        }
+
+        .support-ticket-thread-message.user {
+            background: linear-gradient(180deg, rgba(47, 66, 107, 0.24), rgba(18, 27, 46, 0.34));
+            border-color: rgba(130, 160, 255, 0.16);
+        }
+
+        .support-ticket-thread-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--muted-text);
+        }
+
+        .support-ticket-thread-text {
+            color: var(--on-surface);
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .support-ticket-admin-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .support-ticket-admin-actions .form-control {
+            max-width: 240px;
+        }
+
         @media (max-width: 1100px) {
             .accounts-shell,
             .detail-grid,
-            .detail-form-grid {
+            .detail-form-grid,
+            .support-shell {
                 grid-template-columns: 1fr;
             }
 
-            .account-list {
+            .account-list,
+            .support-list {
                 max-height: 40vh;
             }
         }
@@ -4302,7 +4547,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .account-list-toolbar,
             .account-detail-head,
             .account-head-actions,
-            .account-list-foot {
+            .account-list-foot,
+            .support-ticket-detail-head,
+            .support-ticket-admin-actions {
                 flex-direction: column;
                 align-items: stretch;
             }
@@ -4316,6 +4563,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             .account-list {
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            .support-list,
+            .support-ticket-thread {
                 max-height: none;
                 overflow: visible;
                 padding-right: 0;
@@ -4337,6 +4591,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .account-list-toolbar .btn,
             .account-list-toolbar .form-control,
             .account-list-toolbar .search-box,
+            .support-toolbar .btn,
+            .support-toolbar .form-control,
+            .support-toolbar .search-box,
             .stack-item-actions .btn,
             .inline-actions .btn {
                 width: 100%;
@@ -4528,6 +4785,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
             <span>Статистика</span>
+        </div>
+
+        <div class="sidebar-item" id="supportBtn">
+            <span class="material-icons">support_agent</span>
+            <span>Поддержка</span>
         </div>
 
         <div class="sidebar-item" id="maintenanceBtn">
@@ -4811,6 +5073,97 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <h3>Сводка</h3>
                             <p>Короткая картина по forensic-логам и runtime-кэшу панели. Обновляется с TTL и может принудительно пересчитываться.</p>
                             <div class="maintenance-log" id="maintenanceSnapshotLog">Загрузка сведений...</div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="supportView" style="display: none;">
+                <div class="card maintenance-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">support_agent</span>
+                                Поддержка
+                            </h2>
+                            <div class="card-subtitle">Тикеты игроков из кликера: фильтры, история переписки, ответ и смена статуса без внешних форм.</div>
+                        </div>
+                        <button class="btn btn-outline" id="refreshSupportTicketsBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="support-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="supportSearchInput" class="search-input" placeholder="Найти по логину или теме тикета">
+                        </div>
+                        <select class="form-control account-sort-select" id="supportStatusFilter" aria-label="Фильтр по статусу">
+                            <option value="all">Все статусы</option>
+                            <option value="waiting_support">Ждут поддержку</option>
+                            <option value="waiting_user">Ждут игрока</option>
+                            <option value="closed">Закрытые</option>
+                        </select>
+                        <select class="form-control account-sort-select" id="supportCategoryFilter" aria-label="Фильтр по категории">
+                            <option value="all">Все категории</option>
+                            <option value="account">Аккаунт</option>
+                            <option value="ban_appeal">Бан и апелляция</option>
+                            <option value="bugs">Ошибки и баги</option>
+                            <option value="skins">Скины и магазин</option>
+                            <option value="fly_beaver">Летающий бобер</option>
+                            <option value="other">Другое</option>
+                        </select>
+                        <select class="form-control account-sort-select" id="supportUnreadFilter" aria-label="Фильтр по непрочитанным">
+                            <option value="all">Все тикеты</option>
+                            <option value="admin">Есть непрочитанное для админа</option>
+                            <option value="user">Есть непрочитанное для игрока</option>
+                        </select>
+                    </div>
+
+                    <div class="support-shell">
+                        <section class="card account-list-panel" style="margin-bottom: 0;">
+                            <div class="card-subtitle" id="supportTicketsMeta">Загрузка тикетов поддержки...</div>
+                            <div class="support-list" id="supportTicketsList"></div>
+                        </section>
+
+                        <section class="card account-detail-panel" style="margin-bottom: 0;">
+                            <div class="account-empty" id="supportTicketDetailEmpty">
+                                <span class="material-icons" style="font-size: 42px; margin-bottom: 12px;">forum</span>
+                                <div style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">Выберите тикет</div>
+                                <div style="font-size: 14px; line-height: 1.55; color: var(--muted-text); max-width: 340px;">Здесь откроется вся переписка игрока с поддержкой, быстрый ответ и смена статуса.</div>
+                            </div>
+                            <div class="support-ticket-detail" id="supportTicketDetailContent" style="display: none;">
+                                <div class="support-ticket-detail-head">
+                                    <div>
+                                        <div class="card-title" id="supportTicketDetailTitle" style="margin-bottom: 6px;">Тикет</div>
+                                        <div class="card-subtitle" id="supportTicketDetailMeta">Метаданные тикета</div>
+                                    </div>
+                                    <div class="status-pill active" id="supportTicketDetailStatus">Открыт</div>
+                                </div>
+                                <div class="support-ticket-thread" id="supportTicketMessages"></div>
+                                <div class="support-ticket-admin-actions">
+                                    <select class="form-control" id="supportStatusSelect" aria-label="Статус тикета">
+                                        <option value="waiting_support">Ждет поддержку</option>
+                                        <option value="waiting_user">Ждет игрока</option>
+                                        <option value="closed">Закрыт</option>
+                                    </select>
+                                    <button class="btn btn-outline" id="saveSupportStatusBtn">
+                                        <span class="material-icons">done</span>
+                                        Сохранить статус
+                                    </button>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="supportReplyInput">Ответ игроку</label>
+                                    <textarea class="form-control" id="supportReplyInput" rows="5" placeholder="Напишите ответ от лица поддержки..."></textarea>
+                                </div>
+                                <div class="inline-actions" style="margin-top: 0;">
+                                    <button class="btn btn-primary" id="replySupportBtn">
+                                        <span class="material-icons">send</span>
+                                        Отправить ответ
+                                    </button>
+                                </div>
+                            </div>
                         </section>
                     </div>
                 </div>
@@ -5343,9 +5696,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let currentAdminView = 'accounts';
         let accountSearchDebounce = null;
         let accountClientLogSearchDebounce = null;
+        let supportSearchDebounce = null;
         let lastAccountSearch = '';
         let currentAccountSort = localStorage.getItem('admin_account_sort') || 'activity_desc';
         let currentAccountFilter = localStorage.getItem('admin_account_filter') || 'all';
+        let currentSupportStatusFilter = 'all';
+        let currentSupportCategoryFilter = 'all';
+        let currentSupportUnreadFilter = 'all';
+        let currentSupportSearch = '';
+        let supportTickets = [];
+        let selectedSupportTicketId = 0;
+        let selectedSupportTicket = null;
         let selectedAccountActivityFilter = 'all';
         let selectedAccountActivitySearch = '';
         let selectedAccountClientLogItems = [];
@@ -6227,6 +6588,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 closeSidebarForCompactViewport();
             });
 
+            const supportBtn = document.getElementById('supportBtn');
+            if (supportBtn) {
+                supportBtn.addEventListener('click', function() {
+                    showSupportView();
+                    closeSidebarForCompactViewport();
+                });
+            }
+
             document.getElementById('maintenanceBtn').addEventListener('click', function() {
                 showMaintenanceView();
                 closeSidebarForCompactViewport();
@@ -6266,7 +6635,63 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     exportForensicDump();
                 });
             }
-            
+
+            const refreshSupportTicketsBtn = document.getElementById('refreshSupportTicketsBtn');
+            if (refreshSupportTicketsBtn) {
+                refreshSupportTicketsBtn.addEventListener('click', function() {
+                    loadSupportTicketsAdmin({ forceRefresh: true });
+                });
+            }
+
+            const supportSearchInput = document.getElementById('supportSearchInput');
+            if (supportSearchInput) {
+                supportSearchInput.addEventListener('input', function() {
+                    currentSupportSearch = this.value.trim();
+                    clearTimeout(supportSearchDebounce);
+                    supportSearchDebounce = setTimeout(() => {
+                        loadSupportTicketsAdmin();
+                    }, 220);
+                });
+            }
+
+            const supportStatusFilter = document.getElementById('supportStatusFilter');
+            if (supportStatusFilter) {
+                supportStatusFilter.addEventListener('change', function() {
+                    currentSupportStatusFilter = this.value || 'all';
+                    loadSupportTicketsAdmin();
+                });
+            }
+
+            const supportCategoryFilter = document.getElementById('supportCategoryFilter');
+            if (supportCategoryFilter) {
+                supportCategoryFilter.addEventListener('change', function() {
+                    currentSupportCategoryFilter = this.value || 'all';
+                    loadSupportTicketsAdmin();
+                });
+            }
+
+            const supportUnreadFilter = document.getElementById('supportUnreadFilter');
+            if (supportUnreadFilter) {
+                supportUnreadFilter.addEventListener('change', function() {
+                    currentSupportUnreadFilter = this.value || 'all';
+                    loadSupportTicketsAdmin();
+                });
+            }
+
+            const replySupportBtn = document.getElementById('replySupportBtn');
+            if (replySupportBtn) {
+                replySupportBtn.addEventListener('click', function() {
+                    submitSupportReplyAdmin();
+                });
+            }
+
+            const saveSupportStatusBtn = document.getElementById('saveSupportStatusBtn');
+            if (saveSupportStatusBtn) {
+                saveSupportStatusBtn.addEventListener('click', function() {
+                    submitSupportStatusAdmin();
+                });
+            }
+
             document.getElementById('sqlEditorBtn').addEventListener('click', function() {
                 showSqlEditor();
                 closeSidebarForCompactViewport();
@@ -6772,6 +7197,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'skins';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'block';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -6780,6 +7206,300 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             updateActiveMenuItem('skinsBtn');
             loadDashboardStats();
             loadSkinCatalogAdmin();
+        }
+
+        function normalizeAdminSupportTicket(rawTicket) {
+            if (!rawTicket || typeof rawTicket !== 'object') {
+                return null;
+            }
+
+            return {
+                id: Math.max(0, Number(rawTicket.id) || 0),
+                userId: Math.max(0, Number(rawTicket.userId) || 0),
+                login: String(rawTicket.login || '').trim(),
+                category: String(rawTicket.category || 'other').trim(),
+                subject: String(rawTicket.subject || '').trim(),
+                status: String(rawTicket.status || 'waiting_support').trim(),
+                unreadByUser: Math.max(0, Number(rawTicket.unreadByUser) || 0),
+                unreadByAdmin: Math.max(0, Number(rawTicket.unreadByAdmin) || 0),
+                createdAt: String(rawTicket.createdAt || '').trim(),
+                updatedAt: String(rawTicket.updatedAt || '').trim(),
+                lastMessagePreview: String(rawTicket.lastMessagePreview || '').trim(),
+                messages: Array.isArray(rawTicket.messages) ? rawTicket.messages : []
+            };
+        }
+
+        function renderSupportTicketsAdmin() {
+            const metaNode = document.getElementById('supportTicketsMeta');
+            const listNode = document.getElementById('supportTicketsList');
+            if (!metaNode || !listNode) {
+                return;
+            }
+
+            if (!Array.isArray(supportTickets) || supportTickets.length < 1) {
+                metaNode.textContent = currentSupportSearch
+                    ? `По запросу "${currentSupportSearch}" тикеты не найдены.`
+                    : 'Тикеты пока не найдены.';
+                listNode.innerHTML = '<div class="empty-list">Список тикетов пуст.</div>';
+                return;
+            }
+
+            const statusLabel = currentSupportStatusFilter === 'all'
+                ? 'все статусы'
+                : getSupportStatusLabel(currentSupportStatusFilter);
+            const categoryLabel = currentSupportCategoryFilter === 'all'
+                ? 'все категории'
+                : getSupportCategoryLabel(currentSupportCategoryFilter);
+            metaNode.textContent = `Показано тикетов: ${formatAdminNumber(supportTickets.length)}. ${statusLabel}, ${categoryLabel}.`;
+            listNode.innerHTML = supportTickets.map((ticket) => {
+                const statusClass = ticket.status === 'closed' ? 'banned' : 'active';
+                return `
+                    <button class="support-ticket-admin-card ${Number(ticket.id) === Number(selectedSupportTicketId) ? 'active' : ''}" data-ticket-id="${ticket.id}" type="button">
+                        <div class="support-ticket-admin-head">
+                            <div>
+                                <div class="support-ticket-admin-title">${escapeHtml(ticket.subject || 'Тикет')}</div>
+                                <div class="support-ticket-admin-meta">${escapeHtml(ticket.login || 'Игрок')} • ${escapeHtml(getSupportCategoryLabel(ticket.category))}</div>
+                            </div>
+                            <div class="status-pill ${statusClass}">${escapeHtml(getSupportStatusLabel(ticket.status))}</div>
+                        </div>
+                        <div class="support-ticket-admin-preview">${escapeHtml(ticket.lastMessagePreview || 'Сообщений пока нет.')}</div>
+                        <div class="support-ticket-badges">
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">badge</span>ID ${formatAdminNumber(ticket.id)}</span>
+                            ${ticket.unreadByAdmin > 0 ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">mark_email_unread</span>Новых для админа: ${formatAdminNumber(ticket.unreadByAdmin)}</span>` : ''}
+                            ${ticket.unreadByUser > 0 ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">reply</span>Не прочитал игрок: ${formatAdminNumber(ticket.unreadByUser)}</span>` : ''}
+                        </div>
+                    </button>
+                `;
+            }).join('');
+
+            listNode.querySelectorAll('.support-ticket-admin-card').forEach((node) => {
+                node.addEventListener('click', function() {
+                    loadSupportTicketAdmin(Number(this.dataset.ticketId));
+                });
+            });
+        }
+
+        function renderSupportTicketDetailAdmin() {
+            const emptyNode = document.getElementById('supportTicketDetailEmpty');
+            const contentNode = document.getElementById('supportTicketDetailContent');
+            const titleNode = document.getElementById('supportTicketDetailTitle');
+            const metaNode = document.getElementById('supportTicketDetailMeta');
+            const statusNode = document.getElementById('supportTicketDetailStatus');
+            const messagesNode = document.getElementById('supportTicketMessages');
+            const statusSelect = document.getElementById('supportStatusSelect');
+            const replyInput = document.getElementById('supportReplyInput');
+            const replyButton = document.getElementById('replySupportBtn');
+            const saveStatusButton = document.getElementById('saveSupportStatusBtn');
+
+            if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !messagesNode || !statusSelect || !replyInput || !replyButton || !saveStatusButton) {
+                return;
+            }
+
+            if (!selectedSupportTicket || Number(selectedSupportTicket.id) < 1) {
+                emptyNode.style.display = 'flex';
+                contentNode.style.display = 'none';
+                return;
+            }
+
+            emptyNode.style.display = 'none';
+            contentNode.style.display = 'flex';
+            titleNode.textContent = selectedSupportTicket.subject || 'Тикет поддержки';
+            metaNode.textContent = `${selectedSupportTicket.login || 'Игрок'} • ${getSupportCategoryLabel(selectedSupportTicket.category)} • открыт ${formatAdminDateTime(selectedSupportTicket.createdAt)} • обновлен ${formatAdminDateTime(selectedSupportTicket.updatedAt)}`;
+            statusNode.className = `status-pill ${selectedSupportTicket.status === 'closed' ? 'banned' : 'active'}`;
+            statusNode.textContent = getSupportStatusLabel(selectedSupportTicket.status);
+            statusSelect.value = selectedSupportTicket.status || 'waiting_support';
+            replyInput.disabled = selectedSupportTicket.status === 'closed';
+            replyButton.disabled = selectedSupportTicket.status === 'closed';
+            messagesNode.innerHTML = Array.isArray(selectedSupportTicket.messages) && selectedSupportTicket.messages.length > 0
+                ? selectedSupportTicket.messages.map((message) => `
+                    <div class="support-ticket-thread-message ${escapeHtml(message.authorType === 'admin' ? 'admin' : 'user')}">
+                        <div class="support-ticket-thread-head">
+                            <span>${escapeHtml(message.authorType === 'admin' ? 'Поддержка' : (selectedSupportTicket.login || 'Игрок'))}</span>
+                            <span>${escapeHtml(formatAdminDateTime(message.createdAt))}</span>
+                        </div>
+                        <div class="support-ticket-thread-text">${escapeHtml(message.message || '')}</div>
+                    </div>
+                `).join('')
+                : '<div class="empty-list">Переписка по тикету пока пуста.</div>';
+        }
+
+        function loadSupportTicketsAdmin(options = {}) {
+            const metaNode = document.getElementById('supportTicketsMeta');
+            const listNode = document.getElementById('supportTicketsList');
+            if (metaNode) {
+                metaNode.textContent = 'Загрузка тикетов поддержки...';
+            }
+            if (listNode) {
+                listNode.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю тикеты...</div>';
+            }
+
+            postAction({
+                action: 'get_support_tickets',
+                status: currentSupportStatusFilter === 'all' ? '' : currentSupportStatusFilter,
+                category: currentSupportCategoryFilter === 'all' ? '' : currentSupportCategoryFilter,
+                unread: currentSupportUnreadFilter,
+                search: currentSupportSearch,
+                limit: 120
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось загрузить тикеты поддержки');
+                }
+
+                supportTickets = Array.isArray(data.tickets) ? data.tickets.map(normalizeAdminSupportTicket).filter(Boolean) : [];
+                renderSupportTicketsAdmin();
+
+                if (supportTickets.length < 1) {
+                    selectedSupportTicketId = 0;
+                    selectedSupportTicket = null;
+                    renderSupportTicketDetailAdmin();
+                    return;
+                }
+
+                const hasSelected = supportTickets.some((ticket) => Number(ticket.id) === Number(selectedSupportTicketId));
+                if (!hasSelected) {
+                    selectedSupportTicketId = Number(supportTickets[0].id) || 0;
+                }
+
+                if (selectedSupportTicketId > 0) {
+                    loadSupportTicketAdmin(selectedSupportTicketId);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (metaNode) {
+                    metaNode.textContent = 'Не удалось загрузить тикеты';
+                }
+                if (listNode) {
+                    listNode.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка сети при загрузке тикетов')}</div>`;
+                }
+                showNotification(error.message || 'Ошибка загрузки тикетов поддержки', 'error');
+            });
+        }
+
+        function loadSupportTicketAdmin(ticketId) {
+            const normalizedTicketId = Math.max(0, Number(ticketId) || 0);
+            if (normalizedTicketId < 1) {
+                selectedSupportTicketId = 0;
+                selectedSupportTicket = null;
+                renderSupportTicketDetailAdmin();
+                return;
+            }
+
+            selectedSupportTicketId = normalizedTicketId;
+            renderSupportTicketsAdmin();
+            postAction({
+                action: 'get_support_ticket',
+                ticket_id: normalizedTicketId
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось открыть тикет поддержки');
+                }
+
+                selectedSupportTicket = normalizeAdminSupportTicket(data.ticket);
+                if (selectedSupportTicket) {
+                    supportTickets = supportTickets.map((ticket) => Number(ticket.id) === Number(selectedSupportTicket.id) ? selectedSupportTicket : ticket);
+                }
+                renderSupportTicketsAdmin();
+                renderSupportTicketDetailAdmin();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка загрузки тикета поддержки', 'error');
+            });
+        }
+
+        function submitSupportReplyAdmin() {
+            const replyInput = document.getElementById('supportReplyInput');
+            const replyButton = document.getElementById('replySupportBtn');
+            if (!replyInput || !replyButton || !selectedSupportTicket || Number(selectedSupportTicket.id) < 1) {
+                return;
+            }
+
+            const message = replyInput.value.trim();
+            if (!message) {
+                showNotification('Введите текст ответа пользователю.', 'warning');
+                return;
+            }
+
+            replyButton.disabled = true;
+            postAction({
+                action: 'reply_support_ticket',
+                ticket_id: selectedSupportTicket.id,
+                message
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось отправить ответ');
+                }
+
+                selectedSupportTicket = normalizeAdminSupportTicket(data.ticket);
+                if (selectedSupportTicket) {
+                    supportTickets = supportTickets.map((ticket) => Number(ticket.id) === Number(selectedSupportTicket.id) ? selectedSupportTicket : ticket);
+                }
+                replyInput.value = '';
+                renderSupportTicketsAdmin();
+                renderSupportTicketDetailAdmin();
+                showNotification(data.message || 'Ответ отправлен пользователю.', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка отправки ответа', 'error');
+            })
+            .finally(() => {
+                replyButton.disabled = false;
+            });
+        }
+
+        function submitSupportStatusAdmin() {
+            const statusSelect = document.getElementById('supportStatusSelect');
+            const saveButton = document.getElementById('saveSupportStatusBtn');
+            if (!statusSelect || !saveButton || !selectedSupportTicket || Number(selectedSupportTicket.id) < 1) {
+                return;
+            }
+
+            saveButton.disabled = true;
+            postAction({
+                action: 'update_support_ticket_status',
+                ticket_id: selectedSupportTicket.id,
+                status: statusSelect.value
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось обновить статус тикета');
+                }
+
+                selectedSupportTicket = normalizeAdminSupportTicket(data.ticket);
+                if (selectedSupportTicket) {
+                    supportTickets = supportTickets.map((ticket) => Number(ticket.id) === Number(selectedSupportTicket.id) ? selectedSupportTicket : ticket);
+                }
+                renderSupportTicketsAdmin();
+                renderSupportTicketDetailAdmin();
+                showNotification(data.message || 'Статус тикета обновлен.', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка обновления статуса тикета', 'error');
+            })
+            .finally(() => {
+                saveButton.disabled = false;
+            });
+        }
+
+        function showSupportView() {
+            currentAdminView = 'support';
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'block';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('supportBtn');
+            loadDashboardStats();
+            loadSupportTicketsAdmin();
         }
 
         function updateAddSkinPreview() {
@@ -7144,6 +7864,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -7162,6 +7883,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'statistics';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -7177,6 +7899,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'maintenance';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -7191,6 +7914,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             currentAdminView = 'sql';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
@@ -7322,6 +8046,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             };
 
             return labels[String(type || '').toLowerCase()] || String(type || 'Событие');
+        }
+
+        function getSupportCategoryLabel(category) {
+            const labels = {
+                account: 'Аккаунт',
+                ban_appeal: 'Бан и апелляция',
+                bugs: 'Ошибки и баги',
+                skins: 'Скины и магазин',
+                fly_beaver: 'Летающий бобер',
+                other: 'Другое'
+            };
+
+            return labels[String(category || '').toLowerCase()] || 'Другое';
+        }
+
+        function getSupportStatusLabel(status) {
+            const labels = {
+                waiting_support: 'Ждет поддержку',
+                waiting_user: 'Ждет игрока',
+                closed: 'Закрыт'
+            };
+
+            return labels[String(status || '').toLowerCase()] || 'Ждет поддержку';
         }
 
         function getSkinRarityOrder(rarity) {
@@ -8969,6 +9716,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             // Показываем карточку с данными таблицы
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';

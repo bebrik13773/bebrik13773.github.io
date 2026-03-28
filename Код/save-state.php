@@ -23,8 +23,10 @@ try {
     $userId = $sessionUserId;
 
     $conn = bober_db_connect();
+    bober_ensure_gameplay_schema($conn);
     bober_enforce_runtime_access_rules($conn, $userId);
     $saveResult = bober_apply_user_state_update($conn, $userId, $data);
+    $account = bober_fetch_account_snapshot($conn, $userId);
 
     $conn->close();
 
@@ -32,6 +34,10 @@ try {
         'success' => true,
         'message' => 'Прогресс сохранен.',
         'clientLog' => $saveResult['clientLog'] ?? null,
+        'account' => $account,
+        'achievements' => is_array($account) ? ($account['achievements'] ?? []) : [],
+        'achievementUnlocks' => is_array($account) ? ($account['achievementUnlocks'] ?? []) : [],
+        'supportSummary' => is_array($account) ? ($account['supportSummary'] ?? null) : null,
     ]);
 } catch (Throwable $error) {
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);

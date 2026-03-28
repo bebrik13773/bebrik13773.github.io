@@ -12,6 +12,143 @@
         summaryStorageKey: 'bober_client_log_summary',
         deviceIdStorageKey: 'bober_client_log_device_id'
     };
+    var ACHIEVEMENT_DEFINITIONS = Object.freeze({
+        clicker_10k: Object.freeze({
+            title: 'Разогрев',
+            description: 'Наберите 10 000 коинов в основном кликере.',
+            icon: '🔥'
+        }),
+        clicker_50k: Object.freeze({
+            title: 'Уверенный старт',
+            description: 'Наберите 50 000 коинов в основном кликере.',
+            icon: '🚀'
+        }),
+        clicker_100k: Object.freeze({
+            title: 'Первая сотня тысяч',
+            description: 'Наберите 100 000 коинов в основном кликере.',
+            icon: '💯'
+        }),
+        clicker_500k: Object.freeze({
+            title: 'Полмиллиона',
+            description: 'Наберите 500 000 коинов в основном кликере.',
+            icon: '💎'
+        }),
+        clicker_1m: Object.freeze({
+            title: 'Миллионер',
+            description: 'Наберите 1 000 000 коинов в основном кликере.',
+            icon: '🏦'
+        }),
+        clicker_5m: Object.freeze({
+            title: 'Пять миллионов',
+            description: 'Наберите 5 000 000 коинов в основном кликере.',
+            icon: '💼'
+        }),
+        clicker_10m: Object.freeze({
+            title: 'Десятимиллионный клуб',
+            description: 'Наберите 10 000 000 коинов в основном кликере.',
+            icon: '🪙'
+        }),
+        clicker_50m: Object.freeze({
+            title: 'Финансовый бобр',
+            description: 'Наберите 50 000 000 коинов в основном кликере.',
+            icon: '🏛️'
+        }),
+        collector_1: Object.freeze({
+            title: 'Первый скин',
+            description: 'Получите первый скин в коллекции.',
+            icon: '🧥'
+        }),
+        collector_3: Object.freeze({
+            title: 'Коллекционер',
+            description: 'Соберите минимум 3 скина.',
+            icon: '🎨'
+        }),
+        collector_5: Object.freeze({
+            title: 'Гардероб',
+            description: 'Соберите минимум 5 скинов.',
+            icon: '👕'
+        }),
+        collector_10: Object.freeze({
+            title: 'Модный дом',
+            description: 'Соберите минимум 10 скинов.',
+            icon: '🛍️'
+        }),
+        collector_20: Object.freeze({
+            title: 'Музей бобров',
+            description: 'Соберите минимум 20 скинов.',
+            icon: '🏛️'
+        }),
+        fly_best_10: Object.freeze({
+            title: 'Первые крылья',
+            description: 'Получите рекорд 10 в Летающем бобре.',
+            icon: '🪽'
+        }),
+        fly_best_25: Object.freeze({
+            title: 'Низкий пролет',
+            description: 'Получите рекорд 25 в Летающем бобре.',
+            icon: '🌿'
+        }),
+        fly_best_50: Object.freeze({
+            title: 'Повелитель болота',
+            description: 'Получите рекорд 50 в Летающем бобре.',
+            icon: '🌫️'
+        }),
+        fly_best_75: Object.freeze({
+            title: 'Над камышами',
+            description: 'Получите рекорд 75 в Летающем бобре.',
+            icon: '🪶'
+        }),
+        fly_best_100: Object.freeze({
+            title: 'Сотня в полете',
+            description: 'Получите рекорд 100 в Летающем бобре.',
+            icon: '🌤️'
+        }),
+        fly_best_150: Object.freeze({
+            title: 'Небесный бобр',
+            description: 'Получите рекорд 150 в Летающем бобре.',
+            icon: '☁️'
+        }),
+        fly_games_10: Object.freeze({
+            title: 'Не сдаюсь',
+            description: 'Сыграйте 10 забегов в Летающем бобре.',
+            icon: '🎮'
+        }),
+        fly_games_50: Object.freeze({
+            title: 'Ветеран полетов',
+            description: 'Сыграйте 50 забегов в Летающем бобре.',
+            icon: '🧭'
+        }),
+        fly_games_100: Object.freeze({
+            title: 'Летная школа',
+            description: 'Сыграйте 100 забегов в Летающем бобре.',
+            icon: '🏅'
+        }),
+        upgrades_total_10: Object.freeze({
+            title: 'Механик',
+            description: 'Купите суммарно 10 улучшений.',
+            icon: '🛠️'
+        }),
+        upgrades_total_25: Object.freeze({
+            title: 'Инженер клика',
+            description: 'Купите суммарно 25 улучшений.',
+            icon: '⚙️'
+        }),
+        upgrades_total_50: Object.freeze({
+            title: 'Архитектор фермы',
+            description: 'Купите суммарно 50 улучшений.',
+            icon: '🏗️'
+        }),
+        top_clicker_1: Object.freeze({
+            title: 'Топ-1 кликера',
+            description: 'Удерживайте первое место в основном лидерборде.',
+            icon: '👑'
+        }),
+        top_fly_1: Object.freeze({
+            title: 'Топ-1 fly-beaver',
+            description: 'Удерживайте первое место в Летающем бобре.',
+            icon: '🏆'
+        })
+    });
 
     function defaultUserSettings() {
         return {
@@ -1007,6 +1144,7 @@
         USER_SETTINGS_CACHE_KEY: USER_SETTINGS_CACHE_KEY,
         FLY_COINS_PER_SCORE: DEFAULT_FLY_COINS_PER_SCORE,
         DEFAULT_CLIENT_LOG_CONFIG: Object.freeze(Object.assign({}, DEFAULT_CLIENT_LOG_CONFIG)),
+        ACHIEVEMENT_DEFINITIONS: ACHIEVEMENT_DEFINITIONS,
         defaultUserSettings: defaultUserSettings,
         normalizeUserSettings: normalizeUserSettings,
         readCachedUserSettings: readCachedUserSettings,

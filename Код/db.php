@@ -2819,6 +2819,49 @@ SQL;
     }
 }
 
+function bober_ensure_support_schema($conn)
+{
+    $createTicketsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `support_tickets` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `category` VARCHAR(64) NOT NULL,
+    `subject` VARCHAR(180) NOT NULL,
+    `status` VARCHAR(32) NOT NULL DEFAULT 'waiting_support',
+    `unread_by_user` INT NOT NULL DEFAULT 0,
+    `unread_by_admin` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `last_user_message_at` TIMESTAMP NULL DEFAULT NULL,
+    `last_admin_message_at` TIMESTAMP NULL DEFAULT NULL,
+    KEY `idx_support_tickets_user` (`user_id`, `updated_at`),
+    KEY `idx_support_tickets_status` (`status`, `updated_at`),
+    KEY `idx_support_tickets_admin_unread` (`unread_by_admin`, `updated_at`),
+    KEY `idx_support_tickets_user_unread` (`unread_by_user`, `updated_at`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createTicketsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу тикетов поддержки.');
+    }
+
+    $createMessagesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `support_ticket_messages` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `ticket_id` BIGINT UNSIGNED NOT NULL,
+    `author_type` VARCHAR(16) NOT NULL,
+    `author_user_id` INT NULL,
+    `message_text` LONGTEXT NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_support_ticket_messages_ticket` (`ticket_id`, `created_at`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createMessagesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу сообщений тикетов.');
+    }
+}
+
 function bober_ensure_gameplay_schema($conn)
 {
     static $schemaEnsured = false;
@@ -2832,6 +2875,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_fly_beaver_schema($conn);
     bober_ensure_user_settings_schema($conn);
     bober_ensure_user_achievements_schema($conn);
+    bober_ensure_support_schema($conn);
 
     $schemaEnsured = true;
 }
@@ -2996,21 +3040,659 @@ function bober_store_user_settings($conn, $userId, $settings)
     return $normalized;
 }
 
+function bober_support_ticket_categories()
+{
+    return [
+        'account',
+        'ban_appeal',
+        'bugs',
+        'skins_shop',
+        'fly_beaver',
+        'other',
+    ];
+}
+
+function bober_support_ticket_statuses()
+{
+    return [
+        'waiting_support',
+        'waiting_user',
+        'closed',
+    ];
+}
+
+function bober_normalize_support_ticket_category($value)
+{
+    $normalized = strtolower(trim((string) $value));
+    return in_array($normalized, bober_support_ticket_categories(), true) ? $normalized : 'other';
+}
+
+function bober_normalize_support_ticket_status($value)
+{
+    $normalized = strtolower(trim((string) $value));
+    return in_array($normalized, bober_support_ticket_statuses(), true) ? $normalized : 'waiting_support';
+}
+
+function bober_support_text_length($value)
+{
+    $text = (string) $value;
+    if (function_exists('mb_strlen')) {
+        return (int) mb_strlen($text, 'UTF-8');
+    }
+
+    return strlen($text);
+}
+
+function bober_normalize_support_ticket_subject($value)
+{
+    $subject = trim(preg_replace('/\s+/u', ' ', (string) $value));
+    $length = bober_support_text_length($subject);
+    if ($length < 4) {
+        throw new InvalidArgumentException('Тема тикета должна быть не короче 4 символов.');
+    }
+    if ($length > 180) {
+        throw new InvalidArgumentException('Тема тикета слишком длинная.');
+    }
+
+    return $subject;
+}
+
+function bober_normalize_support_ticket_message($value)
+{
+    $message = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+    $length = bober_support_text_length($message);
+    if ($length < 10) {
+        throw new InvalidArgumentException('Сообщение тикета должно быть не короче 10 символов.');
+    }
+    if ($length > 6000) {
+        throw new InvalidArgumentException('Сообщение тикета слишком длинное.');
+    }
+
+    return $message;
+}
+
+function bober_fetch_user_support_summary($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [
+            'unreadReplies' => 0,
+            'openTickets' => 0,
+        ];
+    }
+
+    bober_ensure_support_schema($conn);
+    $stmt = $conn->prepare('SELECT COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) AS open_tickets, COALESCE(SUM(unread_by_user), 0) AS unread_replies FROM support_tickets WHERE user_id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сводку тикетов поддержки.');
+    }
+
+    $closedStatus = 'closed';
+    $stmt->bind_param('si', $closedStatus, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить сводку тикетов поддержки.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return [
+        'unreadReplies' => max(0, (int) ($row['unread_replies'] ?? 0)),
+        'openTickets' => max(0, (int) ($row['open_tickets'] ?? 0)),
+    ];
+}
+
+function bober_normalize_support_ticket_row(array $row)
+{
+    return [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'userId' => max(0, (int) ($row['user_id'] ?? $row['userId'] ?? 0)),
+        'login' => isset($row['login']) ? (string) $row['login'] : '',
+        'category' => bober_normalize_support_ticket_category($row['category'] ?? ''),
+        'subject' => (string) ($row['subject'] ?? ''),
+        'status' => bober_normalize_support_ticket_status($row['status'] ?? ''),
+        'unreadByUser' => max(0, (int) ($row['unread_by_user'] ?? $row['unreadByUser'] ?? 0)),
+        'unreadByAdmin' => max(0, (int) ($row['unread_by_admin'] ?? $row['unreadByAdmin'] ?? 0)),
+        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
+        'lastUserMessageAt' => isset($row['last_user_message_at']) ? (string) $row['last_user_message_at'] : null,
+        'lastAdminMessageAt' => isset($row['last_admin_message_at']) ? (string) $row['last_admin_message_at'] : null,
+        'lastMessagePreview' => isset($row['last_message_preview']) ? (string) $row['last_message_preview'] : '',
+    ];
+}
+
+function bober_fetch_support_ticket_messages($conn, $ticketId)
+{
+    $ticketId = max(0, (int) $ticketId);
+    if ($ticketId < 1) {
+        return [];
+    }
+
+    $stmt = $conn->prepare('SELECT id, author_type, author_user_id, message_text, created_at FROM support_ticket_messages WHERE ticket_id = ? ORDER BY id ASC');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение сообщений тикета.');
+    }
+
+    $stmt->bind_param('i', $ticketId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить сообщения тикета.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $items[] = [
+            'id' => max(0, (int) ($row['id'] ?? 0)),
+            'authorType' => (string) ($row['author_type'] ?? 'user'),
+            'authorUserId' => isset($row['author_user_id']) ? max(0, (int) $row['author_user_id']) : null,
+            'message' => (string) ($row['message_text'] ?? ''),
+            'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_fetch_user_support_tickets($conn, $userId, array $options = [])
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    bober_ensure_support_schema($conn);
+    $limit = max(1, min(100, (int) ($options['limit'] ?? 50)));
+    $stmt = $conn->prepare("
+        SELECT
+            t.id,
+            t.user_id,
+            t.category,
+            t.subject,
+            t.status,
+            t.unread_by_user,
+            t.unread_by_admin,
+            t.created_at,
+            t.updated_at,
+            t.last_user_message_at,
+            t.last_admin_message_at,
+            (
+                SELECT LEFT(m.message_text, 220)
+                FROM support_ticket_messages m
+                WHERE m.ticket_id = t.id
+                ORDER BY m.id DESC
+                LIMIT 1
+            ) AS last_message_preview
+        FROM support_tickets t
+        WHERE t.user_id = ?
+        ORDER BY t.unread_by_user DESC, t.updated_at DESC, t.id DESC
+        LIMIT {$limit}
+    ");
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить список тикетов пользователя.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить список тикетов пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $items[] = bober_normalize_support_ticket_row($row);
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_mark_user_support_ticket_read($conn, $userId, $ticketId)
+{
+    $userId = max(0, (int) $userId);
+    $ticketId = max(0, (int) $ticketId);
+    if ($userId < 1 || $ticketId < 1) {
+        return false;
+    }
+
+    $stmt = $conn->prepare('UPDATE support_tickets SET unread_by_user = 0 WHERE id = ? AND user_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить отметку тикета как прочитанного.');
+    }
+
+    $stmt->bind_param('ii', $ticketId, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось отметить тикет как прочитанный.');
+    }
+
+    $affected = $stmt->affected_rows > 0;
+    $stmt->close();
+    return $affected;
+}
+
+function bober_fetch_user_support_ticket($conn, $userId, $ticketId, $markRead = false)
+{
+    $userId = max(0, (int) $userId);
+    $ticketId = max(0, (int) $ticketId);
+    if ($userId < 1 || $ticketId < 1) {
+        throw new InvalidArgumentException('Некорректный тикет поддержки.');
+    }
+
+    $stmt = $conn->prepare('SELECT id, user_id, category, subject, status, unread_by_user, unread_by_admin, created_at, updated_at, last_user_message_at, last_admin_message_at FROM support_tickets WHERE id = ? AND user_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение тикета поддержки.');
+    }
+
+    $stmt->bind_param('ii', $ticketId, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить тикет поддержки.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Тикет не найден.');
+    }
+
+    if ($markRead) {
+        bober_mark_user_support_ticket_read($conn, $userId, $ticketId);
+        $row['unread_by_user'] = 0;
+    }
+
+    $ticket = bober_normalize_support_ticket_row($row);
+    $ticket['messages'] = bober_fetch_support_ticket_messages($conn, $ticketId);
+    return $ticket;
+}
+
+function bober_create_support_ticket($conn, $userId, $category, $subject, $message)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Не удалось определить аккаунт для тикета.');
+    }
+
+    bober_ensure_support_schema($conn);
+    $category = bober_normalize_support_ticket_category($category);
+    $subject = bober_normalize_support_ticket_subject($subject);
+    $message = bober_normalize_support_ticket_message($message);
+    $status = 'waiting_support';
+
+    $ticketStmt = $conn->prepare('INSERT INTO support_tickets (user_id, category, subject, status, unread_by_user, unread_by_admin, last_user_message_at) VALUES (?, ?, ?, ?, 0, 1, CURRENT_TIMESTAMP)');
+    if (!$ticketStmt) {
+        throw new RuntimeException('Не удалось подготовить создание тикета поддержки.');
+    }
+
+    $ticketStmt->bind_param('isss', $userId, $category, $subject, $status);
+    if (!$ticketStmt->execute()) {
+        $ticketStmt->close();
+        throw new RuntimeException('Не удалось создать тикет поддержки.');
+    }
+
+    $ticketId = max(0, (int) $ticketStmt->insert_id);
+    $ticketStmt->close();
+    if ($ticketId < 1) {
+        throw new RuntimeException('Не удалось определить созданный тикет поддержки.');
+    }
+
+    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, ?, ?)');
+    if (!$messageStmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение сообщения тикета.');
+    }
+
+    $authorType = 'user';
+    $messageStmt->bind_param('isis', $ticketId, $authorType, $userId, $message);
+    if (!$messageStmt->execute()) {
+        $messageStmt->close();
+        throw new RuntimeException('Не удалось сохранить сообщение тикета.');
+    }
+    $messageStmt->close();
+
+    return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+}
+
+function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message)
+{
+    $userId = max(0, (int) $userId);
+    $ticketId = max(0, (int) $ticketId);
+    if ($userId < 1 || $ticketId < 1) {
+        throw new InvalidArgumentException('Не удалось определить тикет пользователя.');
+    }
+
+    $message = bober_normalize_support_ticket_message($message);
+    $ticket = bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+
+    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, ?, ?)');
+    if (!$messageStmt) {
+        throw new RuntimeException('Не удалось подготовить ответ в тикет.');
+    }
+
+    $authorType = 'user';
+    $messageStmt->bind_param('isis', $ticketId, $authorType, $userId, $message);
+    if (!$messageStmt->execute()) {
+        $messageStmt->close();
+        throw new RuntimeException('Не удалось сохранить ответ пользователя.');
+    }
+    $messageStmt->close();
+
+    $status = 'waiting_support';
+    $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось обновить статус тикета.');
+    }
+
+    $updateStmt->bind_param('sii', $status, $ticketId, $userId);
+    if (!$updateStmt->execute()) {
+        $updateStmt->close();
+        throw new RuntimeException('Не удалось обновить тикет после ответа пользователя.');
+    }
+    $updateStmt->close();
+
+    return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+}
+
+function bober_mark_admin_support_ticket_read($conn, $ticketId)
+{
+    $ticketId = max(0, (int) $ticketId);
+    if ($ticketId < 1) {
+        return false;
+    }
+
+    $stmt = $conn->prepare('UPDATE support_tickets SET unread_by_admin = 0 WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить отметку тикета как прочитанного для админа.');
+    }
+
+    $stmt->bind_param('i', $ticketId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось отметить тикет как прочитанный для админа.');
+    }
+
+    $affected = $stmt->affected_rows > 0;
+    $stmt->close();
+    return $affected;
+}
+
+function bober_fetch_admin_support_tickets($conn, array $options = [])
+{
+    bober_ensure_support_schema($conn);
+    $limit = max(1, min(200, (int) ($options['limit'] ?? 80)));
+    $status = bober_normalize_support_ticket_status($options['status'] ?? '');
+    $category = bober_normalize_support_ticket_category($options['category'] ?? '');
+    $unreadFilter = trim((string) ($options['unread'] ?? 'all'));
+    $search = trim((string) ($options['search'] ?? ''));
+
+    $where = ['1=1'];
+    if (!empty($options['status']) && $status !== '') {
+        $where[] = "t.status = '" . $conn->real_escape_string($status) . "'";
+    }
+    if (!empty($options['category']) && $category !== '') {
+        $where[] = "t.category = '" . $conn->real_escape_string($category) . "'";
+    }
+    if ($unreadFilter === 'admin') {
+        $where[] = 't.unread_by_admin > 0';
+    } elseif ($unreadFilter === 'user') {
+        $where[] = 't.unread_by_user > 0';
+    }
+    if ($search !== '') {
+        $escapedSearch = $conn->real_escape_string('%' . $search . '%');
+        $where[] = "(u.login LIKE '{$escapedSearch}' OR t.subject LIKE '{$escapedSearch}')";
+    }
+
+    $sql = "
+        SELECT
+            t.id,
+            t.user_id,
+            u.login,
+            t.category,
+            t.subject,
+            t.status,
+            t.unread_by_user,
+            t.unread_by_admin,
+            t.created_at,
+            t.updated_at,
+            t.last_user_message_at,
+            t.last_admin_message_at,
+            (
+                SELECT LEFT(m.message_text, 220)
+                FROM support_ticket_messages m
+                WHERE m.ticket_id = t.id
+                ORDER BY m.id DESC
+                LIMIT 1
+            ) AS last_message_preview
+        FROM support_tickets t
+        LEFT JOIN users u
+            ON u.id = t.user_id
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY t.unread_by_admin DESC, t.updated_at DESC, t.id DESC
+        LIMIT {$limit}
+    ";
+
+    $result = $conn->query($sql);
+    if ($result === false) {
+        throw new RuntimeException('Не удалось получить список тикетов поддержки.');
+    }
+
+    $items = [];
+    while ($row = $result->fetch_assoc()) {
+        $items[] = bober_normalize_support_ticket_row($row);
+    }
+    $result->free();
+
+    return $items;
+}
+
+function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true)
+{
+    $ticketId = max(0, (int) $ticketId);
+    if ($ticketId < 1) {
+        throw new InvalidArgumentException('Некорректный тикет поддержки.');
+    }
+
+    $stmt = $conn->prepare('SELECT t.id, t.user_id, u.login, t.category, t.subject, t.status, t.unread_by_user, t.unread_by_admin, t.created_at, t.updated_at, t.last_user_message_at, t.last_admin_message_at FROM support_tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение тикета поддержки для админа.');
+    }
+
+    $stmt->bind_param('i', $ticketId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить тикет поддержки для админа.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Тикет не найден.');
+    }
+
+    if ($markRead) {
+        bober_mark_admin_support_ticket_read($conn, $ticketId);
+        $row['unread_by_admin'] = 0;
+    }
+
+    $ticket = bober_normalize_support_ticket_row($row);
+    $ticket['messages'] = bober_fetch_support_ticket_messages($conn, $ticketId);
+    return $ticket;
+}
+
+function bober_reply_support_ticket_as_admin($conn, $ticketId, $message)
+{
+    $ticketId = max(0, (int) $ticketId);
+    if ($ticketId < 1) {
+        throw new InvalidArgumentException('Не удалось определить тикет для ответа.');
+    }
+
+    $message = bober_normalize_support_ticket_message($message);
+    $ticket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
+
+    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, NULL, ?)');
+    if (!$messageStmt) {
+        throw new RuntimeException('Не удалось подготовить ответ поддержки.');
+    }
+
+    $authorType = 'admin';
+    $messageStmt->bind_param('iss', $ticketId, $authorType, $message);
+    if (!$messageStmt->execute()) {
+        $messageStmt->close();
+        throw new RuntimeException('Не удалось сохранить ответ поддержки.');
+    }
+    $messageStmt->close();
+
+    $status = 'waiting_user';
+    $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_user = unread_by_user + 1, unread_by_admin = 0, updated_at = CURRENT_TIMESTAMP, last_admin_message_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось обновить тикет после ответа поддержки.');
+    }
+
+    $updateStmt->bind_param('si', $status, $ticketId);
+    if (!$updateStmt->execute()) {
+        $updateStmt->close();
+        throw new RuntimeException('Не удалось обновить тикет после ответа поддержки.');
+    }
+    $updateStmt->close();
+
+    return bober_fetch_admin_support_ticket($conn, $ticketId, false);
+}
+
+function bober_update_support_ticket_status($conn, $ticketId, $status)
+{
+    $ticketId = max(0, (int) $ticketId);
+    $status = bober_normalize_support_ticket_status($status);
+    if ($ticketId < 1) {
+        throw new InvalidArgumentException('Не удалось определить тикет для смены статуса.');
+    }
+
+    $stmt = $conn->prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить смену статуса тикета.');
+    }
+
+    $stmt->bind_param('si', $status, $ticketId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сменить статус тикета.');
+    }
+    $stmt->close();
+
+    return bober_fetch_admin_support_ticket($conn, $ticketId, false);
+}
+
+function bober_get_achievement_reward_map()
+{
+    return [
+        'clicker_10k' => 2500,
+        'clicker_50k' => 7500,
+        'clicker_100k' => 0,
+        'clicker_500k' => 25000,
+        'clicker_1m' => 0,
+        'clicker_5m' => 100000,
+        'clicker_10m' => 250000,
+        'clicker_50m' => 1000000,
+        'collector_1' => 1000,
+        'collector_3' => 0,
+        'collector_5' => 5000,
+        'collector_10' => 15000,
+        'collector_20' => 75000,
+        'fly_best_10' => 2500,
+        'fly_best_25' => 0,
+        'fly_best_50' => 0,
+        'fly_best_75' => 15000,
+        'fly_best_100' => 30000,
+        'fly_best_150' => 75000,
+        'fly_games_10' => 5000,
+        'fly_games_50' => 15000,
+        'fly_games_100' => 40000,
+        'upgrades_total_10' => 5000,
+        'upgrades_total_25' => 15000,
+        'upgrades_total_50' => 40000,
+        'top_clicker_1' => 0,
+        'top_fly_1' => 0,
+    ];
+}
+
+function bober_get_achievement_reward_coins($achievementKey)
+{
+    $map = bober_get_achievement_reward_map();
+    return max(0, (int) ($map[$achievementKey] ?? 0));
+}
+
 function bober_collect_expected_achievement_keys(array $snapshot)
 {
     $keys = [];
     $score = max(0, (int) ($snapshot['score'] ?? 0));
     $ownedSkinCount = max(0, (int) ($snapshot['ownedSkinCount'] ?? 0));
+    $totalUpgradePurchases = max(0, (int) ($snapshot['totalUpgradePurchases'] ?? 0));
     $clickerTop1 = !empty($snapshot['clickerTop1']);
     $flyTop1 = !empty($snapshot['flyTop1']);
     $flyBeaver = is_array($snapshot['flyBeaver'] ?? null) ? $snapshot['flyBeaver'] : [];
     $flyBest = max(0, (int) ($flyBeaver['bestScore'] ?? 0));
+    $flyGamesPlayed = max(0, (int) ($flyBeaver['gamesPlayed'] ?? ($snapshot['flyGamesPlayed'] ?? 0)));
+
+    if ($score >= 10000) {
+        $keys[] = 'clicker_10k';
+    }
+    if ($score >= 50000) {
+        $keys[] = 'clicker_50k';
+    }
 
     if ($score >= 100000) {
         $keys[] = 'clicker_100k';
     }
+    if ($score >= 500000) {
+        $keys[] = 'clicker_500k';
+    }
     if ($score >= 1000000) {
         $keys[] = 'clicker_1m';
+    }
+    if ($score >= 5000000) {
+        $keys[] = 'clicker_5m';
+    }
+    if ($score >= 10000000) {
+        $keys[] = 'clicker_10m';
+    }
+    if ($score >= 50000000) {
+        $keys[] = 'clicker_50m';
+    }
+    if ($ownedSkinCount >= 1) {
+        $keys[] = 'collector_1';
+    }
+    if ($ownedSkinCount >= 5) {
+        $keys[] = 'collector_5';
+    }
+    if ($ownedSkinCount >= 10) {
+        $keys[] = 'collector_10';
+    }
+    if ($ownedSkinCount >= 20) {
+        $keys[] = 'collector_20';
+    }
+    if ($flyBest >= 10) {
+        $keys[] = 'fly_best_10';
     }
     if ($flyBest >= 25) {
         $keys[] = 'fly_best_25';
@@ -3018,8 +3700,35 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($flyBest >= 50) {
         $keys[] = 'fly_best_50';
     }
+    if ($flyBest >= 75) {
+        $keys[] = 'fly_best_75';
+    }
+    if ($flyBest >= 100) {
+        $keys[] = 'fly_best_100';
+    }
+    if ($flyBest >= 150) {
+        $keys[] = 'fly_best_150';
+    }
+    if ($flyGamesPlayed >= 10) {
+        $keys[] = 'fly_games_10';
+    }
+    if ($flyGamesPlayed >= 50) {
+        $keys[] = 'fly_games_50';
+    }
+    if ($flyGamesPlayed >= 100) {
+        $keys[] = 'fly_games_100';
+    }
     if ($ownedSkinCount >= 3) {
         $keys[] = 'collector_3';
+    }
+    if ($totalUpgradePurchases >= 10) {
+        $keys[] = 'upgrades_total_10';
+    }
+    if ($totalUpgradePurchases >= 25) {
+        $keys[] = 'upgrades_total_25';
+    }
+    if ($totalUpgradePurchases >= 50) {
+        $keys[] = 'upgrades_total_50';
     }
     if ($clickerTop1) {
         $keys[] = 'top_clicker_1';
@@ -3077,13 +3786,21 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
-        return [];
+        return [
+            'items' => [],
+            'newlyUnlocked' => [],
+            'rewardCoins' => 0,
+        ];
     }
 
     bober_ensure_user_achievements_schema($conn);
     $expectedKeys = bober_collect_expected_achievement_keys($snapshot);
     if (count($expectedKeys) < 1) {
-        return bober_fetch_user_achievements($conn, $userId);
+        return [
+            'items' => bober_fetch_user_achievements($conn, $userId),
+            'newlyUnlocked' => [],
+            'rewardCoins' => 0,
+        ];
     }
 
     $existingStmt = $conn->prepare('SELECT achievement_key FROM user_achievements WHERE user_id = ?');
@@ -3108,14 +3825,24 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
     $existingStmt->close();
 
     $missingKeys = array_values(array_diff($expectedKeys, $existingKeys));
+    $rewardCoinsTotal = 0;
     if (!empty($missingKeys)) {
-        $insertStmt = $conn->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_key, meta_json) VALUES (?, ?, NULL)');
+        $insertStmt = $conn->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_key, meta_json) VALUES (?, ?, ?)');
         if (!$insertStmt) {
             throw new RuntimeException('Не удалось подготовить запись достижений пользователя.');
         }
 
         foreach ($missingKeys as $achievementKey) {
-            $insertStmt->bind_param('is', $userId, $achievementKey);
+            $rewardCoins = bober_get_achievement_reward_coins($achievementKey);
+            $rewardCoinsTotal += $rewardCoins;
+            $metaJson = json_encode([
+                'rewardCoins' => $rewardCoins,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($metaJson === false) {
+                $metaJson = '{"rewardCoins":0}';
+            }
+
+            $insertStmt->bind_param('iss', $userId, $achievementKey, $metaJson);
             if (!$insertStmt->execute()) {
                 $insertStmt->close();
                 throw new RuntimeException('Не удалось сохранить новое достижение пользователя.');
@@ -3123,9 +3850,37 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
         }
 
         $insertStmt->close();
+
+        if ($rewardCoinsTotal > 0) {
+            $rewardStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ? LIMIT 1');
+            if (!$rewardStmt) {
+                throw new RuntimeException('Не удалось подготовить начисление наград за достижения.');
+            }
+
+            $rewardStmt->bind_param('ii', $rewardCoinsTotal, $userId);
+            if (!$rewardStmt->execute()) {
+                $rewardStmt->close();
+                throw new RuntimeException('Не удалось начислить награды за достижения.');
+            }
+            $rewardStmt->close();
+        }
     }
 
-    return bober_fetch_user_achievements($conn, $userId);
+    $items = bober_fetch_user_achievements($conn, $userId);
+    $newlyUnlocked = [];
+    if (!empty($missingKeys)) {
+        foreach ($items as $item) {
+            if (in_array((string) ($item['key'] ?? ''), $missingKeys, true)) {
+                $newlyUnlocked[] = $item;
+            }
+        }
+    }
+
+    return [
+        'items' => $items,
+        'newlyUnlocked' => $newlyUnlocked,
+        'rewardCoins' => $rewardCoinsTotal,
+    ];
 }
 
 function bober_fetch_public_leaderboard($conn, $limit = 3)
@@ -3497,20 +4252,39 @@ function bober_fetch_account_snapshot($conn, $userId)
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
     $skinState = bober_decode_skin_state($normalizedSkin);
     $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+    $upgradeTapSmallCount = max(0, (int) ($row['upgrade_tap_small_count'] ?? 0));
+    $upgradeTapBigCount = max(0, (int) ($row['upgrade_tap_big_count'] ?? 0));
+    $upgradeEnergyCount = max(0, (int) ($row['upgrade_energy_count'] ?? 0));
+    $upgradeTapHugeCount = max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0));
+    $upgradeRegenBoostCount = max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0));
+    $upgradeEnergyHugeCount = max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0));
+    $totalUpgradePurchases = $upgradeTapSmallCount
+        + $upgradeTapBigCount
+        + $upgradeEnergyCount
+        + $upgradeTapHugeCount
+        + $upgradeRegenBoostCount
+        + $upgradeEnergyHugeCount;
     $achievementSnapshot = [
         'score' => max(0, (int) ($row['score'] ?? 0)),
         'ownedSkinCount' => count($ownedSkinIds),
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
         'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
         'flyBeaver' => $flyBeaver,
+        'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? 0)),
+        'totalUpgradePurchases' => $totalUpgradePurchases,
     ];
-    $achievements = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
+    $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
+    $achievements = is_array($achievementRefresh['items'] ?? null) ? $achievementRefresh['items'] : [];
+    $achievementUnlocks = is_array($achievementRefresh['newlyUnlocked'] ?? null) ? $achievementRefresh['newlyUnlocked'] : [];
+    $achievementRewardCoins = max(0, (int) ($achievementRefresh['rewardCoins'] ?? 0));
+    $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins;
+    $supportSummary = bober_fetch_user_support_summary($conn, $userId);
     $profile = [
         'ownedSkins' => count($ownedSkinIds),
         'achievementsUnlocked' => count($achievements),
         'clickerTop1' => !empty($achievementSnapshot['clickerTop1']),
         'flyTop1' => !empty($achievementSnapshot['flyTop1']),
-        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'score' => $resolvedScore,
         'plus' => max(1, (int) ($row['plus'] ?? 1)),
         'energyMax' => $energyMax,
         'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
@@ -3527,19 +4301,21 @@ function bober_fetch_account_snapshot($conn, $userId)
         'energy' => $energy,
         'lastEnergyUpdate' => max(0, (int) ($row['last_energy_update'] ?? 0)),
         'ENERGY_MAX' => $energyMax,
-        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'score' => $resolvedScore,
         'upgradePurchases' => [
-            'tapSmall' => max(0, (int) ($row['upgrade_tap_small_count'] ?? 0)),
-            'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
-            'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
-            'tapHuge' => max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0)),
-            'regenBoost' => max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0)),
-            'energyHuge' => max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0)),
+            'tapSmall' => $upgradeTapSmallCount,
+            'tapBig' => $upgradeTapBigCount,
+            'energy' => $upgradeEnergyCount,
+            'tapHuge' => $upgradeTapHugeCount,
+            'regenBoost' => $upgradeRegenBoostCount,
+            'energyHuge' => $upgradeEnergyHugeCount,
         ],
         'flyBeaver' => $flyBeaver,
         'settings' => bober_fetch_user_settings($conn, $userId),
         'profile' => $profile,
         'achievements' => $achievements,
+        'achievementUnlocks' => $achievementUnlocks,
+        'supportSummary' => $supportSummary,
     ];
 }
 

@@ -17,6 +17,11 @@ try {
     $account = null;
     $settings = bober_default_user_settings();
     $flyBeaver = bober_default_fly_beaver_progress();
+    $supportSummary = [
+        'unreadReplies' => 0,
+        'openTickets' => 0,
+    ];
+    $achievementUnlocks = [];
     $saveResult = null;
     $settingsSaved = false;
 
@@ -83,6 +88,8 @@ try {
         $account = bober_fetch_account_snapshot($conn, $sessionUserId);
         $settings = $account['settings'] ?? $settings;
         $flyBeaver = $account['flyBeaver'] ?? $flyBeaver;
+        $supportSummary = is_array($account['supportSummary'] ?? null) ? $account['supportSummary'] : $supportSummary;
+        $achievementUnlocks = is_array($account['achievementUnlocks'] ?? null) ? $account['achievementUnlocks'] : [];
         bober_record_user_ip($conn, $sessionUserId);
     }
 
@@ -98,8 +105,10 @@ try {
         'account' => $account,
         'profile' => is_array($account) ? ($account['profile'] ?? null) : null,
         'achievements' => is_array($account) ? ($account['achievements'] ?? []) : [],
+        'achievementUnlocks' => $achievementUnlocks,
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,
+        'supportSummary' => $supportSummary,
         'serverTime' => (int) round(microtime(true) * 1000),
         'saved' => $saveResult !== null,
         'settingsSaved' => $settingsSaved,

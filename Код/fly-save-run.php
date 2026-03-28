@@ -62,6 +62,7 @@ try {
     }
 
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    $accountSnapshot = bober_fetch_account_snapshot($conn, $userId);
     bober_log_user_activity($conn, $userId, $isDuplicate ? 'fly_run_duplicate' : 'fly_run_saved', [
         'action_group' => 'fly_beaver',
         'source' => 'fly_save_run',
@@ -93,6 +94,8 @@ try {
         'creditedScore' => $creditedScore,
         'minimumCreditedScore' => $minimumCreditedScore,
         'flyBeaver' => $flyBeaver,
+        'mainScore' => max(0, (int) ($accountSnapshot['score'] ?? 0)),
+        'achievementUnlocks' => is_array($accountSnapshot['achievementUnlocks'] ?? null) ? $accountSnapshot['achievementUnlocks'] : [],
     ]);
 } catch (Throwable $error) {
     if (isset($conn) && $conn instanceof mysqli) {

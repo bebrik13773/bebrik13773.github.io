@@ -24,6 +24,7 @@ try {
         'mainScore' => max(0, (int) ($snapshot['score'] ?? 0)),
         'flyBeaver' => $snapshot['flyBeaver'] ?? bober_default_fly_beaver_progress(),
         'settings' => $snapshot['settings'] ?? bober_default_user_settings(),
+        'achievementUnlocks' => $snapshot['achievementUnlocks'] ?? [],
     ]);
 } catch (Throwable $error) {
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);
