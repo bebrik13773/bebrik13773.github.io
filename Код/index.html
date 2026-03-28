@@ -818,7 +818,7 @@ Owner decisions:
         position: fixed;
         top: 20px;
         right: 20px;
-        z-index: 10000;
+        z-index: 10120;
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -4982,6 +4982,9 @@ let unlockedAchievements = [];
 let supportSummary = getDefaultSupportSummary();
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
+const SUPPORT_LIVE_REFRESH_CONFIG = {
+    intervalMs: 7000
+};
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
     importantDelayMs: 1500,
@@ -5000,6 +5003,10 @@ const autosaveState = {
     lastBeaconAt: 0,
     lastBeaconRevision: -1,
     lastError: ''
+};
+const supportLiveRefreshState = {
+    timer: null,
+    inFlight: false
 };
 const CLIENT_EVENT_LOG_CONFIG = {
     dbName: 'bober_main_client_log',
@@ -6701,6 +6708,55 @@ function setSupportModalTab(tab) {
     }
 }
 
+function isSupportModalOpen() {
+    const modal = document.getElementById('supportModal');
+    return Boolean(
+        modal &&
+        modal.classList.contains('show') &&
+        modal.getAttribute('aria-hidden') === 'false'
+    );
+}
+
+function stopSupportLiveRefresh() {
+    if (supportLiveRefreshState.timer) {
+        clearTimeout(supportLiveRefreshState.timer);
+        supportLiveRefreshState.timer = null;
+    }
+}
+
+function scheduleSupportLiveRefresh(delayMs = SUPPORT_LIVE_REFRESH_CONFIG.intervalMs) {
+    stopSupportLiveRefresh();
+    if (!userId || document.hidden || !isSupportModalOpen()) {
+        return;
+    }
+
+    supportLiveRefreshState.timer = setTimeout(() => {
+        refreshSupportLiveView().catch((error) => {
+            console.warn('Фоновое обновление поддержки завершилось ошибкой.', error);
+        });
+    }, Math.max(1500, Number(delayMs) || SUPPORT_LIVE_REFRESH_CONFIG.intervalMs));
+}
+
+async function refreshSupportLiveView() {
+    if (supportLiveRefreshState.inFlight || !userId || document.hidden || !isSupportModalOpen()) {
+        return;
+    }
+
+    supportLiveRefreshState.inFlight = true;
+    try {
+        await loadSupportTickets({
+            limit: 50,
+            silent: true,
+            background: true
+        });
+    } finally {
+        supportLiveRefreshState.inFlight = false;
+        if (isSupportModalOpen() && !document.hidden) {
+            scheduleSupportLiveRefresh(SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
+        }
+    }
+}
+
 function renderSupportTicketList() {
     const listNode = document.getElementById('supportTicketList');
     if (!listNode) {
@@ -6873,8 +6929,11 @@ async function loadSupportTickets(options = {}) {
         return;
     }
 
-    supportState.loadingList = true;
-    renderSupportTicketList();
+    const isBackgroundRefresh = Boolean(options.background);
+    if (!isBackgroundRefresh) {
+        supportState.loadingList = true;
+        renderSupportTicketList();
+    }
     try {
         const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
             method: 'POST',
@@ -6895,32 +6954,42 @@ async function loadSupportTickets(options = {}) {
         renderSupportTicketList();
 
         if (supportState.selectedTicketId > 0) {
-            await loadSupportTicket(supportState.selectedTicketId);
+            await loadSupportTicket(supportState.selectedTicketId, {
+                silent: options.silent,
+                background: isBackgroundRefresh
+            });
         } else {
             supportState.selectedTicket = null;
             renderSupportTicketThread();
         }
     } catch (error) {
         console.error('Не удалось загрузить тикеты поддержки:', error);
-        showNotification(error.message || 'Не удалось загрузить тикеты поддержки.', 'error');
-        supportState.tickets = [];
-        renderSupportTicketList();
-        supportState.selectedTicket = null;
-        renderSupportTicketThread();
+        if (!options.silent) {
+            showNotification(error.message || 'Не удалось загрузить тикеты поддержки.', 'error');
+        }
+        if (!isBackgroundRefresh) {
+            supportState.tickets = [];
+            renderSupportTicketList();
+            supportState.selectedTicket = null;
+            renderSupportTicketThread();
+        }
     } finally {
         supportState.loadingList = false;
         renderSupportTicketList();
     }
 }
 
-async function loadSupportTicket(ticketId) {
+async function loadSupportTicket(ticketId, options = {}) {
     if (!userId || Number(ticketId) < 1) {
         supportState.selectedTicket = null;
         renderSupportTicketThread();
         return;
     }
 
-    supportState.loadingTicket = true;
+    const isBackgroundRefresh = Boolean(options.background);
+    if (!isBackgroundRefresh) {
+        supportState.loadingTicket = true;
+    }
     try {
         const data = await requestJson('https://bober-api.gt.tc/support-tickets.php', {
             method: 'POST',
@@ -6941,7 +7010,9 @@ async function loadSupportTicket(ticketId) {
         renderSupportTicketThread();
     } catch (error) {
         console.error('Не удалось открыть тикет поддержки:', error);
-        showNotification(error.message || 'Не удалось открыть тикет.', 'error');
+        if (!options.silent) {
+            showNotification(error.message || 'Не удалось открыть тикет.', 'error');
+        }
     } finally {
         supportState.loadingTicket = false;
     }
@@ -6975,6 +7046,8 @@ function openSupportCenter(options = {}) {
     if (userId) {
         loadSupportTickets().catch((error) => {
             console.warn('Не удалось обновить тикеты при открытии поддержки.', error);
+        }).finally(() => {
+            scheduleSupportLiveRefresh(SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
         });
     }
 }
@@ -6988,6 +7061,7 @@ function closeSupportModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     supportState.composeAppeal = null;
+    stopSupportLiveRefresh();
     syncGlobalOverlayState();
 }
 
@@ -11716,6 +11790,7 @@ window.addEventListener('pagehide', function() {
 document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
         stopLiveSyncTimer();
+        stopSupportLiveRefresh();
         flushAutosaveWithBeacon();
         flushSettingsWithBeacon();
     } else {
@@ -11727,6 +11802,11 @@ document.addEventListener('visibilitychange', function() {
         });
         if (hasPendingAutosave()) {
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
+        }
+        if (isSupportModalOpen()) {
+            refreshSupportLiveView().catch((error) => {
+                console.warn('Не удалось обновить поддержку после возврата во вкладку.', error);
+            });
         }
     }
 });

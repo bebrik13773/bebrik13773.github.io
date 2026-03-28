@@ -3479,7 +3479,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             position: fixed;
             top: calc(var(--header-height) + 16px);
             right: calc(var(--safe-right) + 20px);
-            z-index: 1200;
+            z-index: 4000;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -5707,6 +5707,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let supportTickets = [];
         let selectedSupportTicketId = 0;
         let selectedSupportTicket = null;
+        const ADMIN_SUPPORT_LIVE_REFRESH_CONFIG = {
+            intervalMs: 7000
+        };
+        const adminSupportLiveRefreshState = {
+            timer: null,
+            inFlight: false
+        };
         let selectedAccountActivityFilter = 'all';
         let selectedAccountActivitySearch = '';
         let selectedAccountClientLogItems = [];
@@ -7323,17 +7330,55 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 : '<div class="empty-list">Переписка по тикету пока пуста.</div>';
         }
 
+        function stopSupportLiveRefreshAdmin() {
+            if (adminSupportLiveRefreshState.timer) {
+                clearTimeout(adminSupportLiveRefreshState.timer);
+                adminSupportLiveRefreshState.timer = null;
+            }
+        }
+
+        function scheduleSupportLiveRefreshAdmin(delayMs = ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs) {
+            stopSupportLiveRefreshAdmin();
+            if (document.hidden || currentAdminView !== 'support') {
+                return;
+            }
+
+            adminSupportLiveRefreshState.timer = setTimeout(() => {
+                refreshSupportLiveViewAdmin().catch(error => {
+                    console.warn('Фоновое обновление тикетов поддержки в админке завершилось ошибкой.', error);
+                });
+            }, Math.max(1500, Number(delayMs) || ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs));
+        }
+
+        function refreshSupportLiveViewAdmin() {
+            if (adminSupportLiveRefreshState.inFlight || document.hidden || currentAdminView !== 'support') {
+                return Promise.resolve();
+            }
+
+            adminSupportLiveRefreshState.inFlight = true;
+            return loadSupportTicketsAdmin({
+                silent: true,
+                background: true
+            }).finally(() => {
+                adminSupportLiveRefreshState.inFlight = false;
+                if (!document.hidden && currentAdminView === 'support') {
+                    scheduleSupportLiveRefreshAdmin(ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
+                }
+            });
+        }
+
         function loadSupportTicketsAdmin(options = {}) {
             const metaNode = document.getElementById('supportTicketsMeta');
             const listNode = document.getElementById('supportTicketsList');
-            if (metaNode) {
+            const isBackgroundRefresh = Boolean(options.background);
+            if (metaNode && !isBackgroundRefresh) {
                 metaNode.textContent = 'Загрузка тикетов поддержки...';
             }
-            if (listNode) {
+            if (listNode && !isBackgroundRefresh) {
                 listNode.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю тикеты...</div>';
             }
 
-            postAction({
+            return postAction({
                 action: 'get_support_tickets',
                 status: currentSupportStatusFilter === 'all' ? '' : currentSupportStatusFilter,
                 category: currentSupportCategoryFilter === 'all' ? '' : currentSupportCategoryFilter,
@@ -7362,33 +7407,38 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
 
                 if (selectedSupportTicketId > 0) {
-                    loadSupportTicketAdmin(selectedSupportTicketId);
+                    return loadSupportTicketAdmin(selectedSupportTicketId, {
+                        silent: options.silent,
+                        background: isBackgroundRefresh
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                if (metaNode) {
+                if (metaNode && !isBackgroundRefresh) {
                     metaNode.textContent = 'Не удалось загрузить тикеты';
                 }
-                if (listNode) {
+                if (listNode && !isBackgroundRefresh) {
                     listNode.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка сети при загрузке тикетов')}</div>`;
                 }
-                showNotification(error.message || 'Ошибка загрузки тикетов поддержки', 'error');
+                if (!options.silent) {
+                    showNotification(error.message || 'Ошибка загрузки тикетов поддержки', 'error');
+                }
             });
         }
 
-        function loadSupportTicketAdmin(ticketId) {
+        function loadSupportTicketAdmin(ticketId, options = {}) {
             const normalizedTicketId = Math.max(0, Number(ticketId) || 0);
             if (normalizedTicketId < 1) {
                 selectedSupportTicketId = 0;
                 selectedSupportTicket = null;
                 renderSupportTicketDetailAdmin();
-                return;
+                return Promise.resolve();
             }
 
             selectedSupportTicketId = normalizedTicketId;
             renderSupportTicketsAdmin();
-            postAction({
+            return postAction({
                 action: 'get_support_ticket',
                 ticket_id: normalizedTicketId
             })
@@ -7406,7 +7456,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             })
             .catch(error => {
                 console.error('Error:', error);
-                showNotification(error.message || 'Ошибка загрузки тикета поддержки', 'error');
+                if (!options.silent) {
+                    showNotification(error.message || 'Ошибка загрузки тикета поддержки', 'error');
+                }
             });
         }
 
@@ -7499,7 +7551,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('supportBtn');
             loadDashboardStats();
-            loadSupportTicketsAdmin();
+            loadSupportTicketsAdmin().finally(() => {
+                scheduleSupportLiveRefreshAdmin(ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
+            });
         }
 
         function updateAddSkinPreview() {
@@ -7861,6 +7915,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         function showAccountsView() {
+            stopSupportLiveRefreshAdmin();
             currentAdminView = 'accounts';
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
@@ -7880,6 +7935,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         // Функция показа статистики
         function showStatistics() {
+            stopSupportLiveRefreshAdmin();
             currentAdminView = 'statistics';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
@@ -7896,6 +7952,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
         
         function showMaintenanceView() {
+            stopSupportLiveRefreshAdmin();
             currentAdminView = 'maintenance';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
@@ -7911,6 +7968,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         // Функция показа SQL редактора
         function showSqlEditor() {
+            stopSupportLiveRefreshAdmin();
             currentAdminView = 'sql';
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
@@ -9710,6 +9768,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         
         // Функция загрузки данных таблицы
         function loadTableData(table) {
+            stopSupportLiveRefreshAdmin();
             currentTable = table;
             currentAdminView = 'table';
             
@@ -10547,6 +10606,19 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             div.textContent = text;
             return div.innerHTML;
         }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopSupportLiveRefreshAdmin();
+                return;
+            }
+
+            if (currentAdminView === 'support') {
+                refreshSupportLiveViewAdmin().catch(error => {
+                    console.warn('Не удалось обновить тикеты поддержки после возврата во вкладку.', error);
+                });
+            }
+        });
     </script>
 </body>
 </html>
