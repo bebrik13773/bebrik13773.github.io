@@ -4983,7 +4983,10 @@ let supportSummary = getDefaultSupportSummary();
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
 const SUPPORT_LIVE_REFRESH_CONFIG = {
-    intervalMs: 7000
+    intervalMs: 4000
+};
+const SKIN_CATALOG_LIVE_REFRESH_CONFIG = {
+    intervalMs: 45000
 };
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
@@ -5007,6 +5010,10 @@ const autosaveState = {
 const supportLiveRefreshState = {
     timer: null,
     inFlight: false
+};
+const skinCatalogLiveRefreshState = {
+    inFlight: false,
+    lastSyncedAt: 0
 };
 const CLIENT_EVENT_LOG_CONFIG = {
     dbName: 'bober_main_client_log',
@@ -5051,7 +5058,7 @@ const SETTINGS_SYNC_CONFIG = {
 const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
 const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
 const LIVE_SYNC_CONFIG = {
-    intervalMs: 30000
+    intervalMs: 12000
 };
 const INTERACTION_PALETTES = {
     main: {
@@ -6754,6 +6761,34 @@ async function refreshSupportLiveView() {
         if (isSupportModalOpen() && !document.hidden) {
             scheduleSupportLiveRefresh(SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
         }
+    }
+}
+
+async function refreshSkinCatalogLive(options = {}) {
+    const { force = false } = options;
+    if (skinCatalogLiveRefreshState.inFlight || document.hidden) {
+        return false;
+    }
+
+    const now = Date.now();
+    if (
+        !force &&
+        skinCatalogLiveRefreshState.lastSyncedAt > 0 &&
+        now - skinCatalogLiveRefreshState.lastSyncedAt < SKIN_CATALOG_LIVE_REFRESH_CONFIG.intervalMs
+    ) {
+        return false;
+    }
+
+    skinCatalogLiveRefreshState.inFlight = true;
+    try {
+        await loadSkinCatalog({ silent: true });
+        skinCatalogLiveRefreshState.lastSyncedAt = Date.now();
+        return true;
+    } catch (error) {
+        console.warn('Фоновое обновление каталога скинов завершилось ошибкой.', error);
+        return false;
+    } finally {
+        skinCatalogLiveRefreshState.inFlight = false;
     }
 }
 
@@ -10259,7 +10294,7 @@ window.addEventListener('unhandledrejection', function(event) {
     reportUnexpectedClientError(reason instanceof Error ? reason : new Error(String(reason || 'Unhandled promise rejection')), 'unhandled_rejection').catch(() => {});
 });
 
-async function loadSkinCatalog() {
+async function loadSkinCatalog(options = {}) {
     try {
         const data = await requestJson('https://bober-api.gt.tc/skin-catalog.php', {
             cache: 'no-store'
@@ -10274,8 +10309,13 @@ async function loadSkinCatalog() {
         renderSkinShop();
         skinLoad();
         updateSkinShopUI();
+        return true;
     } catch (error) {
         console.warn('Не удалось загрузить серверный каталог скинов, используем встроенный.', error);
+        if (!options.silent) {
+            throw error;
+        }
+        return false;
     }
 }
 
@@ -10627,6 +10667,7 @@ function scheduleLiveSync(delayMs = LIVE_SYNC_CONFIG.intervalMs) {
 
     liveSyncState.timer = setTimeout(async () => {
         await synchronizeMainState({ reason: 'poll', includeDirtyState: true, silent: true });
+        await refreshSkinCatalogLive();
         scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
     }, Math.max(2500, Number(delayMs) || LIVE_SYNC_CONFIG.intervalMs));
 }
@@ -11798,6 +11839,9 @@ document.addEventListener('visibilitychange', function() {
             checkAuthenticatedSessionConflict();
         }
         synchronizeMainState({ reason: 'visibility_return', includeDirtyState: true, silent: true }).then(() => {
+            refreshSkinCatalogLive({ force: true }).catch((error) => {
+                console.warn('Не удалось обновить каталог скинов после возврата во вкладку.', error);
+            });
             scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
         });
         if (hasPendingAutosave()) {
