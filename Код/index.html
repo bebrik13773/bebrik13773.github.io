@@ -4,16 +4,100 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Бобер кликер</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background:
+                radial-gradient(circle at top, rgba(108, 245, 255, 0.18), transparent 34%),
+                linear-gradient(180deg, #2d0b58 0%, #1e0a44 48%, #14072f 100%);
+            color: #f3fbff;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        .boot-redirect {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .boot-redirect-card {
+            width: min(100%, 420px);
+            padding: 28px 24px;
+            border-radius: 28px;
+            border: 1px solid rgba(126, 241, 255, 0.2);
+            background: rgba(11, 16, 35, 0.72);
+            box-shadow: 0 28px 72px rgba(6, 8, 20, 0.42);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            text-align: center;
+        }
+
+        .boot-redirect-spinner {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.14);
+            border-top-color: #6cf5ff;
+            animation: bootSpin 0.85s linear infinite;
+        }
+
+        .boot-redirect-title {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .boot-redirect-text {
+            font-size: 15px;
+            line-height: 1.55;
+            color: rgba(255, 255, 255, 0.78);
+        }
+
+        .boot-redirect-link {
+            display: inline-block;
+            margin-top: 16px;
+            color: #8ff7ff;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        @keyframes bootSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="boot-redirect">
+        <div class="boot-redirect-card">
+            <div class="boot-redirect-spinner" aria-hidden="true"></div>
+            <div class="boot-redirect-title">Загрузка кликера</div>
+            <div class="boot-redirect-text">Подключаем основную страницу, интерфейс и последние данные аккаунта…</div>
+            <a class="boot-redirect-link" href="/pages/clicker/">Открыть кликер вручную</a>
+        </div>
+    </main>
     <script>
         (function() {
             const target = '/pages/clicker/' + (window.location.search || '') + (window.location.hash || '');
-            window.location.replace(target);
+            window.requestAnimationFrame(function() {
+                window.location.replace(target);
+            });
         })();
     </script>
-</head>
-<body>
-    <main>
-        <p>Перенаправление в кликер… Если переход не произошёл, откройте <a href="/pages/clicker/">основную страницу</a>.</p>
-    </main>
 </body>
 </html>

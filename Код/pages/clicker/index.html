@@ -2036,6 +2036,64 @@ Owner decisions:
         z-index: 10060;
     }
 
+    .boot-loading-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background:
+            radial-gradient(circle at top, rgba(108, 245, 255, 0.14), transparent 34%),
+            linear-gradient(180deg, rgba(34, 10, 70, 0.98), rgba(19, 8, 46, 0.99));
+        z-index: 10080;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition: opacity 0.22s ease, visibility 0.22s ease;
+    }
+
+    .boot-loading-overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .boot-loading-card {
+        width: min(100%, 430px);
+        padding: 28px 24px;
+        border-radius: 28px;
+        border: 1px solid rgba(126, 241, 255, 0.2);
+        background: rgba(11, 16, 35, 0.76);
+        box-shadow: 0 30px 72px rgba(6, 8, 20, 0.42);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        text-align: center;
+    }
+
+    .boot-loading-spinner {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.14);
+        border-top-color: #6cf5ff;
+        animation: loadingSpin 0.85s linear infinite;
+    }
+
+    .boot-loading-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: #f4fdff;
+        margin-bottom: 10px;
+    }
+
+    .boot-loading-text {
+        font-size: 15px;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.78);
+    }
+
     .loading-overlay.show {
         display: flex;
     }
@@ -4180,6 +4238,13 @@ Owner decisions:
 </style>
 </head>
 <body>
+<div class="boot-loading-overlay" id="bootLoadingOverlay" aria-hidden="false">
+    <div class="boot-loading-card">
+        <div class="boot-loading-spinner" aria-hidden="true"></div>
+        <div class="boot-loading-title">Загрузка</div>
+        <div class="boot-loading-text">Подключаем интерфейс, магазин и сохранённый прогресс…</div>
+    </div>
+</div>
 <!-- Контейнер уведомлений -->
 <div class="notification-container" id="notifications"></div>
 <div id="pageRippleLayer"></div>
@@ -5206,6 +5271,7 @@ let unlockedAchievements = [];
 let achievementStats = {};
 let achievementPlayerBase = 0;
 let supportSummary = getDefaultSupportSummary();
+let bootLoadingOverlayDismissed = false;
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
 const SUPPORT_LIVE_REFRESH_CONFIG = {
@@ -5954,6 +6020,24 @@ function syncGlobalOverlayState() {
     document.body.classList.toggle('modal-open', hasOpenModal || loadingVisible);
 }
 
+function dismissBootLoadingOverlay() {
+    if (bootLoadingOverlayDismissed) {
+        return;
+    }
+
+    bootLoadingOverlayDismissed = true;
+    const overlay = document.getElementById('bootLoadingOverlay');
+    if (!overlay) {
+        return;
+    }
+
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+    window.setTimeout(() => {
+        overlay.remove();
+    }, 260);
+}
+
 function setLoadingOverlay(visible, title = 'Загрузка', text = 'Подождите, выполняем действие...') {
     const overlay = document.getElementById('loadingOverlay');
     const titleNode = document.getElementById('loadingOverlayTitle');
@@ -5970,6 +6054,7 @@ function setLoadingOverlay(visible, title = 'Загрузка', text = 'Подо
         textNode.textContent = text;
     }
 
+    dismissBootLoadingOverlay();
     overlay.classList.toggle('show', Boolean(visible));
     overlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
     syncGlobalOverlayState();
