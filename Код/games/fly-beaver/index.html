@@ -1177,6 +1177,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let lastFrameTime = 0;
         let landscapeBlocked = false;
         let orientationPausedRun = false;
+        let keyboardRestartAllowedAt = 0;
         const SHARED_CLIENT = window.BoberSharedClient || {};
         const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
         const TARGET_FRAME_MS = 1000 / 60;
@@ -1187,6 +1188,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const FLY_CREDIT_MIN_SCORE = 10;
         const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
         const FLY_HOURLY_COINS_LIMIT = 250000;
+        const KEYBOARD_RESTART_GUARD_MS = 900;
         let accountState = {
             userId: null,
             login: '',
@@ -3085,6 +3087,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             gamePaused = false;
             orientationPausedRun = false;
             clearCloudAutoCollapseTimer();
+            keyboardRestartAllowedAt = performance.now() + KEYBOARD_RESTART_GUARD_MS;
             
             if (score > highScore) {
                 highScore = score;
@@ -3115,8 +3118,21 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             return window.getComputedStyle(element).display !== 'none';
         }
 
-        function canStartNewRunFromOverlay() {
-            return isElementVisible(startScreen) || isElementVisible(gameOverScreen);
+        function canStartNewRunFromOverlay(options = {}) {
+            const source = String(options.source || 'pointer');
+            if (isElementVisible(startScreen)) {
+                return true;
+            }
+
+            if (!isElementVisible(gameOverScreen)) {
+                return false;
+            }
+
+            if (source === 'keyboard' && performance.now() < keyboardRestartAllowedAt) {
+                return false;
+            }
+
+            return true;
         }
         
         // Основной игровой цикл
@@ -3213,7 +3229,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 }
                 if (gameRunning && !gamePaused) {
                     beaver.flap();
-                } else if (canStartNewRunFromOverlay()) {
+                } else if (!e.repeat && canStartNewRunFromOverlay({ source: 'keyboard' })) {
                     startGame();
                 }
                 e.preventDefault();
@@ -3232,7 +3248,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
             if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (canStartNewRunFromOverlay()) {
+            } else if (canStartNewRunFromOverlay({ source: 'pointer' })) {
                 startGame();
             }
         });
@@ -3245,7 +3261,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
             if (gameRunning && !gamePaused) {
                 beaver.flap();
-            } else if (canStartNewRunFromOverlay()) {
+            } else if (canStartNewRunFromOverlay({ source: 'pointer' })) {
                 startGame();
             }
             e.preventDefault();
