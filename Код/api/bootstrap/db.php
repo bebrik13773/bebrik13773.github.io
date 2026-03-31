@@ -3714,6 +3714,123 @@ function bober_get_achievement_reward_coins($achievementKey)
     return max(0, (int) ($map[$achievementKey] ?? 0));
 }
 
+function bober_get_all_achievement_keys()
+{
+    return array_values(array_keys(bober_get_achievement_reward_map()));
+}
+
+function bober_fetch_achievement_stats($conn, $forceRefresh = false)
+{
+    $cacheKey = 'public_achievement_stats_v1';
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, $cacheKey);
+        if (is_array($cached['payload'] ?? null)) {
+            $cachedPayload = $cached['payload'];
+            if (isset($cachedPayload['items']) && is_array($cachedPayload['items'])) {
+                return [
+                    'totalPlayers' => max(0, (int) ($cachedPayload['totalPlayers'] ?? 0)),
+                    'items' => $cachedPayload['items'],
+                ];
+            }
+        }
+    }
+
+    $allKeys = bober_get_all_achievement_keys();
+    $totalPlayers = 0;
+    $totalStmt = $conn->prepare("SELECT COUNT(*) AS total FROM users WHERE login <> 'test'");
+    if ($totalStmt && $totalStmt->execute()) {
+        $result = $totalStmt->get_result();
+        $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $totalPlayers = max(0, (int) ($row['total'] ?? 0));
+        $totalStmt->close();
+    } elseif ($totalStmt) {
+        $totalStmt->close();
+    }
+
+    $stats = [];
+    foreach ($allKeys as $achievementKey) {
+        $stats[$achievementKey] = [
+            'unlockCount' => 0,
+            'totalPlayers' => $totalPlayers,
+            'unlockPercent' => 0,
+        ];
+    }
+
+    $statsStmt = $conn->prepare("
+        SELECT ua.achievement_key, COUNT(*) AS unlock_count
+        FROM user_achievements ua
+        INNER JOIN users u ON u.id = ua.user_id
+        WHERE u.login <> 'test'
+        GROUP BY ua.achievement_key
+    ");
+    if ($statsStmt && $statsStmt->execute()) {
+        $result = $statsStmt->get_result();
+        while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+            $achievementKey = trim((string) ($row['achievement_key'] ?? ''));
+            if ($achievementKey === '' || !array_key_exists($achievementKey, $stats)) {
+                continue;
+            }
+
+            $unlockCount = max(0, (int) ($row['unlock_count'] ?? 0));
+            $unlockPercent = $totalPlayers > 0
+                ? round(($unlockCount / $totalPlayers) * 100, 2)
+                : 0;
+
+            $stats[$achievementKey] = [
+                'unlockCount' => $unlockCount,
+                'totalPlayers' => $totalPlayers,
+                'unlockPercent' => $unlockPercent,
+            ];
+        }
+
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $statsStmt->close();
+    } elseif ($statsStmt) {
+        $statsStmt->close();
+    }
+
+    $payload = [
+        'totalPlayers' => $totalPlayers,
+        'items' => $stats,
+    ];
+    bober_runtime_cache_store($conn, $cacheKey, $payload, 180);
+
+    return $payload;
+}
+
+function bober_enrich_achievement_items(array $items, array $achievementStats, $totalPlayers = 0)
+{
+    $resolvedTotalPlayers = max(0, (int) $totalPlayers);
+    $enrichedItems = [];
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $achievementKey = trim((string) ($item['key'] ?? ''));
+        if ($achievementKey === '') {
+            continue;
+        }
+
+        $meta = is_array($item['meta'] ?? null) ? $item['meta'] : [];
+        $stats = is_array($achievementStats[$achievementKey] ?? null) ? $achievementStats[$achievementKey] : [];
+        $meta['rewardCoins'] = max(0, (int) ($meta['rewardCoins'] ?? bober_get_achievement_reward_coins($achievementKey)));
+        $meta['unlockCount'] = max(0, (int) ($stats['unlockCount'] ?? 0));
+        $meta['playerBase'] = max(0, (int) ($stats['totalPlayers'] ?? $resolvedTotalPlayers));
+        $meta['unlockPercent'] = max(0, (float) ($stats['unlockPercent'] ?? 0));
+        $item['meta'] = $meta;
+        $enrichedItems[] = $item;
+    }
+
+    return $enrichedItems;
+}
+
 function bober_collect_expected_achievement_keys(array $snapshot)
 {
     $keys = [];
@@ -3872,6 +3989,7 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
             'items' => bober_fetch_user_achievements($conn, $userId),
             'newlyUnlocked' => [],
             'rewardCoins' => 0,
+            'statsChanged' => false,
         ];
     }
 
@@ -3936,6 +4054,8 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
             }
             $rewardStmt->close();
         }
+
+        bober_runtime_cache_delete($conn, 'public_achievement_stats_v1');
     }
 
     $items = bober_fetch_user_achievements($conn, $userId);
@@ -3952,6 +4072,7 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
         'items' => $items,
         'newlyUnlocked' => $newlyUnlocked,
         'rewardCoins' => $rewardCoinsTotal,
+        'statsChanged' => !empty($missingKeys),
     ];
 }
 
@@ -4346,8 +4467,19 @@ function bober_fetch_account_snapshot($conn, $userId)
         'totalUpgradePurchases' => $totalUpgradePurchases,
     ];
     $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
-    $achievements = is_array($achievementRefresh['items'] ?? null) ? $achievementRefresh['items'] : [];
-    $achievementUnlocks = is_array($achievementRefresh['newlyUnlocked'] ?? null) ? $achievementRefresh['newlyUnlocked'] : [];
+    $achievementStatsBundle = bober_fetch_achievement_stats($conn, !empty($achievementRefresh['statsChanged']));
+    $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
+    $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
+    $achievements = bober_enrich_achievement_items(
+        is_array($achievementRefresh['items'] ?? null) ? $achievementRefresh['items'] : [],
+        $achievementStats,
+        $achievementPlayerBase
+    );
+    $achievementUnlocks = bober_enrich_achievement_items(
+        is_array($achievementRefresh['newlyUnlocked'] ?? null) ? $achievementRefresh['newlyUnlocked'] : [],
+        $achievementStats,
+        $achievementPlayerBase
+    );
     $achievementRewardCoins = max(0, (int) ($achievementRefresh['rewardCoins'] ?? 0));
     $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins;
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
@@ -4390,6 +4522,8 @@ function bober_fetch_account_snapshot($conn, $userId)
         'profile' => $profile,
         'achievements' => $achievements,
         'achievementUnlocks' => $achievementUnlocks,
+        'achievementStats' => $achievementStats,
+        'achievementPlayerBase' => $achievementPlayerBase,
         'supportSummary' => $supportSummary,
     ];
 }

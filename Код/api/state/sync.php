@@ -110,6 +110,8 @@ try {
         'profile' => is_array($account) ? ($account['profile'] ?? null) : null,
         'achievements' => is_array($account) ? ($account['achievements'] ?? []) : [],
         'achievementUnlocks' => $achievementUnlocks,
+        'achievementStats' => is_array($account) ? ($account['achievementStats'] ?? []) : [],
+        'achievementPlayerBase' => is_array($account) ? ($account['achievementPlayerBase'] ?? 0) : 0,
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,
         'settingsUpdatedAt' => $settingsUpdatedAt,

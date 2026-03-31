@@ -666,6 +666,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             margin-bottom: 18px;
         }
 
+        .fly-achievement-percent {
+            margin-bottom: 18px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: #c6f8a8;
+        }
+
         .fly-achievement-button {
             width: 100%;
             min-width: 0;
@@ -908,12 +915,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         <div class="fly-achievement-overlay" id="flyAchievementOverlay" aria-hidden="true">
             <div class="fly-achievement-card" role="dialog" aria-modal="true" aria-labelledby="flyAchievementTitle">
                 <div class="fly-achievement-kicker">Новое достижение</div>
-                <div class="fly-achievement-icon" id="flyAchievementIcon">✨</div>
-                <div class="fly-achievement-title" id="flyAchievementTitle">Достижение</div>
-                <div class="fly-achievement-text" id="flyAchievementText">Описание достижения.</div>
-                <div class="fly-achievement-reward" id="flyAchievementReward">+0 коинов</div>
-                <button type="button" class="fly-achievement-button" id="flyAchievementAcknowledge">Продолжить</button>
-            </div>
+            <div class="fly-achievement-icon" id="flyAchievementIcon">✨</div>
+            <div class="fly-achievement-title" id="flyAchievementTitle">Достижение</div>
+            <div class="fly-achievement-text" id="flyAchievementText">Описание достижения.</div>
+            <div class="fly-achievement-reward" id="flyAchievementReward">+0 коинов</div>
+            <div class="fly-achievement-percent" id="flyAchievementPercent">Есть у 0% игроков</div>
+            <button type="button" class="fly-achievement-button" id="flyAchievementAcknowledge">Продолжить</button>
+        </div>
         </div>
     </div>
 
@@ -962,6 +970,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const flyAchievementTitle = document.getElementById('flyAchievementTitle');
         const flyAchievementText = document.getElementById('flyAchievementText');
         const flyAchievementReward = document.getElementById('flyAchievementReward');
+        const flyAchievementPercent = document.getElementById('flyAchievementPercent');
         const flyAchievementAcknowledge = document.getElementById('flyAchievementAcknowledge');
         
         // Создаем аудио элементы
@@ -1252,6 +1261,23 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 .filter(Boolean);
         }
 
+        function formatAchievementOwnership(meta) {
+            const fallbackMeta = meta && typeof meta === 'object' ? meta : {};
+            const unlockCount = Math.max(0, Number(fallbackMeta.unlockCount) || 0);
+            const totalPlayers = Math.max(0, Number(fallbackMeta.playerBase) || Number(fallbackMeta.totalPlayers) || 0);
+            const unlockPercent = Math.max(0, Number(fallbackMeta.unlockPercent) || (totalPlayers > 0 ? (unlockCount / totalPlayers) * 100 : 0));
+            const percentLabel = unlockPercent.toLocaleString('ru-RU', {
+                minimumFractionDigits: unlockPercent > 0 && unlockPercent < 10 ? 1 : 0,
+                maximumFractionDigits: 1
+            });
+
+            if (totalPlayers < 1) {
+                return `Есть у ${percentLabel}% игроков`;
+            }
+
+            return `Есть у ${percentLabel}% игроков (${unlockCount.toLocaleString('ru-RU')}/${totalPlayers.toLocaleString('ru-RU')})`;
+        }
+
         function buildSeenAchievementKey(item) {
             return `${String(item?.key || '').trim()}::${String(item?.unlockedAt || '').trim()}`;
         }
@@ -1288,7 +1314,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function renderAchievementUnlockOverlay() {
-            if (!flyAchievementOverlay || !flyAchievementState.active || !flyAchievementIcon || !flyAchievementTitle || !flyAchievementText || !flyAchievementReward) {
+            if (!flyAchievementOverlay || !flyAchievementState.active || !flyAchievementIcon || !flyAchievementTitle || !flyAchievementText || !flyAchievementReward || !flyAchievementPercent) {
                 return;
             }
 
@@ -1306,6 +1332,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             flyAchievementReward.textContent = rewardCoins > 0
                 ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
                 : 'Награда получена';
+            flyAchievementPercent.textContent = formatAchievementOwnership(activeUnlock.meta);
 
             flyAchievementOverlay.classList.add('show');
             flyAchievementOverlay.setAttribute('aria-hidden', 'false');

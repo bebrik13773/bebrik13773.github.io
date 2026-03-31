@@ -2785,6 +2785,16 @@ Owner decisions:
         align-items: start;
     }
 
+    .profile-achievement-card.unlocked {
+        border-color: rgba(126, 241, 255, 0.18);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .profile-achievement-card.locked {
+        background: linear-gradient(180deg, rgba(10, 13, 28, 0.58), rgba(6, 8, 18, 0.76));
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+
     .profile-achievement-icon {
         width: 40px;
         height: 40px;
@@ -2794,6 +2804,12 @@ Owner decisions:
         font-size: 21px;
         background: rgba(126, 241, 255, 0.12);
         border: 1px solid rgba(126, 241, 255, 0.14);
+    }
+
+    .profile-achievement-card.locked .profile-achievement-icon {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.08);
+        filter: grayscale(0.18);
     }
 
     .profile-achievement-card strong {
@@ -2814,6 +2830,23 @@ Owner decisions:
         margin-top: 8px;
         color: #9feeff !important;
         font-size: 12px !important;
+    }
+
+    .profile-achievement-percent {
+        margin-top: 8px;
+        color: #9feeff !important;
+        font-size: 12px !important;
+    }
+
+    .profile-achievement-status {
+        margin-top: 8px;
+        font-size: 12px !important;
+        font-weight: 700;
+        color: #ffe7a6 !important;
+    }
+
+    .profile-achievement-card.locked .profile-achievement-status {
+        color: rgba(255, 255, 255, 0.52) !important;
     }
 
     .support-modal {
@@ -3238,6 +3271,13 @@ Owner decisions:
         color: #ffe7a6;
         font-size: 16px;
         font-weight: 900;
+        margin-bottom: 18px;
+    }
+
+    .achievement-unlock-percent {
+        color: #9feeff;
+        font-size: 13px;
+        line-height: 1.45;
         margin-bottom: 18px;
     }
 
@@ -4609,6 +4649,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="achievement-unlock-title" id="achievementUnlockTitle">Достижение</div>
         <div class="achievement-unlock-text" id="achievementUnlockText">Описание достижения.</div>
         <div class="achievement-unlock-reward" id="achievementUnlockReward">+0 коинов</div>
+        <div class="achievement-unlock-percent" id="achievementUnlockPercent">Есть у 0% игроков</div>
         <button type="button" class="settings-action-button primary achievement-unlock-button" id="achievementUnlockAcknowledge">Забрать и продолжить</button>
     </div>
 </div>
@@ -4878,6 +4919,7 @@ const leaderboardState = {
     flyBeaver: []
 };
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
+const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
 
 function getDefaultProfileSummary() {
     return {
@@ -5085,6 +5127,8 @@ let flyBeaverState = getDefaultFlyBeaverState();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
 let unlockedAchievements = [];
+let achievementStats = {};
+let achievementPlayerBase = 0;
 let supportSummary = getDefaultSupportSummary();
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
@@ -6831,7 +6875,11 @@ function renderProfileModal() {
 
     const resolvedLogin = currentLogin || 'Игрок';
     const summary = normalizeProfileSummary(profileSummary);
-    const achievementItems = normalizeAchievementList(unlockedAchievements);
+    const unlockedItems = normalizeAchievementList(unlockedAchievements);
+    const unlockedByKey = unlockedItems.reduce((accumulator, item) => {
+        accumulator[item.key] = item;
+        return accumulator;
+    }, {});
     const badgeItems = [];
 
     if (summary.clickerTop1) {
@@ -6841,7 +6889,7 @@ function renderProfileModal() {
         badgeItems.push('<span class="profile-badge top">🏆 Топ-1 Летающего бобра</span>');
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${formatCompactNumber(summary.ownedSkins)}</span>`);
-    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || achievementItems.length)}</span>`);
+    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || unlockedItems.length)}</span>`);
     badgeItems.push(`<span class="profile-badge">💬 Ответов: ${formatCompactNumber(supportSummary.unreadReplies || 0)}</span>`);
 
     const stats = [
@@ -6866,27 +6914,40 @@ function renderProfileModal() {
         </div>
     `).join('');
 
-    achievementsNode.innerHTML = achievementItems.length > 0
-        ? achievementItems.map((item) => {
-            const definition = ACHIEVEMENT_DEFINITIONS[item.key] || {
-                title: item.key,
+    achievementsNode.innerHTML = ALL_ACHIEVEMENT_KEYS.length > 0
+        ? ALL_ACHIEVEMENT_KEYS.map((achievementKey) => {
+            const definition = ACHIEVEMENT_DEFINITIONS[achievementKey] || {
+                title: achievementKey,
                 description: 'Достижение разблокировано.',
                 icon: '✨'
             };
+            const unlockedItem = unlockedByKey[achievementKey] || null;
+            const stat = getAchievementStat(achievementKey, unlockedItem?.meta);
+            const statusLine = unlockedItem
+                ? `<span class="profile-achievement-status">Открыто</span>`
+                : '<span class="profile-achievement-status">Пока не открыто</span>';
+            const rewardLine = Number(unlockedItem?.meta?.rewardCoins) > 0
+                ? `<span>Награда: +${escapeHtmlText((Number(unlockedItem.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>`
+                : '';
+            const timeLine = unlockedItem
+                ? `<span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(unlockedItem.unlockedAt))}</span>`
+                : '';
 
             return `
-                <article class="profile-achievement-card">
+                <article class="profile-achievement-card ${unlockedItem ? 'unlocked' : 'locked'}">
                     <div class="profile-achievement-icon">${escapeHtmlText(definition.icon)}</div>
                     <div>
                         <strong>${escapeHtmlText(definition.title)}</strong>
                         <span>${escapeHtmlText(definition.description)}</span>
-                        ${Number(item.meta?.rewardCoins) > 0 ? `<span>Награда: +${escapeHtmlText((Number(item.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>` : ''}
-                        <span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(item.unlockedAt))}</span>
+                        <span class="profile-achievement-percent">${escapeHtmlText(formatAchievementOwnership(stat))}</span>
+                        ${statusLine}
+                        ${rewardLine}
+                        ${timeLine}
                     </div>
                 </article>
             `;
         }).join('')
-        : '<div class="empty-list">Пока достижений нет. Играйте дальше, чтобы открыть первые медали.</div>';
+        : '<div class="empty-list">Список достижений пока недоступен.</div>';
 }
 
 function openProfileModal() {
@@ -8656,6 +8717,81 @@ function normalizeAchievementList(rawAchievements) {
         .filter(Boolean);
 }
 
+function normalizeAchievementStats(rawStats, rawPlayerBase = 0) {
+    const resolvedPlayerBase = Math.max(0, Number(rawPlayerBase) || 0);
+    const normalizedStats = {};
+
+    ALL_ACHIEVEMENT_KEYS.forEach((key) => {
+        const rawItem = rawStats && typeof rawStats === 'object' ? rawStats[key] : null;
+        const unlockCount = Math.max(0, Number(rawItem?.unlockCount) || 0);
+        const totalPlayers = Math.max(0, Number(rawItem?.totalPlayers) || resolvedPlayerBase);
+        const unlockPercent = Math.max(
+            0,
+            Number.isFinite(Number(rawItem?.unlockPercent))
+                ? Number(rawItem.unlockPercent)
+                : (totalPlayers > 0 ? (unlockCount / totalPlayers) * 100 : 0)
+        );
+
+        normalizedStats[key] = {
+            unlockCount,
+            totalPlayers,
+            unlockPercent
+        };
+    });
+
+    return {
+        items: normalizedStats,
+        totalPlayers: resolvedPlayerBase > 0
+            ? resolvedPlayerBase
+            : Math.max(0, ...Object.values(normalizedStats).map((item) => Math.max(0, Number(item.totalPlayers) || 0)))
+    };
+}
+
+function applyAchievementStats(rawStats, rawPlayerBase = 0) {
+    const normalized = normalizeAchievementStats(rawStats, rawPlayerBase);
+    achievementStats = normalized.items;
+    achievementPlayerBase = normalized.totalPlayers;
+}
+
+function getAchievementStat(key, meta = null) {
+    const normalizedKey = String(key || '').trim();
+    const fromState = achievementStats && typeof achievementStats === 'object' ? achievementStats[normalizedKey] : null;
+    if (fromState && typeof fromState === 'object') {
+        return {
+            unlockCount: Math.max(0, Number(fromState.unlockCount) || 0),
+            totalPlayers: Math.max(0, Number(fromState.totalPlayers) || 0),
+            unlockPercent: Math.max(0, Number(fromState.unlockPercent) || 0)
+        };
+    }
+
+    const fallbackMeta = meta && typeof meta === 'object' ? meta : {};
+    const totalPlayers = Math.max(0, Number(fallbackMeta.playerBase) || achievementPlayerBase || 0);
+    const unlockCount = Math.max(0, Number(fallbackMeta.unlockCount) || 0);
+    const unlockPercent = Math.max(0, Number(fallbackMeta.unlockPercent) || (totalPlayers > 0 ? (unlockCount / totalPlayers) * 100 : 0));
+
+    return {
+        unlockCount,
+        totalPlayers,
+        unlockPercent
+    };
+}
+
+function formatAchievementOwnership(stat) {
+    const unlockCount = Math.max(0, Number(stat?.unlockCount) || 0);
+    const totalPlayers = Math.max(0, Number(stat?.totalPlayers) || 0);
+    const unlockPercent = Math.max(0, Number(stat?.unlockPercent) || 0);
+    const percentLabel = unlockPercent.toLocaleString('ru-RU', {
+        minimumFractionDigits: unlockPercent > 0 && unlockPercent < 10 ? 1 : 0,
+        maximumFractionDigits: 1
+    });
+
+    if (totalPlayers < 1) {
+        return `Есть у ${percentLabel}% игроков`;
+    }
+
+    return `Есть у ${percentLabel}% игроков (${unlockCount.toLocaleString('ru-RU')}/${totalPlayers.toLocaleString('ru-RU')})`;
+}
+
 function normalizeAchievementUnlockList(rawAchievements) {
     return normalizeAchievementList(rawAchievements).map((item) => ({
         key: item.key,
@@ -8783,7 +8919,8 @@ function renderAchievementUnlockModal() {
     const textNode = document.getElementById('achievementUnlockText');
     const iconNode = document.getElementById('achievementUnlockIcon');
     const rewardNode = document.getElementById('achievementUnlockReward');
-    if (!modal || !achievementUnlockState.active || !titleNode || !textNode || !iconNode || !rewardNode) {
+    const percentNode = document.getElementById('achievementUnlockPercent');
+    if (!modal || !achievementUnlockState.active || !titleNode || !textNode || !iconNode || !rewardNode || !percentNode) {
         return;
     }
 
@@ -8801,6 +8938,7 @@ function renderAchievementUnlockModal() {
     rewardNode.textContent = rewardCoins > 0
         ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
         : 'Награда получена';
+    percentNode.textContent = formatAchievementOwnership(getAchievementStat(activeUnlock.key, activeUnlock.meta));
 
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -10295,6 +10433,8 @@ function resetUserState() {
     upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
     profileSummary = getDefaultProfileSummary();
     unlockedAchievements = [];
+    achievementStats = {};
+    achievementPlayerBase = 0;
     supportSummary = getDefaultSupportSummary();
     supportState.tickets = [];
     supportState.selectedTicketId = 0;
@@ -10364,6 +10504,7 @@ function applyAuthenticatedState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
+    applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {
@@ -11052,6 +11193,7 @@ function applySynchronizedAccountState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
+    applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {

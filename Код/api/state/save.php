@@ -37,6 +37,8 @@ try {
         'account' => $account,
         'achievements' => is_array($account) ? ($account['achievements'] ?? []) : [],
         'achievementUnlocks' => is_array($account) ? ($account['achievementUnlocks'] ?? []) : [],
+        'achievementStats' => is_array($account) ? ($account['achievementStats'] ?? []) : [],
+        'achievementPlayerBase' => is_array($account) ? ($account['achievementPlayerBase'] ?? 0) : 0,
         'supportSummary' => is_array($account) ? ($account['supportSummary'] ?? null) : null,
     ]);
 } catch (Throwable $error) {
