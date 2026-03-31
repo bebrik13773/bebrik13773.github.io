@@ -2164,6 +2164,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Bober Admin</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
