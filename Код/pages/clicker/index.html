@@ -2791,9 +2791,54 @@ Owner decisions:
     }
 
     .profile-achievements-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .profile-achievement-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .profile-achievement-group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .profile-achievement-group-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #f3fdff;
+    }
+
+    .profile-achievement-group-count {
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .profile-achievement-list {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 12px;
+    }
+
+    .profile-achievement-empty {
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 13px;
+        line-height: 1.45;
     }
 
     .profile-achievement-card {
@@ -4067,10 +4112,13 @@ Owner decisions:
         }
 
         .profile-achievements-grid {
-            grid-template-columns: 1fr;
             max-height: 34dvh;
             overflow-y: auto;
             padding-right: 2px;
+        }
+
+        .profile-achievement-list {
+            grid-template-columns: 1fr;
         }
 
         #achievementUnlockModal {
@@ -6942,26 +6990,32 @@ function renderProfileModal() {
         </div>
     `).join('');
 
-    achievementsNode.innerHTML = ALL_ACHIEVEMENT_KEYS.length > 0
-        ? ALL_ACHIEVEMENT_KEYS.map((achievementKey) => {
-            const definition = ACHIEVEMENT_DEFINITIONS[achievementKey] || {
-                title: achievementKey,
-                description: 'Достижение разблокировано.',
-                icon: '✨'
-            };
-            const unlockedItem = unlockedByKey[achievementKey] || null;
-            const stat = getAchievementStat(achievementKey, unlockedItem?.meta);
-            const statusLine = unlockedItem
-                ? `<span class="profile-achievement-status">Открыто</span>`
-                : '<span class="profile-achievement-status">Пока не открыто</span>';
-            const rewardLine = Number(unlockedItem?.meta?.rewardCoins) > 0
-                ? `<span>Награда: +${escapeHtmlText((Number(unlockedItem.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>`
-                : '';
-            const timeLine = unlockedItem
-                ? `<span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(unlockedItem.unlockedAt))}</span>`
-                : '';
+    if (ALL_ACHIEVEMENT_KEYS.length < 1) {
+        achievementsNode.innerHTML = '<div class="empty-list">Список достижений пока недоступен.</div>';
+        return;
+    }
 
-            return `
+    const achievementCards = ALL_ACHIEVEMENT_KEYS.map((achievementKey) => {
+        const definition = ACHIEVEMENT_DEFINITIONS[achievementKey] || {
+            title: achievementKey,
+            description: 'Достижение разблокировано.',
+            icon: '✨'
+        };
+        const unlockedItem = unlockedByKey[achievementKey] || null;
+        const stat = getAchievementStat(achievementKey, unlockedItem?.meta);
+        const statusLine = unlockedItem
+            ? `<span class="profile-achievement-status">Открыто</span>`
+            : '<span class="profile-achievement-status">Пока не открыто</span>';
+        const rewardLine = Number(unlockedItem?.meta?.rewardCoins) > 0
+            ? `<span>Награда: +${escapeHtmlText((Number(unlockedItem.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>`
+            : '';
+        const timeLine = unlockedItem
+            ? `<span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(unlockedItem.unlockedAt))}</span>`
+            : '';
+
+        return {
+            isUnlocked: Boolean(unlockedItem),
+            html: `
                 <article class="profile-achievement-card ${unlockedItem ? 'unlocked' : 'locked'}">
                     <div class="profile-achievement-icon">${escapeHtmlText(definition.icon)}</div>
                     <div>
@@ -6973,9 +7027,33 @@ function renderProfileModal() {
                         ${timeLine}
                     </div>
                 </article>
-            `;
-        }).join('')
-        : '<div class="empty-list">Список достижений пока недоступен.</div>';
+            `
+        };
+    });
+
+    const unlockedCards = achievementCards.filter((item) => item.isUnlocked);
+    const lockedCards = achievementCards.filter((item) => !item.isUnlocked);
+
+    achievementsNode.innerHTML = `
+        <section class="profile-achievement-group">
+            <div class="profile-achievement-group-head">
+                <div class="profile-achievement-group-title">Открытые достижения</div>
+                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(unlockedCards.length))}</div>
+            </div>
+            ${unlockedCards.length > 0
+                ? `<div class="profile-achievement-list">${unlockedCards.map((item) => item.html).join('')}</div>`
+                : '<div class="profile-achievement-empty">Пока нет открытых достижений.</div>'}
+        </section>
+        <section class="profile-achievement-group">
+            <div class="profile-achievement-group-head">
+                <div class="profile-achievement-group-title">Закрытые достижения</div>
+                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(lockedCards.length))}</div>
+            </div>
+            ${lockedCards.length > 0
+                ? `<div class="profile-achievement-list">${lockedCards.map((item) => item.html).join('')}</div>`
+                : '<div class="profile-achievement-empty">Все достижения уже открыты.</div>'}
+        </section>
+    `;
 }
 
 function openProfileModal() {
