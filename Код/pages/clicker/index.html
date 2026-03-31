@@ -334,6 +334,10 @@ Owner decisions:
 		.skin-shop-card.locked {
 			border-color: rgba(255, 255, 255, 0.14);
 		}
+		.skin-shop-card.blocked {
+			border-color: rgba(255, 126, 145, 0.48);
+			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12), 0 20px 34px rgba(48, 7, 18, 0.34);
+		}
 		.skin-shop-card.coming-soon {
 			border-color: rgba(255, 214, 133, 0.3);
 		}
@@ -408,6 +412,9 @@ Owner decisions:
 		}
 		.skin-shop-card-status {
 			color: rgba(255, 255, 255, 0.82);
+		}
+		.skin-shop-card-status.blocked {
+			color: #ffd3da;
 		}
 		.skin-shop-badge {
 			position: absolute;
@@ -547,6 +554,14 @@ Owner decisions:
 			filter: saturate(0.88);
 			border-color: rgba(255, 255, 255, 0.12);
 		}
+		.upgrade-card.blocked {
+			border-color: rgba(255, 126, 145, 0.48);
+			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12), 0 20px 34px rgba(54, 8, 20, 0.34);
+		}
+		.upgrade-card.blocked .upgrade-card-footer {
+			background: rgba(54, 8, 20, 0.34);
+			border-color: rgba(255, 126, 145, 0.24);
+		}
 		.upgrade-card.affordable {
 			border-color: rgba(126, 241, 255, 0.56);
 			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.16), 0 22px 34px rgba(0, 0, 0, 0.3);
@@ -605,6 +620,9 @@ Owner decisions:
 			font-size: 13px;
 			font-weight: 600;
 			color: rgba(255, 255, 255, 0.82);
+		}
+		.upgrade-card-status.blocked {
+			color: #ffd3da;
 		}
 		@media (max-width: 768px) {
 			#upgradeSection {
@@ -2584,20 +2602,24 @@ Owner decisions:
 
     .skin-modal-confirm:disabled,
     .skin-modal-confirm.disabled-reason,
-    #upgradeActionModalConfirm:disabled {
-        background: linear-gradient(180deg, rgba(108, 122, 169, 0.76), rgba(66, 78, 112, 0.84));
-        color: rgba(255, 255, 255, 0.86);
-        box-shadow: none;
-        border-color: rgba(255, 255, 255, 0.08);
+    .skin-modal-confirm.is-blocked,
+    #upgradeActionModalConfirm:disabled,
+    #upgradeActionModalConfirm.is-blocked {
+        background: linear-gradient(180deg, rgba(255, 114, 140, 0.96), rgba(143, 24, 48, 0.98));
+        color: #fff4f6;
+        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88), 0 14px 20px rgba(55, 8, 20, 0.28);
+        border-color: rgba(255, 192, 203, 0.24);
         cursor: not-allowed;
         opacity: 1;
     }
 
     .skin-modal-confirm:disabled:hover,
     .skin-modal-confirm.disabled-reason:hover,
-    #upgradeActionModalConfirm:disabled:hover {
+    .skin-modal-confirm.is-blocked:hover,
+    #upgradeActionModalConfirm:disabled:hover,
+    #upgradeActionModalConfirm.is-blocked:hover {
         transform: none;
-        box-shadow: none;
+        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88), 0 14px 20px rgba(55, 8, 20, 0.28);
     }
 
     #shopExit {
@@ -3711,6 +3733,12 @@ Owner decisions:
         font-size: 11px;
         font-weight: 700;
         white-space: nowrap;
+    }
+
+    .skin-shop-feature-status.blocked {
+        background: rgba(129, 19, 42, 0.38);
+        border-color: rgba(255, 126, 145, 0.3);
+        color: #ffd6dc;
     }
 
     .skin-shop-feature-meta {
@@ -7964,6 +7992,39 @@ function getSkinShortageMessage(price) {
     return `Недостаточно средств: сейчас ${formatCompactNumber(score)}, нужно ${formatCompactNumber(safePrice)}. Не хватает ${formatCompactNumber(shortage)}.`;
 }
 
+function getSkinBlockedReasonForViewer(skinConfig, options = {}) {
+    if (!skinConfig) {
+        return 'Скин недоступен';
+    }
+
+    const owned = options.owned === true || isSkinOwned(skinConfig.id);
+    if (owned) {
+        return '';
+    }
+
+    if (isSkinHiddenForViewer(skinConfig, owned)) {
+        return 'Скин скрыт из магазина';
+    }
+
+    if (skinConfig.issueMode === 'grant_only') {
+        return 'Только ручная выдача';
+    }
+
+    if (skinConfig.issueMode === 'starter') {
+        return 'Стартовый скин для новых';
+    }
+
+    if (!userId) {
+        return 'Войдите, чтобы купить';
+    }
+
+    if (score < Number(skinConfig.price || 0)) {
+        return 'Не хватает коинов';
+    }
+
+    return '';
+}
+
 function getSkinShopFocusedConfig() {
     const featuredItems = sortSkinCatalogForDisplay(SKIN_CATALOG.filter((item) => {
         return !isSkinHiddenForViewer(item);
@@ -8015,10 +8076,12 @@ function updateSkinShopFeature() {
 
     const owned = isSkinOwned(focusedSkin.id);
     const equipped = owned && skin.equippedSkinId === focusedSkin.id;
+    const blockedReason = getSkinBlockedReasonForViewer(focusedSkin, { owned });
     featureImageNode.src = focusedSkin.image;
     featureImageNode.alt = focusedSkin.name;
     featureImageNode.hidden = false;
     featureNameNode.textContent = focusedSkin.name;
+    featureStatusNode.classList.toggle('blocked', Boolean(blockedReason));
     featureMetaNode.innerHTML = `
         <span class="skin-chip rarity-${escapeHtmlText(focusedSkin.rarity)}">${escapeHtmlText(getSkinRarityLabel(focusedSkin.rarity))}</span>
         <span class="skin-chip">${escapeHtmlText(getSkinCategoryLabel(focusedSkin.category))}</span>
@@ -8079,10 +8142,12 @@ function updateSkinShopUI() {
         const badgeNode = skinCard.querySelector('.skin-shop-badge');
         const isHiddenForViewer = isSkinHiddenForViewer(skinConfig, isOwned);
         const isUniqueHiddenOwned = isUniqueHiddenSkin(skinConfig, isOwned);
+        const blockedReason = getSkinBlockedReasonForViewer(skinConfig, { owned: isOwned });
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
         skinCard.classList.toggle('locked', !isOwned && !isHiddenForViewer && !requiresSpecialIssue);
+        skinCard.classList.toggle('blocked', Boolean(blockedReason));
         skinCard.classList.toggle('coming-soon', isHiddenForViewer);
 
         if (priceNode) {
@@ -8096,6 +8161,7 @@ function updateSkinShopUI() {
         }
 
         if (statusNode) {
+            statusNode.classList.toggle('blocked', Boolean(blockedReason));
             if (isHiddenForViewer) {
                 statusNode.textContent = 'Скоро';
             } else if (isUniqueHiddenOwned) {
@@ -8288,6 +8354,7 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     confirmNode.textContent = disabledReason || defaultConfirmText;
     confirmNode.classList.toggle('install', mode === 'install');
     confirmNode.classList.toggle('disabled-reason', disabledReason !== '');
+    confirmNode.classList.toggle('is-blocked', disabledReason !== '');
     confirmNode.disabled = disabledReason !== '';
 
     modal.classList.add('show');
@@ -8523,6 +8590,7 @@ function updateUpgradeActionModalView() {
         confirmNode.textContent = isDisabled
             ? disabledReason
             : `Купить x${formatCompactNumber(quantity)} за ${formatCompactNumber(totalPrice)}`;
+        confirmNode.classList.toggle('is-blocked', isDisabled);
         confirmNode.disabled = isDisabled;
     }
 
@@ -9164,9 +9232,11 @@ function updateUpgradeShopUI() {
         const statusNode = button.querySelector('.upgrade-card-status');
         const isAffordable = Boolean(userId) && score >= currentCost;
         const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(cardConfig.baseCost, cardConfig.purchaseCount, score);
+        const blockedReason = !userId ? 'Сначала войдите в аккаунт' : (!isAffordable ? cardConfig.lockedText : '');
 
         button.classList.toggle('affordable', isAffordable);
         button.classList.toggle('locked', !isAffordable);
+        button.classList.toggle('blocked', Boolean(blockedReason));
         button.title = userId
             ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}. Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт.`
             : 'Войдите в аккаунт, чтобы покупать улучшения.';
@@ -9176,6 +9246,7 @@ function updateUpgradeShopUI() {
         }
 
         if (statusNode) {
+            statusNode.classList.toggle('blocked', Boolean(blockedReason));
             if (!userId) {
                 statusNode.textContent = 'Сначала войдите в аккаунт';
             } else if (isAffordable) {
