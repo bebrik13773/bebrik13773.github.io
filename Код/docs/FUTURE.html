@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Future Roadmap</title>
+    <style>
+        :root {
+            --bg-a: #0f1024;
+            --bg-b: #1a1240;
+            --panel: rgba(20, 16, 42, 0.82);
+            --border: rgba(126, 238, 255, 0.24);
+            --accent: #7eeeff;
+            --text: #f5fbff;
+            --muted: rgba(234, 244, 255, 0.76);
+            --shadow: 0 24px 60px rgba(2, 6, 20, 0.42);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", "SF Pro Display", Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(126, 238, 255, 0.14), transparent 28%),
+                radial-gradient(circle at top right, rgba(92, 126, 255, 0.16), transparent 24%),
+                linear-gradient(180deg, var(--bg-b), var(--bg-a));
+        }
+
+        .page {
+            width: min(920px, calc(100% - 28px));
+            margin: 0 auto;
+            padding: 28px 0 56px;
+        }
+
+        .card {
+            padding: 28px;
+            border-radius: 28px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(126, 238, 255, 0.2);
+            background: rgba(126, 238, 255, 0.08);
+            color: #d7fbff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 10px;
+            font-size: clamp(34px, 5vw, 56px);
+            line-height: 0.98;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.72;
+            font-size: 16px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 22px;
+        }
+
+        .status-item {
+            padding: 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(126, 238, 255, 0.14);
+        }
+
+        .status-item strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .done {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 22px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(91, 255, 180, 0.12);
+            border: 1px solid rgba(91, 255, 180, 0.18);
+            color: #dfffee;
+            font-weight: 700;
+        }
+
+        code {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(126, 238, 255, 0.1);
+            border: 1px solid rgba(126, 238, 255, 0.12);
+            font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="card">
+            <div class="kicker">Roadmap Status</div>
+            <h1>Активных задач в roadmap нет</h1>
+            <p>
+                Текущий пакет работ закрыт. Главная страница, поддержка, достижения, профиль, топ-награды,
+                админка и <code>fly-beaver</code> синхронизированы и доведены до рабочего состояния, а остаточные
+                задачи вынесены в историю коммитов, а не в активный backlog.
+            </p>
+
+            <div class="status-grid">
+                <article class="status-item">
+                    <strong>Стабильность</strong>
+                    <p>Image-safe рендер, live-sync, support flow, настройки и облачные сценарии работают согласованно.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Контент</strong>
+                    <p>Каталог скинов, grant-only логика, top-награды, достижения и профильные награды уже подключены.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Система</strong>
+                    <p><code>/api/state/sync.php</code>, тикеты поддержки, автообновление, лидерборды и достижения выведены в рабочий контур.</p>
+                </article>
+                <article class="status-item">
+                    <strong>Админка и forensic</strong>
+                    <p>Поддержка, редактор каталога, mobile-layout, forensic viewer и работа с файлами закрыты текущим пакетом.</p>
+                </article>
+            </div>
+
+            <div class="done">Всё выполнено</div>
+        </section>
+    </main>
+</body>
+</html>

@@ -13,7 +13,7 @@ ini_set('display_errors', '0');
 ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
-require_once dirname(__DIR__) . '/db.php';
+require_once dirname(__DIR__) . '/api/bootstrap/db.php';
 
 $bootstrapError = null;
 
@@ -31,7 +31,7 @@ function initializeAdmin()
         bober_ensure_project_schema($conn);
         $conn->close();
     } catch (Throwable $error) {
-        $bootstrapError = 'Панель не настроена. Создайте `Код/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
+        $bootstrapError = 'Панель не настроена. Создайте `Код/config/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
     }
 }
 
@@ -189,12 +189,12 @@ function buildUniqueSkinCatalogId($name, array $catalogItems)
 
 function skinManagedUploadRelativePrefix()
 {
-    return 'skins/uploaded/';
+    return '/assets/skins/uploaded/';
 }
 
 function skinUploadDirectoryPath()
 {
-    return dirname(__DIR__) . '/skins/uploaded';
+    return dirname(__DIR__) . '/assets/skins/uploaded';
 }
 
 function normalizeManagedSkinRelativePath($relativePath)

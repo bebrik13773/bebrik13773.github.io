@@ -56,7 +56,7 @@ jobs:
         ADMIN_PASSWORD_HASH_ESCAPED="$(printf '%s' "$ADMIN_PASSWORD_HASH" | php_escape)"
         ADMIN_INITIAL_PASSWORD_ESCAPED="$(printf '%s' "$ADMIN_INITIAL_PASSWORD" | php_escape)"
 
-        cat > ./Код/db_config.php <<EOF
+        cat > ./Код/config/db_config.php <<EOF
         <?php
 
         return [
@@ -110,7 +110,7 @@ jobs:
         echo "- **Environment:** ${{ steps.deployment.outputs.env_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Target Directory:** ${{ steps.deployment.outputs.target_dir }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Runtime Config:** \`Код/db_config.php\` generated from GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runtime Config:** \`Код/config/db_config.php\` generated from GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ steps.deployment.outputs.env_name }}" == "Production" ]; then
           echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,25 @@
+<svg width="160" height="480" viewBox="0 0 160 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bark" x1="20" y1="0" x2="140" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8A5A2D"/>
+      <stop offset=".45" stop-color="#6B411E"/>
+      <stop offset="1" stop-color="#4B2B12"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="24" y1="0" x2="140" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D8AA73"/>
+      <stop offset="1" stop-color="#9F6D3C"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="80" cy="34" rx="68" ry="28" fill="url(#cap)"/>
+  <ellipse cx="80" cy="34" rx="44" ry="18" fill="#BF8852"/>
+  <ellipse cx="80" cy="34" rx="21" ry="8.5" fill="#8C5E34"/>
+  <path d="M21 35C31 60 52 74 80 74C109 74 131 60 141 35" stroke="#4E2D12" stroke-width="7" stroke-linecap="round"/>
+  <rect x="18" y="38" width="124" height="442" rx="20" fill="url(#bark)"/>
+  <path d="M33 38H48V480H33V38Z" fill="#573117" fill-opacity=".62"/>
+  <path d="M64 38H72V480H64V38Z" fill="#4C2B14" fill-opacity=".52"/>
+  <path d="M98 38H108V480H98V38Z" fill="#5B3418" fill-opacity=".54"/>
+  <path d="M127 38H136V480H127V38Z" fill="#43240F" fill-opacity=".52"/>
+  <path d="M18 50C40 39 58 41 79 50C101 59 119 58 142 46V77C120 87 102 87 80 77C58 67 40 69 18 80V50Z" fill="#82B85A" fill-opacity=".78"/>
+  <path d="M18 154C43 139 59 142 84 152C102 159 118 160 142 149V171C119 182 102 182 84 175C60 166 42 165 18 179V154Z" fill="#335E2A" fill-opacity=".34"/>
+  <path d="M29 38H36V480H29V38Z" fill="#AC7A42" fill-opacity=".22"/>
+</svg>

@@ -1,0 +1,3289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+<!-- Product note: fly-beaver now uses the same account session as the main clicker,
+keeps separate cloud saves, and can transfer pending score into the main game. -->
+
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=104611709', 'ym');
+
+    ym(104611709, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/104611709" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+
+
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Летающий Бобер</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        :root {
+            --safe-top: max(14px, env(safe-area-inset-top));
+            --safe-right: max(14px, env(safe-area-inset-right));
+            --safe-bottom: max(14px, env(safe-area-inset-bottom));
+            --safe-left: max(14px, env(safe-area-inset-left));
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top, rgba(210, 241, 219, 0.18), transparent 34%),
+                radial-gradient(circle at bottom, rgba(93, 124, 68, 0.22), transparent 36%),
+                linear-gradient(180deg, #182c24 0%, #10211b 42%, #081310 100%);
+            font-family: 'Trebuchet MS', 'Verdana', sans-serif;
+            overflow: hidden;
+            padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+        }
+
+        body.effects-low {
+            --fly-ui-blur: 4px;
+            --fly-ui-shadow: 0 14px 26px rgba(2, 6, 23, 0.34);
+        }
+
+        body.effects-medium {
+            --fly-ui-blur: 8px;
+            --fly-ui-shadow: 0 18px 34px rgba(2, 6, 23, 0.42);
+        }
+
+        body.effects-high {
+            --fly-ui-blur: 12px;
+            --fly-ui-shadow: 0 24px 40px rgba(2, 6, 23, 0.48);
+        }
+
+        body.reduced-animations *,
+        body.reduced-animations *::before,
+        body.reduced-animations *::after {
+            animation-duration: 0.12s !important;
+            transition-duration: 0.12s !important;
+        }
+
+        body.animations-off *,
+        body.animations-off *::before,
+        body.animations-off *::after {
+            animation: none !important;
+            transition: none !important;
+        }
+
+        body.animations-off .fly-loading-spinner {
+            animation: none;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            height: min(80vh, 700px);
+            max-height: 640px;
+            overflow: hidden;
+            box-shadow: 0 30px 60px rgba(2, 6, 23, 0.62);
+            border: 4px solid rgba(187, 236, 177, 0.22);
+            border-radius: 24px;
+            background: linear-gradient(180deg, #cce8da 0%, #6e9485 48%, #233b36 100%);
+        }
+
+        #game-container::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 24%, transparent 74%, rgba(2, 6, 23, 0.12));
+            z-index: 1;
+        }
+
+        #game-container::after {
+            content: "";
+            position: absolute;
+            inset: 10px;
+            pointer-events: none;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            z-index: 1;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 0;
+        }
+        
+        .hud-shell {
+            position: absolute;
+            top: var(--safe-top);
+            left: var(--safe-left);
+            right: var(--safe-right);
+            z-index: 16;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .hud-stats {
+            display: grid;
+            grid-template-columns: auto auto;
+            grid-template-areas:
+                "score high"
+                "score level";
+            gap: 8px;
+            min-width: 0;
+            pointer-events: auto;
+        }
+
+        #score {
+            grid-area: score;
+            position: static;
+            min-width: 70px;
+            min-height: 68px;
+            padding: 10px 12px;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff6d0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+            border-radius: 18px;
+            background: rgba(8, 22, 24, 0.54);
+            border: 1px solid rgba(206, 255, 221, 0.18);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+            box-shadow: var(--fly-ui-shadow, 0 10px 24px rgba(5, 10, 20, 0.28));
+        }
+        
+        #high-score {
+            grid-area: high;
+            position: static;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+            padding: 7px 10px;
+            border-radius: 13px;
+            background: rgba(8, 22, 24, 0.48);
+            border: 1px solid rgba(206, 255, 221, 0.14);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+        }
+        
+        #level-indicator {
+            grid-area: level;
+            position: static;
+            font-size: 12px;
+            font-weight: bold;
+            color: #b4ffd1;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+            padding: 7px 10px;
+            border-radius: 13px;
+            background: rgba(8, 22, 24, 0.48);
+            border: 1px solid rgba(206, 255, 221, 0.14);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+        }
+        
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(8, 24, 20, 0.8), rgba(7, 15, 14, 0.94));
+            color: white;
+            z-index: 20;
+            text-align: center;
+            padding: calc(var(--safe-top) + 84px) 22px calc(var(--safe-bottom) + 18px);
+            backdrop-filter: blur(14px);
+        }
+        
+        #game-over {
+            display: none;
+        }
+        
+        #pause-screen {
+            display: none;
+        }
+        
+        h1 {
+            font-size: 34px;
+            margin-bottom: 16px;
+            color: #edf8d1;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+            font-weight: bold;
+            letter-spacing: 0.08em;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            margin-bottom: 18px;
+            color: #f6fbff;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+            max-width: 86%;
+            line-height: 1.45;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            background: linear-gradient(180deg, #b6d871 0%, #5a9a49 100%);
+            color: #11210f;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            margin-top: 18px;
+            font-weight: bold;
+            box-shadow: 0 8px 0 #36612a, 0 14px 20px rgba(0,0,0,0.28);
+            transition: all 0.1s;
+            min-width: 160px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+        }
+        
+        button:hover {
+            transform: translateY(2px);
+            box-shadow: 0 6px 0 #36612a, 0 10px 12px rgba(0,0,0,0.28);
+        }
+
+        button:active {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #36612a, 0 6px 8px rgba(0,0,0,0.22);
+        }
+        
+        .controls {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 16px;
+            color: #d7ebff;
+            max-width: 86%;
+            line-height: 1.5;
+        }
+        
+        .icon {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 24px;
+            height: 24px;
+            background: #ffd700;
+            margin: 0 5px;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+            vertical-align: middle;
+            color: #261805;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        
+        #mute-btn {
+            position: absolute;
+            bottom: var(--safe-bottom);
+            right: var(--safe-right);
+            width: 36px;
+            height: 36px;
+            background: rgba(7, 12, 25, 0.48);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 50%;
+            z-index: 18;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        #exit-btn {
+            position: absolute;
+            bottom: var(--safe-bottom);
+            left: var(--safe-left);
+            width: 36px;
+            height: 36px;
+            background: rgba(7, 12, 25, 0.48);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 50%;
+            z-index: 18;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        #pause-btn {
+            position: absolute;
+            bottom: var(--safe-bottom);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 36px;
+            background: rgba(7, 12, 25, 0.48);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 50%;
+            z-index: 18;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        .instructions {
+            background: rgba(7, 12, 25, 0.52);
+            padding: 14px 16px;
+            border-radius: 14px;
+            margin-top: 15px;
+            max-width: 86%;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        
+        .difficulty-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ffe391;
+        }
+
+        .cloud-panel {
+            position: relative;
+            width: min(168px, 44vw);
+            z-index: 1;
+            pointer-events: auto;
+            background: rgba(14, 28, 22, 0.78);
+            border: 1px solid rgba(186, 226, 178, 0.2);
+            border-radius: 16px;
+            padding: 8px 9px;
+            color: #f5fbff;
+            backdrop-filter: blur(var(--fly-ui-blur, 12px));
+            box-shadow: var(--fly-ui-shadow, 0 14px 30px rgba(0, 0, 0, 0.22));
+        }
+
+        .cloud-panel.compact {
+            width: min(142px, 38vw);
+        }
+
+        .cloud-panel.compact .cloud-details {
+            display: none;
+        }
+
+        .cloud-panel.compact .cloud-summary {
+            display: none;
+        }
+
+        .cloud-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cloud-head-copy {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cloud-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #d9f8c6;
+            margin-bottom: 0;
+        }
+
+        .cloud-summary {
+            font-size: 11px;
+            line-height: 1.35;
+            color: rgba(255, 255, 255, 0.72);
+        }
+
+        .cloud-status {
+            font-size: 12px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .cloud-details {
+            margin-top: 9px;
+        }
+
+        .cloud-status.connected {
+            color: #b7ffd8;
+        }
+
+        .cloud-status.local {
+            color: #cbd5e1;
+        }
+
+        .cloud-status.pending {
+            color: #ffe082;
+        }
+
+        .cloud-status.error {
+            color: #ffb4b4;
+        }
+
+        .cloud-toggle {
+            width: 28px;
+            min-width: 28px;
+            height: 28px;
+            margin: 0;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 16px;
+            background: linear-gradient(180deg, #b6d871 0%, #5a9a49 100%);
+            color: #11210f;
+            box-shadow: 0 5px 0 #36612a, 0 10px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .cloud-action {
+            margin-top: 10px;
+            min-width: 0;
+            width: 100%;
+            display: none;
+            padding: 10px 14px;
+            font-size: 14px;
+            background: linear-gradient(180deg, #d7bb72 0%, #ac7832 100%);
+            color: #1f1308;
+            box-shadow: 0 6px 0 #7a4b1e, 0 8px 10px rgba(0,0,0,0.35);
+        }
+
+        #exit-button,
+        #exit-from-pause {
+            color: #fff;
+        }
+
+        .menu-secondary-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f8fcff;
+            box-shadow: none;
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+
+        .fly-loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 24;
+            background: rgba(6, 10, 20, 0.52);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .fly-loading-overlay.show {
+            display: flex;
+        }
+
+        .landscape-guard {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 25;
+            background: linear-gradient(180deg, rgba(7, 18, 16, 0.84), rgba(4, 10, 10, 0.96));
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            text-align: center;
+            padding: 24px;
+        }
+
+        .landscape-guard.show {
+            display: flex;
+        }
+
+        .landscape-guard-card {
+            width: min(100%, 320px);
+            padding: 22px 20px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(18, 38, 31, 0.96), rgba(9, 24, 21, 0.99));
+            border: 1px solid rgba(176, 231, 179, 0.24);
+            box-shadow: 0 24px 40px rgba(0,0,0,0.32);
+            color: #fff;
+        }
+
+        .fly-loading-card {
+            width: min(100%, 320px);
+            padding: 22px 20px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(18, 38, 31, 0.96), rgba(9, 24, 21, 0.99));
+            border: 1px solid rgba(176, 231, 179, 0.24);
+            box-shadow: 0 24px 40px rgba(0,0,0,0.32);
+            text-align: center;
+            color: #fff;
+        }
+
+        .fly-loading-spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 14px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.14);
+            border-top-color: #c5f7a2;
+            animation: flyLoadingSpin 0.9s linear infinite;
+        }
+
+        .game-over-cloud-card {
+            width: min(100%, 320px);
+            margin-top: 14px;
+            padding: 14px 15px;
+            border-radius: 18px;
+            border: 1px solid rgba(214, 246, 196, 0.18);
+            background: rgba(8, 22, 20, 0.58);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 28px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .game-over-cloud-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #d9f8c6;
+            margin-bottom: 8px;
+            letter-spacing: 0.02em;
+            text-align: center;
+        }
+
+        .game-over-cloud-meta {
+            font-size: 12px;
+            line-height: 1.5;
+            color: rgba(255,255,255,0.76);
+            margin-top: 8px;
+            text-align: center;
+            white-space: pre-line;
+        }
+
+        .game-over-cloud-action {
+            display: none;
+            width: 100%;
+            margin-top: 12px;
+            min-width: 0;
+            background: linear-gradient(180deg, #d7bb72 0%, #ac7832 100%);
+            color: #1f1308;
+            box-shadow: 0 6px 0 #7a4b1e, 0 8px 10px rgba(0,0,0,0.35);
+        }
+
+        .fly-achievement-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10035;
+            padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px) calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 16px);
+            background: linear-gradient(180deg, rgba(7, 18, 16, 0.78), rgba(4, 10, 10, 0.94));
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .fly-achievement-overlay.show {
+            display: flex;
+        }
+
+        .fly-achievement-card {
+            width: min(100%, 360px);
+            padding: 24px 22px 20px;
+            border-radius: 28px;
+            border: 1px solid rgba(214, 246, 196, 0.24);
+            background: linear-gradient(180deg, rgba(18, 38, 31, 0.97), rgba(9, 24, 21, 0.99));
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.34);
+            text-align: center;
+            color: #fff;
+        }
+
+        .fly-achievement-kicker {
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #c6f8a8;
+            margin-bottom: 12px;
+        }
+
+        .fly-achievement-icon {
+            width: 88px;
+            height: 88px;
+            margin: 0 auto 14px;
+            border-radius: 26px;
+            display: grid;
+            place-items: center;
+            font-size: 42px;
+            background: linear-gradient(180deg, rgba(198, 247, 162, 0.24), rgba(111, 180, 104, 0.16));
+            border: 1px solid rgba(214, 246, 196, 0.22);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .fly-achievement-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #f7fff1;
+            margin-bottom: 8px;
+        }
+
+        .fly-achievement-text {
+            font-size: 15px;
+            line-height: 1.55;
+            color: rgba(255,255,255,0.82);
+            margin-bottom: 16px;
+        }
+
+        .fly-achievement-reward {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: rgba(198, 247, 162, 0.14);
+            border: 1px solid rgba(198, 247, 162, 0.2);
+            color: #efffd9;
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 18px;
+        }
+
+        .fly-achievement-button {
+            width: 100%;
+            min-width: 0;
+            margin-top: 0;
+        }
+
+        @keyframes flyLoadingSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        /* Анимации */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        
+        .float {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 28px;
+            }
+            
+            .subtitle {
+                font-size: 16px;
+            }
+            
+            button {
+                padding: 10px 20px;
+                font-size: 16px;
+                min-width: 140px;
+            }
+            
+            #score {
+                font-size: 26px;
+                min-width: 60px;
+            }
+            
+            #high-score {
+                top: calc(var(--safe-top) + 62px);
+                font-size: 12px;
+                max-width: 122px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            #level-indicator {
+                top: calc(var(--safe-top) + 94px);
+                font-size: 12px;
+                max-width: 122px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .controls {
+                font-size: 14px;
+            }
+
+            .cloud-panel {
+                width: min(120px, 34vw);
+                padding: 7px 8px;
+            }
+
+            .cloud-panel.expanded {
+                width: min(188px, 52vw);
+            }
+
+            .cloud-title {
+                font-size: 12px;
+            }
+
+            .cloud-summary,
+            .cloud-status {
+                font-size: 11px;
+            }
+
+            .cloud-toggle {
+                width: 26px;
+                min-width: 26px;
+                height: 26px;
+                font-size: 14px;
+            }
+
+            .cloud-action {
+                font-size: 13px;
+                padding: 9px 12px;
+            }
+
+            .screen {
+                padding: calc(var(--safe-top) + 74px) 18px calc(var(--safe-bottom) + 16px);
+            }
+
+            .fly-achievement-title {
+                font-size: 24px;
+            }
+
+            .fly-achievement-overlay {
+                align-items: stretch;
+            }
+
+            .fly-achievement-card {
+                width: 100%;
+                min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 32px);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+
+            .hud-shell {
+                gap: 6px;
+            }
+
+            .hud-stats {
+                grid-template-columns: auto auto;
+                width: auto;
+            }
+
+            #score,
+            #high-score,
+            #level-indicator,
+            .cloud-panel,
+            .cloud-panel.compact,
+            .cloud-panel.expanded {
+                max-width: none;
+            }
+        }
+        
+        @media (max-height: 600px) {
+            #game-container {
+                height: 90vh;
+            }
+            
+            h1 {
+                font-size: 28px;
+                margin-bottom: 10px;
+            }
+            
+            .subtitle {
+                font-size: 14px;
+                margin-bottom: 15px;
+            }
+            
+            .instructions {
+                font-size: 12px;
+                padding: 8px;
+            }
+
+            .screen {
+                padding-top: calc(var(--safe-top) + 68px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div class="hud-shell">
+            <div class="hud-stats">
+                <div id="score">0</div>
+                <div id="high-score">Рекорд: 0</div>
+                <div id="level-indicator">Уровень: 1</div>
+            </div>
+            <div id="cloud-panel" class="cloud-panel compact">
+                <div class="cloud-header">
+                    <div class="cloud-head-copy">
+                        <div id="cloud-title" class="cloud-title">Локальный режим</div>
+                        <div id="cloud-summary" class="cloud-summary">Свернуто: облачные сохранения и перевод очков</div>
+                    </div>
+                    <button id="cloud-toggle" class="cloud-toggle" type="button" aria-expanded="false" aria-controls="cloud-details">+</button>
+                </div>
+                <div id="cloud-details" class="cloud-details">
+                    <div id="cloud-status" class="cloud-status local">Войдите в основной аккаунт, чтобы включить облачные сохранения и перевод очков.</div>
+                    <button id="claim-fly-score" class="cloud-action">Перевести очки в кликер</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="start-screen" class="screen">
+            <h1>ЛЕТАЮЩИЙ БОБЕР</h1>
+            <div class="subtitle">Пролети над болотом, обойди брёвна и не свались в трясину!</div>
+            <button id="start-button">НАЧАТЬ</button>
+            <button id="start-back-button" class="menu-secondary-btn">ВЕРНУТЬСЯ</button>
+            <div class="controls">
+                Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК
+                <div class="difficulty-info">Сложность увеличивается каждые 10 очков!</div>
+            </div>
+            <div class="instructions">
+                Пролетай через брёвна, чтобы набрать очки.<br>Избегай столкновений!
+            </div>
+        </div>
+        
+        <div id="game-over" class="screen">
+            <h1>ИГРА ОКОНЧЕНА</h1>
+            <div class="subtitle">Твой счёт: <span id="final-score">0</span></div>
+            <div class="subtitle">Рекорд: <span id="final-high-score">0</span></div>
+            <div class="subtitle">Достигнутый уровень: <span id="final-level">1</span></div>
+            <div class="game-over-cloud-card">
+                <div class="game-over-cloud-title">Облако и перевод очков</div>
+                <div class="instructions" id="game-over-cloud-status">Проверяем облачное сохранение забега...</div>
+                <div class="game-over-cloud-meta" id="game-over-cloud-meta">Проверяем облачный статус, очередь забегов и возможность перевода.</div>
+                <button id="game-over-claim-fly-score" class="game-over-cloud-action">Перевести очки в кликер</button>
+            </div>
+            <button id="restart-button">ИГРАТЬ СНОВА</button>
+            <button id="exit-button" style="background: linear-gradient(to bottom, #ff6b6b, #c44); box-shadow: 0 6px 0 #a33, 0 8px 10px rgba(0,0,0,0.4);">ВЫЙТИ</button>
+        </div>
+        
+        <div id="pause-screen" class="screen">
+            <h1>ПАУЗА</h1>
+            <div class="subtitle">Счёт: <span id="pause-score">0</span></div>
+            <div class="subtitle">Уровень: <span id="pause-level">1</span></div>
+            <button id="resume-button">ПРОДОЛЖИТЬ</button>
+            <button id="restart-from-pause">ЗАНОВО</button>
+            <button id="exit-from-pause" style="background: linear-gradient(to bottom, #ff6b6b, #c44); box-shadow: 0 6px 0 #a33, 0 8px 10px rgba(0,0,0,0.4);">ВЫЙТИ</button>
+        </div>
+        
+        <div id="mute-btn">🔊</div>
+        <div id="exit-btn">←</div>
+        <div id="pause-btn">⏸️</div>
+        <div class="fly-loading-overlay" id="flyLoadingOverlay" aria-hidden="true">
+            <div class="fly-loading-card">
+                <div class="fly-loading-spinner"></div>
+                <div style="font-size: 21px; font-weight: 800; color: #e6fbff; margin-bottom: 8px;" id="flyLoadingTitle">Загрузка</div>
+                <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.8);" id="flyLoadingText">Подключаем облако и подготавливаем игру...</div>
+            </div>
+        </div>
+        <div class="landscape-guard" id="landscapeGuard" aria-hidden="true">
+            <div class="landscape-guard-card">
+                <div style="font-size: 42px; margin-bottom: 10px;">📱</div>
+                <div style="font-size: 22px; font-weight: 800; color: #e6fbff; margin-bottom: 8px;">Поверните телефон</div>
+                <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.82);">Летающий бобер работает только в портретной ориентации. В альбомной игра ставится на паузу, чтобы сцена не ломалась.</div>
+            </div>
+        </div>
+        <div class="fly-achievement-overlay" id="flyAchievementOverlay" aria-hidden="true">
+            <div class="fly-achievement-card" role="dialog" aria-modal="true" aria-labelledby="flyAchievementTitle">
+                <div class="fly-achievement-kicker">Новое достижение</div>
+                <div class="fly-achievement-icon" id="flyAchievementIcon">✨</div>
+                <div class="fly-achievement-title" id="flyAchievementTitle">Достижение</div>
+                <div class="fly-achievement-text" id="flyAchievementText">Описание достижения.</div>
+                <div class="fly-achievement-reward" id="flyAchievementReward">+0 коинов</div>
+                <button type="button" class="fly-achievement-button" id="flyAchievementAcknowledge">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/js/shared-client.js"></script>
+    <script>
+        // Получаем элементы
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const levelIndicator = document.getElementById('level-indicator');
+        const finalScoreElement = document.getElementById('final-score');
+        const finalHighScoreElement = document.getElementById('final-high-score');
+        const finalLevelElement = document.getElementById('final-level');
+        const gameOverCloudStatusElement = document.getElementById('game-over-cloud-status');
+        const gameOverCloudMetaElement = document.getElementById('game-over-cloud-meta');
+        const gameOverClaimFlyScoreButton = document.getElementById('game-over-claim-fly-score');
+        const pauseScoreElement = document.getElementById('pause-score');
+        const pauseLevelElement = document.getElementById('pause-level');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over');
+        const pauseScreen = document.getElementById('pause-screen');
+        const landscapeGuardElement = document.getElementById('landscapeGuard');
+        const cloudPanelElement = document.getElementById('cloud-panel');
+        const cloudTitleElement = document.getElementById('cloud-title');
+        const cloudSummaryElement = document.getElementById('cloud-summary');
+        const cloudStatusElement = document.getElementById('cloud-status');
+        const cloudDetailsElement = document.getElementById('cloud-details');
+        const cloudToggleButton = document.getElementById('cloud-toggle');
+        const claimFlyScoreButton = document.getElementById('claim-fly-score');
+        const startButton = document.getElementById('start-button');
+        const startBackButton = document.getElementById('start-back-button');
+        const restartButton = document.getElementById('restart-button');
+        const resumeButton = document.getElementById('resume-button');
+        const restartFromPauseButton = document.getElementById('restart-from-pause');
+        const exitButton = document.getElementById('exit-button');
+        const exitFromPauseButton = document.getElementById('exit-from-pause');
+        const muteBtn = document.getElementById('mute-btn');
+        const exitBtn = document.getElementById('exit-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const flyLoadingOverlay = document.getElementById('flyLoadingOverlay');
+        const flyLoadingTitle = document.getElementById('flyLoadingTitle');
+        const flyLoadingText = document.getElementById('flyLoadingText');
+        const flyAchievementOverlay = document.getElementById('flyAchievementOverlay');
+        const flyAchievementIcon = document.getElementById('flyAchievementIcon');
+        const flyAchievementTitle = document.getElementById('flyAchievementTitle');
+        const flyAchievementText = document.getElementById('flyAchievementText');
+        const flyAchievementReward = document.getElementById('flyAchievementReward');
+        const flyAchievementAcknowledge = document.getElementById('flyAchievementAcknowledge');
+        
+        // Создаем аудио элементы
+        const flapSound = new Audio('/assets/sounds/flap.mp3');
+        const scoreSound = new Audio('/assets/sounds/orb.mp3');
+        const hitSound = new Audio('/assets/sounds/did.mp3');
+        const levelupSound = new Audio('/assets/sounds/levelup.mp3');
+        
+        // Настраиваем громкость
+        flapSound.volume = 0.6;
+        scoreSound.volume = 0.7;
+        hitSound.volume = 0.8;
+        levelupSound.volume = 0.7;
+        const isMobile = 'ontouchstart' in window;
+        const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
+        const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
+        const FLY_VISUAL_ASSET_PATHS = {
+            beaverIdle: '/assets/fly/beaver-idle.svg',
+            beaverGlide: '/assets/fly/beaver-glide.svg',
+            beaverFlapUp: '/assets/fly/beaver-flap-up.svg',
+            beaverFlapDown: '/assets/fly/beaver-flap-down.svg',
+            beaverFall: '/assets/fly/beaver-fall.svg',
+            logTop: '/assets/fly/log-top.svg',
+            logBottom: '/assets/fly/log-bottom.svg',
+            cloud: '/assets/fly/cloud.svg'
+        };
+        const FLY_BIOMES = Object.freeze([
+            {
+                id: 'mist-swamp',
+                label: 'Туманное болото',
+                skyTop: '#d6f2ea',
+                skyMid: '#8ab7aa',
+                skyBottom: '#17302d',
+                sunCore: 'rgba(255, 241, 195, 0.4)',
+                sunOuter: 'rgba(255, 205, 116, 0.18)',
+                farFill: '#49645c',
+                farShadow: '#27453f',
+                nearFill: '#324941',
+                nearShadow: '#1c2f28',
+                mistOpacity: 0.96,
+                backLeaf: '#406a48',
+                frontLeaf: '#33593b',
+                backAccent: '#9fd0a0',
+                frontAccent: '#8fd48f',
+                waterTop: 'rgba(72, 121, 109, 0.9)',
+                waterMid: 'rgba(42, 76, 70, 0.92)',
+                waterBottom: 'rgba(16, 36, 36, 0.98)',
+                grassTop: '#87bb62',
+                grassAccent: 'rgba(180, 228, 120, 0.48)',
+                soilTop: '#5f4b2c',
+                soilMid: '#45331d',
+                soilBottom: '#25190f',
+                cloudTint: 1,
+                ambientMode: 'pollen',
+                ambientDensity: 1
+            },
+            {
+                id: 'rain-marsh',
+                label: 'Дождливый марш',
+                skyTop: '#b8cad4',
+                skyMid: '#6f8c97',
+                skyBottom: '#102630',
+                sunCore: 'rgba(212, 232, 255, 0.14)',
+                sunOuter: 'rgba(126, 175, 255, 0.1)',
+                farFill: '#425965',
+                farShadow: '#203845',
+                nearFill: '#2e4049',
+                nearShadow: '#18272e',
+                mistOpacity: 0.72,
+                backLeaf: '#3d5d53',
+                frontLeaf: '#2d4740',
+                backAccent: '#84aa97',
+                frontAccent: '#78a993',
+                waterTop: 'rgba(58, 95, 108, 0.92)',
+                waterMid: 'rgba(31, 58, 66, 0.94)',
+                waterBottom: 'rgba(9, 22, 28, 0.99)',
+                grassTop: '#648c66',
+                grassAccent: 'rgba(146, 188, 156, 0.28)',
+                soilTop: '#56462f',
+                soilMid: '#3f301e',
+                soilBottom: '#22180f',
+                cloudTint: 0.86,
+                ambientMode: 'rain',
+                ambientDensity: 1.18
+            },
+            {
+                id: 'dusk-forest',
+                label: 'Вечерний лес',
+                skyTop: '#8f92c6',
+                skyMid: '#594f83',
+                skyBottom: '#172034',
+                sunCore: 'rgba(255, 196, 120, 0.3)',
+                sunOuter: 'rgba(255, 132, 104, 0.16)',
+                farFill: '#514d71',
+                farShadow: '#2f2746',
+                nearFill: '#2e3c4f',
+                nearShadow: '#161f2b',
+                mistOpacity: 0.56,
+                backLeaf: '#546b77',
+                frontLeaf: '#3c5362',
+                backAccent: '#c4b78b',
+                frontAccent: '#d3bd78',
+                waterTop: 'rgba(79, 96, 138, 0.82)',
+                waterMid: 'rgba(45, 55, 86, 0.92)',
+                waterBottom: 'rgba(15, 20, 38, 0.99)',
+                grassTop: '#7d8c58',
+                grassAccent: 'rgba(224, 205, 120, 0.2)',
+                soilTop: '#624e3b',
+                soilMid: '#443126',
+                soilBottom: '#251712',
+                cloudTint: 0.94,
+                ambientMode: 'firefly',
+                ambientDensity: 0.84
+            },
+            {
+                id: 'clear-day',
+                label: 'Ясный день',
+                skyTop: '#cfefff',
+                skyMid: '#8cc9dd',
+                skyBottom: '#244b55',
+                sunCore: 'rgba(255, 247, 183, 0.5)',
+                sunOuter: 'rgba(255, 213, 96, 0.22)',
+                farFill: '#6b8b78',
+                farShadow: '#3a5e54',
+                nearFill: '#3b5c4a',
+                nearShadow: '#1e332b',
+                mistOpacity: 0.38,
+                backLeaf: '#53855d',
+                frontLeaf: '#3c7147',
+                backAccent: '#b8e28f',
+                frontAccent: '#9fd784',
+                waterTop: 'rgba(89, 150, 162, 0.84)',
+                waterMid: 'rgba(48, 101, 110, 0.94)',
+                waterBottom: 'rgba(18, 42, 48, 0.99)',
+                grassTop: '#89c268',
+                grassAccent: 'rgba(210, 243, 134, 0.38)',
+                soilTop: '#735739',
+                soilMid: '#543d25',
+                soilBottom: '#2c1e11',
+                cloudTint: 1.08,
+                ambientMode: 'pollen',
+                ambientDensity: 1.08
+            }
+        ]);
+        const flyVisualAssets = {
+            images: {},
+            ready: false,
+            loadPromise: null
+        };
+        const sceneState = {
+            offsets: {
+                mountainsFar: 0,
+                mountainsNear: 0,
+                forestBack: 0,
+                forestFront: 0,
+                ground: 0
+            },
+            pollen: [],
+            activeBiome: FLY_BIOMES[0],
+            ambientDensity: 1,
+            treeBelts: {
+                back: { items: [], loopWidth: 0 },
+                front: { items: [], loopWidth: 0 }
+            },
+            lastSizeKey: ''
+        };
+        let beaver = null;
+        
+        // Установка размеров canvas
+        function resizeCanvas() {
+            canvas.width = Math.max(1, canvas.offsetWidth || 0);
+            canvas.height = Math.max(1, canvas.offsetHeight || 0);
+            syncSceneState(true);
+            if (beaver) {
+                beaver.y = Math.max(0, Math.min(beaver.y, canvas.height - ground.height - beaver.height));
+            }
+        }
+        
+        // Инициализация размеров canvas
+        resizeCanvas();
+        window.addEventListener('resize', function() {
+            resizeCanvas();
+            updateOrientationGuard();
+        });
+        window.addEventListener('orientationchange', updateOrientationGuard);
+        if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+            screen.orientation.addEventListener('change', updateOrientationGuard);
+        }
+        
+        // Игровые переменные
+        let gameRunning = false;
+        let gamePaused = false;
+        let score = 0;
+        let highScore = Number(localStorage.getItem('flappyBeaverHighScore') || 0);
+        let currentLevel = 1;
+        let baseGameSpeed = 2;
+        let currentGameSpeed = baseGameSpeed;
+        let isMuted = false;
+        let currentRunToken = '';
+        let cloudSaveInFlight = false;
+        let isCloudPanelExpanded = false;
+        let cloudAutoCollapseTimer = null;
+        let cloudAutoCollapseDoneForRun = false;
+        let lastFrameTime = 0;
+        let landscapeBlocked = false;
+        let orientationPausedRun = false;
+        const SHARED_CLIENT = window.BoberSharedClient || {};
+        const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
+        const TARGET_FRAME_MS = 1000 / 60;
+        const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
+        const PENDING_FLY_RUNS_STORAGE_KEY = 'bober_fly_pending_runs';
+        const SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY = 'bober_fly_seen_achievement_unlocks';
+        const FLY_TRANSFER_MIN_SCORE = 30;
+        const FLY_CREDIT_MIN_SCORE = 10;
+        const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
+        const FLY_HOURLY_COINS_LIMIT = 250000;
+        let accountState = {
+            userId: null,
+            login: '',
+            mainScore: 0,
+            settings: SHARED_CLIENT.readCachedUserSettings
+                ? SHARED_CLIENT.readCachedUserSettings()
+                : {
+                    audio: { musicEnabled: true, effectsEnabled: true, flyVolume: 100 },
+                    vibration: { enabled: true, intensity: 'medium' },
+                    animations: { mode: 'full' },
+                    notifications: { enabled: true },
+                    effects: { quality: 'high' }
+                },
+            flyBeaver: {
+                bestScore: 0,
+                lastScore: 0,
+                lastLevel: 1,
+                gamesPlayed: 0,
+                totalScore: 0,
+                pendingTransferScore: 0,
+                transferredTotalScore: 0,
+                lastPlayedAt: null
+            }
+        };
+        let pendingFlyRunQueue = [];
+        const flyAchievementState = {
+            queue: [],
+            active: null,
+            seen: new Set()
+        };
+        
+        highScoreElement.textContent = `Рекорд: ${highScore}`;
+        levelIndicator.textContent = `Уровень: ${currentLevel}`;
+        pendingFlyRunQueue = readPendingFlyRunQueue();
+        try {
+            const rawSeenAchievements = localStorage.getItem(SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY);
+            if (rawSeenAchievements) {
+                const parsedSeenAchievements = JSON.parse(rawSeenAchievements);
+                if (Array.isArray(parsedSeenAchievements)) {
+                    parsedSeenAchievements
+                        .filter((item) => typeof item === 'string' && item.trim() !== '')
+                        .forEach((item) => flyAchievementState.seen.add(item));
+                }
+            }
+        } catch (error) {
+            console.warn('Не удалось прочитать историю достижений fly-beaver.', error);
+        }
+        applyLatestFlySettingsSnapshot({ persist: false });
+
+        function getGameSpeedForLevel(level) {
+            return baseGameSpeed + (Math.max(1, level) - 1) * 0.3;
+        }
+
+        function normalizeAchievementList(rawAchievements) {
+            if (!Array.isArray(rawAchievements)) {
+                return [];
+            }
+
+            return rawAchievements
+                .map((item) => {
+                    const key = String(item && item.key ? item.key : '').trim();
+                    if (!key || !ACHIEVEMENT_DEFINITIONS[key]) {
+                        return null;
+                    }
+
+                    return {
+                        key,
+                        unlockedAt: String(item.unlockedAt || item.unlocked_at || '').trim(),
+                        meta: item.meta && typeof item.meta === 'object' ? item.meta : {}
+                    };
+                })
+                .filter(Boolean);
+        }
+
+        function buildSeenAchievementKey(item) {
+            return `${String(item?.key || '').trim()}::${String(item?.unlockedAt || '').trim()}`;
+        }
+
+        function persistSeenAchievementUnlocks() {
+            try {
+                localStorage.setItem(SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY, JSON.stringify(Array.from(flyAchievementState.seen).slice(-300)));
+            } catch (error) {
+                console.warn('Не удалось сохранить историю достижений fly-beaver.', error);
+            }
+        }
+
+        function markAchievementUnlockSeen(item) {
+            const seenKey = buildSeenAchievementKey(item);
+            if (!seenKey || seenKey === '::') {
+                return;
+            }
+
+            flyAchievementState.seen.add(seenKey);
+            persistSeenAchievementUnlocks();
+        }
+
+        function isAchievementUnlockQueuedOrActive(item) {
+            const seenKey = buildSeenAchievementKey(item);
+            if (!seenKey || seenKey === '::') {
+                return false;
+            }
+
+            if (flyAchievementState.active && buildSeenAchievementKey(flyAchievementState.active) === seenKey) {
+                return true;
+            }
+
+            return flyAchievementState.queue.some((queuedItem) => buildSeenAchievementKey(queuedItem) === seenKey);
+        }
+
+        function renderAchievementUnlockOverlay() {
+            if (!flyAchievementOverlay || !flyAchievementState.active || !flyAchievementIcon || !flyAchievementTitle || !flyAchievementText || !flyAchievementReward) {
+                return;
+            }
+
+            const activeUnlock = flyAchievementState.active;
+            const definition = ACHIEVEMENT_DEFINITIONS[activeUnlock.key] || {
+                title: activeUnlock.key,
+                description: 'Достижение разблокировано.',
+                icon: '✨'
+            };
+            const rewardCoins = Math.max(0, Number(activeUnlock.meta?.rewardCoins) || 0);
+
+            flyAchievementIcon.textContent = definition.icon || '✨';
+            flyAchievementTitle.textContent = definition.title || activeUnlock.key;
+            flyAchievementText.textContent = definition.description || 'Достижение разблокировано.';
+            flyAchievementReward.textContent = rewardCoins > 0
+                ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
+                : 'Награда получена';
+
+            flyAchievementOverlay.classList.add('show');
+            flyAchievementOverlay.setAttribute('aria-hidden', 'false');
+            markAchievementUnlockSeen(activeUnlock);
+        }
+
+        function closeAchievementUnlockOverlay() {
+            if (!flyAchievementOverlay) {
+                return;
+            }
+
+            flyAchievementOverlay.classList.remove('show');
+            flyAchievementOverlay.setAttribute('aria-hidden', 'true');
+            flyAchievementState.active = null;
+
+            if (flyAchievementState.queue.length > 0) {
+                window.setTimeout(() => {
+                    showNextAchievementUnlock();
+                }, 90);
+            }
+        }
+
+        function showNextAchievementUnlock() {
+            if (flyAchievementState.active || flyAchievementState.queue.length < 1 || gameRunning || gamePaused) {
+                return;
+            }
+
+            flyAchievementState.active = flyAchievementState.queue.shift();
+            renderAchievementUnlockOverlay();
+        }
+
+        function enqueueAchievementUnlocks(rawUnlocks) {
+            const items = normalizeAchievementList(rawUnlocks);
+            if (items.length < 1) {
+                return;
+            }
+
+            items.forEach((item) => {
+                const seenKey = buildSeenAchievementKey(item);
+                if (!seenKey || seenKey === '::' || flyAchievementState.seen.has(seenKey)) {
+                    return;
+                }
+
+                if (isAchievementUnlockQueuedOrActive(item)) {
+                    return;
+                }
+
+                flyAchievementState.queue.push(item);
+            });
+
+            showNextAchievementUnlock();
+        }
+
+        function normalizeCloudFlyState(rawState) {
+            if (!rawState || typeof rawState !== 'object') {
+                return {
+                    bestScore: 0,
+                    lastScore: 0,
+                    lastLevel: 1,
+                    gamesPlayed: 0,
+                    totalScore: 0,
+                    pendingTransferScore: 0,
+                    transferredTotalScore: 0,
+                    lastPlayedAt: null
+                };
+            }
+
+            return {
+                bestScore: Math.max(0, Number(rawState.bestScore) || 0),
+                lastScore: Math.max(0, Number(rawState.lastScore) || 0),
+                lastLevel: Math.max(1, Number(rawState.lastLevel) || 1),
+                gamesPlayed: Math.max(0, Number(rawState.gamesPlayed) || 0),
+                totalScore: Math.max(0, Number(rawState.totalScore) || 0),
+                pendingTransferScore: Math.max(0, Number(rawState.pendingTransferScore) || 0),
+                transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
+                lastPlayedAt: rawState.lastPlayedAt || null
+            };
+        }
+
+        function normalizeUserSettings(rawSettings) {
+            return SHARED_CLIENT.normalizeUserSettings
+                ? SHARED_CLIENT.normalizeUserSettings(rawSettings)
+                : accountState.settings;
+        }
+
+        function getEffectsDensityMultiplier() {
+            const quality = normalizeUserSettings(accountState.settings).effects.quality;
+            if (quality === 'low') {
+                return 0.45;
+            }
+            if (quality === 'medium') {
+                return 0.72;
+            }
+            return 1;
+        }
+
+        function pickFlyBiome() {
+            const pool = Array.isArray(FLY_BIOMES) && FLY_BIOMES.length > 0 ? FLY_BIOMES : [sceneState.activeBiome];
+            return pool[Math.floor(Math.random() * pool.length)] || pool[0];
+        }
+
+        function applyFlySettings(rawSettings, options = {}) {
+            accountState.settings = normalizeUserSettings(rawSettings);
+            if (options.persist !== false && SHARED_CLIENT.persistCachedUserSettings) {
+                SHARED_CLIENT.persistCachedUserSettings(accountState.settings);
+            }
+
+            const volumeRatio = Math.max(0, Math.min(1, Number(accountState.settings.audio.flyVolume || 0) / 100));
+            flapSound.volume = 0.6 * volumeRatio;
+            scoreSound.volume = 0.7 * volumeRatio;
+            hitSound.volume = 0.8 * volumeRatio;
+            levelupSound.volume = 0.7 * volumeRatio;
+
+            document.body.classList.toggle('reduced-animations', accountState.settings.animations.mode === 'reduced');
+            document.body.classList.toggle('animations-off', accountState.settings.animations.mode === 'off');
+            document.body.classList.toggle('effects-low', accountState.settings.effects.quality === 'low');
+            document.body.classList.toggle('effects-medium', accountState.settings.effects.quality === 'medium');
+            document.body.classList.toggle('effects-high', accountState.settings.effects.quality === 'high');
+            sceneState.ambientDensity = getEffectsDensityMultiplier();
+            syncSceneState(true);
+            return accountState.settings;
+        }
+
+        function readPendingFlySettingsSnapshot() {
+            try {
+                const rawValue = localStorage.getItem(SETTINGS_PENDING_SYNC_STORAGE_KEY);
+                if (!rawValue) {
+                    return null;
+                }
+
+                const parsed = JSON.parse(rawValue);
+                if (!parsed || typeof parsed !== 'object' || !parsed.settings) {
+                    return null;
+                }
+
+                return parsed.settings;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function applyLatestFlySettingsSnapshot(options = {}) {
+            const pendingSettings = readPendingFlySettingsSnapshot();
+            const cachedSettings = SHARED_CLIENT.readCachedUserSettings
+                ? SHARED_CLIENT.readCachedUserSettings()
+                : null;
+            applyFlySettings(pendingSettings || cachedSettings || accountState.settings, {
+                persist: options.persist === true
+            });
+        }
+
+        function readPendingFlyRunQueue() {
+            try {
+                const raw = localStorage.getItem(PENDING_FLY_RUNS_STORAGE_KEY);
+                if (!raw) {
+                    return [];
+                }
+
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                console.warn('Не удалось прочитать локальную очередь сохранений fly-beaver.', error);
+                return [];
+            }
+        }
+
+        function persistPendingFlyRunQueue() {
+            try {
+                if (pendingFlyRunQueue.length < 1) {
+                    localStorage.removeItem(PENDING_FLY_RUNS_STORAGE_KEY);
+                    return;
+                }
+
+                localStorage.setItem(PENDING_FLY_RUNS_STORAGE_KEY, JSON.stringify(pendingFlyRunQueue.slice(-16)));
+            } catch (error) {
+                console.warn('Не удалось сохранить локальную очередь сохранений fly-beaver.', error);
+            }
+        }
+
+        function enqueuePendingFlyRun(payload) {
+            if (!payload || !payload.runToken) {
+                return;
+            }
+
+            if (pendingFlyRunQueue.some((item) => item.runToken === payload.runToken)) {
+                return;
+            }
+
+            pendingFlyRunQueue.push({
+                runToken: String(payload.runToken),
+                score: Math.max(0, Number(payload.score) || 0),
+                level: Math.max(1, Number(payload.level) || 1),
+                queuedAt: Date.now()
+            });
+            persistPendingFlyRunQueue();
+        }
+
+        function removePendingFlyRun(runToken) {
+            pendingFlyRunQueue = pendingFlyRunQueue.filter((item) => item.runToken !== runToken);
+            persistPendingFlyRunQueue();
+        }
+
+        function normalizeStoredDeviceBan(rawBan) {
+            return SHARED_CLIENT.normalizeBanInfo
+                ? SHARED_CLIENT.normalizeBanInfo(rawBan)
+                : null;
+        }
+
+        function getStoredDeviceBanEndTimestamp(banInfo) {
+            return SHARED_CLIENT.getStoredDeviceBanEndTimestamp
+                ? SHARED_CLIENT.getStoredDeviceBanEndTimestamp(banInfo)
+                : 0;
+        }
+
+        function isStoredDeviceBanActive(banInfo) {
+            return SHARED_CLIENT.isStoredDeviceBanActive
+                ? SHARED_CLIENT.isStoredDeviceBanActive(banInfo)
+                : false;
+        }
+
+        function clearStoredDeviceBan() {
+            if (SHARED_CLIENT.clearStoredDeviceBanInfo) {
+                SHARED_CLIENT.clearStoredDeviceBanInfo();
+                return;
+            }
+
+            try {
+                localStorage.removeItem(DEVICE_BAN_STORAGE_KEY);
+            } catch (error) {
+                console.warn('Не удалось удалить локальную метку бана.', error);
+            }
+        }
+
+        function readStoredDeviceBan() {
+            if (SHARED_CLIENT.readStoredDeviceBanInfo) {
+                return SHARED_CLIENT.readStoredDeviceBanInfo();
+            }
+
+            return null;
+        }
+
+        function persistStoredDeviceBan(banInfo) {
+            if (SHARED_CLIENT.persistStoredDeviceBanInfo) {
+                SHARED_CLIENT.persistStoredDeviceBanInfo(banInfo);
+            }
+        }
+
+        function showStoredDeviceBanOverlay(banInfo) {
+            const normalizedBan = normalizeStoredDeviceBan(banInfo) || {};
+            const isPermanent = Boolean(normalizedBan.isPermanent);
+            const durationText = isPermanent
+                ? 'бессрочно'
+                : `${Math.max(1, Number(normalizedBan.durationDays) || 5)} дн.${normalizedBan.isRepeat ? ' Повторный бан.' : ''}`;
+            const banUntilText = isPermanent
+                ? 'бессрочно'
+                : (normalizedBan.banUntil
+                    ? new Date(String(normalizedBan.banUntil).replace(' ', 'T')).toLocaleString('ru-RU')
+                    : 'до отдельной проверки');
+
+            const overlay = document.createElement('div');
+            overlay.innerHTML = `
+                <div style="
+                    position: fixed;
+                    inset: 0;
+                    background: linear-gradient(135deg, #1d2433, #000);
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 99999;
+                    padding: 20px;
+                    box-sizing: border-box;
+                    text-align: center;
+                    font-family: Arial, sans-serif;
+                ">
+                    <div style="max-width: 540px;">
+                        <div style="font-size: 3.8em; margin-bottom: 18px;">🚫</div>
+                        <h1 style="color: #ff6b81; font-size: 2.2em; margin-bottom: 18px;">ДОСТУП ЗАБЛОКИРОВАН</h1>
+                        <p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 18px;">
+                            ${normalizedBan.message || 'На этом устройстве сохранена метка бана. Простая смена VPN в этом браузере не снимет блокировку.'}
+                        </p>
+                        <p style="color: #d7d7d7; margin-bottom: 20px;">
+                            Срок: ${durationText}<br>
+                            Окончание: ${banUntilText}
+                        </p>
+                        <div style="background: rgba(255, 107, 129, 0.16); padding: 14px; border-radius: 10px; border-left: 4px solid #ff6b81; margin-bottom: 20px;">
+                            <strong>Причина:</strong> ${normalizedBan.reason || 'Блокировка доступа'}
+                        </div>
+                        <div style="background: rgba(116, 185, 255, 0.14); padding: 14px; border-radius: 10px; border-left: 4px solid #74b9ff; margin-bottom: 20px; color: #dfefff;">
+                            ${normalizedBan.ipAddress ? `<div style="margin-bottom: 8px;"><strong>IP при бане:</strong> ${normalizedBan.ipAddress}</div>` : ''}
+                            <div>Информация о блокировке сохранена на устройстве для усложнения обхода через VPN.</div>
+                        </div>
+                        <a href="https://forms.yandex.ru/u/68e2472302848f9edc066ce2" target="_blank" rel="noopener noreferrer" style="display: inline-block; color: #8bdcff; font-weight: bold; text-decoration: none; margin-bottom: 16px;">Написать в поддержку</a>
+                        <br>
+                        <button id="flyBanReloadBtn" style="background: #74b9ff; color: #0f172a; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 700;">Обновить страницу</button>
+                    </div>
+                </div>
+            `;
+
+            overlay.querySelector('#flyBanReloadBtn').addEventListener('click', () => {
+                location.reload();
+            });
+
+            document.body.innerHTML = '';
+            document.body.appendChild(overlay);
+            document.body.style.overflow = 'hidden';
+        }
+
+        function enforceStoredDeviceBan() {
+            const storedBan = readStoredDeviceBan();
+            if (!storedBan) {
+                return false;
+            }
+
+            showStoredDeviceBanOverlay(storedBan);
+            return true;
+        }
+
+        function requestJson(url, options = {}) {
+            if (SHARED_CLIENT.requestJson) {
+                return SHARED_CLIENT.requestJson(url, options);
+            }
+
+            return Promise.reject(new Error('Общий клиентский модуль не загружен.'));
+        }
+
+        function extractCloudBanPayload(error) {
+            return SHARED_CLIENT.extractBanPayload
+                ? SHARED_CLIENT.extractBanPayload(error)
+                : null;
+        }
+
+        function extractCloudSessionEndedPayload(error) {
+            const normalized = SHARED_CLIENT.normalizeSessionEndedPayload
+                ? SHARED_CLIENT.normalizeSessionEndedPayload(error && error.payload ? error.payload : null)
+                : null;
+
+            if (!normalized) {
+                return null;
+            }
+
+            return {
+                message: String(normalized.message || 'Эта сессия завершена на другом устройстве.').trim()
+            };
+        }
+
+        function setCloudStatus(type, title, message) {
+            cloudTitleElement.textContent = title;
+            cloudStatusElement.className = `cloud-status ${type}`;
+            cloudStatusElement.textContent = message;
+            syncGameOverCloudCard();
+        }
+
+        function setCloudSummary(text) {
+            cloudSummaryElement.textContent = text;
+            syncGameOverCloudCard();
+        }
+
+        function syncGameOverCloudCard() {
+            if (gameOverCloudMetaElement) {
+                const titleText = cloudTitleElement ? cloudTitleElement.textContent : 'Облако';
+                const statusText = cloudStatusElement ? cloudStatusElement.textContent : '';
+                const summaryText = cloudSummaryElement ? cloudSummaryElement.textContent : '';
+                gameOverCloudMetaElement.textContent = [titleText, statusText, summaryText]
+                    .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                    .join('\n');
+            }
+
+            if (gameOverClaimFlyScoreButton) {
+                const pending = Math.max(0, Number(accountState.flyBeaver.pendingTransferScore) || 0);
+                const rewardCoins = calculateFlyRewardCoins(pending);
+                const canClaim = Boolean(accountState.userId) && pending >= FLY_TRANSFER_MIN_SCORE;
+                gameOverClaimFlyScoreButton.style.display = canClaim ? 'block' : 'none';
+                gameOverClaimFlyScoreButton.disabled = !canClaim;
+                gameOverClaimFlyScoreButton.textContent = canClaim
+                    ? `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`
+                    : 'Перевод пока недоступен';
+            }
+        }
+
+        function setCloudPanelExpanded(expanded) {
+            isCloudPanelExpanded = Boolean(expanded);
+            cloudPanelElement.classList.toggle('compact', !isCloudPanelExpanded);
+            cloudPanelElement.classList.toggle('expanded', isCloudPanelExpanded);
+            cloudDetailsElement.hidden = !isCloudPanelExpanded;
+            cloudToggleButton.setAttribute('aria-expanded', isCloudPanelExpanded ? 'true' : 'false');
+            cloudToggleButton.textContent = isCloudPanelExpanded ? '−' : '+';
+            syncGameOverCloudCard();
+        }
+
+        function clearCloudAutoCollapseTimer() {
+            if (cloudAutoCollapseTimer) {
+                clearTimeout(cloudAutoCollapseTimer);
+                cloudAutoCollapseTimer = null;
+            }
+        }
+
+        function scheduleCloudAutoCollapse() {
+            clearCloudAutoCollapseTimer();
+            cloudAutoCollapseDoneForRun = false;
+
+            if (!gameRunning) {
+                return;
+            }
+
+            cloudAutoCollapseTimer = setTimeout(() => {
+                cloudAutoCollapseTimer = null;
+                if (!gameRunning || gamePaused || !isCloudPanelExpanded) {
+                    return;
+                }
+
+                setCloudPanelExpanded(false);
+                cloudAutoCollapseDoneForRun = true;
+            }, 5000);
+        }
+
+        function isLandscapeOrientationBlocked() {
+            return Boolean(isMobile && window.innerWidth > window.innerHeight);
+        }
+
+        async function tryLockPortraitOrientation() {
+            if (!isMobile || !screen.orientation || typeof screen.orientation.lock !== 'function') {
+                return false;
+            }
+
+            try {
+                await screen.orientation.lock('portrait');
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function updateOrientationGuard() {
+            landscapeBlocked = isLandscapeOrientationBlocked();
+            if (landscapeGuardElement) {
+                landscapeGuardElement.classList.toggle('show', landscapeBlocked);
+                landscapeGuardElement.setAttribute('aria-hidden', landscapeBlocked ? 'false' : 'true');
+            }
+
+            if (!landscapeBlocked) {
+                if (gameRunning && orientationPausedRun) {
+                    pauseScreen.style.display = 'none';
+                    gamePaused = false;
+                    orientationPausedRun = false;
+                    lastFrameTime = 0;
+                }
+                resizeCanvas();
+                return;
+            }
+
+            if (gameRunning && !gamePaused) {
+                gamePaused = true;
+                orientationPausedRun = true;
+            }
+        }
+
+        function calculateFlyRewardCoins(scoreValue) {
+            return SHARED_CLIENT.calculateFlyRewardCoins
+                ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, FLY_COINS_PER_SCORE)
+                : Math.max(0, Number(scoreValue) || 0) * FLY_COINS_PER_SCORE;
+        }
+
+        function setFlyLoadingOverlay(visible, title = 'Загрузка', text = 'Подготавливаем игру...') {
+            if (!flyLoadingOverlay) {
+                return;
+            }
+
+            if (flyLoadingTitle) {
+                flyLoadingTitle.textContent = title;
+            }
+
+            if (flyLoadingText) {
+                flyLoadingText.textContent = text;
+            }
+
+            flyLoadingOverlay.classList.toggle('show', Boolean(visible));
+            flyLoadingOverlay.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        }
+
+        function updateCloudPanel() {
+            const pending = accountState.flyBeaver.pendingTransferScore || 0;
+            const best = Math.max(highScore, accountState.flyBeaver.bestScore || 0);
+            const rewardCoins = calculateFlyRewardCoins(pending);
+            highScore = best;
+            highScoreElement.textContent = `Рекорд: ${best}`;
+            localStorage.setItem('flappyBeaverHighScore', String(best));
+
+            if (!accountState.userId) {
+                claimFlyScoreButton.style.display = 'none';
+                setCloudSummary('Локально: облако отключено');
+                syncGameOverCloudCard();
+                return;
+            }
+
+            cloudTitleElement.textContent = `Облако: ${accountState.login || 'аккаунт'}`;
+
+            if (pending >= FLY_TRANSFER_MIN_SCORE) {
+                claimFlyScoreButton.style.display = 'block';
+                claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
+                cloudStatusElement.className = 'cloud-status pending';
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. В очереди ${pending.toLocaleString('ru-RU')} очк. Курс: 1 очко = ${FLY_COINS_PER_SCORE} коинов. Лимит вывода: ${FLY_HOURLY_COINS_LIMIT.toLocaleString('ru-RU')} коинов в час.`;
+                setCloudSummary(`К выдаче: +${rewardCoins.toLocaleString('ru-RU')} коинов`);
+                setCloudPanelExpanded(true);
+                syncGameOverCloudCard();
+                return;
+            }
+
+            if (pending > 0) {
+                claimFlyScoreButton.style.display = 'none';
+                cloudStatusElement.className = 'cloud-status local';
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Для перевода нужно еще ${(FLY_TRANSFER_MIN_SCORE - pending).toLocaleString('ru-RU')} очк. В очередь идут только забеги от ${FLY_CREDIT_MIN_SCORE} очков, а меньший забег очищает ее полностью.`;
+                setCloudSummary(`В очереди: ${pending.toLocaleString('ru-RU')} очк.`);
+                syncGameOverCloudCard();
+                return;
+            }
+
+            claimFlyScoreButton.style.display = 'none';
+            cloudStatusElement.className = 'cloud-status connected';
+            cloudStatusElement.textContent = `Облачный рекорд: ${best}. Сыграно забегов: ${(accountState.flyBeaver.gamesPlayed || 0).toLocaleString('ru-RU')}. Начисление идет от ${FLY_CREDIT_MIN_SCORE}, вывод от ${FLY_TRANSFER_MIN_SCORE}.`;
+            setCloudSummary(`Рекорд: ${best.toLocaleString('ru-RU')}`);
+            syncGameOverCloudCard();
+        }
+
+        function updateGameOverCloudStatus(text) {
+            if (!gameOverCloudStatusElement) {
+                return;
+            }
+
+            gameOverCloudStatusElement.textContent = text;
+            syncGameOverCloudCard();
+        }
+
+        function createRunToken() {
+            return `run_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        async function flushPendingFlyRunQueue() {
+            if (!accountState.userId || cloudSaveInFlight || pendingFlyRunQueue.length < 1) {
+                return;
+            }
+
+            const queuedRuns = pendingFlyRunQueue.slice(0, 6);
+            for (const queuedRun of queuedRuns) {
+                try {
+                    const data = await requestJson('/api/fly/save-run.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            runToken: queuedRun.runToken,
+                            score: queuedRun.score,
+                            level: queuedRun.level
+                        })
+                    });
+
+                    accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                    highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                    enqueueAchievementUnlocks(data.achievementUnlocks);
+                    removePendingFlyRun(queuedRun.runToken);
+                    updateCloudPanel();
+                } catch (error) {
+                    console.error('Не удалось повторно отправить локальный сохраненный забег fly-beaver:', error);
+                    setCloudStatus('error', `Облако: ${accountState.login || 'аккаунт'}`, 'Часть забегов ещё хранится локально и будет отправлена позже.');
+                    setCloudSummary(`Локально в очереди: ${pendingFlyRunQueue.length.toLocaleString('ru-RU')} заб.`);
+                    setCloudPanelExpanded(true);
+                    break;
+                }
+            }
+        }
+
+        async function restoreFlySession() {
+            setFlyLoadingOverlay(true, 'Облако', 'Проверяем сессию и восстанавливаем облачные сохранения...');
+            try {
+                const data = await requestJson('/api/fly/session.php', {
+                    cache: 'no-store'
+                });
+
+                clearStoredDeviceBan();
+                accountState.userId = Number(data.userId) || null;
+                accountState.login = data.login || '';
+                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                applyFlySettings(data.settings || accountState.settings);
+                enqueueAchievementUnlocks(data.achievementUnlocks);
+
+                highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                setCloudStatus('connected', `Облако: ${accountState.login || 'аккаунт'}`, 'Сессия подключена. Забеги сохраняются в облако.');
+                updateCloudPanel();
+                updateGameOverCloudStatus('Облако подключено. Результат забега отправится автоматически.');
+                await flushPendingFlyRunQueue();
+                return;
+            } catch (error) {
+                if (error.status === 401) {
+                    clearStoredDeviceBan();
+                    setCloudStatus('local', 'Локальный режим', 'Войдите в основной аккаунт, чтобы включить облачные сохранения и перевод очков.');
+                    updateCloudPanel();
+                    updateGameOverCloudStatus('Локальный режим: без входа забег не отправляется в облако.');
+                    return;
+                }
+
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Войдите снова в основном кликере, чтобы вернуть облако.`);
+                    setCloudSummary('Облако отключено');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    updateGameOverCloudStatus('Сессия завершена. Этот забег останется только локально, пока вы не войдете снова.');
+                    return;
+                }
+
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
+                    persistStoredDeviceBan(ban);
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    showStoredDeviceBanOverlay(ban);
+                    return;
+                }
+
+                console.error('Не удалось восстановить облачную сессию fly-beaver:', error);
+                setCloudStatus('error', 'Ошибка облака', error.message || 'Не удалось подключить облачные сохранения.');
+                setCloudSummary('Ошибка подключения');
+                setCloudPanelExpanded(true);
+                updateCloudPanel();
+                updateGameOverCloudStatus('Ошибка облака. При временном сбое забег будет храниться локально и уйдет позже.');
+            } finally {
+                setFlyLoadingOverlay(false);
+            }
+        }
+
+        async function saveFlyRunToCloud() {
+            if (!accountState.userId || !currentRunToken || cloudSaveInFlight || score < 0) {
+                return;
+            }
+
+            cloudSaveInFlight = true;
+            setFlyLoadingOverlay(true, 'Сохраняем забег', 'Отправляем результат в облако...');
+            setCloudStatus('pending', `Облако: ${accountState.login || 'аккаунт'}`, 'Сохраняем забег в облако...');
+            setCloudSummary('Сохраняем забег...');
+            updateGameOverCloudStatus('Сохраняем забег в облако...');
+
+            try {
+                const data = await requestJson('/api/fly/save-run.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        runToken: currentRunToken,
+                        score: score,
+                        level: currentLevel
+                    })
+                });
+
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                highScore = Math.max(highScore, accountState.flyBeaver.bestScore);
+                enqueueAchievementUnlocks(data.achievementUnlocks);
+                updateCloudPanel();
+                const saveStatusType = data.duplicate
+                    ? 'connected'
+                    : (Number(data.creditedScore) >= FLY_CREDIT_MIN_SCORE ? 'pending' : 'local');
+                setCloudStatus(saveStatusType, `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Забег сохранен.');
+                updateGameOverCloudStatus(data.message || 'Забег сохранен в облако.');
+            } catch (error) {
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Забег сохранен только локально.`);
+                    setCloudSummary('Локальный режим');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    updateGameOverCloudStatus('Сессия завершена. Забег сохранен только локально на устройстве.');
+                    return;
+                }
+
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
+                    persistStoredDeviceBan(ban);
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    showStoredDeviceBanOverlay(ban);
+                    return;
+                }
+
+                console.error('Не удалось сохранить забег fly-beaver:', error);
+                enqueuePendingFlyRun({
+                    runToken: currentRunToken,
+                    score: score,
+                    level: currentLevel
+                });
+                setCloudStatus('error', 'Ошибка облака', error.message || 'Не удалось сохранить забег в облако.');
+                setCloudSummary(`Сохранение не прошло. В локальной очереди: ${pendingFlyRunQueue.length.toLocaleString('ru-RU')} заб.`);
+                setCloudPanelExpanded(true);
+                updateGameOverCloudStatus(`Сеть подвела. Забег поставлен в локальную очередь (${pendingFlyRunQueue.length.toLocaleString('ru-RU')}) и уйдет позже.`);
+            } finally {
+                cloudSaveInFlight = false;
+                setFlyLoadingOverlay(false);
+            }
+        }
+
+        async function claimFlyReward() {
+            if (!accountState.userId || claimFlyScoreButton.disabled) {
+                return;
+            }
+
+            claimFlyScoreButton.disabled = true;
+            setFlyLoadingOverlay(true, 'Перевод очков', 'Переводим награду из мини-игры в основной кликер...');
+            setCloudStatus('pending', `Облако: ${accountState.login || 'аккаунт'}`, 'Переводим очки в основной кликер...');
+            setCloudSummary('Переводим награду...');
+            updateGameOverCloudStatus('Переводим очки из мини-игры в основной кликер...');
+
+            try {
+                const data = await requestJson('/api/fly/claim-reward.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: '{}'
+                });
+
+                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                accountState.flyBeaver = normalizeCloudFlyState(data.flyBeaver);
+                updateCloudPanel();
+                setCloudStatus(Number(data.awardedCoins) > 0 ? 'connected' : 'local', `Облако: ${accountState.login || 'аккаунт'}`, data.message || 'Перевод завершен.');
+                updateGameOverCloudStatus(data.message || 'Перевод очков завершен.');
+            } catch (error) {
+                const sessionEnded = extractCloudSessionEndedPayload(error);
+                if (sessionEnded) {
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Перевод очков отключен, пока вы не войдете снова.`);
+                    setCloudSummary('Сессия завершена');
+                    setCloudPanelExpanded(true);
+                    updateCloudPanel();
+                    updateGameOverCloudStatus('Сессия завершена. Перевод очков временно недоступен.');
+                    return;
+                }
+
+                const ban = extractCloudBanPayload(error);
+                if (ban) {
+                    persistStoredDeviceBan(ban);
+                    accountState.userId = null;
+                    accountState.login = '';
+                    accountState.flyBeaver = normalizeCloudFlyState(null);
+                    showStoredDeviceBanOverlay(ban);
+                    return;
+                }
+
+                console.error('Не удалось перевести очки fly-beaver:', error);
+                setCloudStatus('error', 'Ошибка перевода', error.message || 'Не удалось перевести очки в кликер.');
+                setCloudSummary('Перевод не удался');
+                setCloudPanelExpanded(true);
+                updateGameOverCloudStatus(error.message || 'Не удалось перевести очки в основной кликер.');
+            } finally {
+                claimFlyScoreButton.disabled = false;
+                setFlyLoadingOverlay(false);
+            }
+        }
+        
+        // Функция вибрации для мобильных устройств
+        function vibrate(pattern) {
+            if (!isMobile || !('vibrate' in navigator)) {
+                return;
+            }
+
+            const vibrationSettings = normalizeUserSettings(accountState.settings).vibration;
+            if (!vibrationSettings.enabled) {
+                return;
+            }
+
+            const multiplier = vibrationSettings.intensity === 'low'
+                ? 0.55
+                : vibrationSettings.intensity === 'high'
+                    ? 1.35
+                    : 1;
+            if (Array.isArray(pattern)) {
+                navigator.vibrate(pattern.map((value) => Math.max(0, Math.round(Number(value || 0) * multiplier))));
+            } else {
+                navigator.vibrate(Math.max(0, Math.round(Number(pattern || 0) * multiplier)));
+            }
+        }
+        
+        // Функция воспроизведения звука
+        function playSound(sound) {
+            const audioSettings = normalizeUserSettings(accountState.settings).audio;
+            if (isMuted || !audioSettings.effectsEnabled || Number(audioSettings.flyVolume) <= 0) return;
+            
+            try {
+                sound.currentTime = 0;
+                sound.play().catch(e => {
+                    console.log("Автовоспроизведение заблокировано, звук будет работать после взаимодействия с игрой");
+                });
+            } catch (e) {
+                console.log("Ошибка воспроизведения звука:", e);
+            }
+        }
+        
+        function randomBetween(min, max) {
+            return min + Math.random() * (max - min);
+        }
+
+        function seededNoise(seed) {
+            const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453123;
+            return value - Math.floor(value);
+        }
+
+        function loadFlyImage(src) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = reject;
+                image.src = src;
+            });
+        }
+
+        function preloadFlyVisualAssets() {
+            if (flyVisualAssets.ready) {
+                return Promise.resolve(flyVisualAssets.images);
+            }
+
+            if (flyVisualAssets.loadPromise) {
+                return flyVisualAssets.loadPromise;
+            }
+
+            flyVisualAssets.loadPromise = Promise.all(Object.entries(FLY_VISUAL_ASSET_PATHS).map(([key, src]) =>
+                loadFlyImage(src)
+                    .then((image) => {
+                        flyVisualAssets.images[key] = image;
+                    })
+                    .catch((error) => {
+                        console.error(`Не удалось загрузить визуальный ассет ${src}:`, error);
+                        flyVisualAssets.images[key] = null;
+                    })
+            )).then(() => {
+                flyVisualAssets.ready = true;
+                return flyVisualAssets.images;
+            });
+
+            return flyVisualAssets.loadPromise;
+        }
+
+        function getCurrentBiome() {
+            return sceneState.activeBiome || FLY_BIOMES[0];
+        }
+
+        function createPollenParticle(seedIndex = 0) {
+            const biome = getCurrentBiome();
+            const travelHeight = Math.max(80, canvas.height - 160);
+            if (biome.ambientMode === 'rain') {
+                return {
+                    kind: 'rain',
+                    x: randomBetween(-30, canvas.width + 30),
+                    y: randomBetween(-140, travelHeight),
+                    size: randomBetween(10, 18),
+                    speed: randomBetween(4.4, 6.8),
+                    drift: randomBetween(-0.7, 0.7),
+                    phase: randomBetween(0, Math.PI * 2) + seedIndex,
+                    alpha: randomBetween(0.18, 0.36),
+                    hue: 'rgba(214, 236, 255, ALPHA)'
+                };
+            }
+
+            if (biome.ambientMode === 'firefly') {
+                return {
+                    kind: 'firefly',
+                    x: randomBetween(-30, canvas.width + 30),
+                    y: randomBetween(28, travelHeight),
+                    size: randomBetween(2.2, 4.4),
+                    speed: randomBetween(0.1, 0.24),
+                    drift: randomBetween(10, 30),
+                    phase: randomBetween(0, Math.PI * 2) + seedIndex,
+                    alpha: randomBetween(0.26, 0.62),
+                    hue: seededNoise(seedIndex + 1) > 0.55 ? 'rgba(255, 232, 153, ALPHA)' : 'rgba(185, 215, 255, ALPHA)'
+                };
+            }
+
+            return {
+                kind: 'pollen',
+                x: randomBetween(-30, canvas.width + 30),
+                y: randomBetween(28, travelHeight),
+                size: randomBetween(1.5, 3.8),
+                speed: randomBetween(0.16, 0.42),
+                drift: randomBetween(6, 22),
+                phase: randomBetween(0, Math.PI * 2) + seedIndex,
+                alpha: randomBetween(0.2, 0.55),
+                hue: seededNoise(seedIndex + 1) > 0.55 ? 'rgba(255, 235, 170, ALPHA)' : 'rgba(202, 255, 197, ALPHA)'
+            };
+        }
+
+        function syncSceneState(force = false) {
+            const sizeKey = `${canvas.width}x${canvas.height}`;
+            if (!force && sceneState.lastSizeKey === sizeKey) {
+                return;
+            }
+
+            sceneState.lastSizeKey = sizeKey;
+            const biome = getCurrentBiome();
+            const particleBaseCount = isMobile ? 14 : 24;
+            const particleCount = Math.max(8, Math.round(particleBaseCount * sceneState.ambientDensity * Number(biome.ambientDensity || 1)));
+            sceneState.pollen = Array.from({ length: particleCount }, (_, index) => createPollenParticle(index));
+            const createTreeBelt = (layerKey, options = {}) => {
+                const loopWidth = Math.max(canvas.width + (options.extraWidth || 560), 1120);
+                const count = Math.max(10, Math.round((canvas.width / (options.spacing || 72)) + (options.countBoost || 0)));
+                const items = [];
+
+                for (let index = 0; index < count; index += 1) {
+                    const seed = seededNoise(index + (options.seedOffset || 0));
+                    const offsetSeed = seededNoise(index + (options.seedOffset || 0) + 15.7);
+                    const typeSeed = seededNoise(index + (options.seedOffset || 0) + 29.4);
+                    const typeOptions = options.types || ['pine', 'birch', 'willow', 'snag'];
+                    const type = typeOptions[Math.min(typeOptions.length - 1, Math.floor(typeSeed * typeOptions.length))] || typeOptions[0];
+                    items.push({
+                        x: (loopWidth / count) * index + (offsetSeed - 0.5) * (options.jitter || 46),
+                        scale: (options.minScale || 0.8) + seed * ((options.maxScale || 1.4) - (options.minScale || 0.8)),
+                        sway: seededNoise(index + (options.seedOffset || 0) + 41.2) * 0.6 + 0.25,
+                        type,
+                        tint: seededNoise(index + (options.seedOffset || 0) + 52.3)
+                    });
+                }
+
+                sceneState.treeBelts[layerKey] = { items, loopWidth };
+            };
+
+            createTreeBelt('back', {
+                extraWidth: 980,
+                spacing: 88,
+                countBoost: 4,
+                minScale: 0.86,
+                maxScale: 1.18,
+                jitter: 54,
+                seedOffset: 12,
+                types: biome.id === 'rain-marsh' ? ['willow', 'cedar', 'spruce', 'oak'] : (biome.id === 'dusk-forest' ? ['cedar', 'oak', 'spruce', 'willow'] : ['spruce', 'cedar', 'willow', 'oak'])
+            });
+            createTreeBelt('front', {
+                extraWidth: 1480,
+                spacing: 64,
+                countBoost: 8,
+                minScale: 0.98,
+                maxScale: 1.42,
+                jitter: 62,
+                seedOffset: 46,
+                types: biome.id === 'rain-marsh' ? ['willow', 'oak', 'cedar', 'spruce'] : (biome.id === 'dusk-forest' ? ['oak', 'cedar', 'willow', 'spruce'] : ['spruce', 'cedar', 'willow', 'oak'])
+            });
+        }
+
+        function updateAmbientParticles(deltaFactor = 1) {
+            for (let index = 0; index < sceneState.pollen.length; index += 1) {
+                const particle = sceneState.pollen[index];
+                particle.phase += 0.01 * deltaFactor;
+
+                if (particle.kind === 'rain') {
+                    particle.x -= Math.max(0.25, currentGameSpeed * 0.12) * deltaFactor;
+                    particle.y += particle.speed * deltaFactor;
+
+                    if (particle.y > canvas.height - ground.height + 22 || particle.x < -40) {
+                        sceneState.pollen[index] = {
+                            ...createPollenParticle(index),
+                            x: canvas.width + randomBetween(6, 28),
+                            y: randomBetween(-160, -18)
+                        };
+                    }
+                    continue;
+                }
+
+                particle.x -= particle.speed * deltaFactor;
+                particle.y += Math.sin(particle.phase) * (particle.kind === 'firefly' ? 0.16 : 0.08) * deltaFactor;
+
+                if (particle.x < -32 || particle.y < 12 || particle.y > canvas.height - ground.height - 18) {
+                    sceneState.pollen[index] = {
+                        ...createPollenParticle(index),
+                        x: canvas.width + randomBetween(8, 40)
+                    };
+                }
+            }
+        }
+
+        function drawAmbientParticles() {
+            for (let index = 0; index < sceneState.pollen.length; index += 1) {
+                const particle = sceneState.pollen[index];
+                if (particle.kind === 'rain') {
+                    ctx.save();
+                    ctx.globalAlpha = particle.alpha;
+                    ctx.strokeStyle = particle.hue.replace('ALPHA', particle.alpha.toFixed(3));
+                    ctx.lineWidth = 1.5;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(particle.x, particle.y);
+                    ctx.lineTo(particle.x + particle.drift * 8, particle.y + particle.size);
+                    ctx.stroke();
+                    ctx.restore();
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = particle.alpha;
+                ctx.fillStyle = particle.hue.replace('ALPHA', particle.alpha.toFixed(3));
+                if (particle.kind === 'firefly') {
+                    ctx.shadowColor = particle.hue.replace('ALPHA', Math.min(0.42, particle.alpha + 0.12).toFixed(3));
+                    ctx.shadowBlur = particle.size * 6;
+                }
+                ctx.beginPath();
+                ctx.ellipse(
+                    particle.x,
+                    particle.y + Math.sin(particle.phase) * particle.drift * 0.08,
+                    particle.size * 1.2,
+                    particle.size * 0.8,
+                    particle.phase * 0.7,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawSkyBackdrop() {
+            const biome = getCurrentBiome();
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGradient.addColorStop(0, biome.skyTop);
+            skyGradient.addColorStop(0.26, biome.skyMid);
+            skyGradient.addColorStop(0.58, biome.nearFill);
+            skyGradient.addColorStop(1, biome.skyBottom);
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const sunGlow = ctx.createRadialGradient(canvas.width * 0.78, canvas.height * 0.14, 12, canvas.width * 0.78, canvas.height * 0.14, canvas.width * 0.34);
+            sunGlow.addColorStop(0, biome.sunCore);
+            sunGlow.addColorStop(0.38, biome.sunOuter);
+            sunGlow.addColorStop(1, biome.sunOuter.replace(/[\d.]+\)$/u, '0)'));
+            ctx.fillStyle = sunGlow;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const mistGradient = ctx.createLinearGradient(0, canvas.height * 0.28, 0, canvas.height * 0.7);
+            mistGradient.addColorStop(0, 'rgba(206, 247, 229, 0)');
+            mistGradient.addColorStop(0.6, 'rgba(206, 247, 229, 0.1)');
+            mistGradient.addColorStop(1, 'rgba(141, 206, 182, 0.18)');
+            ctx.fillStyle = mistGradient;
+            ctx.fillRect(0, canvas.height * 0.24, canvas.width, canvas.height * 0.56);
+        }
+
+        function drawSwampRidge(offset, baseY, amplitude, fillColor, shadowColor) {
+            ctx.beginPath();
+            ctx.moveTo(-120, canvas.height);
+
+            for (let x = -120; x <= canvas.width + 120; x += 18) {
+                const worldX = x + offset;
+                const y = baseY
+                    + Math.sin(worldX * 0.006) * amplitude
+                    + Math.sin(worldX * 0.014 + 0.8) * amplitude * 0.38
+                    + Math.cos(worldX * 0.021) * amplitude * 0.14;
+                ctx.lineTo(x, y);
+            }
+
+            ctx.lineTo(canvas.width + 120, canvas.height);
+            ctx.lineTo(-120, canvas.height);
+            ctx.closePath();
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = shadowColor;
+            ctx.lineWidth = 16;
+            ctx.stroke();
+            ctx.globalAlpha = 0.26;
+            ctx.strokeStyle = 'rgba(224, 242, 231, 0.38)';
+            ctx.lineWidth = 4.5;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawMistBands(offset, baseY, opacity) {
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            for (let band = 0; band < 3; band += 1) {
+                ctx.beginPath();
+                const bandOffset = offset * (0.18 + band * 0.07);
+                const yBase = baseY + band * 18;
+                ctx.moveTo(-80, yBase);
+                for (let x = -80; x <= canvas.width + 80; x += 20) {
+                    const worldX = x + bandOffset;
+                    const y = yBase + Math.sin(worldX * 0.009 + band) * (4 + band * 1.5);
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(canvas.width + 80, canvas.height);
+                ctx.lineTo(-80, canvas.height);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(214, 247, 229, ${0.08 - band * 0.018})`;
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function drawTreeAt(x, baseY, scale, type, palette = {}) {
+            const trunkColor = palette.trunk || '#2f2418';
+            const leafColor = palette.leaf || '#355b3b';
+            const accentColor = palette.accent || '#79b67d';
+            const trunkWidth = 5 * scale;
+            const trunkHeight = 36 * scale;
+            const crownY = baseY - trunkHeight;
+
+            ctx.fillStyle = trunkColor;
+            ctx.fillRect(x - trunkWidth * 0.5, baseY - trunkHeight, trunkWidth, trunkHeight);
+
+            if (type === 'spruce' || type === 'pine') {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.moveTo(x, crownY - 24 * scale);
+                ctx.lineTo(x - 13 * scale, crownY + 8 * scale);
+                ctx.lineTo(x + 13 * scale, crownY + 8 * scale);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(x, crownY - 6 * scale);
+                ctx.lineTo(x - 18 * scale, crownY + 18 * scale);
+                ctx.lineTo(x + 18 * scale, crownY + 18 * scale);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(x, crownY + 8 * scale);
+                ctx.lineTo(x - 22 * scale, crownY + 30 * scale);
+                ctx.lineTo(x + 22 * scale, crownY + 30 * scale);
+                ctx.closePath();
+                ctx.fill();
+            } else if (type === 'cedar' || type === 'birch') {
+                ctx.fillStyle = '#dce9d9';
+                ctx.fillRect(x - trunkWidth * 0.75, baseY - trunkHeight * 1.05, trunkWidth * 1.5, trunkHeight * 1.05);
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.arc(x - 10 * scale, crownY + 6 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 5 * scale, crownY - 4 * scale, 17 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 17 * scale, crownY + 8 * scale, 11 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = accentColor;
+                ctx.beginPath();
+                ctx.arc(x + 2 * scale, crownY + 8 * scale, 10 * scale, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'willow') {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.ellipse(x, crownY + 4 * scale, 22 * scale, 16 * scale, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = accentColor;
+                for (let leaf = -2; leaf <= 2; leaf += 1) {
+                    ctx.beginPath();
+                    ctx.ellipse(
+                        x + leaf * 7 * scale,
+                        crownY + 19 * scale + Math.abs(leaf) * 3 * scale,
+                        4.4 * scale,
+                        9.6 * scale,
+                        leaf * 0.08,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            } else if (type === 'oak' || type === 'cypress') {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.arc(x - 12 * scale, crownY + 5 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 4 * scale, crownY - 4 * scale, 17 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 18 * scale, crownY + 7 * scale, 13 * scale, 0, Math.PI * 2);
+                ctx.arc(x, crownY + 18 * scale, 18 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = accentColor;
+                ctx.beginPath();
+                ctx.arc(x + 5 * scale, crownY + 8 * scale, 9 * scale, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = leafColor;
+                ctx.beginPath();
+                ctx.arc(x - 8 * scale, crownY + 4 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.arc(x + 7 * scale, crownY + 2 * scale, 13 * scale, 0, Math.PI * 2);
+                ctx.arc(x, crownY + 14 * scale, 14 * scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawTreeBelt(layerKey, offset, baseY, opacity) {
+            const biome = getCurrentBiome();
+            const belt = sceneState.treeBelts[layerKey];
+            if (!belt || !Array.isArray(belt.items) || belt.items.length === 0 || !belt.loopWidth) {
+                return;
+            }
+
+            const normalizedOffset = offset % belt.loopWidth;
+            ctx.save();
+            ctx.globalAlpha = opacity;
+
+            belt.items.forEach((tree) => {
+                const tintFactor = 0.75 + tree.tint * 0.35;
+                const palette = layerKey === 'back'
+                    ? {
+                        trunk: '#314436',
+                        leaf: biome.backLeaf || `rgba(${Math.round(57 * tintFactor)}, ${Math.round(92 * tintFactor)}, ${Math.round(64 * tintFactor)}, 1)`,
+                        accent: biome.backAccent || '#9fd0a0'
+                    }
+                    : {
+                        trunk: '#2a1e18',
+                        leaf: biome.frontLeaf || `rgba(${Math.round(46 * tintFactor)}, ${Math.round(86 * tintFactor)}, ${Math.round(50 * tintFactor)}, 1)`,
+                        accent: biome.frontAccent || '#8fd48f'
+                    };
+
+                const drawWrapped = (xBase) => {
+                    if (xBase < -460 || xBase > canvas.width + 460) {
+                        return;
+                    }
+                    drawTreeAt(xBase, baseY, tree.scale * (layerKey === 'back' ? 0.92 : 1), tree.type, palette);
+                };
+
+                drawWrapped(tree.x - normalizedOffset);
+                drawWrapped(tree.x - normalizedOffset + belt.loopWidth);
+            });
+
+            ctx.restore();
+        }
+
+        function drawBogWater(topY) {
+            const biome = getCurrentBiome();
+            const waterGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
+            waterGradient.addColorStop(0, biome.waterTop);
+            waterGradient.addColorStop(0.24, biome.waterMid);
+            waterGradient.addColorStop(1, biome.waterBottom);
+            ctx.fillStyle = waterGradient;
+            ctx.fillRect(0, topY, canvas.width, canvas.height - topY);
+
+            ctx.save();
+            ctx.globalAlpha = 0.28;
+            ctx.strokeStyle = 'rgba(214, 247, 236, 0.36)';
+            ctx.lineWidth = 2;
+            for (let line = 0; line < 4; line += 1) {
+                const yBase = topY + 14 + line * 16;
+                ctx.beginPath();
+                ctx.moveTo(-24, yBase);
+                for (let x = -24; x <= canvas.width + 24; x += 14) {
+                    const y = yBase + Math.sin((x + sceneState.offsets.ground * (0.8 + line * 0.18)) * 0.03) * (2 + line * 0.3);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawReedField(offset, topY, density = 1, opacity = 1) {
+            const spacing = 18 / density;
+            const normalizedOffset = offset % spacing;
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.lineCap = 'round';
+            for (let x = -spacing; x <= canvas.width + spacing; x += spacing) {
+                const reedHeight = 12 + (Math.sin((x + offset) * 0.06) + 1) * 6;
+                ctx.strokeStyle = 'rgba(104, 148, 82, 0.92)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - normalizedOffset, topY + 8);
+                ctx.lineTo(x - normalizedOffset + Math.sin((x + offset) * 0.025) * 4, topY - reedHeight);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawGroundMarsh(topY) {
+            const biome = getCurrentBiome();
+            drawBogWater(topY - 56);
+            drawReedField(sceneState.offsets.ground * 0.7, topY - 8, isMobile ? 0.85 : 1, 0.92);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(0, topY + 8);
+            for (let x = 0; x <= canvas.width + 20; x += 18) {
+                const y = topY + 7 + Math.sin((x + sceneState.offsets.ground) * 0.035) * 3;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.closePath();
+            const soilGradient = ctx.createLinearGradient(0, topY, 0, canvas.height);
+            soilGradient.addColorStop(0, biome.soilTop);
+            soilGradient.addColorStop(0.24, biome.soilMid);
+            soilGradient.addColorStop(1, biome.soilBottom);
+            ctx.fillStyle = soilGradient;
+            ctx.fill();
+
+            ctx.fillStyle = biome.grassTop;
+            ctx.fillRect(0, topY, canvas.width, 10);
+            ctx.fillStyle = biome.grassAccent;
+            for (let x = 0; x <= canvas.width + 20; x += 28) {
+                ctx.fillRect(x, topY + 11, 8, 3);
+            }
+            ctx.restore();
+        }
+
+        const backdrop = {
+            update: function(deltaFactor = 1) {
+                const pace = (gameRunning ? currentGameSpeed : 0.7) * deltaFactor;
+                sceneState.offsets.mountainsFar += pace * 0.08;
+                sceneState.offsets.mountainsNear += pace * 0.12;
+                sceneState.offsets.forestBack += pace * 0.2;
+                sceneState.offsets.forestFront += pace * 0.34;
+                sceneState.offsets.ground += pace * 0.52;
+                updateAmbientParticles(deltaFactor);
+            },
+            draw: function() {
+                const biome = getCurrentBiome();
+                drawSkyBackdrop();
+                drawSwampRidge(sceneState.offsets.mountainsFar, canvas.height * 0.49, 26, biome.farFill, biome.farShadow);
+                drawMistBands(sceneState.offsets.mountainsFar, canvas.height * 0.52, biome.mistOpacity);
+                drawSwampRidge(sceneState.offsets.mountainsNear, canvas.height * 0.6, 18, biome.nearFill, biome.nearShadow);
+                drawTreeBelt('back', sceneState.offsets.forestBack, canvas.height * 0.66, 0.78);
+                drawTreeBelt('front', sceneState.offsets.forestFront, canvas.height * 0.74, 0.98);
+                drawAmbientParticles();
+            }
+        };
+
+        // Бобёр (главный персонаж)
+        beaver = {
+            x: 50,
+            y: canvas.height / 2,
+            width: 42,
+            height: 32,
+            spriteWidth: 72,
+            spriteHeight: 54,
+            gravity: 0.25,
+            velocity: 0,
+            jump: -7,
+            rotation: 0,
+            maxFallSpeed: 5,
+            lastFlapAt: 0,
+            bobPhase: 0,
+
+            getSprite: function() {
+                if (!gameRunning) {
+                    return flyVisualAssets.images.beaverIdle || flyVisualAssets.images.beaverGlide || null;
+                }
+
+                const elapsedSinceFlap = performance.now() - this.lastFlapAt;
+                if (this.velocity < -2.1) {
+                    return flyVisualAssets.images.beaverFlapUp || flyVisualAssets.images.beaverGlide || null;
+                }
+
+                if (elapsedSinceFlap < 150 || this.velocity < -0.6) {
+                    return flyVisualAssets.images.beaverFlapDown || flyVisualAssets.images.beaverGlide || null;
+                }
+
+                if (this.velocity > 2.7) {
+                    return flyVisualAssets.images.beaverFall || flyVisualAssets.images.beaverGlide || null;
+                }
+
+                return flyVisualAssets.images.beaverGlide || null;
+            },
+
+            drawFallback: function() {
+                ctx.fillStyle = '#8B5A2B';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#6b4020';
+                ctx.beginPath();
+                ctx.ellipse(-16, 1, 11, 8, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#f7d6a6';
+                ctx.beginPath();
+                ctx.ellipse(10, 2, 12, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#23140b';
+                ctx.beginPath();
+                ctx.arc(9, -3, 2.4, 0, Math.PI * 2);
+                ctx.fill();
+            },
+            
+            draw: function() {
+                const centerX = this.x + this.width / 2;
+                const centerY = this.y + this.height / 2;
+                const sprite = this.getSprite();
+                const bobOffset = Math.sin(this.bobPhase) * 1.4;
+
+                ctx.save();
+                ctx.globalAlpha = 0.18;
+                ctx.fillStyle = '#0f241a';
+                ctx.beginPath();
+                ctx.ellipse(centerX - 6, centerY + 24, 19, 7, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(centerX, centerY + bobOffset);
+                ctx.rotate(this.rotation);
+
+                if (sprite) {
+                    ctx.drawImage(sprite, -this.spriteWidth / 2, -this.spriteHeight / 2, this.spriteWidth, this.spriteHeight);
+                } else {
+                    this.drawFallback();
+                }
+
+                ctx.restore();
+            },
+            
+            update: function(deltaFactor = 1) {
+                this.bobPhase += 0.12 * deltaFactor;
+
+                if (gameRunning && !gamePaused) {
+                    this.velocity += this.gravity * deltaFactor;
+                    
+                    if (this.velocity > this.maxFallSpeed) {
+                        this.velocity = this.maxFallSpeed;
+                    }
+                    
+                    this.y += this.velocity * deltaFactor;
+                    
+                    this.rotation = this.velocity * 0.035;
+                    this.rotation = Math.max(-0.42, Math.min(0.58, this.rotation));
+                    
+                    if (this.y + this.height >= canvas.height - ground.height) {
+                        this.y = canvas.height - ground.height - this.height;
+                        playSound(hitSound);
+                        vibrate(200);
+                        gameOver();
+                    }
+                    
+                    if (this.y <= 0) {
+                        this.y = 0;
+                        this.velocity = 0;
+                    }
+                }
+            },
+            
+            flap: function() {
+                this.velocity = this.jump;
+                this.rotation = -0.4;
+                this.lastFlapAt = performance.now();
+                playSound(flapSound);
+                vibrate(50);
+            }
+        };
+        
+        // Земля
+        const ground = {
+            height: 60,
+            
+            draw: function() {
+                const topY = canvas.height - this.height;
+                drawGroundMarsh(topY);
+            }
+        };
+        
+        // Брёвна (препятствия)
+        const logs = {
+            position: [],
+            gap: 200,
+            maxYPos: -150,
+            dx: currentGameSpeed,
+            spawnTicks: 0,
+            drawVariantOverlay: function(x, y, width, height, variant, invert = false) {
+                if (variant === 'rotten') {
+                    ctx.save();
+                    ctx.globalAlpha = 0.42;
+                    ctx.fillStyle = 'rgba(72, 109, 54, 0.4)';
+                    ctx.beginPath();
+                    ctx.ellipse(x + width * 0.34, y + height * (invert ? 0.2 : 0.8), width * 0.12, height * 0.07, 0.2, 0, Math.PI * 2);
+                    ctx.ellipse(x + width * 0.62, y + height * (invert ? 0.12 : 0.72), width * 0.16, height * 0.06, -0.15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    return;
+                }
+
+                if (variant === 'cracked') {
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(44, 23, 9, 0.38)';
+                    ctx.lineWidth = 2.2;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(x + width * 0.44, y + height * (invert ? 0.16 : 0.26));
+                    ctx.lineTo(x + width * 0.38, y + height * 0.46);
+                    ctx.lineTo(x + width * 0.5, y + height * 0.66);
+                    ctx.moveTo(x + width * 0.66, y + height * (invert ? 0.22 : 0.32));
+                    ctx.lineTo(x + width * 0.58, y + height * 0.5);
+                    ctx.lineTo(x + width * 0.7, y + height * 0.72);
+                    ctx.stroke();
+                    ctx.restore();
+                    return;
+                }
+
+                if (variant === 'broken') {
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(35, 20, 9, 0.42)';
+                    ctx.beginPath();
+                    if (invert) {
+                        ctx.moveTo(x + width * 0.58, y + height * 0.08);
+                        ctx.lineTo(x + width * 0.76, y + height * 0.18);
+                        ctx.lineTo(x + width * 0.63, y + height * 0.34);
+                        ctx.lineTo(x + width * 0.48, y + height * 0.22);
+                    } else {
+                        ctx.moveTo(x + width * 0.52, y + height * 0.78);
+                        ctx.lineTo(x + width * 0.7, y + height * 0.66);
+                        ctx.lineTo(x + width * 0.8, y + height * 0.86);
+                        ctx.lineTo(x + width * 0.6, y + height * 0.96);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+            },
+
+            drawObstacleShadow: function(x, y, width, height) {
+                return;
+            },
+            
+            draw: function() {
+                const topLogSprite = flyVisualAssets.images.logTop;
+                const bottomLogSprite = flyVisualAssets.images.logBottom;
+
+                for (let i = 0; i < this.position.length; i++) {
+                    const p = this.position[i];
+                    const pipeGap = p.gap || this.gap;
+                    const bottomY = p.top + pipeGap;
+                    const bottomHeight = canvas.height - bottomY;
+
+                    this.drawObstacleShadow(p.x, 0, p.width, p.top);
+                    this.drawObstacleShadow(p.x, bottomY, p.width, bottomHeight);
+
+                    if (topLogSprite) {
+                        ctx.drawImage(topLogSprite, p.x, 0, p.width, p.top);
+                    } else {
+                        ctx.fillStyle = '#6f4322';
+                        ctx.fillRect(p.x, 0, p.width, p.top);
+                    }
+                    this.drawVariantOverlay(p.x, 0, p.width, p.top, p.variant, false);
+
+                    if (bottomLogSprite) {
+                        ctx.drawImage(bottomLogSprite, p.x, bottomY, p.width, bottomHeight);
+                    } else {
+                        ctx.fillStyle = '#6f4322';
+                        ctx.fillRect(p.x, bottomY, p.width, bottomHeight);
+                    }
+                    this.drawVariantOverlay(p.x, bottomY, p.width, bottomHeight, p.variant, true);
+                }
+            },
+            
+            update: function(deltaFactor = 1) {
+                if (gameRunning && !gamePaused) {
+                    this.dx = currentGameSpeed;
+                    const levelFactor = Math.max(0, currentLevel - 1);
+                    
+                    const spawnInterval = Math.max(60, 100 - (levelFactor * 5));
+                    this.spawnTicks += deltaFactor;
+
+                    while (this.spawnTicks >= spawnInterval) {
+                        this.spawnTicks -= spawnInterval;
+                        const currentGap = Math.max(160, this.gap - (levelFactor * 5));
+                        const topVariance = Math.max(60, 150 - (levelFactor * 5));
+                        
+                    this.position.push({
+                        x: canvas.width,
+                        y: 0,
+                        width: 60,
+                        top: 100 + Math.random() * topVariance,
+                        gap: currentGap,
+                        variant: ['classic', 'rotten', 'cracked', 'broken'][Math.floor(Math.random() * 4)] || 'classic',
+                        counted: false
+                    });
+                }
+                    
+                    for (let i = 0; i < this.position.length; i++) {
+                        const p = this.position[i];
+                        
+                        p.x -= this.dx * deltaFactor;
+                        
+                        if (p.x + p.width <= 0) {
+                            this.position.shift();
+                        }
+                        
+                        if (
+                            beaver.x + beaver.width - 10 > p.x && 
+                            beaver.x + 10 < p.x + p.width && 
+                            (beaver.y + 5 < p.top || beaver.y + beaver.height - 5 > p.top + (p.gap || this.gap))
+                        ) {
+                            playSound(hitSound);
+                            vibrate(200);
+                            gameOver();
+                        }
+                        
+                        if (p.x + p.width < beaver.x && !p.counted) {
+                            score++;
+                            scoreElement.textContent = score;
+                            p.counted = true;
+                            playSound(scoreSound);
+                            vibrate(100);
+                            
+                            const newLevel = Math.floor(score / 10) + 1;
+                            if (newLevel > currentLevel) {
+                                currentLevel = newLevel;
+                                levelIndicator.textContent = `Уровень: ${currentLevel}`;
+                                currentGameSpeed = getGameSpeedForLevel(currentLevel);
+                                playSound(levelupSound);
+                                vibrate(150);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        // Облака (декор)
+        const clouds = {
+            position: [],
+            spawnTicks: 0,
+            
+            draw: function() {
+                const cloudSprite = flyVisualAssets.images.cloud;
+                const biome = getCurrentBiome();
+                const cloudAlphaMultiplier = Math.max(0.72, Number(biome.cloudTint || 1));
+
+                for (let i = 0; i < this.position.length; i++) {
+                    const c = this.position[i];
+                    const width = c.size * 3.1;
+                    const height = c.size * 1.8;
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.min(0.92, c.alpha * cloudAlphaMultiplier);
+
+                    if (cloudSprite) {
+                        ctx.drawImage(cloudSprite, c.x, c.y, width, height);
+                    } else {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+                        ctx.beginPath();
+                        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+                        ctx.arc(c.x + c.size * 0.8, c.y - c.size * 0.3, c.size * 0.9, 0, Math.PI * 2);
+                        ctx.arc(c.x + c.size * 1.6, c.y, c.size * 0.8, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
+                }
+            },
+            
+            update: function(deltaFactor = 1) {
+                const biome = getCurrentBiome();
+                const densityMultiplier = getEffectsDensityMultiplier();
+                const spawnInterval = Math.max(110, 148 / Math.max(0.7, densityMultiplier * Math.max(0.85, Number(biome.cloudTint || 1))));
+                this.spawnTicks += deltaFactor;
+
+                while (this.spawnTicks >= spawnInterval) {
+                    this.spawnTicks -= spawnInterval;
+                    this.position.push({
+                        x: canvas.width + 160,
+                        y: Math.random() * (canvas.height / 2.9),
+                        size: 20 + Math.random() * 22,
+                        speed: 0.55 + Math.random() * 0.5,
+                        alpha: 0.45 + Math.random() * 0.28
+                    });
+                }
+                
+                for (let i = 0; i < this.position.length; i++) {
+                    const c = this.position[i];
+                    c.x -= c.speed * deltaFactor;
+                    
+                    if (c.x + c.size * 3.3 < -420) {
+                        this.position.shift();
+                    }
+                }
+            }
+        };
+        
+        // Функция начала игры
+        function startGame() {
+            if (landscapeBlocked) {
+                updateOrientationGuard();
+                return;
+            }
+
+            gameRunning = true;
+            gamePaused = false;
+            orientationPausedRun = false;
+            score = 0;
+            currentLevel = 1;
+            currentRunToken = createRunToken();
+            currentGameSpeed = getGameSpeedForLevel(currentLevel);
+            lastFrameTime = 0;
+            sceneState.activeBiome = pickFlyBiome();
+            syncSceneState(true);
+            setCloudPanelExpanded(true);
+            scheduleCloudAutoCollapse();
+            scoreElement.textContent = score;
+            levelIndicator.textContent = `Уровень: ${currentLevel}`;
+            
+            beaver.y = canvas.height / 2;
+            beaver.velocity = 0;
+            beaver.rotation = 0;
+            
+            logs.position = [];
+            logs.dx = currentGameSpeed;
+            logs.gap = 200;
+            logs.spawnTicks = 0;
+            clouds.position = [];
+            clouds.spawnTicks = 0;
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            pauseScreen.style.display = 'none';
+            
+            // Предзагрузка звуков
+            [flapSound, scoreSound, hitSound, levelupSound].forEach(sound => {
+                sound.load();
+            });
+            
+            for (let i = 0; i < 5; i++) {
+                clouds.position.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * (canvas.height / 3),
+                    size: 20 + Math.random() * 15,
+                    speed: 0.5 + Math.random(),
+                    alpha: 0.5 + Math.random() * 0.2
+                });
+            }
+
+            resizeCanvas();
+        }
+        
+        // Функция паузы игры
+        function togglePause() {
+            if (!gameRunning || landscapeBlocked) return;
+            
+            gamePaused = !gamePaused;
+            orientationPausedRun = false;
+            
+            if (gamePaused) {
+                pauseScoreElement.textContent = score;
+                pauseLevelElement.textContent = currentLevel;
+                pauseScreen.style.display = 'flex';
+            } else {
+                pauseScreen.style.display = 'none';
+                lastFrameTime = 0;
+                resizeCanvas();
+            }
+        }
+        
+        // Функция завершения игры
+        function gameOver() {
+            gameRunning = false;
+            gamePaused = false;
+            orientationPausedRun = false;
+            clearCloudAutoCollapseTimer();
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('flappyBeaverHighScore', highScore);
+                highScoreElement.textContent = `Рекорд: ${highScore}`;
+            }
+
+            saveFlyRunToCloud();
+            
+            finalScoreElement.textContent = score;
+            finalHighScoreElement.textContent = highScore;
+            finalLevelElement.textContent = currentLevel;
+            updateGameOverCloudStatus(accountState.userId
+                ? 'Смотрим, что происходит с облаком и переводом очков...'
+                : 'Локальный режим: забег не отправляется в облако без входа.');
+            setCloudPanelExpanded(true);
+            gameOverScreen.style.display = 'flex';
+            showNextAchievementUnlock();
+        }
+        
+        // Функция выхода из игры
+        function exitGame() {
+            vibrate(100);
+            window.location.href = '/pages/clicker/';
+        }
+
+        function isElementVisible(element) {
+            return window.getComputedStyle(element).display !== 'none';
+        }
+
+        function canStartNewRunFromOverlay() {
+            return isElementVisible(startScreen) || isElementVisible(gameOverScreen);
+        }
+        
+        // Основной игровой цикл
+        function loop(timestamp) {
+            const now = Number.isFinite(Number(timestamp)) ? Number(timestamp) : performance.now();
+            const deltaMs = lastFrameTime > 0 ? Math.max(8, Math.min(34, now - lastFrameTime)) : TARGET_FRAME_MS;
+            const deltaFactor = deltaMs / TARGET_FRAME_MS;
+            lastFrameTime = now;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            backdrop.draw();
+            if (!gamePaused) backdrop.update(deltaFactor);
+
+            clouds.draw();
+            if (!gamePaused) clouds.update(deltaFactor);
+            
+            ground.draw();
+            
+            logs.draw();
+            if (!gamePaused) logs.update(deltaFactor);
+            
+            beaver.draw();
+            if (!gamePaused) beaver.update(deltaFactor);
+
+            ctx.save();
+            const vignette = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            vignette.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+            vignette.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+            vignette.addColorStop(1, 'rgba(6, 10, 8, 0.24)');
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            requestAnimationFrame(loop);
+        }
+        
+        // Обработчики событий
+        startButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
+            startGame();
+            vibrate(100);
+        });
+
+        if (startBackButton) {
+            startBackButton.addEventListener('click', exitGame);
+        }
+        
+        restartButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
+            startGame();
+            vibrate(100);
+        });
+        
+        resumeButton.addEventListener('click', function() {
+            togglePause();
+            vibrate(50);
+        });
+        
+        restartFromPauseButton.addEventListener('click', function() {
+            tryLockPortraitOrientation();
+            startGame();
+            vibrate(100);
+        });
+        
+        exitButton.addEventListener('click', exitGame);
+        exitFromPauseButton.addEventListener('click', exitGame);
+        exitBtn.addEventListener('click', exitGame);
+        claimFlyScoreButton.addEventListener('click', claimFlyReward);
+        if (gameOverClaimFlyScoreButton) {
+            gameOverClaimFlyScoreButton.addEventListener('click', claimFlyReward);
+        }
+        if (flyAchievementAcknowledge) {
+            flyAchievementAcknowledge.addEventListener('click', closeAchievementUnlockOverlay);
+        }
+        if (flyAchievementOverlay) {
+            flyAchievementOverlay.addEventListener('click', function(event) {
+                if (event.target === flyAchievementOverlay) {
+                    closeAchievementUnlockOverlay();
+                }
+            });
+        }
+        cloudToggleButton.addEventListener('click', function() {
+            setCloudPanelExpanded(!isCloudPanelExpanded);
+        });
+        
+        pauseBtn.addEventListener('click', togglePause);
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                if (landscapeBlocked) {
+                    e.preventDefault();
+                    return;
+                }
+                if (gameRunning && !gamePaused) {
+                    beaver.flap();
+                } else if (canStartNewRunFromOverlay()) {
+                    startGame();
+                }
+                e.preventDefault();
+            }
+            
+            if ((e.code === 'KeyP' || e.code === 'Escape') && gameRunning) {
+                togglePause();
+                e.preventDefault();
+            }
+        });
+        
+        canvas.addEventListener('click', function() {
+            tryLockPortraitOrientation();
+            if (landscapeBlocked) {
+                return;
+            }
+            if (gameRunning && !gamePaused) {
+                beaver.flap();
+            } else if (canStartNewRunFromOverlay()) {
+                startGame();
+            }
+        });
+        
+        canvas.addEventListener('touchstart', function(e) {
+            tryLockPortraitOrientation();
+            if (landscapeBlocked) {
+                e.preventDefault();
+                return;
+            }
+            if (gameRunning && !gamePaused) {
+                beaver.flap();
+            } else if (canStartNewRunFromOverlay()) {
+                startGame();
+            }
+            e.preventDefault();
+        });
+        
+        muteBtn.addEventListener('click', function() {
+            isMuted = !isMuted;
+            this.textContent = isMuted ? '🔇' : '🔊';
+            vibrate(50);
+        });
+
+        window.addEventListener('storage', function(event) {
+            if ((event.key !== USER_SETTINGS_CACHE_KEY && event.key !== SETTINGS_PENDING_SYNC_STORAGE_KEY) || !event.newValue) {
+                return;
+            }
+
+            try {
+                applyLatestFlySettingsSnapshot({ persist: false });
+            } catch (error) {
+                console.warn('Не удалось применить настройки fly-beaver из другой вкладки.', error);
+            }
+        });
+
+        window.addEventListener('pageshow', function() {
+            applyLatestFlySettingsSnapshot({ persist: false });
+        });
+
+        window.addEventListener('focus', function() {
+            applyLatestFlySettingsSnapshot({ persist: false });
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                applyLatestFlySettingsSnapshot({ persist: false });
+            }
+        });
+        
+        async function initializeFlyBeaver() {
+            if (enforceStoredDeviceBan()) {
+                return;
+            }
+
+            setCloudPanelExpanded(true);
+            setFlyLoadingOverlay(true, 'Летающий бобер', 'Рисуем лесную сцену и подключаем облачные сохранения...');
+
+            try {
+                await Promise.all([
+                    preloadFlyVisualAssets(),
+                    restoreFlySession()
+                ]);
+            } finally {
+                syncSceneState(true);
+                updateOrientationGuard();
+                setFlyLoadingOverlay(false);
+                loop();
+            }
+
+            // Адаптация под устройства
+            if (isMobile) {
+                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> КАСАНИЕ';
+            } else {
+                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">↯</span> ПРОБЕЛ или <span class="icon">🖱</span> КЛИК<br>Пауза: P или ESC';
+            }
+        }
+
+        initializeFlyBeaver();
+    </script>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VS Code + Codex / ChatGPT Tips</title>
+    <style>
+        :root {
+            --bg-a: #0d1020;
+            --bg-b: #171d39;
+            --panel: rgba(18, 22, 44, 0.82);
+            --panel-strong: rgba(14, 18, 36, 0.92);
+            --border: rgba(126, 238, 255, 0.2);
+            --accent: #6de7ff;
+            --accent-2: #89a6ff;
+            --text: #f4fbff;
+            --muted: rgba(229, 240, 255, 0.75);
+            --shadow: 0 24px 60px rgba(2, 8, 22, 0.45);
+            --mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: "Segoe UI", "SF Pro Display", Arial, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(109, 231, 255, 0.14), transparent 24%),
+                radial-gradient(circle at top right, rgba(137, 166, 255, 0.18), transparent 26%),
+                linear-gradient(180deg, var(--bg-b), var(--bg-a));
+        }
+
+        .page {
+            width: min(1120px, calc(100% - 28px));
+            margin: 0 auto;
+            padding: 28px 0 64px;
+        }
+
+        .hero,
+        .section {
+            border-radius: 28px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .hero {
+            padding: 28px;
+        }
+
+        .kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(109, 231, 255, 0.18);
+            background: rgba(109, 231, 255, 0.08);
+            color: #d6fbff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 10px;
+            font-size: clamp(34px, 5vw, 58px);
+            line-height: 0.96;
+        }
+
+        .hero p,
+        .section p,
+        li {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        .hero p + p,
+        .section p + p {
+            margin-top: 12px;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .nav a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(137, 166, 255, 0.18);
+            background: rgba(137, 166, 255, 0.08);
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+            margin-top: 22px;
+        }
+
+        .section {
+            padding: 24px;
+        }
+
+        .section h2 {
+            margin: 0 0 14px;
+            font-size: 24px;
+        }
+
+        .card-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .card {
+            padding: 16px 18px;
+            border-radius: 20px;
+            border: 1px solid rgba(109, 231, 255, 0.12);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .card strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text);
+            font-size: 16px;
+        }
+
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        li + li {
+            margin-top: 8px;
+        }
+
+        code,
+        .prompt {
+            font-family: var(--mono);
+        }
+
+        code {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(109, 231, 255, 0.08);
+            border: 1px solid rgba(109, 231, 255, 0.12);
+            color: #e7fdff;
+            font-size: 0.95em;
+        }
+
+        .prompt-block {
+            margin-top: 18px;
+            padding: 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(137, 166, 255, 0.18);
+            background: var(--panel-strong);
+        }
+
+        .prompt-block h3 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+
+        .prompt {
+            display: block;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: #eefaff;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .prompt + .prompt {
+            margin-top: 10px;
+        }
+
+        .footer-note {
+            margin-top: 22px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(91, 255, 180, 0.08);
+            border: 1px solid rgba(91, 255, 180, 0.16);
+            color: #e4fff1;
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                width: min(100%, calc(100% - 18px));
+                padding: 18px 0 36px;
+            }
+
+            .hero,
+            .section {
+                border-radius: 22px;
+            }
+
+            .hero,
+            .section {
+                padding: 18px;
+            }
+
+            h1 {
+                font-size: 34px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div class="kicker">Workflow Guide</div>
+            <h1>VS Code + Codex / ChatGPT</h1>
+            <p>Памятка для работы с кодом, багами и большими задачами без лишних итераций.</p>
+            <p>Фокус не на “красивых формулировках”, а на том, как реально ускорять работу, снижать регрессии и получать пригодные правки с первого или второго прохода.</p>
+
+            <nav class="nav">
+                <a href="#tasks">Задачи</a>
+                <a href="#context">Контекст</a>
+                <a href="#prompts">Как писать запросы</a>
+                <a href="#debug">Отладка</a>
+                <a href="#frontend">Фронтенд</a>
+                <a href="#workflow">Рабочий поток</a>
+                <a href="#templates">Готовые шаблоны</a>
+            </nav>
+        </section>
+
+        <div class="grid">
+            <section class="section" id="tasks">
+                <h2>Работа с задачами</h2>
+                <div class="card-list">
+                    <article class="card">
+                        <strong>Ставьте операционную задачу, а не общую просьбу</strong>
+                        <p>Вместо “исправь” лучше писать: <code>найди причину, внеси правку, проверь diff, закоммить</code>. Чем полнее задача, тем меньше холостых ответов.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Для больших задач задавайте рамки</strong>
+                        <p>Полезный формат: <code>цель</code>, <code>ограничения</code>, <code>какие файлы можно трогать</code>, <code>что считать готовым</code>.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Разделяйте “безопасный фикс” и “системное решение”</strong>
+                        <p>Если проект хрупкий, пишите <code>без рефактора, только безопасный фикс</code>. Если повторяется системно, пишите <code>исправь системно, а не костылём</code>.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="section" id="context">
+                <h2>Контекст в VS Code</h2>
+                <ul>
+                    <li>Держите открытыми только нужные вкладки. Лишний шум мешает ориентироваться.</li>
+                    <li>Перед сложной правкой полезно просить: <code>сначала изучи структуру и только потом меняй</code>.</li>
+                    <li>Если файл большой, указывайте точную зону: <code>смотри модалку настроек в pages/clicker/index.html и snapshot в api/state/sync.php</code>.</li>
+                    <li>Если баг плавающий, прикладывайте консольную ошибку, шаги воспроизведения, лог и скрин в одном сообщении.</li>
+                </ul>
+            </section>
+
+            <section class="section" id="prompts">
+                <h2>Как писать запросы</h2>
+                <div class="card-list">
+                    <article class="card">
+                        <strong>Хороший базовый шаблон</strong>
+                        <p><code>Исправь баг. Не ломай X. Проверь связанные места. Сделай commit/push.</code></p>
+                    </article>
+                    <article class="card">
+                        <strong>Для UI</strong>
+                        <p>Уточняйте: <code>не редизайн, а точечный фикс</code> или <code>можно менять визуал, но без смены логики</code>.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Для серверных правок</strong>
+                        <p>Сразу добавляйте: <code>учти старую БД, старые данные и обратную совместимость</code>.</p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="section" id="debug">
+                <h2>Отладка</h2>
+                <ul>
+                    <li>Самый сильный формат: <code>вот ошибка → вот файл → вот лог → исправь и объясни точную причину</code>.</li>
+                    <li>Если баг воспроизводится только у пользователя, полезно просить: <code>сделай защиту и fallback, даже если точная причина плавающая</code>.</li>
+                    <li>Если проект хрупкий, просите: <code>сначала найди причину, потом внеси минимальный фикс</code>.</li>
+                    <li>После каждого нетривиального исправления полезно требовать: <code>что изменено, где изменено, что проверить руками</code>.</li>
+                </ul>
+            </section>
+
+            <section class="section" id="frontend">
+                <h2>Фронтенд</h2>
+                <ul>
+                    <li>Сразу уточняйте: <code>desktop only</code>, <code>mobile first</code>, <code>не ломать touch</code>.</li>
+                    <li>Для тяжёлых экранов полезно писать: <code>без тяжёлых blur/filter</code>.</li>
+                    <li>Для артефактов рядом с картинками сразу задавайте ограничение: <code>используй img + object-fit, без background-image на bitmap-зонах</code>.</li>
+                    <li>Если нужен только UX fix, просите не трогать всю визуальную систему.</li>
+                </ul>
+            </section>
+
+            <section class="section" id="workflow">
+                <h2>Рабочий поток</h2>
+                <div class="card-list">
+                    <article class="card">
+                        <strong>Панели VS Code</strong>
+                        <p>Держите открытыми <code>Problems</code>, <code>Terminal</code> и <code>Source Control</code>. Это экономит время после каждой правки.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Ищите связи до и после правки</strong>
+                        <p>Глобально ищите функцию, endpoint, storage key, CSS class и feature flag, чтобы не чинить только половину потока.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Делайте отдельные коммиты по темам</strong>
+                        <p>Так проще откатывать и понимать историю. Один баг — один коммит, если это возможно.</p>
+                    </article>
+                    <article class="card">
+                        <strong>Для длинных проектов держите актуальными служебные файлы</strong>
+                        <p><code>AGENTS.md</code> и roadmap-подобные страницы сильно ускоряют следующие проходы по проекту.</p>
+                    </article>
+                </div>
+            </section>
+        </div>
+
+        <section class="section" id="templates" style="margin-top: 18px;">
+            <h2>Готовые шаблоны запросов</h2>
+
+            <div class="prompt-block">
+                <h3>Безопасный фикс</h3>
+                <div class="prompt">Исправь баг, сначала найди причину, потом внеси минимальный фикс. Без рефактора, не ломай связанные сценарии. После правки проверь diff и кратко напиши, что проверить руками.</div>
+            </div>
+
+            <div class="prompt-block">
+                <h3>Системная правка</h3>
+                <div class="prompt">Проблема повторяется в нескольких местах. Исправь системно, а не точечным костылём. Проверь клиент, сервер и все связанные UI-сценарии.</div>
+            </div>
+
+            <div class="prompt-block">
+                <h3>UI / UX fix</h3>
+                <div class="prompt">Нужен точечный UX fix. Не делай редизайн всей страницы, сохрани текущую логику и визуальный язык. Проверь desktop и mobile.</div>
+            </div>
+
+            <div class="prompt-block">
+                <h3>Фронтенд с тяжёлыми изображениями</h3>
+                <div class="prompt">Убери артефакты и лаги возле картинок. Используй безопасный img-рендер через object-fit, не возвращай background-image + blur/filter на bitmap-зонах.</div>
+            </div>
+
+            <div class="prompt-block">
+                <h3>Серверный фикс</h3>
+                <div class="prompt">Исправь серверный баг, учти старую БД и обратную совместимость. Если меняется schema/backfill, проверь все связанные endpoint-ы.</div>
+            </div>
+
+            <div class="prompt-block">
+                <h3>Большая задача</h3>
+                <div class="prompt">Сначала изучи структуру и свяжи все затронутые файлы. Потом внеси правки по шагам. Не останавливайся на анализе, именно внеси изменения и доведи их до рабочего состояния.</div>
+            </div>
+
+            <div class="footer-note">
+                Лучший результат обычно получается не от “умных слов”, а от точной постановки: <code>что сломано</code>, <code>что нельзя ломать</code>, <code>какие файлы вероятно связаны</code>, <code>что считать готовым</code>.
+            </div>
+        </section>
+    </main>
+</body>
+</html>

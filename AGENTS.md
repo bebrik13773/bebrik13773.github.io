@@ -8,51 +8,68 @@
 
 ## Карта репозитория
 
-- `index.html`
-  - корневая страница-обертка сайта.
 - `Код/index.html`
+  - compatibility redirect на основной кликер.
+- `Код/pages/clicker/index.html`
   - главный клиент приложения;
   - кликер, магазин, профиль, настройки, лидерборды, поддержка, античит, achievements UI.
-- `Код/fly-beaver.html`
+- `Код/games/fly-beaver/index.html`
   - мини-игра `Летающий бобер`;
   - облачное сохранение забегов, вывод награды, отдельный fullscreen unlock для достижений.
-- `Код/shared-client.js`
+- `Код/assets/js/shared-client.js`
   - общие клиентские утилиты;
   - определения достижений;
   - normalize/default для пользовательских настроек;
   - anti-cheat utils и shared helpers.
-- `Код/db.php`
+- `Код/assets/`
+  - основная директория статики;
+  - `assets/js`, `assets/css`, `assets/skins`, `assets/sounds`, `assets/fly`, `assets/leaderboard` являются источником истины.
+- `Код/api/bootstrap/db.php`
   - главный серверный слой;
   - schema backfill;
   - snapshot аккаунта;
   - achievements, support tickets, fly-beaver progress, топ-награды, каталог скинов.
-- `Код/sync-state.php`
+- `Код/api/state/sync.php`
   - единый live/sync endpoint для главной страницы;
   - должен оставаться основным источником snapshot-данных.
-- `Код/save-state.php`
+- `Код/api/state/save.php`
   - сохранение основного прогресса кликера.
-- `Код/fly-save-run.php`
+- `Код/api/fly/save-run.php`
   - сохранение забега `Летающего бобра`.
-- `Код/fly-claim-reward.php`
+- `Код/api/fly/claim-reward.php`
   - перевод награды из `fly-beaver` в кликер.
-- `Код/support-tickets.php`
+- `Код/api/support/tickets.php`
   - пользовательский API центра поддержки.
 - `Код/admin/index.php`
   - админка: аккаунты, скины, поддержка, логи, SQL, статистика.
-- `Код/skin-catalog.json`
+- `Код/data/skin-catalog.json`
   - каталог скинов и часть их публичной конфигурации.
-- `Код/FUTURE.html`
+- `Код/docs/FUTURE.html`
   - актуальная roadmap/status-страница.
-- `Код/FUTURE.md`
-  - короткий указатель на `FUTURE.html`.
+- `Код/docs/FUTURE.md`
+  - markdown-указатель на roadmap.
+
+Совместимость со старым кэшем сохранена:
+
+- `Код/shared-client.js`
+- `Код/styles.css`
+- `Код/c.css`
+- `Код/skins/`
+- `Код/sounds/`
+- `Код/fly-assets/`
+- `Код/skin-catalog.json`
+
+Это compatibility-зеркала. Новые правки нужно вносить в `Код/assets/...`, а не в корневые копии.
+Каталог скинов редактируется в `Код/data/skin-catalog.json`, а не в корневом compatibility-файле.
 
 ## Ключевые контракты
 
 ### 1. Главный live-sync
 
-- Основной live endpoint: `Код/sync-state.php`.
-- Если нужна новая периодическая синхронизация на главной, сначала встраивать её в `sync-state.php`, а не плодить новый poll endpoint.
-- `sync-state.php` уже отдаёт:
+- Основной live endpoint: `Код/api/state/sync.php`.
+- Старый compatibility URL `Код/sync-state.php` оставлен как thin-wrapper.
+- Если нужна новая периодическая синхронизация на главной, сначала встраивать её в `api/state/sync.php`, а не плодить новый poll endpoint.
+- `api/state/sync.php` уже отдаёт:
   - account snapshot;
   - leaderboard summaries;
   - settings;
@@ -66,68 +83,68 @@
 - В клиенте это приходит как `settingsUpdatedAt`.
 - Настройки работают по local-first схеме:
   - локально применяются сразу;
-  - затем синхронизируются через `sync-state.php`;
+  - затем синхронизируются через `api/state/sync.php`;
   - более старый snapshot не должен перетирать более новую локальную правку.
 
 Если меняется схема настроек, нужно править одновременно:
 
-- `Код/shared-client.js`
+- `Код/assets/js/shared-client.js`
   - `defaultUserSettings()`
   - `normalizeUserSettings()`
-- `Код/db.php`
+- `Код/api/bootstrap/db.php`
   - fetch/store user settings
-- `Код/sync-state.php`
+- `Код/api/state/sync.php`
   - возврат `settings` и `settingsUpdatedAt`
-- `Код/index.html`
+- `Код/pages/clicker/index.html`
   - UI настроек и local-first логика
-- `Код/fly-beaver.html`
+- `Код/games/fly-beaver/index.html`
   - применение настроек на `load/pageshow/focus/storage`
 
 ### 3. Достижения
 
-- Определения достижений живут в `Код/shared-client.js`.
-- Награды и серверная логика unlock живут в `Код/db.php`.
+- Определения достижений живут в `Код/assets/js/shared-client.js`.
+- Награды и серверная логика unlock живут в `Код/api/bootstrap/db.php`.
 - Unlock popup есть в двух местах:
-  - `Код/index.html`
-  - `Код/fly-beaver.html`
+  - `Код/pages/clicker/index.html`
+  - `Код/games/fly-beaver/index.html`
 
 Если добавляется новое достижение, нужно обновить:
 
-- `Код/shared-client.js`
+- `Код/assets/js/shared-client.js`
   - title / description / icon
-- `Код/db.php`
+- `Код/api/bootstrap/db.php`
   - reward map;
   - snapshot-условия;
   - server unlock flow
-- `Код/index.html`
+- `Код/pages/clicker/index.html`
   - профиль и popup очереди unlock
-- `Код/fly-beaver.html`
+- `Код/games/fly-beaver/index.html`
   - очередь unlock во время забега
 
 ### 4. Поддержка и тикеты
 
-- Пользовательский центр поддержки находится в `Код/index.html`.
+- Пользовательский центр поддержки находится в `Код/pages/clicker/index.html`.
 - Админский раздел поддержки находится в `Код/admin/index.php`.
-- Схема и backfill таблиц находятся в `Код/db.php`.
-- API пользователя: `Код/support-tickets.php`.
+- Схема и backfill таблиц находятся в `Код/api/bootstrap/db.php`.
+- API пользователя: `Код/api/support/tickets.php`.
 
 Если меняется тикетный flow, нужно проверять оба контура:
 
 - пользователь;
 - админ;
-- unread counters через `sync-state.php`.
+- unread counters через `api/state/sync.php`.
 
 ### 5. Топовые награды и уникальные скины
 
 - У кликера и `fly-beaver` есть эксклюзивные top-1 reward skins.
 - В каждый момент должен существовать только один выданный экземпляр такого скина.
-- Логика reconcile находится в `Код/db.php`.
+- Логика reconcile находится в `Код/api/bootstrap/db.php`.
 
 Если меняется top-skin логика, нужно проверять:
 
-- `Код/db.php`
-- `Код/skin-catalog.json`
-- `Код/index.html`
+- `Код/api/bootstrap/db.php`
+- `Код/data/skin-catalog.json`
+- `Код/pages/clicker/index.html`
 - `Код/admin/index.php`
 
 ### 6. Магазин и картинки
@@ -145,20 +162,20 @@
 
 Обновлять сразу:
 
-- `Код/skin-catalog.json`
-- `Код/db.php`
-- `Код/index.html`
+- `Код/data/skin-catalog.json`
+- `Код/api/bootstrap/db.php`
+- `Код/pages/clicker/index.html`
 - `Код/admin/index.php`
 
 ### Если меняется экономика `fly-beaver`
 
 Проверять сразу:
 
-- `Код/fly-save-run.php`
-- `Код/fly-claim-reward.php`
-- `Код/fly-beaver.html`
-- `Код/index.html`
-- `Код/db.php`
+- `Код/api/fly/save-run.php`
+- `Код/api/fly/claim-reward.php`
+- `Код/games/fly-beaver/index.html`
+- `Код/pages/clicker/index.html`
+- `Код/api/bootstrap/db.php`
 
 ### Если меняется античит
 
@@ -170,7 +187,7 @@
 - бан-экран;
 - апелляцию через встроенную поддержку.
 
-Главный клиентский античит сейчас находится в `Код/index.html`.
+Главный клиентский античит сейчас находится в `Код/pages/clicker/index.html`.
 
 ## Проверки перед коммитом
 
@@ -181,8 +198,8 @@
 
 Если `php` установлен:
 
-- `php -l Код/db.php`
-- `php -l Код/sync-state.php`
+- `php -l Код/api/bootstrap/db.php`
+- `php -l Код/api/state/sync.php`
 - и `php -l` для каждого измененного server endpoint
 
 Ручная проверка после значимых правок:
@@ -191,7 +208,7 @@
 - магазин и закрытие магазина;
 - сохранение и применение настроек;
 - поддержка и автообновление переписки;
-- achievements popup на главной и в `fly-beaver`;
+- achievements popup на главной и в `Код/games/fly-beaver/index.html`;
 - сохранение забега и перевод награды `fly-beaver`;
 - админка, если трогались тикеты, скины или логи.
 

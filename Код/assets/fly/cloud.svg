@@ -1,0 +1,16 @@
+<svg width="256" height="144" viewBox="0 0 256 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cloud" x1="54" y1="26" x2="210" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D5ECFF"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="12" width="256" height="132" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="8" flood-color="#31587E" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M55 109C30 109 12 95 12 75C12 58 25 44 43 42C50 22 69 10 95 10C122 10 144 26 149 50C154 48 160 47 166 47C191 47 212 64 212 86C212 99 205 110 193 117H55V109Z" fill="url(#cloud)"/>
+    <path d="M53 116C44 111 41 102 41 96C41 77 58 63 79 63C85 46 101 35 121 35C140 35 157 46 165 62C171 59 178 57 186 57C205 57 221 70 225 88C227 100 223 111 214 117L53 116Z" fill="#EFF8FF" fill-opacity=".92"/>
+    <path d="M188 61C188 61 173 74 152 74C131 74 112 64 98 64C79 64 68 77 68 77C74 54 94 40 121 40C149 40 173 49 188 61Z" fill="#FFFFFF" fill-opacity=".45"/>
+  </g>
+</svg>
