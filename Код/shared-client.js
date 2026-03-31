@@ -408,8 +408,55 @@
         return null;
     }
 
+    function resolveRuntimeUrl(url) {
+        if (typeof url !== 'string') {
+            return url;
+        }
+
+        var normalizedUrl = url.trim();
+        if (!normalizedUrl) {
+            return url;
+        }
+
+        var currentOrigin = '';
+        try {
+            currentOrigin = window.location && window.location.origin ? window.location.origin : '';
+        } catch (error) {
+            currentOrigin = '';
+        }
+
+        try {
+            var parsedUrl = new URL(normalizedUrl, currentOrigin || undefined);
+            if (currentOrigin && parsedUrl.origin !== currentOrigin) {
+                return normalizedUrl;
+            }
+
+            if (/\.php$/i.test(parsedUrl.pathname) && !parsedUrl.searchParams.has('i')) {
+                var challengeValue = '1';
+                try {
+                    var currentUrl = new URL(window.location.href);
+                    var currentChallengeValue = currentUrl.searchParams.get('i');
+                    if (currentChallengeValue) {
+                        challengeValue = currentChallengeValue;
+                    }
+                } catch (error) {
+                    challengeValue = '1';
+                }
+                parsedUrl.searchParams.set('i', challengeValue);
+            }
+
+            if (currentOrigin && parsedUrl.origin === currentOrigin) {
+                return parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
+            }
+
+            return parsedUrl.toString();
+        } catch (error) {
+            return normalizedUrl;
+        }
+    }
+
     function requestJson(url, options) {
-        return fetch(url, Object.assign({
+        return fetch(resolveRuntimeUrl(url), Object.assign({
             credentials: 'include'
         }, options || {})).then(async function(response) {
             var data = null;
@@ -1157,6 +1204,7 @@
         readStoredDeviceBanInfo: readStoredDeviceBanInfo,
         persistStoredDeviceBanInfo: persistStoredDeviceBanInfo,
         extractBanPayload: extractBanPayload,
+        resolveRuntimeUrl: resolveRuntimeUrl,
         requestJson: requestJson,
         calculateFlyRewardCoins: calculateFlyRewardCoins,
         formatSessionDateTime: formatSessionDateTime,

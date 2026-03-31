@@ -2,11 +2,13 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/games/fly-beaver/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Летающий бобер</title>
     <script>
-        window.location.replace('/games/fly-beaver/');
+        (function() {
+            const target = '/games/fly-beaver/' + (window.location.search || '') + (window.location.hash || '');
+            window.location.replace(target);
+        })();
     </script>
 </head>
 <body>
