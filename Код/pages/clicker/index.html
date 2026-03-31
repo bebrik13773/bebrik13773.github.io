@@ -7002,25 +7002,35 @@ function renderProfileModal() {
             icon: '✨'
         };
         const unlockedItem = unlockedByKey[achievementKey] || null;
+        const isSecretLocked = !unlockedItem && Boolean(definition.secret);
         const stat = getAchievementStat(achievementKey, unlockedItem?.meta);
         const statusLine = unlockedItem
             ? `<span class="profile-achievement-status">Открыто</span>`
-            : '<span class="profile-achievement-status">Пока не открыто</span>';
-        const rewardLine = Number(unlockedItem?.meta?.rewardCoins) > 0
+            : `<span class="profile-achievement-status">${isSecretLocked ? 'Секретное' : 'Пока не открыто'}</span>`;
+        const rewardLine = !isSecretLocked && Number(unlockedItem?.meta?.rewardCoins) > 0
             ? `<span>Награда: +${escapeHtmlText((Number(unlockedItem.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>`
             : '';
         const timeLine = unlockedItem
             ? `<span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(unlockedItem.unlockedAt))}</span>`
             : '';
+        const resolvedTitle = isSecretLocked
+            ? String(definition.lockedTitle || 'Секретное достижение')
+            : String(definition.title || achievementKey);
+        const resolvedDescription = isSecretLocked
+            ? String(definition.lockedDescription || 'Условие раскроется только после выполнения.')
+            : String(definition.description || 'Достижение разблокировано.');
+        const resolvedIcon = isSecretLocked
+            ? String(definition.lockedIcon || '❓')
+            : String(definition.icon || '✨');
 
         return {
             isUnlocked: Boolean(unlockedItem),
             html: `
                 <article class="profile-achievement-card ${unlockedItem ? 'unlocked' : 'locked'}">
-                    <div class="profile-achievement-icon">${escapeHtmlText(definition.icon)}</div>
+                    <div class="profile-achievement-icon">${escapeHtmlText(resolvedIcon)}</div>
                     <div>
-                        <strong>${escapeHtmlText(definition.title)}</strong>
-                        <span>${escapeHtmlText(definition.description)}</span>
+                        <strong>${escapeHtmlText(resolvedTitle)}</strong>
+                        <span>${escapeHtmlText(resolvedDescription)}</span>
                         <span class="profile-achievement-percent">${escapeHtmlText(formatAchievementOwnership(stat))}</span>
                         ${statusLine}
                         ${rewardLine}

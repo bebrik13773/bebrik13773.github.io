@@ -3754,25 +3754,45 @@ function bober_get_achievement_reward_map()
         'clicker_5m' => 100000,
         'clicker_10m' => 250000,
         'clicker_50m' => 1000000,
+        'clicker_100m' => 2500000,
+        'clicker_250m' => 6000000,
         'collector_1' => 1000,
         'collector_3' => 0,
         'collector_5' => 5000,
         'collector_10' => 15000,
         'collector_20' => 75000,
+        'collector_30' => 150000,
         'fly_best_10' => 2500,
         'fly_best_25' => 0,
         'fly_best_50' => 0,
         'fly_best_75' => 15000,
         'fly_best_100' => 30000,
         'fly_best_150' => 75000,
+        'fly_best_200' => 120000,
+        'fly_best_300' => 300000,
         'fly_games_10' => 5000,
         'fly_games_50' => 15000,
         'fly_games_100' => 40000,
+        'fly_games_250' => 80000,
+        'fly_games_500' => 200000,
         'upgrades_total_10' => 5000,
         'upgrades_total_25' => 15000,
         'upgrades_total_50' => 40000,
+        'upgrades_total_100' => 100000,
+        'upgrades_total_200' => 300000,
+        'plus_100' => 25000,
+        'plus_500' => 150000,
+        'energy_25k' => 50000,
+        'energy_100k' => 250000,
+        'every_upgrade_once' => 60000,
         'top_clicker_1' => 0,
         'top_fly_1' => 0,
+        'secret_double_top' => 250000,
+        'secret_all_rounder' => 200000,
+        'secret_grand_collector' => 200000,
+        'secret_marathon_runner' => 300000,
+        'secret_overclocked' => 350000,
+        'secret_six_mastery' => 500000,
     ];
 }
 
@@ -3903,10 +3923,23 @@ function bober_collect_expected_achievement_keys(array $snapshot)
 {
     $keys = [];
     $score = max(0, (int) ($snapshot['score'] ?? 0));
+    $plus = max(0, (int) ($snapshot['plus'] ?? 0));
+    $energyMax = max(0, (int) ($snapshot['energyMax'] ?? 0));
     $ownedSkinCount = max(0, (int) ($snapshot['ownedSkinCount'] ?? 0));
     $totalUpgradePurchases = max(0, (int) ($snapshot['totalUpgradePurchases'] ?? 0));
     $clickerTop1 = !empty($snapshot['clickerTop1']);
     $flyTop1 = !empty($snapshot['flyTop1']);
+    $upgradeCounts = is_array($snapshot['upgradeCounts'] ?? null) ? $snapshot['upgradeCounts'] : [];
+    $normalizedUpgradeCounts = [
+        max(0, (int) ($upgradeCounts['tapSmall'] ?? 0)),
+        max(0, (int) ($upgradeCounts['tapBig'] ?? 0)),
+        max(0, (int) ($upgradeCounts['energy'] ?? 0)),
+        max(0, (int) ($upgradeCounts['tapHuge'] ?? 0)),
+        max(0, (int) ($upgradeCounts['regenBoost'] ?? 0)),
+        max(0, (int) ($upgradeCounts['energyHuge'] ?? 0)),
+    ];
+    $allUpgradeTypesBought = !empty($normalizedUpgradeCounts) && min($normalizedUpgradeCounts) >= 1;
+    $allUpgradeTypesMastered = !empty($normalizedUpgradeCounts) && min($normalizedUpgradeCounts) >= 10;
     $flyBeaver = is_array($snapshot['flyBeaver'] ?? null) ? $snapshot['flyBeaver'] : [];
     $flyBest = max(0, (int) ($flyBeaver['bestScore'] ?? 0));
     $flyGamesPlayed = max(0, (int) ($flyBeaver['gamesPlayed'] ?? ($snapshot['flyGamesPlayed'] ?? 0)));
@@ -3936,6 +3969,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($score >= 50000000) {
         $keys[] = 'clicker_50m';
     }
+    if ($score >= 100000000) {
+        $keys[] = 'clicker_100m';
+    }
+    if ($score >= 250000000) {
+        $keys[] = 'clicker_250m';
+    }
     if ($ownedSkinCount >= 1) {
         $keys[] = 'collector_1';
     }
@@ -3947,6 +3986,9 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     }
     if ($ownedSkinCount >= 20) {
         $keys[] = 'collector_20';
+    }
+    if ($ownedSkinCount >= 30) {
+        $keys[] = 'collector_30';
     }
     if ($flyBest >= 10) {
         $keys[] = 'fly_best_10';
@@ -3966,6 +4008,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($flyBest >= 150) {
         $keys[] = 'fly_best_150';
     }
+    if ($flyBest >= 200) {
+        $keys[] = 'fly_best_200';
+    }
+    if ($flyBest >= 300) {
+        $keys[] = 'fly_best_300';
+    }
     if ($flyGamesPlayed >= 10) {
         $keys[] = 'fly_games_10';
     }
@@ -3974,6 +4022,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     }
     if ($flyGamesPlayed >= 100) {
         $keys[] = 'fly_games_100';
+    }
+    if ($flyGamesPlayed >= 250) {
+        $keys[] = 'fly_games_250';
+    }
+    if ($flyGamesPlayed >= 500) {
+        $keys[] = 'fly_games_500';
     }
     if ($ownedSkinCount >= 3) {
         $keys[] = 'collector_3';
@@ -3987,11 +4041,50 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($totalUpgradePurchases >= 50) {
         $keys[] = 'upgrades_total_50';
     }
+    if ($totalUpgradePurchases >= 100) {
+        $keys[] = 'upgrades_total_100';
+    }
+    if ($totalUpgradePurchases >= 200) {
+        $keys[] = 'upgrades_total_200';
+    }
+    if ($plus >= 100) {
+        $keys[] = 'plus_100';
+    }
+    if ($plus >= 500) {
+        $keys[] = 'plus_500';
+    }
+    if ($energyMax >= 25000) {
+        $keys[] = 'energy_25k';
+    }
+    if ($energyMax >= 100000) {
+        $keys[] = 'energy_100k';
+    }
+    if ($allUpgradeTypesBought) {
+        $keys[] = 'every_upgrade_once';
+    }
     if ($clickerTop1) {
         $keys[] = 'top_clicker_1';
     }
     if ($flyTop1) {
         $keys[] = 'top_fly_1';
+    }
+    if ($clickerTop1 && $flyTop1) {
+        $keys[] = 'secret_double_top';
+    }
+    if ($score >= 10000000 && $flyBest >= 100 && $ownedSkinCount >= 10 && $totalUpgradePurchases >= 50) {
+        $keys[] = 'secret_all_rounder';
+    }
+    if ($ownedSkinCount >= 30 && $totalUpgradePurchases >= 100) {
+        $keys[] = 'secret_grand_collector';
+    }
+    if ($flyGamesPlayed >= 500 && $flyBest >= 200) {
+        $keys[] = 'secret_marathon_runner';
+    }
+    if ($plus >= 500 && $energyMax >= 100000) {
+        $keys[] = 'secret_overclocked';
+    }
+    if ($allUpgradeTypesMastered) {
+        $keys[] = 'secret_six_mastery';
     }
 
     return array_values(array_unique($keys));
@@ -4527,12 +4620,22 @@ function bober_fetch_account_snapshot($conn, $userId)
         + $upgradeEnergyHugeCount;
     $achievementSnapshot = [
         'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'energyMax' => $energyMax,
         'ownedSkinCount' => count($ownedSkinIds),
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
         'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
         'flyBeaver' => $flyBeaver,
         'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? 0)),
         'totalUpgradePurchases' => $totalUpgradePurchases,
+        'upgradeCounts' => [
+            'tapSmall' => $upgradeTapSmallCount,
+            'tapBig' => $upgradeTapBigCount,
+            'energy' => $upgradeEnergyCount,
+            'tapHuge' => $upgradeTapHugeCount,
+            'regenBoost' => $upgradeRegenBoostCount,
+            'energyHuge' => $upgradeEnergyHugeCount,
+        ],
     ];
     $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
     $achievementStatsBundle = bober_fetch_achievement_stats($conn, !empty($achievementRefresh['statsChanged']));
