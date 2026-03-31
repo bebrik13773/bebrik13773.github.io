@@ -3442,6 +3442,74 @@ function bober_create_support_ticket($conn, $userId, $category, $subject, $messa
     return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 }
 
+function bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Не удалось определить аккаунт игрока для исходящего тикета.');
+    }
+
+    bober_ensure_support_schema($conn);
+    $category = bober_normalize_support_ticket_category($category);
+    $subject = bober_normalize_support_ticket_subject($subject);
+    $message = bober_normalize_support_ticket_message($message);
+    $status = 'waiting_user';
+
+    $userCheckStmt = $conn->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
+    if (!$userCheckStmt) {
+        throw new RuntimeException('Не удалось проверить аккаунт игрока для исходящего тикета.');
+    }
+
+    $userCheckStmt->bind_param('i', $userId);
+    if (!$userCheckStmt->execute()) {
+        $userCheckStmt->close();
+        throw new RuntimeException('Не удалось проверить существование аккаунта игрока.');
+    }
+
+    $userCheckResult = $userCheckStmt->get_result();
+    $userExists = $userCheckResult instanceof mysqli_result ? (bool) $userCheckResult->fetch_assoc() : false;
+    if ($userCheckResult instanceof mysqli_result) {
+        $userCheckResult->free();
+    }
+    $userCheckStmt->close();
+
+    if (!$userExists) {
+        throw new RuntimeException('Игрок для исходящего тикета не найден.');
+    }
+
+    $ticketStmt = $conn->prepare('INSERT INTO support_tickets (user_id, category, subject, status, unread_by_user, unread_by_admin, last_admin_message_at) VALUES (?, ?, ?, ?, 1, 0, CURRENT_TIMESTAMP)');
+    if (!$ticketStmt) {
+        throw new RuntimeException('Не удалось подготовить создание исходящего тикета поддержки.');
+    }
+
+    $ticketStmt->bind_param('isss', $userId, $category, $subject, $status);
+    if (!$ticketStmt->execute()) {
+        $ticketStmt->close();
+        throw new RuntimeException('Не удалось создать исходящий тикет поддержки.');
+    }
+
+    $ticketId = max(0, (int) $ticketStmt->insert_id);
+    $ticketStmt->close();
+    if ($ticketId < 1) {
+        throw new RuntimeException('Не удалось определить созданный исходящий тикет поддержки.');
+    }
+
+    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, NULL, ?)');
+    if (!$messageStmt) {
+        throw new RuntimeException('Не удалось подготовить первое сообщение исходящего тикета.');
+    }
+
+    $authorType = 'admin';
+    $messageStmt->bind_param('iss', $ticketId, $authorType, $message);
+    if (!$messageStmt->execute()) {
+        $messageStmt->close();
+        throw new RuntimeException('Не удалось сохранить первое сообщение исходящего тикета.');
+    }
+    $messageStmt->close();
+
+    return bober_fetch_admin_support_ticket($conn, $ticketId, false);
+}
+
 function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message)
 {
     $userId = max(0, (int) $userId);

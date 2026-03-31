@@ -1323,6 +1323,44 @@ SQL;
             }
         }
 
+        if ($action === 'create_support_ticket') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $category = (string) ($_POST['category'] ?? '');
+                $subject = (string) ($_POST['subject'] ?? '');
+                $message = (string) ($_POST['message'] ?? '');
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока для исходящего тикета.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+                    $conn->begin_transaction();
+
+                    $ticket = bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message);
+                    $conn->commit();
+
+                    $response['success'] = true;
+                    $response['message'] = 'Исходящий тикет создан и отправлен игроку.';
+                    $response['ticket'] = $ticket;
+
+                    bober_admin_log_action($conn, 'create_support_ticket', [
+                        'target_table' => 'support_tickets',
+                        'query_text' => 'CREATE OUTBOUND SUPPORT TICKET FOR USER #' . $userId,
+                        'affected_rows' => 2,
+                        'meta' => [
+                            'ticket_id' => $ticket['id'] ?? 0,
+                            'user_id' => $ticket['userId'] ?? $userId,
+                            'category' => $ticket['category'] ?? '',
+                            'status' => $ticket['status'] ?? 'waiting_user',
+                        ],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'update_support_ticket_status') {
             if (requireAdminAuth($response)) {
                 $ticketId = max(0, (int) ($_POST['ticket_id'] ?? 0));
@@ -9102,6 +9140,47 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <section class="detail-section">
                         <div class="detail-section-title">
+                            <span class="material-icons">outgoing_mail</span>
+                            Исходящий тикет игроку
+                        </div>
+                        <div class="detail-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="accountSupportCategory">Категория</label>
+                                <select class="form-control" id="accountSupportCategory">
+                                    <option value="account">Аккаунт</option>
+                                    <option value="ban_appeal">Бан и апелляция</option>
+                                    <option value="bugs">Ошибки и баги</option>
+                                    <option value="skins">Скины и магазин</option>
+                                    <option value="fly_beaver">Летающий бобер</option>
+                                    <option value="other" selected>Другое</option>
+                                </select>
+                            </div>
+                            <div class="form-group wide">
+                                <label class="form-label" for="accountSupportSubject">Тема</label>
+                                <input class="form-control" id="accountSupportSubject" type="text" maxlength="140" placeholder="Например: Уточнение по аккаунту или ответ от поддержки">
+                            </div>
+                            <div class="form-group wide">
+                                <label class="form-label" for="accountSupportMessage">Сообщение игроку</label>
+                                <textarea class="form-control" id="accountSupportMessage" rows="5" placeholder="Напишите первое сообщение от поддержки. Игрок увидит его во входящих без своего предварительного тикета."></textarea>
+                            </div>
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom: 14px;">
+                            Поддержка может первой начать диалог. После отправки у игрока появится новый тикет и непрочитанное сообщение во входящих.
+                        </div>
+                        <div class="inline-actions" style="margin-top: 0;">
+                            <button class="btn btn-primary" type="button" id="accountCreateSupportTicketBtn">
+                                <span class="material-icons">mark_email_unread</span>
+                                Написать игроку
+                            </button>
+                            <button class="btn btn-outline" type="button" id="accountOpenSupportViewBtn">
+                                <span class="material-icons">support_agent</span>
+                                Открыть поддержку
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
                             <span class="material-icons">devices</span>
                             Активные сессии
                         </div>
@@ -9433,7 +9512,99 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const createSupportTicketButton = document.getElementById('accountCreateSupportTicketBtn');
+            if (createSupportTicketButton) {
+                createSupportTicketButton.addEventListener('click', function() {
+                    createOutboundSupportTicketForSelectedAccount();
+                });
+            }
+
+            const openSupportViewButton = document.getElementById('accountOpenSupportViewBtn');
+            if (openSupportViewButton) {
+                openSupportViewButton.addEventListener('click', function() {
+                    showSupportView();
+                });
+            }
+
             loadSelectedAccountClientLog();
+        }
+
+        function createOutboundSupportTicketForSelectedAccount() {
+            const userId = Math.max(0, Number(selectedAccountId) || 0);
+            if (userId < 1) {
+                showNotification('Сначала выберите игрока.', 'warning');
+                return;
+            }
+
+            const categoryNode = document.getElementById('accountSupportCategory');
+            const subjectNode = document.getElementById('accountSupportSubject');
+            const messageNode = document.getElementById('accountSupportMessage');
+            const actionButton = document.getElementById('accountCreateSupportTicketBtn');
+            if (!categoryNode || !subjectNode || !messageNode || !actionButton) {
+                return;
+            }
+
+            const category = String(categoryNode.value || 'other');
+            const subject = String(subjectNode.value || '').trim();
+            const message = String(messageNode.value || '').trim();
+            if (!subject) {
+                showNotification('Укажите тему исходящего тикета.', 'warning');
+                return;
+            }
+            if (!message) {
+                showNotification('Введите сообщение игроку.', 'warning');
+                return;
+            }
+
+            const originalContent = actionButton.innerHTML;
+            actionButton.disabled = true;
+            actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+
+            postAction({
+                action: 'create_support_ticket',
+                user_id: String(userId),
+                category,
+                subject,
+                message
+            })
+            .then(data => {
+                if (!data.success || !data.ticket) {
+                    throw new Error(data.message || 'Не удалось создать исходящий тикет');
+                }
+
+                const createdTicket = normalizeAdminSupportTicket(data.ticket);
+                if (createdTicket) {
+                    selectedSupportTicketId = Number(createdTicket.id) || 0;
+                    selectedSupportTicket = createdTicket;
+                }
+
+                subjectNode.value = '';
+                messageNode.value = '';
+                currentSupportSearch = '';
+                currentSupportStatusFilter = 'all';
+                currentSupportCategoryFilter = 'all';
+                currentSupportUnreadFilter = 'all';
+
+                const supportSearchInput = document.getElementById('supportSearchInput');
+                const supportStatusFilter = document.getElementById('supportStatusFilter');
+                const supportCategoryFilter = document.getElementById('supportCategoryFilter');
+                const supportUnreadFilter = document.getElementById('supportUnreadFilter');
+                if (supportSearchInput) supportSearchInput.value = '';
+                if (supportStatusFilter) supportStatusFilter.value = 'all';
+                if (supportCategoryFilter) supportCategoryFilter.value = 'all';
+                if (supportUnreadFilter) supportUnreadFilter.value = 'all';
+
+                showNotification(data.message || 'Исходящий тикет создан.', 'success');
+                showSupportView();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка создания исходящего тикета', 'error');
+            })
+            .finally(() => {
+                actionButton.disabled = false;
+                actionButton.innerHTML = originalContent;
+            });
         }
 
         function collectSelectedAccountPayload() {
