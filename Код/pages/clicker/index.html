@@ -4384,7 +4384,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
             <div class="upgrade-action-chip">
                 <strong id="upgradeActionModalPrice">0</strong>
-                <span>Цена улучшения</span>
+                <span>Цена набора</span>
             </div>
             <div class="upgrade-action-chip">
                 <strong id="upgradeActionModalNextBalance">0</strong>
@@ -8358,15 +8358,48 @@ function getUpgradeDescriptor(type) {
 }
 
 function calculateUpgradeBundleCost(baseCost, purchaseCount, quantity) {
-    let total = 0;
     const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
     const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+    let total = 0;
 
     for (let index = 0; index < safeQuantity; index += 1) {
         total += calculateUpgradeCost(baseCost, safePurchaseCount + index);
     }
 
     return total;
+}
+
+function buildUpgradeBundlePricing(baseCost, purchaseCount, quantity) {
+    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+    const prices = [];
+    let total = 0;
+
+    for (let index = 0; index < safeQuantity; index += 1) {
+        const price = calculateUpgradeCost(baseCost, safePurchaseCount + index);
+        prices.push(price);
+        total += price;
+    }
+
+    return {
+        prices,
+        total,
+        nextSinglePrice: calculateUpgradeCost(baseCost, safePurchaseCount + safeQuantity)
+    };
+}
+
+function formatUpgradeBundlePricingPreview(prices) {
+    const safePrices = Array.isArray(prices) ? prices.filter((price) => Number.isFinite(Number(price)) && Number(price) > 0) : [];
+    if (safePrices.length === 0) {
+        return '';
+    }
+
+    const formatted = safePrices.map((price) => formatCompactNumber(price));
+    if (formatted.length <= 5) {
+        return formatted.join(' + ');
+    }
+
+    return `${formatted.slice(0, 4).join(' + ')} + ... + ${formatted[formatted.length - 1]}`;
 }
 
 function calculateMaxAffordableUpgradeQuantity(baseCost, purchaseCount, balance) {
@@ -8418,9 +8451,11 @@ function updateUpgradeActionModalView() {
     const baseCost = getUpgradeBaseCost(upgradeActionState.type);
     const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score);
     const quantity = normalizeUpgradeModalQuantity(upgradeActionState.type, upgradeActionState.quantity);
-    const totalPrice = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, quantity);
+    const bundlePricing = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, quantity);
+    const totalPrice = bundlePricing.total;
     const nextBalance = Math.max(0, score - totalPrice);
-    const nextSinglePrice = calculateUpgradeCost(baseCost, descriptor.purchaseCount + quantity);
+    const nextSinglePrice = bundlePricing.nextSinglePrice;
+    const bundlePricingPreview = formatUpgradeBundlePricingPreview(bundlePricing.prices);
     const quantityInputNode = document.getElementById('upgradeActionModalQuantityInput');
     const currentBalanceNode = document.getElementById('upgradeActionModalCurrentBalance');
     const priceNode = document.getElementById('upgradeActionModalPrice');
@@ -8472,7 +8507,7 @@ function updateUpgradeActionModalView() {
 
     if (quantityNoteNode) {
         quantityNoteNode.textContent = maxAffordableQuantity > 0
-            ? `Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. Следующая цена после покупки: ${formatCompactNumber(nextSinglePrice)}.`
+            ? `Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. Цены в пачке: ${bundlePricingPreview}. Следующая цена после покупки: ${formatCompactNumber(nextSinglePrice)}.`
             : getUpgradeShortageMessage(descriptor.price);
     }
 
@@ -8537,7 +8572,7 @@ function performUpgradePurchase(type, quantity = 1) {
 
     const safeQuantity = normalizeUpgradeModalQuantity(type, quantity);
     const baseCost = getUpgradeBaseCost(type);
-    const currentCost = calculateUpgradeBundleCost(baseCost, descriptor.purchaseCount, safeQuantity);
+    const currentCost = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, safeQuantity).total;
     if (score < currentCost) {
         showUpgradeActionModal(type);
         return;
