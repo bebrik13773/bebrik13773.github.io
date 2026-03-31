@@ -219,10 +219,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         
         #game-over {
             display: none;
+            justify-content: flex-start;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: calc(var(--safe-bottom) + 34px);
         }
         
         #pause-screen {
             display: none;
+            justify-content: flex-start;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding-bottom: calc(var(--safe-bottom) + 34px);
         }
         
         h1 {
@@ -256,6 +264,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             box-shadow: 0 8px 0 #36612a, 0 14px 20px rgba(0,0,0,0.28);
             transition: all 0.1s;
             min-width: 160px;
+            flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.24);
         }
         
@@ -829,6 +838,11 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             .screen {
                 padding-top: calc(var(--safe-top) + 68px);
+            }
+
+            #game-over,
+            #pause-screen {
+                padding-bottom: calc(var(--safe-bottom) + 24px);
             }
         }
     </style>
