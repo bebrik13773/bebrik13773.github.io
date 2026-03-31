@@ -1,4 +1,4 @@
-# agents.md
+# AGENTS.md
 
 ## Назначение
 
