@@ -1,64 +1,48 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-
-<!-- Yandex.Metrika counter -->
-<script type="text/javascript">
-    (function(m,e,t,r,i,k,a){
-        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-        m[i].l=1*new Date();
-        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=104611709', 'ym');
-
-    ym(104611709, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", accurateTrackBounce:true, trackLinks:true});
-</script>
-<noscript><div><img src="https://mc.yandex.ru/watch/104611709" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-<!-- /Yandex.Metrika counter -->
-
-
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Страница не найдена</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            color: #333;
-            text-align: center;
-            padding: 50px;
-        }
-        #container {
-            max-width: 600px;
-            margin: auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        #but {
-            appearance: none;
-            border: 0;
-            border-radius: 5px;
-            background: #4676D7;
-            color: #fff;
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        #but:hover {
-            background: #365bb5;
-        }
-    </style>
+    <title>404 · Страница не найдена</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
 </head>
-<body>
-    <div id="container">
-        <h1>Ты перешёл не по той ссылке!</h1>
-        <h2>Нажимай кнопку ниже и тапай бобра!</h2>
-         <h5>HTTP ERROR 404</h5>
-        <button id="but" onclick="window.location.href='https://bober-api.gt.tc/';">Тапать бобра</button>
-    </div>
+<body style="--error-accent:#59e9df;--error-accent-strong:#3e9fff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Потерянная ссылка</span>
+                    <h1 class="error-title">Ты ушёл <strong>не по той тропе</strong></h1>
+                    <p class="error-lead">Такой страницы в кликере больше нет или адрес был набран с ошибкой. Основной маршрут игры продолжает работать.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item">
+                            <strong>Код</strong>
+                            <span>HTTP 404</span>
+                        </div>
+                        <div class="error-meta-item">
+                            <strong>Куда идти</strong>
+                            <span>В кликер или в мини-игру</span>
+                        </div>
+                    </div>
+                    <div class="error-actions">
+                        <a class="error-button error-button-primary" href="/pages/clicker/">Тапать бобра</a>
+                        <a class="error-button error-button-secondary" href="/games/fly-beaver/">Открыть fly-beaver</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Маршрут не найден</span>
+                    <div class="error-side-code">404</div>
+                    <h2 class="error-side-title">Адрес устарел или битый</h2>
+                    <p class="error-side-text">Если вы пришли по старой ссылке, структура сайта могла измениться. Основные игровые пути уже переехали в более понятные разделы.</p>
+                    <div class="error-helper">
+                        <p>Актуальные входы: <strong>/pages/clicker/</strong> для кликера и <strong>/games/fly-beaver/</strong> для мини-игры.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
+    </main>
 </body>
 </html>
