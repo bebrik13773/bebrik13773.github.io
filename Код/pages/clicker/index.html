@@ -1143,12 +1143,32 @@ Owner decisions:
         grid-template-columns: 56px 1fr auto;
         align-items: center;
         gap: 12px;
+        width: 100%;
         padding: 12px 14px;
         border-radius: 18px;
         background: linear-gradient(180deg, rgba(27, 20, 61, 0.95), rgba(20, 14, 45, 0.92));
         border: 1px solid rgba(51, 197, 199, 0.28);
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
+    }
+
+    .leaderboard-item-shell {
+        width: 100%;
+    }
+
+    button.leaderboard-item {
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+    }
+
+    button.leaderboard-item:focus-visible {
+        outline: none;
+        border-color: rgba(126, 241, 255, 0.58);
+        box-shadow: 0 0 0 2px rgba(126, 241, 255, 0.18), 0 22px 30px rgba(9, 4, 24, 0.28);
     }
 
     .leaderboard-rank {
@@ -2874,6 +2894,12 @@ Owner decisions:
         overflow-y: auto;
     }
 
+    .public-profile-modal {
+        width: min(100%, 760px);
+        max-height: min(88vh, 900px);
+        overflow-y: auto;
+    }
+
     .profile-modal-hero {
         display: grid;
         grid-template-columns: auto 1fr;
@@ -3097,6 +3123,155 @@ Owner decisions:
 
     .profile-achievement-card.locked .profile-achievement-status {
         color: rgba(255, 255, 255, 0.52) !important;
+    }
+
+    .public-profile-loading,
+    .public-profile-empty {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.76);
+        line-height: 1.5;
+    }
+
+    .public-profile-loading {
+        color: #dffcff;
+    }
+
+    .public-profile-avatar {
+        width: 68px;
+        height: 68px;
+        border-radius: 22px;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, rgba(93, 240, 217, 0.26), rgba(66, 116, 255, 0.28));
+        border: 1px solid rgba(191, 255, 249, 0.2);
+        box-shadow: 0 14px 22px rgba(5, 10, 28, 0.24);
+    }
+
+    .public-profile-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        padding: 6px;
+    }
+
+    .public-profile-skin-section {
+        margin-top: 18px;
+    }
+
+    .public-profile-equipped-card {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(126, 241, 255, 0.18);
+        box-shadow: 0 14px 24px rgba(4, 8, 22, 0.22);
+    }
+
+    .public-profile-equipped-media,
+    .public-profile-skin-media {
+        position: relative;
+        overflow: hidden;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(15, 24, 48, 0.86), rgba(8, 10, 24, 0.96));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .public-profile-equipped-media {
+        width: 92px;
+        height: 92px;
+    }
+
+    .public-profile-equipped-media img,
+    .public-profile-skin-media img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: contain;
+        padding: 8px;
+    }
+
+    .public-profile-equipped-name {
+        font-size: 18px;
+        font-weight: 800;
+        color: #f6fdff;
+        margin-bottom: 4px;
+    }
+
+    .public-profile-equipped-meta,
+    .public-profile-skin-meta {
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .public-profile-equipped-flag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(126, 241, 255, 0.12);
+        border: 1px solid rgba(126, 241, 255, 0.18);
+        color: #dffcff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+    }
+
+    .public-profile-skin-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .public-profile-skin-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        min-height: 100%;
+    }
+
+    .public-profile-skin-card.equipped {
+        border-color: rgba(126, 241, 255, 0.22);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .public-profile-skin-media {
+        aspect-ratio: 1 / 1;
+    }
+
+    .public-profile-skin-name {
+        color: #f5fdff;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    .public-profile-skin-flag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: rgba(255, 218, 122, 0.12);
+        border: 1px solid rgba(255, 218, 122, 0.18);
+        color: #fff0bf;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
     }
 
     .support-modal {
@@ -4236,6 +4411,7 @@ Owner decisions:
 
         .settings-modal,
         .profile-modal,
+        .public-profile-modal,
         .support-modal {
             max-height: calc(100dvh - var(--mobile-top-clearance) - var(--safe-bottom) - 12px);
         }
@@ -4281,9 +4457,14 @@ Owner decisions:
             justify-self: end;
         }
 
+        .public-profile-modal .settings-modal-actions,
         .profile-modal .settings-modal-actions,
         .support-modal .settings-modal-actions {
             grid-template-columns: 1fr;
+        }
+
+        .public-profile-modal .settings-modal-actions .settings-action-button {
+            width: 100%;
         }
 
         .support-modal-layout {
@@ -4302,6 +4483,21 @@ Owner decisions:
 
         .profile-achievement-list {
             grid-template-columns: 1fr;
+        }
+
+        .public-profile-equipped-card {
+            grid-template-columns: 1fr;
+        }
+
+        .public-profile-equipped-media {
+            width: 100%;
+            max-width: 120px;
+            height: auto;
+            aspect-ratio: 1 / 1;
+        }
+
+        .public-profile-skin-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         #achievementUnlockModal {
@@ -4917,6 +5113,18 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
+<div class="modal-backdrop" id="leaderboardProfileModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardProfileModalTitle">
+        <div class="skin-action-modal-title" id="leaderboardProfileModalTitle">Профиль игрока</div>
+        <div class="skin-action-modal-text">Публичная карточка игрока из таблицы лидеров.</div>
+        <div id="leaderboardProfileContent">
+            <div class="public-profile-loading">Загружаю профиль игрока...</div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="leaderboardProfileModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
 <div class="modal-backdrop" id="supportModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal support-modal" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
         <div class="skin-action-modal-title" id="supportModalTitle">Поддержка</div>
@@ -5263,6 +5471,15 @@ const leaderboardState = {
     main: [],
     flyBeaver: []
 };
+const leaderboardProfileState = {
+    openUserId: 0,
+    loading: false,
+    error: '',
+    fallbackLogin: '',
+    data: null,
+    requestToken: 0,
+    cache: new Map()
+};
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
 
@@ -5281,10 +5498,93 @@ function getDefaultProfileSummary() {
     };
 }
 
+function getDefaultLeaderboardPublicProfile() {
+    return {
+        userId: 0,
+        login: 'Игрок',
+        profile: {
+            ownedSkins: 0,
+            collectionSkins: 0,
+            clickerTop1: false,
+            flyTop1: false,
+            score: 0,
+            plus: 1,
+            energyMax: 5000,
+            flyBest: 0,
+            flyGamesPlayed: 0
+        },
+        skins: {
+            equipped: null,
+            collection: []
+        }
+    };
+}
+
 function getDefaultSupportSummary() {
     return {
         unreadReplies: 0,
         openTickets: 0
+    };
+}
+
+function normalizePublicProfileSkinItem(rawItem) {
+    if (!rawItem || typeof rawItem !== 'object') {
+        return null;
+    }
+
+    const itemId = String(rawItem.id || '').trim();
+    const fallbackConfig = itemId ? getSkinConfigById(itemId) : null;
+    const image = String(rawItem.image || fallbackConfig?.image || '').trim();
+    if (!image) {
+        return null;
+    }
+
+    return {
+        id: itemId,
+        name: String(rawItem.name || fallbackConfig?.name || itemId || 'Скин').trim() || 'Скин',
+        image,
+        rarity: normalizeSkinRarity(rawItem.rarity || fallbackConfig?.rarity),
+        category: normalizeSkinCategory(rawItem.category || fallbackConfig?.category),
+        issueMode: normalizeSkinIssueMode(rawItem.issueMode || rawItem.issue_mode || fallbackConfig?.issueMode || fallbackConfig?.issue_mode, rawItem),
+        equipped: Boolean(rawItem.equipped)
+    };
+}
+
+function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игрок') {
+    const defaults = getDefaultLeaderboardPublicProfile();
+    if (!rawPlayer || typeof rawPlayer !== 'object') {
+        return {
+            ...defaults,
+            login: fallbackLogin
+        };
+    }
+
+    const rawProfile = rawPlayer.profile && typeof rawPlayer.profile === 'object'
+        ? rawPlayer.profile
+        : {};
+    const equippedSkin = normalizePublicProfileSkinItem(rawPlayer.skins?.equipped || rawPlayer.equippedSkin || null);
+    const collection = Array.isArray(rawPlayer.skins?.collection)
+        ? rawPlayer.skins.collection.map((item) => normalizePublicProfileSkinItem(item)).filter(Boolean)
+        : [];
+
+    return {
+        userId: Math.max(0, Number(rawPlayer.userId) || 0),
+        login: String(rawPlayer.login || fallbackLogin || defaults.login).trim() || defaults.login,
+        profile: {
+            ownedSkins: Math.max(0, Number(rawProfile.ownedSkins) || 0),
+            collectionSkins: Math.max(0, Number(rawProfile.collectionSkins) || collection.length),
+            clickerTop1: Boolean(rawProfile.clickerTop1),
+            flyTop1: Boolean(rawProfile.flyTop1),
+            score: Math.max(0, Number(rawProfile.score) || 0),
+            plus: Math.max(1, Number(rawProfile.plus) || 1),
+            energyMax: Math.max(1, Number(rawProfile.energyMax) || 5000),
+            flyBest: Math.max(0, Number(rawProfile.flyBest) || 0),
+            flyGamesPlayed: Math.max(0, Number(rawProfile.flyGamesPlayed) || 0)
+        },
+        skins: {
+            equipped: equippedSkin,
+            collection
+        }
     };
 }
 
@@ -6217,6 +6517,7 @@ function syncGlobalOverlayState() {
         document.getElementById('authModal'),
         document.getElementById('settingsModal'),
         document.getElementById('profileModal'),
+        document.getElementById('leaderboardProfileModal'),
         document.getElementById('supportModal'),
         document.getElementById('achievementUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
@@ -6653,6 +6954,7 @@ function isHeavyUiSurfaceOpen() {
         document.getElementById('supportModal')?.classList.contains('show') ||
         document.getElementById('settingsModal')?.classList.contains('show') ||
         document.getElementById('profileModal')?.classList.contains('show') ||
+        document.getElementById('leaderboardProfileModal')?.classList.contains('show') ||
         document.getElementById('authModal')?.classList.contains('show') ||
         document.getElementById('achievementUnlockModal')?.classList.contains('show')
     );
@@ -7376,6 +7678,192 @@ function closeProfileModal() {
 
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+}
+
+function renderLeaderboardPublicProfileModal() {
+    const contentNode = document.getElementById('leaderboardProfileContent');
+    if (!contentNode) {
+        return;
+    }
+
+    if (leaderboardProfileState.loading) {
+        contentNode.innerHTML = `<div class="public-profile-loading">Загружаю публичный профиль игрока ${escapeHtmlText(leaderboardProfileState.fallbackLogin || 'Игрок')}...</div>`;
+        return;
+    }
+
+    if (leaderboardProfileState.error) {
+        contentNode.innerHTML = `<div class="public-profile-empty">${escapeHtmlText(leaderboardProfileState.error)}</div>`;
+        return;
+    }
+
+    const data = normalizeLeaderboardPublicProfile(leaderboardProfileState.data, leaderboardProfileState.fallbackLogin);
+    const summary = data.profile;
+    const equippedSkin = data.skins.equipped;
+    const collectionSkins = Array.isArray(data.skins.collection) ? data.skins.collection : [];
+    const badgeItems = [];
+
+    if (summary.clickerTop1) {
+        badgeItems.push('<span class="profile-badge top">👑 Топ-1 кликера</span>');
+    }
+    if (summary.flyTop1) {
+        badgeItems.push('<span class="profile-badge top">🏆 Топ-1 Летающего бобра</span>');
+    }
+    badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
+    badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
+
+    const stats = [
+        { label: 'Счет', value: formatLeaderboardScore(summary.score) },
+        { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
+        { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
+        { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
+        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) }
+    ];
+
+    const equippedHtml = equippedSkin
+        ? `
+            <div class="public-profile-equipped-card">
+                <div class="public-profile-equipped-media">
+                    <img src="${escapeHtmlText(equippedSkin.image)}" alt="${escapeHtmlText(equippedSkin.name)}" loading="lazy" decoding="async">
+                </div>
+                <div>
+                    <div class="public-profile-equipped-name">${escapeHtmlText(equippedSkin.name)}</div>
+                    <div class="public-profile-equipped-meta">${escapeHtmlText(getSkinRarityLabel(equippedSkin.rarity))} • ${escapeHtmlText(getSkinCategoryLabel(equippedSkin.category))}</div>
+                    <div class="public-profile-equipped-flag">Надет сейчас</div>
+                </div>
+            </div>
+        `
+        : '<div class="public-profile-empty">Не удалось определить установленный скин игрока.</div>';
+
+    const collectionHtml = collectionSkins.length > 0
+        ? `
+            <div class="public-profile-skin-grid">
+                ${collectionSkins.map((item) => `
+                    <article class="public-profile-skin-card ${item.equipped ? 'equipped' : ''}">
+                        <div class="public-profile-skin-media">
+                            <img src="${escapeHtmlText(item.image)}" alt="${escapeHtmlText(item.name)}" loading="lazy" decoding="async">
+                        </div>
+                        <div class="public-profile-skin-name">${escapeHtmlText(item.name)}</div>
+                        <div class="public-profile-skin-meta">${escapeHtmlText(getSkinRarityLabel(item.rarity))} • ${escapeHtmlText(getSkinCategoryLabel(item.category))}</div>
+                        ${item.equipped ? '<div class="public-profile-skin-flag">Надет</div>' : ''}
+                    </article>
+                `).join('')}
+            </div>
+        `
+        : '<div class="public-profile-empty">У игрока пока только стартовые скины или коллекция еще не собрана.</div>';
+
+    contentNode.innerHTML = `
+        <div class="profile-modal-hero">
+            <div class="public-profile-avatar">
+                ${equippedSkin ? `<img src="${escapeHtmlText(equippedSkin.image)}" alt="${escapeHtmlText(equippedSkin.name)}" loading="lazy" decoding="async">` : '🦫'}
+            </div>
+            <div>
+                <div class="profile-modal-login">${escapeHtmlText(data.login)}</div>
+                <div class="profile-modal-subtitle">Публичная карточка игрока из таблицы лидеров. Здесь виден установленный скин и собранная коллекция.</div>
+            </div>
+        </div>
+        <div class="profile-badge-row">${badgeItems.join('')}</div>
+        <div class="profile-stats-grid">
+            ${stats.map((item) => `
+                <div class="profile-stat-card">
+                    <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
+                    <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
+                </div>
+            `).join('')}
+        </div>
+        <div class="public-profile-skin-section">
+            <div class="profile-achievements-title">Установленный скин</div>
+            ${equippedHtml}
+        </div>
+        <div class="public-profile-skin-section">
+            <div class="profile-achievements-title">Скины игрока</div>
+            ${collectionHtml}
+        </div>
+    `;
+}
+
+async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
+    const normalizedUserId = Math.max(0, Number(userId) || 0);
+    if (normalizedUserId < 1) {
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.error = 'Не удалось определить игрока для загрузки профиля.';
+        renderLeaderboardPublicProfileModal();
+        return;
+    }
+
+    const cachedProfile = leaderboardProfileState.cache.get(normalizedUserId);
+    if (cachedProfile) {
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.error = '';
+        leaderboardProfileState.data = cachedProfile;
+        renderLeaderboardPublicProfileModal();
+        return;
+    }
+
+    const requestToken = ++leaderboardProfileState.requestToken;
+    leaderboardProfileState.loading = true;
+    leaderboardProfileState.error = '';
+    leaderboardProfileState.data = null;
+    leaderboardProfileState.fallbackLogin = String(fallbackLogin || 'Игрок').trim() || 'Игрок';
+    renderLeaderboardPublicProfileModal();
+
+    try {
+        const response = await requestJson(`/api/leaderboards/player-profile.php?userId=${encodeURIComponent(normalizedUserId)}`, {
+            method: 'GET'
+        });
+        const profileData = normalizeLeaderboardPublicProfile(response?.player || response, fallbackLogin);
+        leaderboardProfileState.cache.set(normalizedUserId, profileData);
+        if (leaderboardProfileState.requestToken !== requestToken || leaderboardProfileState.openUserId !== normalizedUserId) {
+            return;
+        }
+
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.error = '';
+        leaderboardProfileState.data = profileData;
+        renderLeaderboardPublicProfileModal();
+    } catch (error) {
+        if (leaderboardProfileState.requestToken !== requestToken || leaderboardProfileState.openUserId !== normalizedUserId) {
+            return;
+        }
+
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.data = null;
+        leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
+        renderLeaderboardPublicProfileModal();
+    }
+}
+
+function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
+    const modal = document.getElementById('leaderboardProfileModal');
+    if (!modal) {
+        return;
+    }
+
+    leaderboardProfileState.openUserId = Math.max(0, Number(userId) || 0);
+    leaderboardProfileState.fallbackLogin = String(fallbackLogin || 'Игрок').trim() || 'Игрок';
+    leaderboardProfileState.loading = true;
+    leaderboardProfileState.error = '';
+    leaderboardProfileState.data = null;
+    closeProfileMenu();
+    renderLeaderboardPublicProfileModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    loadLeaderboardPublicProfile(leaderboardProfileState.openUserId, leaderboardProfileState.fallbackLogin).catch(() => {});
+}
+
+function closeLeaderboardPublicProfile() {
+    const modal = document.getElementById('leaderboardProfileModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    leaderboardProfileState.openUserId = 0;
+    leaderboardProfileState.loading = false;
+    leaderboardProfileState.error = '';
+    leaderboardProfileState.data = null;
     syncGlobalOverlayState();
 }
 
@@ -10353,6 +10841,15 @@ if (profileModalNode) {
     });
 }
 
+const leaderboardProfileModalNode = document.getElementById('leaderboardProfileModal');
+if (leaderboardProfileModalNode) {
+    leaderboardProfileModalNode.addEventListener('click', (event) => {
+        if (event.target === leaderboardProfileModalNode) {
+            closeLeaderboardPublicProfile();
+        }
+    });
+}
+
 const supportModalNode = document.getElementById('supportModal');
 if (supportModalNode) {
     supportModalNode.addEventListener('click', (event) => {
@@ -10382,6 +10879,13 @@ const profileModalCloseButton = document.getElementById('profileModalClose');
 if (profileModalCloseButton) {
     profileModalCloseButton.addEventListener('click', () => {
         closeProfileModal();
+    });
+}
+
+const leaderboardProfileModalCloseButton = document.getElementById('leaderboardProfileModalClose');
+if (leaderboardProfileModalCloseButton) {
+    leaderboardProfileModalCloseButton.addEventListener('click', () => {
+        closeLeaderboardPublicProfile();
     });
 }
 
@@ -11074,6 +11578,18 @@ function attachLeaderboardTabHandlers(root) {
     });
 }
 
+function attachLeaderboardRowHandlers(root) {
+    if (!root) {
+        return;
+    }
+
+    root.querySelectorAll('.leaderboard-item[data-user-id]').forEach((button) => {
+        button.addEventListener('click', () => {
+            openLeaderboardPublicProfile(button.dataset.userId, button.dataset.login || 'Игрок');
+        });
+    });
+}
+
 function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = leaderboardState.flyBeaver, options = {}) {
     const leaderboard = document.getElementById('leaderboard');
     const rankClasses = ['gold', 'silver', 'bronze'];
@@ -11113,15 +11629,25 @@ function renderLeaderboard(mainPlayers = leaderboardState.main, flyPlayers = lea
     }
 
     const rowsHtml = safePlayers.slice(0, 3).map((player, index) => `
-        <li class="leaderboard-item">
-            <span class="leaderboard-rank ${rankClasses[index] || ''}">${index + 1}</span>
-            <span class="leaderboard-name">${escapeHtmlText(player.login || 'Без имени')}</span>
-            <span class="leaderboard-score">${formatLeaderboardScore(player.score)}</span>
+        <li class="leaderboard-item-shell">
+            <button
+                type="button"
+                class="leaderboard-item"
+                data-user-id="${escapeHtmlText(player.userId || '')}"
+                data-login="${escapeHtmlText(player.login || 'Без имени')}"
+                aria-label="Открыть профиль игрока ${escapeHtmlText(player.login || 'Без имени')}"
+                title="Открыть профиль игрока"
+            >
+                <span class="leaderboard-rank ${rankClasses[index] || ''}">${index + 1}</span>
+                <span class="leaderboard-name">${escapeHtmlText(player.login || 'Без имени')}</span>
+                <span class="leaderboard-score">${formatLeaderboardScore(player.score)}</span>
+            </button>
         </li>
     `).join('');
 
     leaderboard.innerHTML = `${headerHtml}<div class="leaderboard-panel-shell"><div class="${panelClass}">${panelHeaderHtml}<ol class="leaderboard-list">${rowsHtml}</ol></div></div>`;
     attachLeaderboardTabHandlers(leaderboard);
+    attachLeaderboardRowHandlers(leaderboard);
 }
 
 function renderLeaderboardError(message) {

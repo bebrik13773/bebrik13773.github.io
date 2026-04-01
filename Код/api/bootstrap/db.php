@@ -4355,6 +4355,7 @@ SQL;
     $leaders = [];
     while ($row = $result->fetch_assoc()) {
         $leaders[] = [
+            'userId' => max(0, (int) ($row['id'] ?? 0)),
             'login' => (string) ($row['login'] ?? ''),
             'score' => max(0, (int) ($row['score'] ?? 0)),
         ];
@@ -4524,7 +4525,7 @@ function bober_fetch_public_fly_beaver_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
     $sql = <<<SQL
-SELECT u.login, MAX(f.best_score) AS score
+SELECT u.id, u.login, MAX(f.best_score) AS score
 FROM users u
 INNER JOIN fly_beaver_progress f
     ON f.user_id = u.id
@@ -4549,6 +4550,7 @@ SQL;
     $leaders = [];
     while ($row = $result->fetch_assoc()) {
         $leaders[] = [
+            'userId' => max(0, (int) ($row['id'] ?? 0)),
             'login' => (string) ($row['login'] ?? ''),
             'score' => max(0, (int) ($row['score'] ?? 0)),
         ];
@@ -4556,6 +4558,118 @@ SQL;
     $result->free();
 
     return $leaders;
+}
+
+function bober_build_public_skin_payload($skinConfig, $isEquipped = false)
+{
+    if (!is_array($skinConfig)) {
+        return null;
+    }
+
+    return [
+        'id' => trim((string) ($skinConfig['id'] ?? '')),
+        'name' => trim((string) ($skinConfig['name'] ?? '')),
+        'image' => trim((string) ($skinConfig['image'] ?? '')),
+        'rarity' => bober_normalize_skin_rarity($skinConfig['rarity'] ?? ''),
+        'category' => bober_normalize_skin_category($skinConfig['category'] ?? ''),
+        'issueMode' => bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig),
+        'equipped' => (bool) $isEquipped,
+    ];
+}
+
+function bober_fetch_public_player_profile($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор игрока.');
+    }
+
+    bober_reconcile_top_reward_skins($conn);
+
+    $stmt = $conn->prepare(
+        'SELECT u.id, u.login, u.plus, u.skin, u.ENERGY_MAX, u.score,
+                COALESCE(f.best_score, 0) AS fly_best,
+                COALESCE(f.games_played, 0) AS fly_games_played
+         FROM users u
+         LEFT JOIN fly_beaver_progress f ON f.user_id = u.id
+         LEFT JOIN user_bans b
+            ON b.user_id = u.id
+            AND b.lifted_at IS NULL
+            AND b.ban_until > CURRENT_TIMESTAMP
+         WHERE u.id = ?
+            AND u.login IS NOT NULL
+            AND u.login <> \'\'
+            AND LOWER(TRIM(u.login)) <> \'test\'
+            AND b.id IS NULL
+         LIMIT 1'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить загрузку публичного профиля игрока.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось загрузить публичный профиль игрока.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Игрок не найден в публичной таблице лидеров.');
+    }
+
+    $skinState = bober_decode_skin_state($row['skin'] ?? null);
+    $catalog = bober_skin_catalog();
+    $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+    $equippedSkinId = trim((string) ($skinState['equippedSkinId'] ?? ''));
+    if ($equippedSkinId === '' || !isset($catalog[$equippedSkinId])) {
+        $equippedSkinId = (string) (bober_default_skin_state()['equippedSkinId'] ?? 'classic');
+    }
+
+    $equippedSkin = bober_build_public_skin_payload($catalog[$equippedSkinId] ?? null, true);
+    $collectionSkins = [];
+    foreach ($ownedSkinIds as $ownedSkinId) {
+        $skinConfig = is_array($catalog[$ownedSkinId] ?? null) ? $catalog[$ownedSkinId] : null;
+        if (!$skinConfig) {
+            continue;
+        }
+
+        $issueMode = bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig);
+        if ($issueMode === 'starter') {
+            continue;
+        }
+
+        $payload = bober_build_public_skin_payload($skinConfig, $ownedSkinId === $equippedSkinId);
+        if ($payload !== null) {
+            $collectionSkins[] = $payload;
+        }
+    }
+
+    return [
+        'userId' => max(0, (int) ($row['id'] ?? $userId)),
+        'login' => (string) ($row['login'] ?? ''),
+        'profile' => [
+            'score' => max(0, (int) ($row['score'] ?? 0)),
+            'plus' => max(1, (int) ($row['plus'] ?? 1)),
+            'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 5000)),
+            'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
+            'flyGamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
+            'ownedSkins' => count($ownedSkinIds),
+            'collectionSkins' => count($collectionSkins),
+            'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
+            'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
+        ],
+        'skins' => [
+            'equipped' => $equippedSkin,
+            'collection' => $collectionSkins,
+        ],
+    ];
 }
 
 function bober_reconcile_fly_beaver_top_reward_skin($conn)
