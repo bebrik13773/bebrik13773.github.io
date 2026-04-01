@@ -3756,12 +3756,16 @@ function bober_get_achievement_reward_map()
         'clicker_50m' => 1000000,
         'clicker_100m' => 2500000,
         'clicker_250m' => 6000000,
+        'clicker_500m' => 12000000,
+        'clicker_1b' => 25000000,
         'collector_1' => 1000,
         'collector_3' => 0,
         'collector_5' => 5000,
         'collector_10' => 15000,
         'collector_20' => 75000,
         'collector_30' => 150000,
+        'collector_40' => 250000,
+        'collector_50' => 400000,
         'fly_best_10' => 2500,
         'fly_best_25' => 0,
         'fly_best_50' => 0,
@@ -3770,21 +3774,36 @@ function bober_get_achievement_reward_map()
         'fly_best_150' => 75000,
         'fly_best_200' => 120000,
         'fly_best_300' => 300000,
+        'fly_best_400' => 500000,
+        'fly_best_500' => 900000,
         'fly_games_10' => 5000,
         'fly_games_50' => 15000,
         'fly_games_100' => 40000,
         'fly_games_250' => 80000,
         'fly_games_500' => 200000,
+        'fly_games_750' => 350000,
+        'fly_games_1000' => 600000,
         'upgrades_total_10' => 5000,
         'upgrades_total_25' => 15000,
         'upgrades_total_50' => 40000,
         'upgrades_total_100' => 100000,
         'upgrades_total_200' => 300000,
+        'upgrades_total_300' => 500000,
+        'upgrades_total_500' => 1000000,
         'plus_100' => 25000,
         'plus_500' => 150000,
+        'plus_1000' => 500000,
         'energy_25k' => 50000,
         'energy_100k' => 250000,
+        'energy_250k' => 700000,
+        'energy_500k' => 1500000,
         'every_upgrade_once' => 60000,
+        'tap_small_25' => 120000,
+        'tap_big_25' => 150000,
+        'energy_upgrade_25' => 160000,
+        'tap_huge_25' => 220000,
+        'regen_boost_25' => 260000,
+        'energy_huge_10' => 300000,
         'top_clicker_1' => 0,
         'top_fly_1' => 0,
         'secret_double_top' => 250000,
@@ -3793,6 +3812,10 @@ function bober_get_achievement_reward_map()
         'secret_marathon_runner' => 300000,
         'secret_overclocked' => 350000,
         'secret_six_mastery' => 500000,
+        'secret_clicker_legend' => 2500000,
+        'secret_fly_machine' => 1800000,
+        'secret_full_collection' => 1200000,
+        'secret_balance_monster' => 2200000,
     ];
 }
 
@@ -3975,6 +3998,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($score >= 250000000) {
         $keys[] = 'clicker_250m';
     }
+    if ($score >= 500000000) {
+        $keys[] = 'clicker_500m';
+    }
+    if ($score >= 1000000000) {
+        $keys[] = 'clicker_1b';
+    }
     if ($ownedSkinCount >= 1) {
         $keys[] = 'collector_1';
     }
@@ -3989,6 +4018,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     }
     if ($ownedSkinCount >= 30) {
         $keys[] = 'collector_30';
+    }
+    if ($ownedSkinCount >= 40) {
+        $keys[] = 'collector_40';
+    }
+    if ($ownedSkinCount >= 50) {
+        $keys[] = 'collector_50';
     }
     if ($flyBest >= 10) {
         $keys[] = 'fly_best_10';
@@ -4014,6 +4049,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($flyBest >= 300) {
         $keys[] = 'fly_best_300';
     }
+    if ($flyBest >= 400) {
+        $keys[] = 'fly_best_400';
+    }
+    if ($flyBest >= 500) {
+        $keys[] = 'fly_best_500';
+    }
     if ($flyGamesPlayed >= 10) {
         $keys[] = 'fly_games_10';
     }
@@ -4028,6 +4069,12 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     }
     if ($flyGamesPlayed >= 500) {
         $keys[] = 'fly_games_500';
+    }
+    if ($flyGamesPlayed >= 750) {
+        $keys[] = 'fly_games_750';
+    }
+    if ($flyGamesPlayed >= 1000) {
+        $keys[] = 'fly_games_1000';
     }
     if ($ownedSkinCount >= 3) {
         $keys[] = 'collector_3';
@@ -4047,11 +4094,20 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($totalUpgradePurchases >= 200) {
         $keys[] = 'upgrades_total_200';
     }
+    if ($totalUpgradePurchases >= 300) {
+        $keys[] = 'upgrades_total_300';
+    }
+    if ($totalUpgradePurchases >= 500) {
+        $keys[] = 'upgrades_total_500';
+    }
     if ($plus >= 100) {
         $keys[] = 'plus_100';
     }
     if ($plus >= 500) {
         $keys[] = 'plus_500';
+    }
+    if ($plus >= 1000) {
+        $keys[] = 'plus_1000';
     }
     if ($energyMax >= 25000) {
         $keys[] = 'energy_25k';
@@ -4059,8 +4115,32 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     if ($energyMax >= 100000) {
         $keys[] = 'energy_100k';
     }
+    if ($energyMax >= 250000) {
+        $keys[] = 'energy_250k';
+    }
+    if ($energyMax >= 500000) {
+        $keys[] = 'energy_500k';
+    }
     if ($allUpgradeTypesBought) {
         $keys[] = 'every_upgrade_once';
+    }
+    if (max(0, (int) ($upgradeCounts['tapSmall'] ?? 0)) >= 25) {
+        $keys[] = 'tap_small_25';
+    }
+    if (max(0, (int) ($upgradeCounts['tapBig'] ?? 0)) >= 25) {
+        $keys[] = 'tap_big_25';
+    }
+    if (max(0, (int) ($upgradeCounts['energy'] ?? 0)) >= 25) {
+        $keys[] = 'energy_upgrade_25';
+    }
+    if (max(0, (int) ($upgradeCounts['tapHuge'] ?? 0)) >= 25) {
+        $keys[] = 'tap_huge_25';
+    }
+    if (max(0, (int) ($upgradeCounts['regenBoost'] ?? 0)) >= 25) {
+        $keys[] = 'regen_boost_25';
+    }
+    if (max(0, (int) ($upgradeCounts['energyHuge'] ?? 0)) >= 10) {
+        $keys[] = 'energy_huge_10';
     }
     if ($clickerTop1) {
         $keys[] = 'top_clicker_1';
@@ -4085,6 +4165,18 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     }
     if ($allUpgradeTypesMastered) {
         $keys[] = 'secret_six_mastery';
+    }
+    if ($score >= 1000000000 && $totalUpgradePurchases >= 500) {
+        $keys[] = 'secret_clicker_legend';
+    }
+    if ($flyBest >= 400 && $flyGamesPlayed >= 1000 && $allUpgradeTypesMastered) {
+        $keys[] = 'secret_fly_machine';
+    }
+    if ($ownedSkinCount >= 50 && $clickerTop1) {
+        $keys[] = 'secret_full_collection';
+    }
+    if ($plus >= 1000 && $energyMax >= 500000 && $ownedSkinCount >= 40) {
+        $keys[] = 'secret_balance_monster';
     }
 
     return array_values(array_unique($keys));

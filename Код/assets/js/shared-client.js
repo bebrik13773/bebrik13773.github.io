@@ -63,6 +63,16 @@
             description: 'Наберите 250 000 000 коинов в основном кликере.',
             icon: '🌆'
         }),
+        clicker_500m: Object.freeze({
+            title: 'Полмиллиарда',
+            description: 'Наберите 500 000 000 коинов в основном кликере.',
+            icon: '🏙️'
+        }),
+        clicker_1b: Object.freeze({
+            title: 'Бобровый миллиард',
+            description: 'Наберите 1 000 000 000 коинов в основном кликере.',
+            icon: '🌍'
+        }),
         collector_1: Object.freeze({
             title: 'Первый скин',
             description: 'Получите первый скин в коллекции.',
@@ -92,6 +102,16 @@
             title: 'Легендарный гардероб',
             description: 'Соберите минимум 30 скинов.',
             icon: '🎭'
+        }),
+        collector_40: Object.freeze({
+            title: 'Хранитель коллекции',
+            description: 'Соберите минимум 40 скинов.',
+            icon: '🗃️'
+        }),
+        collector_50: Object.freeze({
+            title: 'Полная витрина',
+            description: 'Соберите минимум 50 скинов.',
+            icon: '🪞'
         }),
         fly_best_10: Object.freeze({
             title: 'Первые крылья',
@@ -133,6 +153,16 @@
             description: 'Получите рекорд 300 в Летающем бобре.',
             icon: '🌠'
         }),
+        fly_best_400: Object.freeze({
+            title: 'Над горизонтом',
+            description: 'Получите рекорд 400 в Летающем бобре.',
+            icon: '🛰️'
+        }),
+        fly_best_500: Object.freeze({
+            title: 'Предел неба',
+            description: 'Получите рекорд 500 в Летающем бобре.',
+            icon: '🚀'
+        }),
         fly_games_10: Object.freeze({
             title: 'Не сдаюсь',
             description: 'Сыграйте 10 забегов в Летающем бобре.',
@@ -157,6 +187,16 @@
             title: 'Авиапарк бобров',
             description: 'Сыграйте 500 забегов в Летающем бобре.',
             icon: '🛫'
+        }),
+        fly_games_750: Object.freeze({
+            title: 'Лётный марафон',
+            description: 'Сыграйте 750 забегов в Летающем бобре.',
+            icon: '🛩️'
+        }),
+        fly_games_1000: Object.freeze({
+            title: 'Тысяча вылетов',
+            description: 'Сыграйте 1000 забегов в Летающем бобре.',
+            icon: '🪂'
         }),
         upgrades_total_10: Object.freeze({
             title: 'Механик',
@@ -183,6 +223,16 @@
             description: 'Купите суммарно 200 улучшений.',
             icon: '🏗'
         }),
+        upgrades_total_300: Object.freeze({
+            title: 'Фабрика клика',
+            description: 'Купите суммарно 300 улучшений.',
+            icon: '🏭'
+        }),
+        upgrades_total_500: Object.freeze({
+            title: 'Мегакомбинат',
+            description: 'Купите суммарно 500 улучшений.',
+            icon: '🌐'
+        }),
         plus_100: Object.freeze({
             title: 'Рука тяжелеет',
             description: 'Поднимите силу клика до +100.',
@@ -192,6 +242,11 @@
             title: 'Удар плотины',
             description: 'Поднимите силу клика до +500.',
             icon: '💥'
+        }),
+        plus_1000: Object.freeze({
+            title: 'Сверхудар',
+            description: 'Поднимите силу клика до +1000.',
+            icon: '🧨'
         }),
         energy_25k: Object.freeze({
             title: 'Большой запас',
@@ -203,10 +258,50 @@
             description: 'Доведите максимум энергии до 100 000.',
             icon: '⚡'
         }),
+        energy_250k: Object.freeze({
+            title: 'Энергоблок',
+            description: 'Доведите максимум энергии до 250 000.',
+            icon: '🔌'
+        }),
+        energy_500k: Object.freeze({
+            title: 'Энергостанция',
+            description: 'Доведите максимум энергии до 500 000.',
+            icon: '⚙️'
+        }),
         every_upgrade_once: Object.freeze({
             title: 'Полный стенд',
             description: 'Купите хотя бы по одному разу каждое улучшение.',
             icon: '🧰'
+        }),
+        tap_small_25: Object.freeze({
+            title: 'Точная лапа',
+            description: 'Прокачайте маленький тап до 25 уровня.',
+            icon: '🐾'
+        }),
+        tap_big_25: Object.freeze({
+            title: 'Тяжёлый клик',
+            description: 'Прокачайте большой тап до 25 уровня.',
+            icon: '🔨'
+        }),
+        energy_upgrade_25: Object.freeze({
+            title: 'Энергетик',
+            description: 'Прокачайте энергию до 25 уровня.',
+            icon: '🔋'
+        }),
+        tap_huge_25: Object.freeze({
+            title: 'Сокрушитель',
+            description: 'Прокачайте огромный тап до 25 уровня.',
+            icon: '🪵'
+        }),
+        regen_boost_25: Object.freeze({
+            title: 'Быстрая зарядка X25',
+            description: 'Прокачайте скорость восполнения энергии до 25 уровня.',
+            icon: '⚡'
+        }),
+        energy_huge_10: Object.freeze({
+            title: 'Сверхзапас X10',
+            description: 'Купите 10 уровней огромного запаса энергии.',
+            icon: '🛢️'
         }),
         top_clicker_1: Object.freeze({
             title: 'Топ-1 кликера',
@@ -267,6 +362,42 @@
             title: 'Шесть путей',
             description: 'Прокачайте каждое из шести улучшений хотя бы до 10 уровня.',
             icon: '🧠',
+            secret: true,
+            lockedTitle: 'Секретное достижение',
+            lockedDescription: 'Условие раскроется только после выполнения.',
+            lockedIcon: '❓'
+        }),
+        secret_clicker_legend: Object.freeze({
+            title: 'Легенда плотины',
+            description: 'Наберите 1 000 000 000 коинов и купите суммарно 500 улучшений.',
+            icon: '🏔️',
+            secret: true,
+            lockedTitle: 'Секретное достижение',
+            lockedDescription: 'Условие раскроется только после выполнения.',
+            lockedIcon: '❓'
+        }),
+        secret_fly_machine: Object.freeze({
+            title: 'Машина полёта',
+            description: 'Получите рекорд 400, сыграйте 1000 забегов и прокачайте каждое из шести улучшений хотя бы до 10 уровня.',
+            icon: '🛸',
+            secret: true,
+            lockedTitle: 'Секретное достижение',
+            lockedDescription: 'Условие раскроется только после выполнения.',
+            lockedIcon: '❓'
+        }),
+        secret_full_collection: Object.freeze({
+            title: 'Повелитель витрины',
+            description: 'Соберите 50 скинов и удерживайте топ-1 кликера.',
+            icon: '🫅',
+            secret: true,
+            lockedTitle: 'Секретное достижение',
+            lockedDescription: 'Условие раскроется только после выполнения.',
+            lockedIcon: '❓'
+        }),
+        secret_balance_monster: Object.freeze({
+            title: 'Идеальный билд',
+            description: 'Поднимите силу клика до +1000, максимум энергии до 500 000 и соберите 40 скинов.',
+            icon: '🧬',
             secret: true,
             lockedTitle: 'Секретное достижение',
             lockedDescription: 'Условие раскроется только после выполнения.',
