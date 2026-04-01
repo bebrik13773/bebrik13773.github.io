@@ -4981,11 +4981,6 @@ function bober_fetch_public_player_profile($conn, $userId)
             continue;
         }
 
-        $issueMode = bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig);
-        if ($issueMode === 'starter') {
-            continue;
-        }
-
         $payload = bober_build_public_skin_payload($skinConfig, $ownedSkinId === $equippedSkinId);
         if ($payload !== null) {
             $collectionSkins[] = $payload;
