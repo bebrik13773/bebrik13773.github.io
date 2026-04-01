@@ -2,16 +2,48 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/errors/403.html">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>403</title>
-    <script>
-        window.location.replace('/errors/403.html');
-    </script>
+    <title>403 · Доступ закрыт</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
 </head>
-<body>
-    <main>
-        <p>Перенаправление на страницу ошибки… Если переход не произошёл, откройте <a href="/errors/403.html">403</a>.</p>
+<body style="--error-accent:#76f4d7;--error-accent-strong:#26b8ff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Ошибка доступа</span>
+                    <h1 class="error-title">Сюда вход <strong>закрыт</strong></h1>
+                    <p class="error-lead">Запрошенная страница есть, но сервер не разрешает её открыть из текущего контекста.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item">
+                            <strong>Код</strong>
+                            <span>HTTP 403</span>
+                        </div>
+                        <div class="error-meta-item">
+                            <strong>Что сделать</strong>
+                            <span>Вернуться в кликер или войти заново</span>
+                        </div>
+                    </div>
+                    <div class="error-actions">
+                        <a class="error-button error-button-primary" href="/pages/clicker/">В кликер</a>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/#auth">Открыть вход</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Бобер-контроль доступа</span>
+                    <div class="error-side-code">403</div>
+                    <h2 class="error-side-title">Нужен другой маршрут</h2>
+                    <p class="error-side-text">Чаще всего это приватная зона, устаревшая ссылка или страница, доступная только после авторизации.</p>
+                    <div class="error-helper">
+                        <p>Если ошибка появилась в обычном игровом сценарии, проверьте вход в аккаунт и активную сессию.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
     </main>
 </body>
 </html>

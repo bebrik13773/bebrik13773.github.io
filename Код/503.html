@@ -2,16 +2,48 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/errors/503.html">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>503</title>
-    <script>
-        window.location.replace('/errors/503.html');
-    </script>
+    <title>503 · Технические работы</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
 </head>
-<body>
-    <main>
-        <p>Перенаправление на страницу ошибки… Если переход не произошёл, откройте <a href="/errors/503.html">503</a>.</p>
+<body style="--error-accent:#8ff19c;--error-accent-strong:#49c7ff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Техработы</span>
+                    <h1 class="error-title">Кликер временно <strong>недоступен</strong></h1>
+                    <p class="error-lead">Сервис находится на обслуживании, обновляется или временно перегружен. Обычно доступ возвращается без дополнительных действий.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item">
+                            <strong>Код</strong>
+                            <span>HTTP 503</span>
+                        </div>
+                        <div class="error-meta-item">
+                            <strong>Статус</strong>
+                            <span>Подождите и откройте страницу снова</span>
+                        </div>
+                    </div>
+                    <div class="error-actions">
+                        <a class="error-button error-button-primary" href="/pages/clicker/">Проверить снова</a>
+                        <a class="error-button error-button-secondary" href="/docs/FUTURE.html">Посмотреть roadmap</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Режим обслуживания</span>
+                    <div class="error-side-code">503</div>
+                    <h2 class="error-side-title">Сервер занят работами</h2>
+                    <p class="error-side-text">Такой экран подходит для deploy, миграций схемы, обслуживания базы или ручного maintenance-режима.</p>
+                    <div class="error-helper">
+                        <p>Если это production и простоя быть не должно, проверьте maintenance-переключатели и состояние backend-контуров.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
     </main>
 </body>
 </html>

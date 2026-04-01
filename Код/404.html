@@ -2,16 +2,48 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/errors/404.html">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404</title>
-    <script>
-        window.location.replace('/errors/404.html');
-    </script>
+    <title>404 · Страница не найдена</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
 </head>
-<body>
-    <main>
-        <p>Перенаправление на страницу ошибки… Если переход не произошёл, откройте <a href="/errors/404.html">404</a>.</p>
+<body style="--error-accent:#59e9df;--error-accent-strong:#3e9fff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Потерянная ссылка</span>
+                    <h1 class="error-title">Ты ушёл <strong>не по той тропе</strong></h1>
+                    <p class="error-lead">Такой страницы в кликере больше нет или адрес был набран с ошибкой. Основной маршрут игры продолжает работать.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item">
+                            <strong>Код</strong>
+                            <span>HTTP 404</span>
+                        </div>
+                        <div class="error-meta-item">
+                            <strong>Куда идти</strong>
+                            <span>В кликер или в мини-игру</span>
+                        </div>
+                    </div>
+                    <div class="error-actions">
+                        <a class="error-button error-button-primary" href="/pages/clicker/">Тапать бобра</a>
+                        <a class="error-button error-button-secondary" href="/games/fly-beaver/">Открыть fly-beaver</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Маршрут не найден</span>
+                    <div class="error-side-code">404</div>
+                    <h2 class="error-side-title">Адрес устарел или битый</h2>
+                    <p class="error-side-text">Если вы пришли по старой ссылке, структура сайта могла измениться. Основные игровые пути уже переехали в более понятные разделы.</p>
+                    <div class="error-helper">
+                        <p>Актуальные входы: <strong>/pages/clicker/</strong> для кликера и <strong>/games/fly-beaver/</strong> для мини-игры.</p>
+                    </div>
+                </aside>
+            </div>
+        </section>
     </main>
 </body>
 </html>
