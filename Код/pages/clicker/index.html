@@ -3653,6 +3653,66 @@ Owner decisions:
         color: #09212a;
     }
 
+    .support-unread-alert-modal {
+        width: min(100%, 560px);
+        padding: 26px 24px 22px;
+        border-radius: 28px;
+        background:
+            radial-gradient(circle at top right, rgba(255, 215, 120, 0.16), transparent 42%),
+            linear-gradient(180deg, rgba(35, 14, 62, 0.97), rgba(14, 10, 30, 0.99));
+        border: 2px solid rgba(255, 215, 120, 0.3);
+        box-shadow: 0 28px 48px rgba(0, 0, 0, 0.44);
+    }
+
+    #supportUnreadAlertModal {
+        z-index: 10110;
+    }
+
+    .support-unread-alert-icon {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 18px;
+        border-radius: 24px;
+        display: grid;
+        place-items: center;
+        font-size: 34px;
+        color: #fff2bf;
+        background: linear-gradient(180deg, rgba(255, 215, 120, 0.22), rgba(255, 160, 84, 0.18));
+        border: 1px solid rgba(255, 215, 120, 0.24);
+        box-shadow: 0 16px 28px rgba(34, 18, 4, 0.24);
+    }
+
+    .support-unread-alert-title {
+        text-align: center;
+        font-size: 28px;
+        font-weight: 900;
+        color: #fffaf0;
+        margin-bottom: 10px;
+    }
+
+    .support-unread-alert-text {
+        text-align: center;
+        color: rgba(255, 248, 231, 0.82);
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: 16px;
+    }
+
+    .support-unread-alert-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 84px;
+        padding: 10px 16px;
+        margin: 0 auto 18px;
+        border-radius: 999px;
+        background: rgba(255, 215, 120, 0.14);
+        border: 1px solid rgba(255, 215, 120, 0.24);
+        color: #fff0bf;
+        font-size: 13px;
+        font-weight: 900;
+    }
+
     .support-modal-tab:active {
         transform: scale(0.98);
     }
@@ -5771,6 +5831,18 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
+<div class="modal-backdrop" id="supportUnreadAlertModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal support-unread-alert-modal" role="dialog" aria-modal="true" aria-labelledby="supportUnreadAlertTitle">
+        <div class="support-unread-alert-icon">💬</div>
+        <div class="support-unread-alert-title" id="supportUnreadAlertTitle">Есть новые ответы</div>
+        <div class="support-unread-alert-text" id="supportUnreadAlertText">Поддержка ответила на ваш тикет. Откройте входящие, чтобы прочитать сообщение.</div>
+        <div class="support-unread-alert-count" id="supportUnreadAlertCount">Ответов: 0</div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button primary" id="supportUnreadAlertOpen">Открыть входящие</button>
+            <button type="button" class="settings-action-button secondary" id="supportUnreadAlertClose">Позже</button>
+        </div>
+    </div>
+</div>
 <div class="modal-backdrop" id="achievementUnlockModal" aria-hidden="true" data-palette="modal">
     <div class="achievement-unlock-modal" role="dialog" aria-modal="true" aria-labelledby="achievementUnlockTitle">
         <div class="achievement-unlock-kicker">Новое достижение</div>
@@ -6432,7 +6504,8 @@ let achievementPlayerBase = 0;
 let supportSummary = getDefaultSupportSummary();
 const supportNoticeState = {
     initialized: false,
-    lastUnreadReplies: 0
+    lastUnreadReplies: 0,
+    lastFullscreenUnread: 0
 };
 let browserNotificationRequestInFlight = false;
 let bootLoadingOverlayDismissed = false;
@@ -7220,6 +7293,7 @@ function syncGlobalOverlayState() {
         document.getElementById('leaderboardProfileModal'),
         document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
+        document.getElementById('supportUnreadAlertModal'),
         document.getElementById('achievementUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
     const loadingVisible = Boolean(document.getElementById('loadingOverlay') && document.getElementById('loadingOverlay').classList.contains('show'));
@@ -9809,6 +9883,7 @@ function openSupportCenter(options = {}) {
 
     closeProfileMenu();
     closeProfileModal();
+    closeSupportUnreadAlertModal();
     supportState.composeAppeal = options.appealContext || null;
     resetSupportDraftAttachments('all');
     applySupportComposeDraft();
@@ -11431,6 +11506,44 @@ function updateSupportBadgeUI() {
     }
 }
 
+function closeSupportUnreadAlertModal() {
+    const modal = document.getElementById('supportUnreadAlertModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+}
+
+function openSupportUnreadAlertModal(nextSummary) {
+    const modal = document.getElementById('supportUnreadAlertModal');
+    const textNode = document.getElementById('supportUnreadAlertText');
+    const countNode = document.getElementById('supportUnreadAlertCount');
+    if (!modal || !textNode || !countNode) {
+        return;
+    }
+
+    const normalizedSummary = normalizeSupportSummary(nextSummary);
+    const unread = Math.max(0, Number(normalizedSummary.unreadReplies) || 0);
+    if (unread < 1) {
+        closeSupportUnreadAlertModal();
+        return;
+    }
+
+    textNode.textContent = unread === 1
+        ? 'Поддержка ответила на ваш тикет. Откройте входящие, чтобы прочитать сообщение.'
+        : `У вас ${formatCompactNumber(unread)} непрочитанных ответов поддержки. Откройте входящие, чтобы не пропустить детали.`;
+    countNode.textContent = unread === 1
+        ? '1 непрочитанный ответ'
+        : `${formatCompactNumber(unread)} непрочитанных ответов`;
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
 function notifyAboutNewSupportReplies(nextSummary) {
     const normalizedSummary = normalizeSupportSummary(nextSummary);
     const nextUnreadReplies = Math.max(0, Number(normalizedSummary.unreadReplies) || 0);
@@ -11439,10 +11552,25 @@ function notifyAboutNewSupportReplies(nextSummary) {
     if (!supportNoticeState.initialized) {
         supportNoticeState.initialized = true;
         supportNoticeState.lastUnreadReplies = nextUnreadReplies;
+        if (nextUnreadReplies > 0 && !isSupportModalOpen()) {
+            supportNoticeState.lastFullscreenUnread = nextUnreadReplies;
+            openSupportUnreadAlertModal(normalizedSummary);
+        } else if (nextUnreadReplies < 1) {
+            supportNoticeState.lastFullscreenUnread = 0;
+            closeSupportUnreadAlertModal();
+        }
         return;
     }
 
     supportNoticeState.lastUnreadReplies = nextUnreadReplies;
+    if (nextUnreadReplies < 1) {
+        supportNoticeState.lastFullscreenUnread = 0;
+        closeSupportUnreadAlertModal();
+    } else if (!isSupportModalOpen() && supportNoticeState.lastFullscreenUnread !== nextUnreadReplies) {
+        supportNoticeState.lastFullscreenUnread = nextUnreadReplies;
+        openSupportUnreadAlertModal(normalizedSummary);
+    }
+
     if (nextUnreadReplies <= previousUnreadReplies) {
         return;
     }
@@ -12511,6 +12639,15 @@ if (supportModalNode) {
     });
 }
 
+const supportUnreadAlertModalNode = document.getElementById('supportUnreadAlertModal');
+if (supportUnreadAlertModalNode) {
+    supportUnreadAlertModalNode.addEventListener('click', (event) => {
+        if (event.target === supportUnreadAlertModalNode) {
+            closeSupportUnreadAlertModal();
+        }
+    });
+}
+
 const achievementUnlockModalNode = document.getElementById('achievementUnlockModal');
 if (achievementUnlockModalNode) {
     achievementUnlockModalNode.addEventListener('click', (event) => {
@@ -12569,6 +12706,21 @@ const supportModalCloseButton = document.getElementById('supportModalClose');
 if (supportModalCloseButton) {
     supportModalCloseButton.addEventListener('click', () => {
         closeSupportModal();
+    });
+}
+
+const supportUnreadAlertCloseButton = document.getElementById('supportUnreadAlertClose');
+if (supportUnreadAlertCloseButton) {
+    supportUnreadAlertCloseButton.addEventListener('click', () => {
+        closeSupportUnreadAlertModal();
+    });
+}
+
+const supportUnreadAlertOpenButton = document.getElementById('supportUnreadAlertOpen');
+if (supportUnreadAlertOpenButton) {
+    supportUnreadAlertOpenButton.addEventListener('click', () => {
+        closeSupportUnreadAlertModal();
+        openSupportCenter({ tab: 'inbox' });
     });
 }
 
@@ -13174,12 +13326,14 @@ function resetUserState() {
     supportSummary = getDefaultSupportSummary();
     supportNoticeState.initialized = false;
     supportNoticeState.lastUnreadReplies = 0;
+    supportNoticeState.lastFullscreenUnread = 0;
     energyShortageNoticeState.lastShownAt = 0;
     energyShortageNoticeState.lastNotificationId = '';
     supportState.tickets = [];
     supportState.selectedTicketId = 0;
     supportState.selectedTicket = null;
     supportState.composeAppeal = null;
+    closeSupportUnreadAlertModal();
     achievementUnlockState.queue = [];
     achievementUnlockState.active = null;
 

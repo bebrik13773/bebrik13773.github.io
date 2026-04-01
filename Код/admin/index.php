@@ -3033,6 +3033,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             max-width: 900px;
         }
 
+        .modal-content.modal-content-alert {
+            width: min(94vw, 560px);
+            max-width: 560px;
+        }
+
         .modal-hero {
             display: flex;
             gap: 16px;
@@ -3070,6 +3075,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             background: rgba(255, 138, 101, 0.14);
         }
 
+        .modal-hero.warning {
+            background:
+                radial-gradient(circle at top right, rgba(255, 215, 120, 0.22), transparent 45%),
+                linear-gradient(135deg, rgba(64, 43, 12, 0.94), rgba(20, 14, 12, 0.98));
+            border-color: rgba(255, 215, 120, 0.2);
+        }
+
+        .modal-hero.warning .modal-hero-icon {
+            color: #ffe6a6;
+            background: rgba(255, 215, 120, 0.16);
+        }
+
         .modal-hero-title {
             font-size: 16px;
             font-weight: 700;
@@ -3088,6 +3105,26 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             display: flex;
             flex-direction: column;
             gap: 16px;
+        }
+
+        .unread-alert-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 96px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(255, 215, 120, 0.12);
+            border: 1px solid rgba(255, 215, 120, 0.18);
+            color: #ffe6a6;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .unread-alert-text {
+            font-size: 14px;
+            line-height: 1.65;
+            color: rgba(245, 247, 255, 0.82);
         }
 
         .preset-duration-grid {
@@ -5896,6 +5933,27 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
     
     <!-- Уведомления -->
     <div class="notification-container" id="notificationContainer"></div>
+    <div class="modal-overlay" id="adminSupportUnreadModal">
+        <div class="modal-content modal-content-alert">
+            <div class="card-body modal-stack">
+                <div class="modal-hero warning">
+                    <div class="modal-hero-icon">
+                        <span class="material-icons">mark_chat_unread</span>
+                    </div>
+                    <div>
+                        <div class="modal-hero-title">Есть новые сообщения от игроков</div>
+                        <div class="modal-hero-text" id="adminSupportUnreadModalText">Во входящих поддержки появились непрочитанные сообщения. Откройте раздел поддержки, чтобы ответить.</div>
+                    </div>
+                </div>
+                <div class="unread-alert-count" id="adminSupportUnreadModalCount">0 сообщений</div>
+                <div class="unread-alert-text">Это полноэкранное уведомление показывается на любой странице админки, если появляются новые непрочитанные ответы в тикетах.</div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" id="adminSupportUnreadModalLater">Позже</button>
+                    <button class="btn btn-primary" type="button" id="adminSupportUnreadModalOpen">Открыть поддержку</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script>
         // Глобальные переменные
@@ -5947,6 +6005,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             initialized: false,
             lastSignature: '',
             lastUnreadCount: 0
+        };
+        const adminSupportUnreadOverlayState = {
+            lastPromptSignature: '',
+            visibleSignature: ''
         };
         const ADMIN_SERVICE_HEALTH_MONITOR_CONFIG = {
             intervalMs: 45000
@@ -7843,6 +7905,47 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             })));
         }
 
+        function hideAdminSupportUnreadModal(options = {}) {
+            const modal = document.getElementById('adminSupportUnreadModal');
+            if (!modal) {
+                return;
+            }
+
+            modal.classList.remove('active');
+            if (options.markSeen !== false && adminSupportUnreadOverlayState.visibleSignature) {
+                adminSupportUnreadOverlayState.lastPromptSignature = adminSupportUnreadOverlayState.visibleSignature;
+            }
+            adminSupportUnreadOverlayState.visibleSignature = '';
+        }
+
+        function openAdminSupportUnreadModal(unreadCount, unreadTickets, signature) {
+            const modal = document.getElementById('adminSupportUnreadModal');
+            const textNode = document.getElementById('adminSupportUnreadModalText');
+            const countNode = document.getElementById('adminSupportUnreadModalCount');
+            if (!modal || !textNode || !countNode) {
+                return;
+            }
+
+            const normalizedUnreadCount = Math.max(0, Number(unreadCount) || 0);
+            const normalizedTickets = Array.isArray(unreadTickets) ? unreadTickets : [];
+            const firstTicket = normalizedTickets[0] || null;
+            textNode.textContent = firstTicket
+                ? `Есть новые непрочитанные сообщения. Первый тикет: ${firstTicket.login || 'Игрок'} — ${firstTicket.subject || 'Без темы'}.`
+                : 'Во входящих поддержки появились непрочитанные сообщения. Откройте раздел поддержки, чтобы ответить.';
+            countNode.textContent = normalizedUnreadCount === 1
+                ? '1 сообщение'
+                : `${formatAdminNumber(normalizedUnreadCount)} сообщений`;
+
+            adminSupportUnreadOverlayState.visibleSignature = String(signature || '');
+            adminSupportUnreadOverlayState.lastPromptSignature = String(signature || '');
+            modal.classList.add('active');
+        }
+
+        function openAdminSupportUnreadInbox() {
+            hideAdminSupportUnreadModal();
+            showSupportView();
+        }
+
         function updateAdminSupportUnreadNoticeState(tickets, options = {}) {
             const normalizedTickets = Array.isArray(tickets) ? tickets : [];
             const unreadTickets = normalizedTickets.filter((ticket) => Math.max(0, Number(ticket.unreadByAdmin) || 0) > 0);
@@ -7857,6 +7960,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             adminSupportUnreadMonitorState.lastSignature = signature;
             adminSupportUnreadMonitorState.lastUnreadCount = unreadCount;
             adminSupportUnreadMonitorState.initialized = true;
+
+             if (unreadCount < 1) {
+                adminSupportUnreadOverlayState.lastPromptSignature = '';
+                hideAdminSupportUnreadModal({ markSeen: false });
+            } else if (currentAdminView === 'support') {
+                adminSupportUnreadOverlayState.lastPromptSignature = signature;
+                hideAdminSupportUnreadModal({ markSeen: false });
+            } else if (signature && signature !== adminSupportUnreadOverlayState.lastPromptSignature) {
+                openAdminSupportUnreadModal(unreadCount, unreadTickets, signature);
+            }
 
             if (shouldNotify) {
                 showNotification(
@@ -8260,6 +8373,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showSupportView() {
             currentAdminView = 'support';
             stopAdminSupportUnreadMonitor();
+            hideAdminSupportUnreadModal({ markSeen: false });
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
@@ -11538,6 +11652,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     }
                 }, 240);
             }
+        }
+
+        const adminSupportUnreadModalNode = document.getElementById('adminSupportUnreadModal');
+        if (adminSupportUnreadModalNode) {
+            adminSupportUnreadModalNode.addEventListener('click', function(event) {
+                if (event.target === adminSupportUnreadModalNode) {
+                    hideAdminSupportUnreadModal();
+                }
+            });
+        }
+
+        const adminSupportUnreadModalLaterButton = document.getElementById('adminSupportUnreadModalLater');
+        if (adminSupportUnreadModalLaterButton) {
+            adminSupportUnreadModalLaterButton.addEventListener('click', function() {
+                hideAdminSupportUnreadModal();
+            });
+        }
+
+        const adminSupportUnreadModalOpenButton = document.getElementById('adminSupportUnreadModalOpen');
+        if (adminSupportUnreadModalOpenButton) {
+            adminSupportUnreadModalOpenButton.addEventListener('click', function() {
+                openAdminSupportUnreadInbox();
+            });
         }
         
         // Функция экранирования SQL строк
