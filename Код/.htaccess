@@ -1,0 +1,15 @@
+DirectoryIndex index.html index.php
+
+ErrorDocument 400 /400.html
+ErrorDocument 401 /401.html
+ErrorDocument 403 /403.html
+ErrorDocument 404 /404.html
+ErrorDocument 405 /405.html
+ErrorDocument 408 /408.html
+ErrorDocument 409 /409.html
+ErrorDocument 410 /410.html
+ErrorDocument 429 /429.html
+ErrorDocument 500 /500.html
+ErrorDocument 502 /502.html
+ErrorDocument 503 /503.html
+ErrorDocument 504 /504.html
