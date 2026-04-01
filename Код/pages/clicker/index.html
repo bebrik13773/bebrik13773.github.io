@@ -2025,11 +2025,21 @@ Owner decisions:
         min-height: 100dvh;
         --page-glow-x: 50%;
         --page-glow-y: 18%;
+        --page-aurora-x: 74%;
+        --page-aurora-y: 22%;
+        --page-depth-x: 16%;
+        --page-depth-y: 84%;
+        --page-horizon-x: 52%;
+        --page-horizon-y: 72%;
         --page-color-a-rgb: 102, 247, 255;
         --page-color-b-rgb: 84, 191, 255;
         --page-color-c-rgb: 70, 118, 215;
         --page-sheen-rgb: 220, 247, 255;
         --page-shadow-rgb: 26, 10, 74;
+        --page-ambient-opacity: 0.82;
+        --page-depth-opacity: 0.54;
+        --page-horizon-opacity: 0.34;
+        --page-aurora-scale: 1.06;
         --ripple-core-rgb: 126, 241, 255;
         --ripple-ring-rgb: 96, 161, 255;
         --ripple-shadow-rgb: 103, 58, 212;
@@ -2042,9 +2052,12 @@ Owner decisions:
         --clicker-glow-opacity: 0.58;
         --clicker-glow-rgb: 126, 241, 255;
         background:
-            radial-gradient(circle at var(--page-glow-x) var(--page-glow-y), rgba(var(--page-color-a-rgb), 0.22), transparent 30%),
-            radial-gradient(circle at 18% 10%, rgba(var(--page-color-b-rgb), 0.18), transparent 30%),
-            radial-gradient(circle at 84% 88%, rgba(var(--page-color-c-rgb), 0.24), transparent 34%),
+            radial-gradient(circle at var(--page-glow-x) var(--page-glow-y), rgba(var(--page-color-a-rgb), 0.28), transparent 31%),
+            radial-gradient(circle at var(--page-aurora-x) var(--page-aurora-y), rgba(var(--page-color-b-rgb), 0.2), transparent 28%),
+            radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.26), transparent 36%),
+            radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-b-rgb), var(--page-horizon-opacity)), transparent 42%),
+            radial-gradient(circle at 54% 42%, rgba(var(--page-sheen-rgb), 0.08), transparent 40%),
+            radial-gradient(circle at 50% 108%, rgba(var(--page-shadow-rgb), 0.3), transparent 46%),
             linear-gradient(180deg, #6b11d7 0%, #45118a 46%, #1c0f42 100%);
         color: #fff;
         position: relative;
@@ -2059,11 +2072,79 @@ Owner decisions:
         inset: 0;
         pointer-events: none;
         background:
-            linear-gradient(180deg, rgba(var(--page-sheen-rgb), 0.08), transparent 18%, transparent 82%, rgba(var(--page-shadow-rgb), 0.18)),
-            radial-gradient(circle at calc(var(--page-glow-x) * 0.9) calc(var(--page-glow-y) * 0.85), rgba(var(--page-color-a-rgb), 0.14), transparent 24%),
-            radial-gradient(circle at calc(var(--page-glow-x) * 1.08) calc(var(--page-glow-y) * 1.12), rgba(var(--page-color-c-rgb), 0.09), transparent 32%);
+            linear-gradient(180deg, rgba(var(--page-sheen-rgb), 0.1), transparent 18%, transparent 82%, rgba(var(--page-shadow-rgb), 0.22)),
+            radial-gradient(circle at calc(var(--page-glow-x) * 0.9) calc(var(--page-glow-y) * 0.85), rgba(var(--page-color-a-rgb), 0.18), transparent 24%),
+            radial-gradient(circle at var(--page-aurora-x) var(--page-aurora-y), rgba(var(--page-color-b-rgb), 0.14), transparent 28%),
+            radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.12), transparent 34%),
+            radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-b-rgb), calc(var(--page-horizon-opacity) * 0.72)), transparent 38%);
         z-index: 0;
         transition: background 0.28s ease;
+        opacity: var(--page-ambient-opacity);
+        will-change: transform, opacity;
+        animation: pageAtmosphereDrift 28s ease-in-out infinite alternate, pageAtmospherePulse 18s ease-in-out infinite;
+    }
+
+    body::after {
+        content: '';
+        position: fixed;
+        inset: -8%;
+        pointer-events: none;
+        background:
+            radial-gradient(circle at var(--page-aurora-x) var(--page-aurora-y), rgba(var(--page-color-b-rgb), 0.24), transparent 22%),
+            radial-gradient(circle at calc(var(--page-glow-x) * 1.02) calc(var(--page-glow-y) * 0.92), rgba(var(--page-color-a-rgb), 0.19), transparent 20%),
+            radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.2), transparent 26%),
+            radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-a-rgb), calc(var(--page-horizon-opacity) * 0.52)), transparent 30%);
+        opacity: var(--page-depth-opacity);
+        filter: blur(38px) saturate(126%);
+        mix-blend-mode: screen;
+        transform: translate3d(0, 0, 0) scale(var(--page-aurora-scale));
+        z-index: 0;
+        will-change: transform, opacity;
+        animation: pageAuroraDrift 24s ease-in-out infinite alternate, pageAuroraPulse 16s ease-in-out infinite;
+    }
+
+    @keyframes pageAtmosphereDrift {
+        0% {
+            transform: translate3d(-1.4%, -1.2%, 0) scale(1.01);
+        }
+        50% {
+            transform: translate3d(1.2%, 0.8%, 0) scale(1.04);
+        }
+        100% {
+            transform: translate3d(2.4%, -0.6%, 0) scale(1.02);
+        }
+    }
+
+    @keyframes pageAtmospherePulse {
+        0%,
+        100% {
+            opacity: calc(var(--page-ambient-opacity) * 0.92);
+        }
+        50% {
+            opacity: calc(var(--page-ambient-opacity) * 1.08);
+        }
+    }
+
+    @keyframes pageAuroraDrift {
+        0% {
+            transform: translate3d(-1.8%, 1.2%, 0) scale(var(--page-aurora-scale));
+        }
+        50% {
+            transform: translate3d(1.2%, -0.8%, 0) scale(calc(var(--page-aurora-scale) + 0.03));
+        }
+        100% {
+            transform: translate3d(2.8%, 0.6%, 0) scale(calc(var(--page-aurora-scale) + 0.01));
+        }
+    }
+
+    @keyframes pageAuroraPulse {
+        0%,
+        100% {
+            opacity: calc(var(--page-depth-opacity) * 0.84);
+        }
+        50% {
+            opacity: calc(var(--page-depth-opacity) * 1.14);
+        }
     }
 
     #pageRippleLayer {
@@ -2850,6 +2931,12 @@ Owner decisions:
         transition: none !important;
     }
 
+    body.animations-off::before,
+    body.animations-off::after {
+        animation: none !important;
+        transition: none !important;
+    }
+
     body.effects-low {
         --page-ripple-opacity: 0.34;
         --page-ripple-blur: 0px;
@@ -2858,6 +2945,14 @@ Owner decisions:
 
     body.effects-medium {
         --clicker-glow-opacity: 0.34;
+    }
+
+    body.effects-low::after {
+        filter: blur(20px) saturate(108%);
+    }
+
+    body.effects-medium::after {
+        filter: blur(28px) saturate(116%);
     }
 
     body.effects-low .settings-card,
@@ -6633,6 +6728,18 @@ function applySettingsVisualState() {
     const clickerGlowOpacity = animationMode === 'off'
         ? '0'
         : (effectsQuality === 'low' ? '0.14' : (effectsQuality === 'medium' ? '0.34' : '0.58'));
+    const ambientOpacity = animationMode === 'off'
+        ? '0.2'
+        : (effectsQuality === 'low' ? '0.46' : (effectsQuality === 'medium' ? '0.68' : '0.9'));
+    const depthOpacity = animationMode === 'off'
+        ? '0.08'
+        : (effectsQuality === 'low' ? '0.16' : (effectsQuality === 'medium' ? '0.38' : '0.6'));
+    const horizonOpacity = animationMode === 'off'
+        ? '0.1'
+        : (effectsQuality === 'low' ? '0.16' : (effectsQuality === 'medium' ? '0.24' : '0.34'));
+    const auroraScale = animationMode === 'off'
+        ? '1.01'
+        : (effectsQuality === 'low' ? '1.03' : (effectsQuality === 'medium' ? '1.07' : '1.11'));
 
     interactionFxState.rippleScale = Number.isFinite(Number(rippleScale)) ? Number(rippleScale) : 6.4;
     interactionFxState.rippleOpacity = Number.isFinite(Number(rippleOpacity)) ? Number(rippleOpacity) : 0.9;
@@ -6642,6 +6749,10 @@ function applySettingsVisualState() {
     document.body.style.setProperty('--page-ripple-opacity', rippleOpacity);
     document.body.style.setProperty('--page-ripple-blur', rippleBlur);
     document.body.style.setProperty('--clicker-glow-opacity', clickerGlowOpacity);
+    document.body.style.setProperty('--page-ambient-opacity', ambientOpacity);
+    document.body.style.setProperty('--page-depth-opacity', depthOpacity);
+    document.body.style.setProperty('--page-horizon-opacity', horizonOpacity);
+    document.body.style.setProperty('--page-aurora-scale', auroraScale);
 
     if (animationMode === 'off' || effectsQuality === 'low') {
         clearActiveRipples();
@@ -6861,10 +6972,24 @@ function updateReactiveGlowPosition(clientX, clientY) {
 
     const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
     const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
-    const xPercent = `${Math.max(0, Math.min(100, (clientX / width) * 100)).toFixed(2)}%`;
-    const yPercent = `${Math.max(0, Math.min(100, (clientY / height) * 100)).toFixed(2)}%`;
+    const xPercentValue = Math.max(0, Math.min(100, (clientX / width) * 100));
+    const yPercentValue = Math.max(0, Math.min(100, (clientY / height) * 100));
+    const xPercent = `${xPercentValue.toFixed(2)}%`;
+    const yPercent = `${yPercentValue.toFixed(2)}%`;
+    const auroraX = `${Math.max(8, Math.min(92, 74 - (xPercentValue - 50) * 0.44)).toFixed(2)}%`;
+    const auroraY = `${Math.max(8, Math.min(92, 22 + (yPercentValue - 18) * 0.66)).toFixed(2)}%`;
+    const depthX = `${Math.max(6, Math.min(94, 16 + (xPercentValue - 50) * 0.32)).toFixed(2)}%`;
+    const depthY = `${Math.max(8, Math.min(94, 84 - (yPercentValue - 18) * 0.34)).toFixed(2)}%`;
+    const horizonX = `${Math.max(10, Math.min(90, 52 + (xPercentValue - 50) * 0.22)).toFixed(2)}%`;
+    const horizonY = `${Math.max(54, Math.min(88, 72 + (yPercentValue - 50) * 0.12)).toFixed(2)}%`;
     document.body.style.setProperty('--page-glow-x', xPercent);
     document.body.style.setProperty('--page-glow-y', yPercent);
+    document.body.style.setProperty('--page-aurora-x', auroraX);
+    document.body.style.setProperty('--page-aurora-y', auroraY);
+    document.body.style.setProperty('--page-depth-x', depthX);
+    document.body.style.setProperty('--page-depth-y', depthY);
+    document.body.style.setProperty('--page-horizon-x', horizonX);
+    document.body.style.setProperty('--page-horizon-y', horizonY);
     document.body.style.setProperty('--clicker-glow-x', xPercent);
     document.body.style.setProperty('--clicker-glow-y', yPercent);
 }
