@@ -3408,6 +3408,71 @@ function bober_normalize_support_ticket_status($value)
     return in_array($normalized, bober_support_ticket_statuses(), true) ? $normalized : 'waiting_support';
 }
 
+function bober_support_ticket_status_label($status)
+{
+    $normalized = bober_normalize_support_ticket_status($status);
+    $labels = [
+        'waiting_support' => 'Ждет поддержку',
+        'waiting_user' => 'Ждет игрока',
+        'closed' => 'Закрыт',
+    ];
+
+    return $labels[$normalized] ?? $labels['waiting_support'];
+}
+
+function bober_insert_support_ticket_system_message($conn, $ticketId, $message)
+{
+    $ticketId = max(0, (int) $ticketId);
+    $message = trim((string) $message);
+    if ($ticketId < 1 || $message === '') {
+        return false;
+    }
+
+    $stmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text, attachments_json, attachments_count) VALUES (?, ?, NULL, ?, NULL, 0)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить системное сообщение тикета.');
+    }
+
+    $authorType = 'system';
+    $stmt->bind_param('iss', $ticketId, $authorType, $message);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить системное сообщение тикета.');
+    }
+
+    $stmt->close();
+    return true;
+}
+
+function bober_log_support_ticket_status_change($conn, $ticketId, $fromStatus, $toStatus, $options = [])
+{
+    $ticketId = max(0, (int) $ticketId);
+    if ($ticketId < 1) {
+        return false;
+    }
+
+    $normalizedFrom = bober_normalize_support_ticket_status($fromStatus);
+    $normalizedTo = bober_normalize_support_ticket_status($toStatus);
+    if ($normalizedFrom === $normalizedTo) {
+        return false;
+    }
+
+    $mode = trim((string) ($options['mode'] ?? 'manual'));
+    if ($mode === 'create_admin') {
+        $message = 'Системное сообщение: поддержка открыла тикет. Текущий статус: ' . bober_support_ticket_status_label($normalizedTo) . '.';
+    } elseif ($mode === 'create_user') {
+        $message = 'Системное сообщение: тикет создан. Текущий статус: ' . bober_support_ticket_status_label($normalizedTo) . '.';
+    } elseif ($mode === 'auto_user_reply') {
+        $message = 'Системное сообщение: после ответа игрока статус изменен: ' . bober_support_ticket_status_label($normalizedFrom) . ' → ' . bober_support_ticket_status_label($normalizedTo) . '.';
+    } elseif ($mode === 'auto_admin_reply') {
+        $message = 'Системное сообщение: после ответа поддержки статус изменен: ' . bober_support_ticket_status_label($normalizedFrom) . ' → ' . bober_support_ticket_status_label($normalizedTo) . '.';
+    } else {
+        $message = 'Системное сообщение: статус тикета изменен: ' . bober_support_ticket_status_label($normalizedFrom) . ' → ' . bober_support_ticket_status_label($normalizedTo) . '.';
+    }
+
+    return bober_insert_support_ticket_system_message($conn, $ticketId, $message);
+}
+
 function bober_support_text_length($value)
 {
     $text = (string) $value;
@@ -3695,6 +3760,10 @@ function bober_create_support_ticket($conn, $userId, $category, $subject, $messa
         throw new RuntimeException('Не удалось определить созданный тикет поддержки.');
     }
 
+    bober_log_support_ticket_status_change($conn, $ticketId, 'closed', $status, [
+        'mode' => 'create_user',
+    ]);
+
     $authorType = 'user';
     $storedAttachmentPaths = [];
     try {
@@ -3780,6 +3849,10 @@ function bober_create_support_ticket_as_admin($conn, $userId, $category, $subjec
         throw new RuntimeException('Не удалось определить созданный исходящий тикет поддержки.');
     }
 
+    bober_log_support_ticket_status_change($conn, $ticketId, 'closed', $status, [
+        'mode' => 'create_admin',
+    ]);
+
     $authorType = 'admin';
     $storedAttachmentPaths = [];
     try {
@@ -3854,6 +3927,7 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
         throw $error;
     }
 
+    $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
     $status = 'waiting_support';
     $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? LIMIT 1');
     if (!$updateStmt) {
@@ -3866,6 +3940,10 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
         throw new RuntimeException('Не удалось обновить тикет после ответа пользователя.');
     }
     $updateStmt->close();
+
+    bober_log_support_ticket_status_change($conn, $ticketId, $previousStatus, $status, [
+        'mode' => 'auto_user_reply',
+    ]);
 
     return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 }
@@ -4045,6 +4123,7 @@ function bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attach
         throw $error;
     }
 
+    $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
     $status = 'waiting_user';
     $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_user = unread_by_user + 1, unread_by_admin = 0, updated_at = CURRENT_TIMESTAMP, last_admin_message_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
     if (!$updateStmt) {
@@ -4058,6 +4137,10 @@ function bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attach
     }
     $updateStmt->close();
 
+    bober_log_support_ticket_status_change($conn, $ticketId, $previousStatus, $status, [
+        'mode' => 'auto_admin_reply',
+    ]);
+
     return bober_fetch_admin_support_ticket($conn, $ticketId, false);
 }
 
@@ -4068,6 +4151,9 @@ function bober_update_support_ticket_status($conn, $ticketId, $status)
     if ($ticketId < 1) {
         throw new InvalidArgumentException('Не удалось определить тикет для смены статуса.');
     }
+
+    $existingTicket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
+    $previousStatus = bober_normalize_support_ticket_status($existingTicket['status'] ?? 'waiting_support');
 
     $stmt = $conn->prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
     if (!$stmt) {
@@ -4080,6 +4166,10 @@ function bober_update_support_ticket_status($conn, $ticketId, $status)
         throw new RuntimeException('Не удалось сменить статус тикета.');
     }
     $stmt->close();
+
+    bober_log_support_ticket_status_change($conn, $ticketId, $previousStatus, $status, [
+        'mode' => 'manual',
+    ]);
 
     return bober_fetch_admin_support_ticket($conn, $ticketId, false);
 }

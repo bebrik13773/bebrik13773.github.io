@@ -4606,6 +4606,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             border-color: rgba(130, 160, 255, 0.16);
         }
 
+        .support-ticket-thread-message.system {
+            align-self: center;
+            background: linear-gradient(180deg, rgba(247, 201, 105, 0.08), rgba(247, 201, 105, 0.03));
+            border-color: rgba(247, 201, 105, 0.22);
+            box-shadow: none;
+        }
+
         .support-ticket-thread-head {
             display: flex;
             justify-content: space-between;
@@ -4620,6 +4627,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             line-height: 1.65;
             white-space: pre-wrap;
             word-break: break-word;
+        }
+
+        .support-ticket-thread-message.system .support-ticket-thread-head {
+            justify-content: center;
+            color: var(--warning);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .support-ticket-thread-message.system .support-ticket-thread-text {
+            text-align: center;
+            color: var(--on-surface);
+            opacity: 0.9;
+            font-size: 13px;
         }
 
         .support-ticket-thread-attachments,
@@ -7493,7 +7514,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 messages: Array.isArray(rawTicket.messages)
                     ? rawTicket.messages.map((message) => ({
                         id: Math.max(0, Number(message.id) || 0),
-                        authorType: String(message.authorType || 'user').trim(),
+                        authorType: String(message.authorType || 'user').trim().toLowerCase(),
                         authorUserId: Number(message.authorUserId) > 0 ? Number(message.authorUserId) : null,
                         message: String(message.message || '').trim(),
                         createdAt: String(message.createdAt || '').trim(),
@@ -7787,10 +7808,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             attachButton.disabled = selectedSupportTicket.status === 'closed';
             messagesNode.innerHTML = Array.isArray(selectedSupportTicket.messages) && selectedSupportTicket.messages.length > 0
                 ? selectedSupportTicket.messages.map((message) => `
-                    <div class="support-ticket-thread-message ${escapeHtml(message.authorType === 'admin' ? 'admin' : 'user')}">
+                    <div class="support-ticket-thread-message ${escapeHtml(message.authorType === 'system' ? 'system' : (message.authorType === 'admin' ? 'admin' : 'user'))}">
                         <div class="support-ticket-thread-head">
-                            <span>${escapeHtml(message.authorType === 'admin' ? 'Поддержка' : (selectedSupportTicket.login || 'Игрок'))}</span>
-                            <span>${escapeHtml(formatAdminDateTime(message.createdAt))}</span>
+                            <span>${escapeHtml(message.authorType === 'system' ? 'Системное сообщение' : (message.authorType === 'admin' ? 'Поддержка' : (selectedSupportTicket.login || 'Игрок')))}</span>
+                            ${message.authorType === 'system' ? '' : `<span>${escapeHtml(formatAdminDateTime(message.createdAt))}</span>`}
                         </div>
                         ${message.message ? `<div class="support-ticket-thread-text">${escapeHtml(message.message || '')}</div>` : ''}
                         ${renderAdminSupportMessageAttachments(message.attachments)}

@@ -3754,6 +3754,14 @@ Owner decisions:
             0 16px 30px rgba(11, 18, 42, 0.26);
     }
 
+    .support-ticket-message.system {
+        align-self: center;
+        max-width: min(100%, 560px);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: none;
+    }
+
     .support-ticket-message-head {
         display: flex;
         justify-content: space-between;
@@ -3795,6 +3803,21 @@ Owner decisions:
         line-height: 1.5;
         white-space: pre-wrap;
         word-break: break-word;
+    }
+
+    .support-ticket-message.system .support-ticket-message-head {
+        justify-content: center;
+        margin-bottom: 8px;
+        color: rgba(255, 233, 173, 0.88);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .support-ticket-message.system .support-ticket-message-body {
+        color: rgba(255, 248, 221, 0.92);
+        text-align: center;
+        font-size: 13px;
+        line-height: 1.6;
     }
 
     .support-message-attachments,
@@ -8996,10 +9019,10 @@ function renderSupportTicketThread() {
         ? `
             ${supportReplyBanner}
             ${ticketMessages.map((message) => `
-            <div class="support-ticket-message ${escapeHtmlText(message.authorType === 'admin' ? 'admin' : 'user')} ${message.authorType === 'admin' && Number(message.id) === Number(latestAdminMessageId) ? 'latest-support' : ''}">
+            <div class="support-ticket-message ${escapeHtmlText(message.authorType === 'system' ? 'system' : (message.authorType === 'admin' ? 'admin' : 'user'))} ${message.authorType === 'admin' && Number(message.id) === Number(latestAdminMessageId) ? 'latest-support' : ''}">
                 <div class="support-ticket-message-head">
-                    <span>${escapeHtmlText(message.authorType === 'admin' ? 'Поддержка' : 'Вы')}</span>
-                    <span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>
+                    <span>${escapeHtmlText(message.authorType === 'system' ? 'Системное сообщение' : (message.authorType === 'admin' ? 'Поддержка' : 'Вы'))}</span>
+                    ${message.authorType === 'system' ? '' : `<span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>`}
                 </div>
                 ${message.authorType === 'admin' ? `<div class="support-ticket-message-callout">${Number(message.id) === Number(latestAdminMessageId) ? 'Последний ответ поддержки' : 'Ответ поддержки'}</div>` : ''}
                 ${message.message ? `<div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>` : ''}
@@ -10770,7 +10793,7 @@ function normalizeSupportTicket(rawTicket) {
         messages: Array.isArray(rawTicket.messages)
             ? rawTicket.messages.map((message) => ({
                 id: Math.max(0, Number(message.id) || 0),
-                authorType: String(message.authorType || 'user').trim(),
+                authorType: String(message.authorType || 'user').trim().toLowerCase(),
                 authorUserId: Number(message.authorUserId) > 0 ? Number(message.authorUserId) : null,
                 message: String(message.message || '').trim(),
                 attachments: Array.isArray(message.attachments)
