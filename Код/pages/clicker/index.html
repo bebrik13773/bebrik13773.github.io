@@ -3484,6 +3484,8 @@ Owner decisions:
     }
 
     .support-ticket-card {
+        position: relative;
+        overflow: hidden;
         width: 100%;
         padding: 14px;
         border-radius: 18px;
@@ -3510,6 +3512,26 @@ Owner decisions:
         border-color: rgba(126, 241, 255, 0.4);
         background: linear-gradient(180deg, rgba(24, 36, 73, 0.9), rgba(13, 20, 40, 0.96));
         box-shadow: 0 16px 30px rgba(6, 10, 28, 0.24);
+    }
+
+    .support-ticket-card.has-unread-reply {
+        border-color: rgba(255, 204, 102, 0.42);
+        background:
+            linear-gradient(180deg, rgba(49, 38, 18, 0.28), rgba(13, 16, 33, 0.96)),
+            linear-gradient(180deg, rgba(20, 29, 62, 0.88), rgba(11, 16, 34, 0.95));
+        box-shadow:
+            0 0 0 1px rgba(255, 204, 102, 0.18),
+            0 18px 34px rgba(22, 13, 3, 0.28);
+    }
+
+    .support-ticket-card.has-unread-reply::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        border-radius: 18px 0 0 18px;
+        background: linear-gradient(180deg, #ffe27a, #ff9d2f);
+        box-shadow: 0 0 18px rgba(255, 184, 77, 0.35);
     }
 
     .support-ticket-card-head,
@@ -3583,9 +3605,59 @@ Owner decisions:
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        color: #9feeff;
+        color: #ffe39a;
         font-size: 12px;
         font-weight: 800;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(255, 195, 86, 0.14);
+        border: 1px solid rgba(255, 195, 86, 0.22);
+        width: fit-content;
+        box-shadow: 0 8px 18px rgba(24, 14, 2, 0.18);
+    }
+
+    .support-ticket-unread::before {
+        content: '•';
+        font-size: 15px;
+        line-height: 1;
+        color: #ffd978;
+    }
+
+    .support-thread-response-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(255, 199, 104, 0.16), rgba(255, 146, 61, 0.12));
+        border: 1px solid rgba(255, 198, 94, 0.24);
+        color: #fff2cf;
+        box-shadow: 0 14px 28px rgba(24, 14, 2, 0.18);
+    }
+
+    .support-thread-response-banner::before {
+        content: 'support_agent';
+        font-family: 'Material Icons';
+        font-size: 18px;
+        color: #ffd46f;
+    }
+
+    .support-thread-response-banner.unread {
+        border-color: rgba(255, 214, 111, 0.34);
+        box-shadow:
+            0 0 0 1px rgba(255, 214, 111, 0.16),
+            0 18px 30px rgba(24, 14, 2, 0.24);
+    }
+
+    .support-thread-response-banner strong {
+        color: #fff9e7;
+        font-size: 13px;
+        letter-spacing: 0.01em;
+    }
+
+    .support-thread-response-banner span {
+        color: rgba(255, 249, 231, 0.82);
+        font-size: 12px;
     }
 
     .support-ticket-thread-messages {
@@ -3615,8 +3687,23 @@ Owner decisions:
 
     .support-ticket-message.admin {
         align-self: flex-start;
-        background: rgba(104, 122, 170, 0.2);
-        border-color: rgba(192, 214, 255, 0.18);
+        background:
+            linear-gradient(180deg, rgba(55, 78, 142, 0.32), rgba(18, 28, 62, 0.34)),
+            rgba(104, 122, 170, 0.18);
+        border-color: rgba(145, 228, 255, 0.3);
+        box-shadow:
+            0 0 0 1px rgba(111, 218, 255, 0.1),
+            0 14px 28px rgba(4, 8, 22, 0.2);
+    }
+
+    .support-ticket-message.admin.latest-support {
+        border-color: rgba(255, 216, 120, 0.34);
+        background:
+            linear-gradient(180deg, rgba(77, 108, 184, 0.34), rgba(22, 34, 73, 0.42)),
+            linear-gradient(180deg, rgba(255, 194, 79, 0.08), rgba(255, 130, 48, 0.04));
+        box-shadow:
+            0 0 0 1px rgba(255, 216, 120, 0.14),
+            0 16px 30px rgba(11, 18, 42, 0.26);
     }
 
     .support-ticket-message-head {
@@ -3627,6 +3714,31 @@ Owner decisions:
         color: rgba(255, 255, 255, 0.66);
         font-size: 12px;
         font-weight: 700;
+    }
+
+    .support-ticket-message-callout {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(111, 218, 255, 0.12);
+        border: 1px solid rgba(111, 218, 255, 0.2);
+        color: #dcf8ff;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        width: fit-content;
+    }
+
+    .support-ticket-message-callout::before {
+        content: 'support_agent';
+        font-family: 'Material Icons';
+        font-size: 15px;
+        line-height: 1;
+        color: #87e7ff;
     }
 
     .support-ticket-message-body {
@@ -5962,6 +6074,10 @@ let unlockedAchievements = [];
 let achievementStats = {};
 let achievementPlayerBase = 0;
 let supportSummary = getDefaultSupportSummary();
+const supportNoticeState = {
+    initialized: false,
+    lastUnreadReplies: 0
+};
 let bootLoadingOverlayDismissed = false;
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
@@ -8571,7 +8687,7 @@ function renderSupportTicketList() {
     supportState.listSignature = nextSignature;
 
     listNode.innerHTML = supportState.tickets.map((ticket) => `
-        <button type="button" class="support-ticket-card ${ticket.id === supportState.selectedTicketId ? 'active' : ''}" data-ticket-id="${ticket.id}">
+        <button type="button" class="support-ticket-card ${ticket.id === supportState.selectedTicketId ? 'active' : ''} ${ticket.unreadByUser > 0 ? 'has-unread-reply' : ''}" data-ticket-id="${ticket.id}">
             <div class="support-ticket-card-head">
                 <div>
                     <div class="support-ticket-title">${escapeHtmlText(ticket.subject || 'Тикет')}</div>
@@ -8629,17 +8745,35 @@ function renderSupportTicketThread() {
     metaNode.textContent = `${getSupportCategoryLabel(ticket.category)} • открыт ${formatSupportTicketDate(ticket.createdAt)} • обновлен ${formatSupportTicketDate(ticket.updatedAt)}`;
     statusNode.textContent = getSupportStatusLabel(ticket.status);
     statusNode.className = `support-ticket-thread-status ${ticket.status}`;
-    messagesNode.innerHTML = (ticket.messages || []).length > 0
-        ? ticket.messages.map((message) => `
-            <div class="support-ticket-message ${escapeHtmlText(message.authorType === 'admin' ? 'admin' : 'user')}">
+    const ticketMessages = Array.isArray(ticket.messages) ? ticket.messages : [];
+    const latestMessage = ticketMessages.length > 0 ? ticketMessages[ticketMessages.length - 1] : null;
+    const latestAdminMessageId = [...ticketMessages].reverse().find((message) => message.authorType === 'admin')?.id || 0;
+    const hasLatestSupportReply = Boolean(latestMessage && latestMessage.authorType === 'admin');
+    const supportReplyBanner = hasLatestSupportReply
+        ? `
+            <div class="support-thread-response-banner ${ticket.unreadByUser > 0 ? 'unread' : 'seen'}">
+                <div>
+                    <strong>${ticket.unreadByUser > 0 ? 'Поддержка ответила на ваш тикет' : 'Последнее сообщение оставила поддержка'}</strong>
+                    <span>${escapeHtmlText(formatSupportTicketDate(latestMessage.createdAt))}</span>
+                </div>
+            </div>
+        `
+        : '';
+    messagesNode.innerHTML = ticketMessages.length > 0
+        ? `
+            ${supportReplyBanner}
+            ${ticketMessages.map((message) => `
+            <div class="support-ticket-message ${escapeHtmlText(message.authorType === 'admin' ? 'admin' : 'user')} ${message.authorType === 'admin' && Number(message.id) === Number(latestAdminMessageId) ? 'latest-support' : ''}">
                 <div class="support-ticket-message-head">
                     <span>${escapeHtmlText(message.authorType === 'admin' ? 'Поддержка' : 'Вы')}</span>
                     <span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>
                 </div>
+                ${message.authorType === 'admin' ? `<div class="support-ticket-message-callout">${Number(message.id) === Number(latestAdminMessageId) ? 'Последний ответ поддержки' : 'Ответ поддержки'}</div>` : ''}
                 ${message.message ? `<div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>` : ''}
                 ${renderSupportMessageAttachments(message.attachments)}
             </div>
-        `).join('')
+        `).join('')}
+        `
         : '<div class="empty-list">История переписки пока пуста.</div>';
 
     messagesNode.scrollTop = shouldStickToBottom ? messagesNode.scrollHeight : previousScrollTop;
@@ -8653,7 +8787,9 @@ function renderSupportTicketThread() {
 }
 
 function applySupportSummary(summary) {
-    supportSummary = normalizeSupportSummary(summary);
+    const normalizedSummary = normalizeSupportSummary(summary);
+    notifyAboutNewSupportReplies(normalizedSummary);
+    supportSummary = normalizedSummary;
     updateSupportBadgeUI();
 }
 
@@ -10336,6 +10472,32 @@ function updateSupportBadgeUI() {
     }
 }
 
+function notifyAboutNewSupportReplies(nextSummary) {
+    const normalizedSummary = normalizeSupportSummary(nextSummary);
+    const nextUnreadReplies = Math.max(0, Number(normalizedSummary.unreadReplies) || 0);
+    const previousUnreadReplies = Math.max(0, Number(supportNoticeState.lastUnreadReplies) || 0);
+
+    if (!supportNoticeState.initialized) {
+        supportNoticeState.initialized = true;
+        supportNoticeState.lastUnreadReplies = nextUnreadReplies;
+        return;
+    }
+
+    supportNoticeState.lastUnreadReplies = nextUnreadReplies;
+    if (nextUnreadReplies <= previousUnreadReplies) {
+        return;
+    }
+
+    const diff = nextUnreadReplies - previousUnreadReplies;
+    showNotification(
+        diff === 1
+            ? 'Поддержка ответила на ваш тикет.'
+            : `Поддержка прислала ${formatCompactNumber(diff)} новых ответов.`,
+        'warning',
+        5200
+    );
+}
+
 function normalizeSupportTicket(rawTicket) {
     if (!rawTicket || typeof rawTicket !== 'object') {
         return null;
@@ -11981,6 +12143,8 @@ function resetUserState() {
     achievementStats = {};
     achievementPlayerBase = 0;
     supportSummary = getDefaultSupportSummary();
+    supportNoticeState.initialized = false;
+    supportNoticeState.lastUnreadReplies = 0;
     supportState.tickets = [];
     supportState.selectedTicketId = 0;
     supportState.selectedTicket = null;
