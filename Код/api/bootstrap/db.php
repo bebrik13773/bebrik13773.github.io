@@ -5052,6 +5052,164 @@ function bober_build_public_skin_payload($skinConfig, $isEquipped = false)
     ];
 }
 
+function bober_build_owned_skin_summary(array $catalog, array $ownedSkinIds)
+{
+    $summary = [
+        'rareSkins' => 0,
+        'epicSkins' => 0,
+        'legendarySkins' => 0,
+        'grantOnlySkins' => 0,
+        'topRewardSkins' => 0,
+    ];
+
+    foreach ($ownedSkinIds as $ownedSkinId) {
+        $skinConfig = is_array($catalog[$ownedSkinId] ?? null) ? $catalog[$ownedSkinId] : null;
+        if (!$skinConfig) {
+            continue;
+        }
+
+        $rarity = bober_normalize_skin_rarity($skinConfig['rarity'] ?? '');
+        if (in_array($rarity, ['rare', 'epic', 'legendary', 'admin'], true)) {
+            $summary['rareSkins']++;
+        }
+        if (in_array($rarity, ['epic', 'legendary', 'admin'], true)) {
+            $summary['epicSkins']++;
+        }
+        if (in_array($rarity, ['legendary', 'admin'], true)) {
+            $summary['legendarySkins']++;
+        }
+
+        $issueMode = bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig);
+        if ($issueMode === 'grant_only') {
+            $summary['grantOnlySkins']++;
+        }
+
+        $category = bober_normalize_skin_category($skinConfig['category'] ?? '');
+        if ($category === 'top') {
+            $summary['topRewardSkins']++;
+        }
+    }
+
+    return $summary;
+}
+
+function bober_build_profile_honors(array $context)
+{
+    $score = max(0, (int) ($context['score'] ?? 0));
+    $flyBest = max(0, (int) ($context['flyBest'] ?? 0));
+    $achievementsUnlocked = max(0, (int) ($context['achievementsUnlocked'] ?? 0));
+    $ownedSkins = max(0, (int) ($context['ownedSkins'] ?? 0));
+    $legendarySkins = max(0, (int) ($context['legendarySkins'] ?? 0));
+    $grantOnlySkins = max(0, (int) ($context['grantOnlySkins'] ?? 0));
+    $clickerTop1 = !empty($context['clickerTop1']);
+    $flyTop1 = !empty($context['flyTop1']);
+
+    $title = 'Начинающий бобр';
+    if ($clickerTop1 && $flyTop1) {
+        $title = 'Легенда болот';
+    } elseif ($clickerTop1) {
+        $title = 'Король кликов';
+    } elseif ($flyTop1) {
+        $title = 'Ас полётов';
+    } elseif ($achievementsUnlocked >= 80) {
+        $title = 'Архивариус достижений';
+    } elseif ($legendarySkins >= 5) {
+        $title = 'Хранитель витрины';
+    } elseif ($score >= 1000000000) {
+        $title = 'Миллиардный бобр';
+    } elseif ($flyBest >= 500) {
+        $title = 'Покоритель высот';
+    } elseif ($achievementsUnlocked >= 40) {
+        $title = 'Охотник за достижениями';
+    } elseif ($ownedSkins >= 25) {
+        $title = 'Коллекционер';
+    } elseif ($score >= 10000000) {
+        $title = 'Сильный аккаунт';
+    }
+
+    $frame = 'common';
+    if ($clickerTop1 || $flyTop1 || $achievementsUnlocked >= 80 || $score >= 1000000000) {
+        $frame = 'legend';
+    } elseif ($achievementsUnlocked >= 40 || $ownedSkins >= 25 || $flyBest >= 250 || $score >= 50000000) {
+        $frame = 'epic';
+    } elseif ($achievementsUnlocked >= 15 || $ownedSkins >= 10 || $score >= 1000000 || $flyBest >= 100) {
+        $frame = 'rare';
+    }
+
+    $frameLabelMap = [
+        'common' => 'Базовая рамка',
+        'rare' => 'Редкая рамка',
+        'epic' => 'Эпическая рамка',
+        'legend' => 'Легендарная рамка',
+    ];
+
+    $trophies = [];
+    if ($clickerTop1 && $flyTop1) {
+        $trophies[] = [
+            'icon' => '🏛️',
+            'label' => 'Двойной лидер',
+            'description' => 'Игрок удерживал топ-1 сразу в двух режимах.',
+        ];
+    } else {
+        if ($clickerTop1) {
+            $trophies[] = [
+                'icon' => '👑',
+                'label' => 'Топ-1 кликера',
+                'description' => 'Сейчас владеет главным трофеем кликера.',
+            ];
+        }
+        if ($flyTop1) {
+            $trophies[] = [
+                'icon' => '🏆',
+                'label' => 'Топ-1 fly-beaver',
+                'description' => 'Сейчас владеет главным трофеем fly-beaver.',
+            ];
+        }
+    }
+    if ($achievementsUnlocked >= 60) {
+        $trophies[] = [
+            'icon' => '✨',
+            'label' => 'Коллекция достижений',
+            'description' => 'Открыл большой пласт достижений.',
+        ];
+    }
+    if ($legendarySkins >= 3) {
+        $trophies[] = [
+            'icon' => '🎨',
+            'label' => 'Редкая витрина',
+            'description' => 'Собрал заметную коллекцию редких скинов.',
+        ];
+    }
+    if ($grantOnlySkins >= 2) {
+        $trophies[] = [
+            'icon' => '🔐',
+            'label' => 'Особая выдача',
+            'description' => 'Имеет несколько эксклюзивных скинов.',
+        ];
+    }
+    if ($flyBest >= 500) {
+        $trophies[] = [
+            'icon' => '🪽',
+            'label' => 'Предел воздуха',
+            'description' => 'Показал высокий рекорд в fly-beaver.',
+        ];
+    }
+    if ($score >= 1000000000) {
+        $trophies[] = [
+            'icon' => '💰',
+            'label' => 'Миллиардный счет',
+            'description' => 'Преодолел рубеж в миллиард коинов.',
+        ];
+    }
+
+    return [
+        'title' => $title,
+        'frame' => $frame,
+        'frameLabel' => (string) ($frameLabelMap[$frame] ?? $frameLabelMap['common']),
+        'trophies' => array_slice($trophies, 0, 4),
+    ];
+}
+
 function bober_fetch_public_player_profile($conn, $userId)
 {
     $userId = max(0, (int) $userId);
@@ -5120,6 +5278,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             $collectionSkins[] = $payload;
         }
     }
+    $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
 
     $achievementStatsBundle = bober_fetch_achievement_stats($conn);
     $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
@@ -5129,6 +5288,18 @@ function bober_fetch_public_player_profile($conn, $userId)
         $achievementStats,
         $achievementPlayerBase
     );
+    $clickerTop1 = in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true);
+    $flyTop1 = in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true);
+    $honors = bober_build_profile_honors([
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
+        'achievementsUnlocked' => count($achievementItems),
+        'ownedSkins' => count($ownedSkinIds),
+        'legendarySkins' => $skinSummary['legendarySkins'],
+        'grantOnlySkins' => $skinSummary['grantOnlySkins'],
+        'clickerTop1' => $clickerTop1,
+        'flyTop1' => $flyTop1,
+    ]);
 
     return [
         'userId' => max(0, (int) ($row['id'] ?? $userId)),
@@ -5142,8 +5313,14 @@ function bober_fetch_public_player_profile($conn, $userId)
             'ownedSkins' => count($ownedSkinIds),
             'collectionSkins' => count($collectionSkins),
             'achievementsUnlocked' => count($achievementItems),
-            'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
-            'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
+            'rareSkins' => $skinSummary['rareSkins'],
+            'epicSkins' => $skinSummary['epicSkins'],
+            'legendarySkins' => $skinSummary['legendarySkins'],
+            'grantOnlySkins' => $skinSummary['grantOnlySkins'],
+            'topRewardSkins' => $skinSummary['topRewardSkins'],
+            'clickerTop1' => $clickerTop1,
+            'flyTop1' => $flyTop1,
+            'honors' => $honors,
         ],
         'skins' => [
             'equipped' => $equippedSkin,
@@ -5828,6 +6005,7 @@ function bober_fetch_account_snapshot($conn, $userId)
     $questRewardCoins = max(0, (int) ($questRefresh['rewardCoins'] ?? 0));
     $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins + $questRewardCoins;
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
+    $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
     $dailyQuestItems = is_array($quests['daily']['items'] ?? null) ? $quests['daily']['items'] : [];
     $weeklyQuestItems = is_array($quests['weekly']['items'] ?? null) ? $quests['weekly']['items'] : [];
     $dailyCompletedCount = count(array_filter($dailyQuestItems, static function ($item) {
@@ -5836,11 +6014,26 @@ function bober_fetch_account_snapshot($conn, $userId)
     $weeklyCompletedCount = count(array_filter($weeklyQuestItems, static function ($item) {
         return !empty($item['claimed']);
     }));
+    $honors = bober_build_profile_honors([
+        'score' => $resolvedScore,
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
+        'achievementsUnlocked' => count($achievements),
+        'ownedSkins' => count($ownedSkinIds),
+        'legendarySkins' => $skinSummary['legendarySkins'],
+        'grantOnlySkins' => $skinSummary['grantOnlySkins'],
+        'clickerTop1' => !empty($achievementSnapshot['clickerTop1']),
+        'flyTop1' => !empty($achievementSnapshot['flyTop1']),
+    ]);
     $profile = [
         'ownedSkins' => count($ownedSkinIds),
         'achievementsUnlocked' => count($achievements),
         'clickerTop1' => !empty($achievementSnapshot['clickerTop1']),
         'flyTop1' => !empty($achievementSnapshot['flyTop1']),
+        'rareSkins' => $skinSummary['rareSkins'],
+        'epicSkins' => $skinSummary['epicSkins'],
+        'legendarySkins' => $skinSummary['legendarySkins'],
+        'grantOnlySkins' => $skinSummary['grantOnlySkins'],
+        'topRewardSkins' => $skinSummary['topRewardSkins'],
         'score' => $resolvedScore,
         'plus' => max(1, (int) ($row['plus'] ?? 1)),
         'energyMax' => $energyMax,
@@ -5851,6 +6044,7 @@ function bober_fetch_account_snapshot($conn, $userId)
         'dailyQuestTotal' => count($dailyQuestItems),
         'weeklyQuestCompleted' => $weeklyCompletedCount,
         'weeklyQuestTotal' => count($weeklyQuestItems),
+        'honors' => $honors,
     ];
 
     $settingsRecord = bober_fetch_user_settings_record($conn, $userId);

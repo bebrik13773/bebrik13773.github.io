@@ -3019,6 +3019,23 @@ Owner decisions:
         margin-bottom: 16px;
     }
 
+    .profile-modal-hero[data-frame="rare"] {
+        border-color: rgba(126, 241, 255, 0.22);
+        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.06), 0 18px 28px rgba(5, 10, 28, 0.18);
+    }
+
+    .profile-modal-hero[data-frame="epic"] {
+        border-color: rgba(196, 132, 255, 0.26);
+        background: linear-gradient(180deg, rgba(34, 20, 58, 0.78), rgba(10, 10, 28, 0.9));
+        box-shadow: 0 0 0 1px rgba(196, 132, 255, 0.08), 0 20px 32px rgba(16, 8, 32, 0.22);
+    }
+
+    .profile-modal-hero[data-frame="legend"] {
+        border-color: rgba(255, 219, 122, 0.32);
+        background: linear-gradient(180deg, rgba(52, 34, 10, 0.82), rgba(18, 14, 10, 0.94));
+        box-shadow: 0 0 0 1px rgba(255, 219, 122, 0.1), 0 22px 36px rgba(26, 16, 4, 0.24);
+    }
+
     .profile-modal-avatar {
         width: 68px;
         height: 68px;
@@ -3042,6 +3059,58 @@ Owner decisions:
         color: rgba(255, 255, 255, 0.72);
         font-size: 14px;
         line-height: 1.5;
+    }
+
+    .profile-title-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #f7fcff;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+    }
+
+    .profile-title-chip::before {
+        content: "★";
+        color: #ffe188;
+    }
+
+    .profile-trophy-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .profile-trophy-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(18, 25, 48, 0.72), rgba(10, 14, 28, 0.88));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #f7fdff;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .profile-trophy-chip strong {
+        font-size: 12px;
+        color: #f7fdff;
+    }
+
+    .profile-trophy-chip span {
+        display: block;
+        color: rgba(255, 255, 255, 0.66);
+        font-size: 11px;
     }
 
     .profile-badge-row {
@@ -5573,14 +5642,16 @@ function showNotification(message, type = 'success', duration = 3000) {
     <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
         <div class="skin-action-modal-title" id="profileModalTitle">Профиль</div>
         <div class="skin-action-modal-text">Статистика кликера, мини-игры, лидерских наград и достижений.</div>
-        <div class="profile-modal-hero">
+        <div class="profile-modal-hero" id="profileModalHero">
             <div class="profile-modal-avatar">🦫</div>
             <div>
                 <div class="profile-modal-login" id="profileModalLogin">Игрок</div>
+                <div class="profile-title-chip" id="profileModalTitleChip">Начинающий бобр</div>
                 <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
             </div>
         </div>
         <div class="profile-badge-row" id="profileModalBadges"></div>
+        <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
         <div class="profile-achievements-title">Квесты</div>
         <div class="profile-quests-grid" id="profileModalQuests"></div>
@@ -5989,18 +6060,33 @@ const leaderboardProfileState = {
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
 
+function getDefaultProfileHonors() {
+    return {
+        title: 'Начинающий бобр',
+        frame: 'common',
+        frameLabel: 'Базовая рамка',
+        trophies: []
+    };
+}
+
 function getDefaultProfileSummary() {
     return {
         ownedSkins: 0,
         achievementsUnlocked: 0,
         clickerTop1: false,
         flyTop1: false,
+        rareSkins: 0,
+        epicSkins: 0,
+        legendarySkins: 0,
+        grantOnlySkins: 0,
+        topRewardSkins: 0,
         score: 0,
         plus: 1,
         energyMax: 5000,
         flyBest: 0,
         flyPending: 0,
-        flyGamesPlayed: 0
+        flyGamesPlayed: 0,
+        honors: getDefaultProfileHonors()
     };
 }
 
@@ -6014,11 +6100,17 @@ function getDefaultLeaderboardPublicProfile() {
             achievementsUnlocked: 0,
             clickerTop1: false,
             flyTop1: false,
+            rareSkins: 0,
+            epicSkins: 0,
+            legendarySkins: 0,
+            grantOnlySkins: 0,
+            topRewardSkins: 0,
             score: 0,
             plus: 1,
             energyMax: 5000,
             flyBest: 0,
-            flyGamesPlayed: 0
+            flyGamesPlayed: 0,
+            honors: getDefaultProfileHonors()
         },
         skins: {
             equipped: null,
@@ -6045,6 +6137,38 @@ function getDefaultQuestState() {
             periodKey: '',
             items: []
         }
+    };
+}
+
+function normalizeProfileTrophy(rawTrophy) {
+    if (!rawTrophy || typeof rawTrophy !== 'object') {
+        return null;
+    }
+
+    const label = String(rawTrophy.label || '').trim();
+    if (!label) {
+        return null;
+    }
+
+    return {
+        icon: String(rawTrophy.icon || '🏅').trim() || '🏅',
+        label,
+        description: String(rawTrophy.description || '').trim()
+    };
+}
+
+function normalizeProfileHonors(rawHonors) {
+    const defaults = getDefaultProfileHonors();
+    const frame = String(rawHonors?.frame || defaults.frame).trim().toLowerCase();
+    const normalizedFrame = ['common', 'rare', 'epic', 'legend'].includes(frame) ? frame : defaults.frame;
+
+    return {
+        title: String(rawHonors?.title || defaults.title).trim() || defaults.title,
+        frame: normalizedFrame,
+        frameLabel: String(rawHonors?.frameLabel || defaults.frameLabel).trim() || defaults.frameLabel,
+        trophies: Array.isArray(rawHonors?.trophies)
+            ? rawHonors.trophies.map((item) => normalizeProfileTrophy(item)).filter(Boolean)
+            : []
     };
 }
 
@@ -6098,11 +6222,17 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
             achievementsUnlocked: Math.max(0, Number(rawProfile.achievementsUnlocked) || achievements.length),
             clickerTop1: Boolean(rawProfile.clickerTop1),
             flyTop1: Boolean(rawProfile.flyTop1),
+            rareSkins: Math.max(0, Number(rawProfile.rareSkins) || 0),
+            epicSkins: Math.max(0, Number(rawProfile.epicSkins) || 0),
+            legendarySkins: Math.max(0, Number(rawProfile.legendarySkins) || 0),
+            grantOnlySkins: Math.max(0, Number(rawProfile.grantOnlySkins) || 0),
+            topRewardSkins: Math.max(0, Number(rawProfile.topRewardSkins) || 0),
             score: Math.max(0, Number(rawProfile.score) || 0),
             plus: Math.max(1, Number(rawProfile.plus) || 1),
             energyMax: Math.max(1, Number(rawProfile.energyMax) || 5000),
             flyBest: Math.max(0, Number(rawProfile.flyBest) || 0),
-            flyGamesPlayed: Math.max(0, Number(rawProfile.flyGamesPlayed) || 0)
+            flyGamesPlayed: Math.max(0, Number(rawProfile.flyGamesPlayed) || 0),
+            honors: normalizeProfileHonors(rawProfile.honors)
         },
         skins: {
             equipped: equippedSkin,
@@ -8219,6 +8349,23 @@ function closeAuthModal() {
     syncGlobalOverlayState();
 }
 
+function buildProfileTrophyHtml(trophies) {
+    const normalizedTrophies = Array.isArray(trophies) ? trophies.filter(Boolean) : [];
+    if (normalizedTrophies.length < 1) {
+        return '<div class="profile-achievement-empty" style="margin:0;">Трофеи и статусные награды появятся здесь по мере роста аккаунта.</div>';
+    }
+
+    return normalizedTrophies.map((item) => `
+        <div class="profile-trophy-chip" title="${escapeHtmlText(item.description || item.label)}">
+            <span aria-hidden="true">${escapeHtmlText(item.icon || '🏅')}</span>
+            <div>
+                <strong>${escapeHtmlText(item.label || 'Трофей')}</strong>
+                <span>${escapeHtmlText(item.description || 'Статусная награда игрока.')}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
 function requestAuthModal(tab = 'login', options = {}) {
     if (userId) {
         return true;
@@ -8308,19 +8455,23 @@ function formatAchievementDate(value) {
 }
 
 function renderProfileModal() {
+    const heroNode = document.getElementById('profileModalHero');
     const loginNode = document.getElementById('profileModalLogin');
+    const titleChipNode = document.getElementById('profileModalTitleChip');
     const subtitleNode = document.getElementById('profileModalSubtitle');
     const badgesNode = document.getElementById('profileModalBadges');
+    const trophiesNode = document.getElementById('profileModalTrophies');
     const statsNode = document.getElementById('profileModalStats');
     const questsNode = document.getElementById('profileModalQuests');
     const achievementsNode = document.getElementById('profileModalAchievements');
 
-    if (!loginNode || !subtitleNode || !badgesNode || !statsNode || !questsNode || !achievementsNode) {
+    if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !questsNode || !achievementsNode) {
         return;
     }
 
     const resolvedLogin = currentLogin || 'Игрок';
     const summary = normalizeProfileSummary(profileSummary);
+    const honors = normalizeProfileHonors(summary.honors);
     const normalizedQuests = normalizeQuestState(questState);
     const unlockedItems = normalizeAchievementList(unlockedAchievements);
     const unlockedByKey = unlockedItems.reduce((accumulator, item) => {
@@ -8336,6 +8487,12 @@ function renderProfileModal() {
         badgeItems.push('<span class="profile-badge top">🏆 Топ-1 Летающего бобра</span>');
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${formatCompactNumber(summary.ownedSkins)}</span>`);
+    if (summary.legendarySkins > 0) {
+        badgeItems.push(`<span class="profile-badge">🌟 Легендарных: ${formatCompactNumber(summary.legendarySkins)}</span>`);
+    }
+    if (summary.grantOnlySkins > 0) {
+        badgeItems.push(`<span class="profile-badge">🔐 Эксклюзивных: ${formatCompactNumber(summary.grantOnlySkins)}</span>`);
+    }
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || unlockedItems.length)}</span>`);
     badgeItems.push(`<span class="profile-badge">🗓️ Daily: ${formatCompactNumber(summary.dailyQuestCompleted)}/${formatCompactNumber(summary.dailyQuestTotal)}</span>`);
     badgeItems.push(`<span class="profile-badge">📆 Weekly: ${formatCompactNumber(summary.weeklyQuestCompleted)}/${formatCompactNumber(summary.weeklyQuestTotal)}</span>`);
@@ -8348,16 +8505,22 @@ function renderProfileModal() {
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'В очереди fly-beaver', value: formatLeaderboardScore(summary.flyPending) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
+        { label: 'Редких скинов', value: formatLeaderboardScore(summary.rareSkins) },
+        { label: 'Топ-наград', value: formatLeaderboardScore(summary.topRewardSkins) },
         { label: 'Daily выполнено', value: `${formatLeaderboardScore(summary.dailyQuestCompleted)}/${formatLeaderboardScore(summary.dailyQuestTotal)}` },
         { label: 'Weekly выполнено', value: `${formatLeaderboardScore(summary.weeklyQuestCompleted)}/${formatLeaderboardScore(summary.weeklyQuestTotal)}` },
         { label: 'Открытых тикетов', value: formatLeaderboardScore(supportSummary.openTickets || 0) }
     ];
 
+    heroNode.dataset.frame = honors.frame || 'common';
     loginNode.textContent = resolvedLogin;
+    titleChipNode.textContent = honors.title;
+    titleChipNode.title = honors.frameLabel || honors.title;
     subtitleNode.textContent = summary.clickerTop1 || summary.flyTop1
         ? 'Лидерские статусы и облачные достижения обновляются автоматически.'
         : 'Сводка по основному прогрессу, мини-игре и облачным достижениям.';
     badgesNode.innerHTML = badgeItems.join('');
+    trophiesNode.innerHTML = buildProfileTrophyHtml(honors.trophies);
     statsNode.innerHTML = stats.map((item) => `
         <div class="profile-stat-card">
             <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
@@ -8543,6 +8706,7 @@ function renderLeaderboardPublicProfileModal() {
     const equippedSkin = data.skins.equipped;
     const collectionSkins = Array.isArray(data.skins.collection) ? data.skins.collection : [];
     const unlockedAchievements = Array.isArray(data.achievements) ? [...data.achievements] : [];
+    const honors = normalizeProfileHonors(summary.honors);
     const badgeItems = [];
 
     if (summary.clickerTop1) {
@@ -8553,6 +8717,12 @@ function renderLeaderboardPublicProfileModal() {
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
     badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
+    if (summary.legendarySkins > 0) {
+        badgeItems.push(`<span class="profile-badge">🌟 Легендарных: ${escapeHtmlText(formatCompactNumber(summary.legendarySkins))}</span>`);
+    }
+    if (summary.grantOnlySkins > 0) {
+        badgeItems.push(`<span class="profile-badge">🔐 Эксклюзивных: ${escapeHtmlText(formatCompactNumber(summary.grantOnlySkins))}</span>`);
+    }
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${escapeHtmlText(formatCompactNumber(summary.achievementsUnlocked || unlockedAchievements.length))}</span>`);
 
     const stats = [
@@ -8560,7 +8730,9 @@ function renderLeaderboardPublicProfileModal() {
         { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
-        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) }
+        { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
+        { label: 'Редких скинов', value: formatLeaderboardScore(summary.rareSkins) },
+        { label: 'Топ-наград', value: formatLeaderboardScore(summary.topRewardSkins) }
     ];
 
     const equippedHtml = equippedSkin
@@ -8627,16 +8799,18 @@ function renderLeaderboardPublicProfileModal() {
         : '<div class="public-profile-empty">Игрок пока не открыл публичные достижения.</div>';
 
     contentNode.innerHTML = `
-        <div class="profile-modal-hero">
+        <div class="profile-modal-hero" data-frame="${escapeHtmlText(honors.frame || 'common')}">
             <div class="public-profile-avatar">
                 ${equippedSkin ? `<img src="${escapeHtmlText(equippedSkin.image)}" alt="${escapeHtmlText(equippedSkin.name)}" loading="lazy" decoding="async">` : '🦫'}
             </div>
             <div>
                 <div class="profile-modal-login">${escapeHtmlText(data.login)}</div>
+                <div class="profile-title-chip" title="${escapeHtmlText(honors.frameLabel || honors.title)}">${escapeHtmlText(honors.title)}</div>
                 <div class="profile-modal-subtitle">Публичная карточка игрока из таблицы лидеров. Здесь виден установленный скин и собранная коллекция.</div>
             </div>
         </div>
         <div class="profile-badge-row">${badgeItems.join('')}</div>
+        <div class="profile-trophy-row">${buildProfileTrophyHtml(honors.trophies)}</div>
         <div class="profile-stats-grid">
             ${stats.map((item) => `
                 <div class="profile-stat-card">
@@ -10937,6 +11111,11 @@ function normalizeProfileSummary(rawSummary) {
         achievementsUnlocked: Math.max(0, Number(rawSummary.achievementsUnlocked) || 0),
         clickerTop1: Boolean(rawSummary.clickerTop1),
         flyTop1: Boolean(rawSummary.flyTop1),
+        rareSkins: Math.max(0, Number(rawSummary.rareSkins) || 0),
+        epicSkins: Math.max(0, Number(rawSummary.epicSkins) || 0),
+        legendarySkins: Math.max(0, Number(rawSummary.legendarySkins) || 0),
+        grantOnlySkins: Math.max(0, Number(rawSummary.grantOnlySkins) || 0),
+        topRewardSkins: Math.max(0, Number(rawSummary.topRewardSkins) || 0),
         score: Math.max(0, Number(rawSummary.score) || 0),
         plus: Math.max(1, Number(rawSummary.plus) || 1),
         energyMax: Math.max(1, Number(rawSummary.energyMax) || 5000),
@@ -10946,7 +11125,8 @@ function normalizeProfileSummary(rawSummary) {
         dailyQuestCompleted: Math.max(0, Number(rawSummary.dailyQuestCompleted) || 0),
         dailyQuestTotal: Math.max(0, Number(rawSummary.dailyQuestTotal) || 0),
         weeklyQuestCompleted: Math.max(0, Number(rawSummary.weeklyQuestCompleted) || 0),
-        weeklyQuestTotal: Math.max(0, Number(rawSummary.weeklyQuestTotal) || 0)
+        weeklyQuestTotal: Math.max(0, Number(rawSummary.weeklyQuestTotal) || 0),
+        honors: normalizeProfileHonors(rawSummary.honors)
     };
 }
 
