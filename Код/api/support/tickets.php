@@ -67,16 +67,36 @@ try {
         return $userId;
     };
 
+    $resolveRestrictedSupportUserId = static function(mysqli $conn, array $payload) use ($resolveAppealUserId) {
+        $resolvedUserId = $resolveAppealUserId($conn, $payload);
+        $activeBan = bober_fetch_active_user_ban($conn, $resolvedUserId);
+        if (!is_array($activeBan)) {
+            throw new RuntimeException('Ограниченный доступ к тикетам доступен только для активной апелляции по бану.');
+        }
+
+        return $resolvedUserId;
+    };
+
     if ($action === 'list_tickets') {
-        if ($sessionUserId === null) {
+        $resolvedUserId = $sessionUserId;
+        if ($resolvedUserId === null) {
+            try {
+                $resolvedUserId = $resolveRestrictedSupportUserId($conn, $data);
+            } catch (Throwable $restrictedError) {
+                $conn->close();
+                bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы открыть тикеты.'], 401);
+            }
+        }
+
+        if ($resolvedUserId === null) {
             $conn->close();
             bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы открыть тикеты.'], 401);
         }
 
-        $tickets = bober_fetch_user_support_tickets($conn, $sessionUserId, [
+        $tickets = bober_fetch_user_support_tickets($conn, $resolvedUserId, [
             'limit' => (int) ($data['limit'] ?? 50),
         ]);
-        $summary = bober_fetch_user_support_summary($conn, $sessionUserId);
+        $summary = bober_fetch_user_support_summary($conn, $resolvedUserId);
         $conn->close();
 
         bober_json_response([
@@ -87,13 +107,23 @@ try {
     }
 
     if ($action === 'get_ticket') {
-        if ($sessionUserId === null) {
+        $resolvedUserId = $sessionUserId;
+        if ($resolvedUserId === null) {
+            try {
+                $resolvedUserId = $resolveRestrictedSupportUserId($conn, $data);
+            } catch (Throwable $restrictedError) {
+                $conn->close();
+                bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы открыть тикет.'], 401);
+            }
+        }
+
+        if ($resolvedUserId === null) {
             $conn->close();
             bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы открыть тикет.'], 401);
         }
 
-        $ticket = bober_fetch_user_support_ticket($conn, $sessionUserId, (int) ($data['ticketId'] ?? 0), true);
-        $summary = bober_fetch_user_support_summary($conn, $sessionUserId);
+        $ticket = bober_fetch_user_support_ticket($conn, $resolvedUserId, (int) ($data['ticketId'] ?? 0), true);
+        $summary = bober_fetch_user_support_summary($conn, $resolvedUserId);
         $conn->close();
 
         bober_json_response([
@@ -133,7 +163,17 @@ try {
     }
 
     if ($action === 'reply_ticket') {
-        if ($sessionUserId === null) {
+        $resolvedUserId = $sessionUserId;
+        if ($resolvedUserId === null) {
+            try {
+                $resolvedUserId = $resolveRestrictedSupportUserId($conn, $data);
+            } catch (Throwable $restrictedError) {
+                $conn->close();
+                bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы ответить в тикет.'], 401);
+            }
+        }
+
+        if ($resolvedUserId === null) {
             $conn->close();
             bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы ответить в тикет.'], 401);
         }
@@ -141,12 +181,12 @@ try {
         $conn->begin_transaction();
         $ticket = bober_reply_support_ticket_as_user(
             $conn,
-            $sessionUserId,
+            $resolvedUserId,
             (int) ($data['ticketId'] ?? 0),
             (string) ($data['message'] ?? ''),
             $data['attachments'] ?? []
         );
-        $summary = bober_fetch_user_support_summary($conn, $sessionUserId);
+        $summary = bober_fetch_user_support_summary($conn, $resolvedUserId);
         $conn->commit();
         $conn->close();
 
@@ -159,13 +199,23 @@ try {
     }
 
     if ($action === 'mark_ticket_read') {
-        if ($sessionUserId === null) {
+        $resolvedUserId = $sessionUserId;
+        if ($resolvedUserId === null) {
+            try {
+                $resolvedUserId = $resolveRestrictedSupportUserId($conn, $data);
+            } catch (Throwable $restrictedError) {
+                $conn->close();
+                bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы отметить тикет прочитанным.'], 401);
+            }
+        }
+
+        if ($resolvedUserId === null) {
             $conn->close();
             bober_json_response(['success' => false, 'message' => 'Войдите в аккаунт, чтобы отметить тикет прочитанным.'], 401);
         }
 
-        bober_mark_user_support_ticket_read($conn, $sessionUserId, (int) ($data['ticketId'] ?? 0));
-        $summary = bober_fetch_user_support_summary($conn, $sessionUserId);
+        bober_mark_user_support_ticket_read($conn, $resolvedUserId, (int) ($data['ticketId'] ?? 0));
+        $summary = bober_fetch_user_support_summary($conn, $resolvedUserId);
         $conn->close();
 
         bober_json_response([

@@ -8783,9 +8783,32 @@ function getSupportRefreshInterval() {
     return SUPPORT_LIVE_REFRESH_CONFIG.listIntervalMs;
 }
 
+function getRestrictedSupportAccessPayload() {
+    if (userId) {
+        return {};
+    }
+
+    const draft = supportState.composeAppeal && typeof supportState.composeAppeal === 'object'
+        ? supportState.composeAppeal
+        : buildSupportAppealDraft(window.__boberBanInfo);
+    const appealUserId = Number(draft.appealUserId) || 0;
+    const appealLogin = String(draft.appealLogin || '').trim();
+
+    if (appealUserId < 1 || appealLogin === '') {
+        return {};
+    }
+
+    return {
+        appealUserId,
+        appealLogin
+    };
+}
+
 function scheduleSupportLiveRefresh(delayMs = getSupportRefreshInterval()) {
     stopSupportLiveRefresh();
-    if (!userId || document.hidden || !isSupportModalOpen()) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+    if ((!userId && !hasRestrictedAccess) || document.hidden || !isSupportModalOpen()) {
         return;
     }
 
@@ -8797,7 +8820,9 @@ function scheduleSupportLiveRefresh(delayMs = getSupportRefreshInterval()) {
 }
 
 async function refreshSupportLiveView() {
-    if (supportLiveRefreshState.inFlight || !userId || document.hidden || !isSupportModalOpen()) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+    if (supportLiveRefreshState.inFlight || (!userId && !hasRestrictedAccess) || document.hidden || !isSupportModalOpen()) {
         return;
     }
 
@@ -8862,12 +8887,6 @@ async function refreshSkinCatalogLive(options = {}) {
 function renderSupportTicketList() {
     const listNode = document.getElementById('supportTicketList');
     if (!listNode) {
-        return;
-    }
-
-    if (!userId && supportState.composeAppeal) {
-        listNode.innerHTML = '<div class="empty-list">Для апелляции доступна только форма нового тикета. Входящие откроются после входа в аккаунт.</div>';
-        supportState.listSignature = 'appeal-only';
         return;
     }
 
@@ -9082,11 +9101,13 @@ function applySupportComposeDraft() {
     renderSupportAttachmentDraftList('compose');
     noteNode.textContent = userId
         ? 'Заявка будет отправлена из текущего аккаунта и сразу появится в вашем списке тикетов.'
-        : 'Апелляция будет привязана к указанному аккаунту по логину и user ID.';
+        : 'Апелляция будет привязана к указанному аккаунту по логину и user ID. Ответы поддержки будут доступны в этом же окне.';
 }
 
 async function loadSupportTickets(options = {}) {
-    if (!userId) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+    if (!userId && !hasRestrictedAccess) {
         renderSupportTicketList();
         renderSupportTicketThread();
         return;
@@ -9105,12 +9126,16 @@ async function loadSupportTickets(options = {}) {
             },
             body: JSON.stringify({
                 action: 'list_tickets',
-                limit: options.limit || 50
+                limit: options.limit || 50,
+                ...restrictedAccess
             })
         });
 
         supportState.tickets = Array.isArray(data.tickets) ? data.tickets.map(normalizeSupportTicket).filter(Boolean) : [];
         applySupportSummary(data.summary || supportSummary);
+        if (!userId && hasRestrictedAccess && supportState.activeTab === 'inbox' && supportState.tickets.length < 1) {
+            setSupportModalTab('create');
+        }
         if (!supportState.selectedTicketId && supportState.tickets.length > 0) {
             supportState.selectedTicketId = supportState.tickets[0].id;
         }
@@ -9147,7 +9172,9 @@ async function loadSupportTickets(options = {}) {
 }
 
 async function loadSupportTicket(ticketId, options = {}) {
-    if (!userId || Number(ticketId) < 1) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+    if ((!userId && !hasRestrictedAccess) || Number(ticketId) < 1) {
         supportState.selectedTicket = null;
         renderSupportTicketThread();
         return;
@@ -9165,7 +9192,8 @@ async function loadSupportTicket(ticketId, options = {}) {
             },
             body: JSON.stringify({
                 action: 'get_ticket',
-                ticketId: Number(ticketId)
+                ticketId: Number(ticketId),
+                ...restrictedAccess
             })
         });
 
@@ -9191,7 +9219,10 @@ function openSupportCenter(options = {}) {
         return;
     }
 
-    if (!userId && !options.appealContext) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+
+    if (!userId && !hasRestrictedAccess && !options.appealContext) {
         requestAuthModal('login', {
             title: 'Нужен аккаунт поддержки',
             text: 'Чтобы писать в поддержку и получать ответы, войдите в аккаунт.'
@@ -9204,7 +9235,7 @@ function openSupportCenter(options = {}) {
     supportState.composeAppeal = options.appealContext || null;
     resetSupportDraftAttachments('all');
     applySupportComposeDraft();
-    setSupportModalTab(options.appealContext ? 'create' : (options.tab || supportState.activeTab || 'inbox'));
+    setSupportModalTab(options.tab || supportState.activeTab || 'inbox');
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
@@ -9215,7 +9246,7 @@ function openSupportCenter(options = {}) {
         silent: true
     });
 
-    if (userId) {
+    if (userId || hasRestrictedAccess) {
         loadSupportTickets().catch((error) => {
             console.warn('Не удалось обновить тикеты при открытии поддержки.', error);
         }).finally(() => {
@@ -9246,6 +9277,8 @@ async function submitSupportTicket() {
     const topicNode = document.getElementById('supportTicketTopic');
     const messageNode = document.getElementById('supportTicketMessage');
     const button = document.getElementById('supportCreateTicketButton');
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
     if (!topicNode || !messageNode || !button) {
         return;
     }
@@ -9283,7 +9316,7 @@ async function submitSupportTicket() {
         });
 
         const normalizedTicket = normalizeSupportTicket(data.ticket);
-        if (userId && normalizedTicket) {
+        if ((userId || hasRestrictedAccess) && normalizedTicket) {
             supportState.selectedTicket = upsertSupportTicket(normalizedTicket);
             supportState.selectedTicketId = normalizedTicket.id;
             setSupportModalTab('inbox');
@@ -9311,7 +9344,9 @@ async function submitSupportReply() {
     const replyNode = document.getElementById('supportReplyMessage');
     const button = document.getElementById('supportReplyButton');
     const ticketId = Number(supportState.selectedTicketId) || 0;
-    if (!replyNode || !button || ticketId < 1 || !userId) {
+    const restrictedAccess = getRestrictedSupportAccessPayload();
+    const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
+    if (!replyNode || !button || ticketId < 1 || (!userId && !hasRestrictedAccess)) {
         return;
     }
 
@@ -9338,7 +9373,8 @@ async function submitSupportReply() {
                 action: 'reply_ticket',
                 ticketId,
                 message,
-                attachments
+                attachments,
+                ...restrictedAccess
             })
         });
 
@@ -11120,7 +11156,7 @@ function buildSupportAppealText(banInfo = null) {
 
 async function openSupportAppeal(banInfo = null) {
     openSupportCenter({
-        tab: 'create',
+        tab: 'inbox',
         appealContext: buildSupportAppealDraft(banInfo)
     });
 }
