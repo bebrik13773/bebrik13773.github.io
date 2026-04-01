@@ -5231,11 +5231,11 @@ function showNotification(message, type = 'success', duration = 3000) {
     <h1>БОБЕР 🦫 КЛИКЕР 2</h1>
     <div class="top-utility-bar" data-palette="profile">
         <div class="top-utility-actions">
-            <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки">
+            <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки" title="Настройки (S)">
                 <span class="utility-glass-icon">⚙️</span>
             </button>
             <div class="profile-menu-shell" id="profileMenuShell" hidden>
-                <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true">
+                <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true" title="Профиль (P)">
                     <span class="profile-menu-avatar">🦫</span>
                     <span class="profile-menu-text">
                         <span class="profile-menu-label">Профиль</span>
@@ -5299,9 +5299,9 @@ function showNotification(message, type = 'success', duration = 3000) {
 		<button onclick="score = score +1000;">+1000</button>
 	</div>
 <br>
-<button id="shopButton" onclick="shopShow()">Магазин</button>
+<button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <br>
-<button class="shop-action-btn" id="flyBeaverOpenButton" type="button">Летающий бобер</button>
+<button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">Летающий бобер</button>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
     <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
@@ -14673,6 +14673,64 @@ document.addEventListener('keydown', function(event) {
         source: 'keyboard',
         activationKey: isSpace ? 'Space' : 'Enter'
     });
+});
+
+document.addEventListener('keydown', function(event) {
+    if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+    }
+
+    if (isEditableKeyboardTarget(event.target) || isInteractiveKeyboardTarget(event.target) || isClickerShortcutBlocked()) {
+        return;
+    }
+
+    const shortcutMap = {
+        KeyM: {
+            label: 'магазин',
+            handler: () => shopShow()
+        },
+        KeyP: {
+            label: 'профиль',
+            handler: () => {
+                if (!userId) {
+                    requestAuthModal('login', {
+                        title: 'Нужен аккаунт',
+                        text: 'Войдите в аккаунт, чтобы открыть профиль и облачную статистику.'
+                    });
+                    return;
+                }
+                openProfileModal();
+            }
+        },
+        KeyS: {
+            label: 'настройки',
+            handler: () => openSettingsModal()
+        },
+        KeyF: {
+            label: 'fly-beaver',
+            handler: () => {
+                openFlyBeaverGame().catch((error) => {
+                    console.error('Не удалось открыть fly-beaver по горячей клавише:', error);
+                    showNotification(error.message || 'Не удалось открыть Летающего бобра.', 'error');
+                });
+            }
+        }
+    };
+
+    const shortcut = shortcutMap[event.code];
+    if (!shortcut) {
+        return;
+    }
+
+    event.preventDefault();
+    logClientEvent('ui', 'keyboard_shortcut', {
+        shortcut: event.code,
+        target: shortcut.label
+    }, {
+        source: 'keyboard_shortcut',
+        description: `Игрок открыл ${shortcut.label} с клавиатуры.`
+    });
+    shortcut.handler();
 });
 
 document.getElementById('clicker').onclick = function(e) {
