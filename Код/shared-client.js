@@ -420,7 +420,8 @@
                 mode: 'full'
             },
             notifications: {
-                enabled: true
+                enabled: true,
+                browserEnabled: false
             },
             effects: {
                 quality: 'high'
@@ -469,7 +470,10 @@
             notifications: {
                 enabled: !Object.prototype.hasOwnProperty.call(raw.notifications || {}, 'enabled')
                     ? defaults.notifications.enabled
-                    : Boolean((raw.notifications || {}).enabled)
+                    : Boolean((raw.notifications || {}).enabled),
+                browserEnabled: !Object.prototype.hasOwnProperty.call(raw.notifications || {}, 'browserEnabled')
+                    ? defaults.notifications.browserEnabled
+                    : Boolean((raw.notifications || {}).browserEnabled)
             },
             effects: {
                 quality: effectsQuality

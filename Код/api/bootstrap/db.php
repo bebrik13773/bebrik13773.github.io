@@ -2720,6 +2720,7 @@ function bober_default_user_settings()
         ],
         'notifications' => [
             'enabled' => true,
+            'browserEnabled' => false,
         ],
         'effects' => [
             'quality' => 'high',
@@ -2756,6 +2757,9 @@ function bober_normalize_user_settings($settings)
     $notificationsEnabled = !array_key_exists('enabled', (array) ($raw['notifications'] ?? []))
         ? $defaults['notifications']['enabled']
         : !empty($raw['notifications']['enabled']);
+    $browserNotificationsEnabled = !array_key_exists('browserEnabled', (array) ($raw['notifications'] ?? []))
+        ? $defaults['notifications']['browserEnabled']
+        : !empty($raw['notifications']['browserEnabled']);
 
     $effectsQuality = trim((string) ($raw['effects']['quality'] ?? $defaults['effects']['quality']));
     if (!in_array($effectsQuality, ['low', 'medium', 'high'], true)) {
@@ -2777,6 +2781,7 @@ function bober_normalize_user_settings($settings)
         ],
         'notifications' => [
             'enabled' => $notificationsEnabled,
+            'browserEnabled' => $browserNotificationsEnabled,
         ],
         'effects' => [
             'quality' => $effectsQuality,

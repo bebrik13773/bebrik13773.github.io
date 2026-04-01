@@ -5427,6 +5427,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                     <label for="settingsNotificationsEnabled">Показывать уведомления</label>
                     <input type="checkbox" id="settingsNotificationsEnabled">
                 </div>
+                <div class="settings-card-actions">
+                    <button type="button" class="settings-action-button muted" id="settingsBrowserNotificationsButton">Разрешить уведомления браузера</button>
+                </div>
+                <div class="settings-card-text" id="settingsBrowserNotificationsStatus">Системные уведомления браузера выключены.</div>
             </div>
             <div class="settings-card">
                 <div class="settings-card-title">Локальные данные</div>
@@ -6170,6 +6174,7 @@ const supportNoticeState = {
     initialized: false,
     lastUnreadReplies: 0
 };
+let browserNotificationRequestInFlight = false;
 let bootLoadingOverlayDismissed = false;
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
@@ -6552,7 +6557,7 @@ let userSettings = SHARED_CLIENT.readCachedUserSettings
         audio: { musicEnabled: true, effectsEnabled: true, flyVolume: 100 },
         vibration: { enabled: true, intensity: 'medium' },
         animations: { mode: 'full' },
-        notifications: { enabled: true },
+        notifications: { enabled: true, browserEnabled: false },
         effects: { quality: 'high' }
     };
 const bootPendingSettingsSync = readPendingSettingsSync();
@@ -7113,6 +7118,173 @@ function updateSettingsInputs() {
     if (effectsQualityNode) {
         effectsQualityNode.value = normalized.effects.quality;
     }
+
+    updateBrowserNotificationsControls();
+}
+
+function getBrowserNotificationPermissionState() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+        return 'unsupported';
+    }
+
+    return String(Notification.permission || 'default').trim().toLowerCase();
+}
+
+function canUseBrowserNotifications() {
+    const normalized = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    return Boolean(normalized.notifications.enabled)
+        && Boolean(normalized.notifications.browserEnabled)
+        && getBrowserNotificationPermissionState() === 'granted';
+}
+
+function updateBrowserNotificationsControls() {
+    const buttonNode = document.getElementById('settingsBrowserNotificationsButton');
+    const statusNode = document.getElementById('settingsBrowserNotificationsStatus');
+    if (!buttonNode || !statusNode) {
+        return;
+    }
+
+    const normalized = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    const permissionState = getBrowserNotificationPermissionState();
+    const notificationsEnabled = Boolean(normalized.notifications.enabled);
+    const browserEnabled = Boolean(normalized.notifications.browserEnabled);
+
+    buttonNode.disabled = browserNotificationRequestInFlight || permissionState === 'unsupported' || permissionState === 'denied';
+
+    if (permissionState === 'unsupported') {
+        buttonNode.textContent = 'Браузер не поддерживает уведомления';
+        statusNode.textContent = 'Этот браузер не поддерживает системные уведомления.';
+        return;
+    }
+
+    if (permissionState === 'denied') {
+        buttonNode.textContent = 'Разрешение заблокировано';
+        statusNode.textContent = 'Браузер заблокировал системные уведомления. Разрешите их в настройках сайта.';
+        return;
+    }
+
+    if (permissionState === 'granted' && browserEnabled) {
+        buttonNode.textContent = 'Уведомления браузера включены';
+        statusNode.textContent = notificationsEnabled
+            ? 'Системные уведомления браузера активны для новых ответов поддержки.'
+            : 'Разрешение браузера есть, но общие уведомления в игре выключены.';
+        return;
+    }
+
+    if (permissionState === 'granted') {
+        buttonNode.textContent = 'Включить уведомления браузера';
+        statusNode.textContent = 'Разрешение браузера уже выдано. Можно включить системные уведомления для поддержки.';
+        return;
+    }
+
+    buttonNode.textContent = 'Разрешить уведомления браузера';
+    statusNode.textContent = 'Системные уведомления браузера выключены.';
+}
+
+function setBrowserNotificationsEnabled(enabled, options = {}) {
+    applyUserSettings({
+        ...userSettings,
+        notifications: {
+            ...normalizeUserSettings(userSettings).notifications,
+            browserEnabled: Boolean(enabled)
+        }
+    });
+
+    if (options.markDirty !== false) {
+        markSettingsDirty();
+    }
+}
+
+async function requestBrowserNotificationAccess() {
+    const permissionState = getBrowserNotificationPermissionState();
+    if (permissionState === 'unsupported') {
+        showNotification('Этот браузер не поддерживает системные уведомления.', 'warning');
+        updateBrowserNotificationsControls();
+        return false;
+    }
+
+    if (permissionState === 'denied') {
+        showNotification('Разрешение на уведомления уже заблокировано в браузере.', 'warning');
+        updateBrowserNotificationsControls();
+        return false;
+    }
+
+    if (browserNotificationRequestInFlight) {
+        return false;
+    }
+
+    browserNotificationRequestInFlight = true;
+    updateBrowserNotificationsControls();
+
+    try {
+        let resolvedPermission = permissionState;
+        if (permissionState !== 'granted') {
+            resolvedPermission = String(await Notification.requestPermission()).trim().toLowerCase();
+        }
+
+        if (resolvedPermission === 'granted') {
+            setBrowserNotificationsEnabled(true);
+            showNotification('Системные уведомления браузера включены.', 'success');
+            return true;
+        }
+
+        setBrowserNotificationsEnabled(false);
+        showNotification('Браузерные уведомления не были разрешены.', 'warning');
+        return false;
+    } catch (error) {
+        console.warn('Не удалось запросить разрешение на системные уведомления.', error);
+        showNotification('Не удалось включить уведомления браузера.', 'error');
+        return false;
+    } finally {
+        browserNotificationRequestInFlight = false;
+        updateBrowserNotificationsControls();
+    }
+}
+
+function showBrowserNotification(title, body, options = {}) {
+    if (!canUseBrowserNotifications()) {
+        return false;
+    }
+
+    const pageVisible = !document.hidden && (typeof document.hasFocus !== 'function' || document.hasFocus());
+    if (pageVisible) {
+        return false;
+    }
+
+    try {
+        const notification = new Notification(String(title || 'Bober Clicker').trim(), {
+            body: String(body || '').trim(),
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            tag: String(options.tag || 'bober-system-notification').trim() || undefined,
+            renotify: Boolean(options.renotify),
+            data: options.data && typeof options.data === 'object' ? options.data : {}
+        });
+        const closeTimer = window.setTimeout(() => {
+            notification.close();
+        }, Math.max(4000, Number(options.durationMs) || 9000));
+
+        notification.onclick = () => {
+            window.clearTimeout(closeTimer);
+            try {
+                window.focus();
+            } catch (error) {
+                console.warn('Не удалось сфокусировать окно после системного уведомления.', error);
+            }
+
+            if (typeof options.onClick === 'function') {
+                options.onClick();
+            }
+            notification.close();
+        };
+        notification.onclose = () => {
+            window.clearTimeout(closeTimer);
+        };
+        return true;
+    } catch (error) {
+        console.warn('Не удалось показать системное уведомление браузера.', error);
+        return false;
+    }
 }
 
 function updateSettingsStatus(message, variant = 'idle') {
@@ -7141,6 +7313,7 @@ function applyUserSettings(settings, options = {}) {
     }
 
     applySettingsVisualState();
+    updateBrowserNotificationsControls();
     if (options.updateInputs !== false) {
         updateSettingsInputs();
     }
@@ -10762,13 +10935,27 @@ function notifyAboutNewSupportReplies(nextSummary) {
     }
 
     const diff = nextUnreadReplies - previousUnreadReplies;
-    showNotification(
+    const toastMessage = diff === 1
+        ? 'Поддержка ответила на ваш тикет.'
+        : `Поддержка прислала ${formatCompactNumber(diff)} новых ответов.`;
+    const browserShown = showBrowserNotification(
+        diff === 1 ? 'Новый ответ поддержки' : 'Новые ответы поддержки',
         diff === 1
-            ? 'Поддержка ответила на ваш тикет.'
-            : `Поддержка прислала ${formatCompactNumber(diff)} новых ответов.`,
-        'warning',
-        5200
+            ? 'Откройте входящие, чтобы прочитать новое сообщение.'
+            : `Во входящих появилось ${formatCompactNumber(diff)} новых ответов.`,
+        {
+            tag: 'bober-support-replies',
+            renotify: true,
+            durationMs: 12000,
+            onClick: () => {
+                openSupportCenter({ tab: 'inbox' });
+            }
+        }
     );
+
+    if (!browserShown || !document.hidden) {
+        showNotification(toastMessage, 'warning', 5200);
+    }
 }
 
 function normalizeSupportTicket(rawTicket) {
@@ -12135,6 +12322,15 @@ if (viewPlayerProfileButton) {
         }
     }
 });
+
+const settingsBrowserNotificationsButton = document.getElementById('settingsBrowserNotificationsButton');
+if (settingsBrowserNotificationsButton) {
+    settingsBrowserNotificationsButton.addEventListener('click', () => {
+        requestBrowserNotificationAccess().catch((error) => {
+            console.warn('Не удалось включить системные уведомления браузера.', error);
+        });
+    });
+}
 
 const skinActionModalNode = document.getElementById('skinActionModal');
 if (skinActionModalNode) {
@@ -14566,6 +14762,7 @@ document.addEventListener('visibilitychange', function() {
         flushAutosaveWithBeacon();
         flushSettingsWithBeacon();
     } else {
+        updateBrowserNotificationsControls();
         if (userId) {
             checkAuthenticatedSessionConflict();
         }
@@ -14594,6 +14791,7 @@ document.addEventListener('visibilitychange', function() {
 });
 
 window.addEventListener('pageshow', function() {
+    updateBrowserNotificationsControls();
     if (userId) {
         resumePendingSettingsSync().catch((error) => {
             console.warn('Не удалось досохранить настройки после pageshow.', error);
@@ -14620,6 +14818,7 @@ window.addEventListener('online', function() {
 });
 
 window.addEventListener('focus', function() {
+    updateBrowserNotificationsControls();
     requestImmediateLiveRefresh('window_focus', {
         includeDirtyState: true,
         silent: true,
