@@ -5477,6 +5477,7 @@ const leaderboardProfileState = {
     error: '',
     fallbackLogin: '',
     data: null,
+    lastFetchedAt: 0,
     requestToken: 0,
     cache: new Map()
 };
@@ -5779,11 +5780,11 @@ let bootLoadingOverlayDismissed = false;
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
 const SUPPORT_LIVE_REFRESH_CONFIG = {
-    threadIntervalMs: 4000,
-    listIntervalMs: 10000
+    threadIntervalMs: 3000,
+    listIntervalMs: 7000
 };
 const SKIN_CATALOG_LIVE_REFRESH_CONFIG = {
-    intervalMs: 45000
+    intervalMs: 20000
 };
 const AUTOSAVE_CONFIG = {
     idleDelayMs: 25000,
@@ -5856,7 +5857,12 @@ const SETTINGS_SYNC_CONFIG = {
 const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
 const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
 const LIVE_SYNC_CONFIG = {
-    intervalMs: 12000
+    guestIntervalMs: 9000,
+    authenticatedIntervalMs: 7000,
+    detailIntervalMs: 4000,
+    wakeDelayMs: 1200,
+    minDelayMs: 2000,
+    publicProfileRefreshMs: 9000
 };
 const INTERACTION_PALETTES = {
     main: {
@@ -6108,7 +6114,8 @@ const achievementUnlockState = {
 const liveSyncState = {
     timer: null,
     inFlight: false,
-    lastSyncedAt: 0
+    lastSyncedAt: 0,
+    lastReason: ''
 };
 const interactionFxState = {
     rafId: 0,
@@ -7474,6 +7481,10 @@ function openSettingsModal() {
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
+    requestImmediateLiveRefresh('settings_open', {
+        includeDirtyState: true,
+        silent: true
+    });
     if (userId) {
         resumePendingSettingsSync().catch((error) => {
             console.warn('Не удалось досинхронизировать настройки при открытии модалки.', error);
@@ -7491,6 +7502,7 @@ function closeSettingsModal(options = {}) {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
 
     if (shouldSyncOnClose && userId && settingsState.dirty) {
         if (settingsState.timer) {
@@ -7668,6 +7680,10 @@ function openProfileModal() {
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
+    requestImmediateLiveRefresh('profile_open', {
+        includeDirtyState: true,
+        silent: true
+    });
 }
 
 function closeProfileModal() {
@@ -7679,6 +7695,7 @@ function closeProfileModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
 }
 
 function renderLeaderboardPublicProfileModal() {
@@ -7782,7 +7799,8 @@ function renderLeaderboardPublicProfileModal() {
     `;
 }
 
-async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
+async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок', options = {}) {
+    const { force = false } = options;
     const normalizedUserId = Math.max(0, Number(userId) || 0);
     if (normalizedUserId < 1) {
         leaderboardProfileState.loading = false;
@@ -7791,11 +7809,12 @@ async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок'
         return;
     }
 
-    const cachedProfile = leaderboardProfileState.cache.get(normalizedUserId);
+    const cachedProfile = !force ? leaderboardProfileState.cache.get(normalizedUserId) : null;
     if (cachedProfile) {
         leaderboardProfileState.loading = false;
         leaderboardProfileState.error = '';
         leaderboardProfileState.data = cachedProfile;
+        leaderboardProfileState.lastFetchedAt = Date.now();
         renderLeaderboardPublicProfileModal();
         return;
     }
@@ -7820,6 +7839,7 @@ async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок'
         leaderboardProfileState.loading = false;
         leaderboardProfileState.error = '';
         leaderboardProfileState.data = profileData;
+        leaderboardProfileState.lastFetchedAt = Date.now();
         renderLeaderboardPublicProfileModal();
     } catch (error) {
         if (leaderboardProfileState.requestToken !== requestToken || leaderboardProfileState.openUserId !== normalizedUserId) {
@@ -7844,12 +7864,20 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
     leaderboardProfileState.loading = true;
     leaderboardProfileState.error = '';
     leaderboardProfileState.data = null;
+    leaderboardProfileState.lastFetchedAt = 0;
     closeProfileMenu();
     renderLeaderboardPublicProfileModal();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
-    loadLeaderboardPublicProfile(leaderboardProfileState.openUserId, leaderboardProfileState.fallbackLogin).catch(() => {});
+    loadLeaderboardPublicProfile(leaderboardProfileState.openUserId, leaderboardProfileState.fallbackLogin, {
+        force: true
+    }).catch(() => {});
+    requestImmediateLiveRefresh('leaderboard_profile_open', {
+        includeDirtyState: true,
+        silent: true,
+        forceCatalog: true
+    });
 }
 
 function closeLeaderboardPublicProfile() {
@@ -7864,7 +7892,9 @@ function closeLeaderboardPublicProfile() {
     leaderboardProfileState.loading = false;
     leaderboardProfileState.error = '';
     leaderboardProfileState.data = null;
+    leaderboardProfileState.lastFetchedAt = 0;
     syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
 }
 
 function getSupportCategoryLabel(category) {
@@ -7958,6 +7988,45 @@ function isSupportModalOpen() {
         modal.classList.contains('show') &&
         modal.getAttribute('aria-hidden') === 'false'
     );
+}
+
+function isProfileModalOpen() {
+    const modal = document.getElementById('profileModal');
+    return Boolean(
+        modal &&
+        modal.classList.contains('show') &&
+        modal.getAttribute('aria-hidden') === 'false'
+    );
+}
+
+function isLeaderboardPublicProfileOpen() {
+    const modal = document.getElementById('leaderboardProfileModal');
+    return Boolean(
+        modal &&
+        modal.classList.contains('show') &&
+        modal.getAttribute('aria-hidden') === 'false'
+    );
+}
+
+function isShopOpen() {
+    return document.getElementById('shop')?.style.display === 'block';
+}
+
+function hasPriorityLiveSurfaceOpen() {
+    return Boolean(
+        isShopOpen() ||
+        isSupportModalOpen() ||
+        isProfileModalOpen() ||
+        isLeaderboardPublicProfileOpen()
+    );
+}
+
+function getLiveSyncInterval() {
+    if (hasPriorityLiveSurfaceOpen()) {
+        return LIVE_SYNC_CONFIG.detailIntervalMs;
+    }
+
+    return userId ? LIVE_SYNC_CONFIG.authenticatedIntervalMs : LIVE_SYNC_CONFIG.guestIntervalMs;
 }
 
 function stopSupportLiveRefresh() {
@@ -8378,6 +8447,10 @@ function openSupportCenter(options = {}) {
     syncGlobalOverlayState();
     renderSupportTicketList();
     renderSupportTicketThread();
+    requestImmediateLiveRefresh('support_open', {
+        includeDirtyState: true,
+        silent: true
+    });
 
     if (userId) {
         loadSupportTickets().catch((error) => {
@@ -8402,6 +8475,7 @@ function closeSupportModal() {
     supportState.threadSignature = '';
     stopSupportLiveRefresh();
     syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
 }
 
 async function submitSupportTicket() {
@@ -11564,6 +11638,10 @@ function setLeaderboardMode(mode) {
         animate: true,
         direction: transitionDirection
     });
+    requestImmediateLiveRefresh('leaderboard_mode_switch', {
+        includeDirtyState: false,
+        silent: true
+    });
 }
 
 function attachLeaderboardTabHandlers(root) {
@@ -12236,17 +12314,92 @@ function stopLiveSyncTimer() {
     }
 }
 
-function scheduleLiveSync(delayMs = LIVE_SYNC_CONFIG.intervalMs) {
+async function refreshOpenLiveSurfaces(options = {}) {
+    const { reason = 'sync' } = options;
+    const tasks = [];
+
+    if (isSupportModalOpen()) {
+        tasks.push(
+            refreshSupportLiveView().catch((error) => {
+                console.warn(`Не удалось обновить поддержку во время ${reason}.`, error);
+            })
+        );
+    }
+
+    if (isLeaderboardPublicProfileOpen() && leaderboardProfileState.openUserId > 0) {
+        const shouldRefreshPublicProfile = leaderboardProfileState.lastFetchedAt < 1
+            || (Date.now() - leaderboardProfileState.lastFetchedAt) >= LIVE_SYNC_CONFIG.publicProfileRefreshMs;
+
+        if (shouldRefreshPublicProfile) {
+            tasks.push(
+                loadLeaderboardPublicProfile(
+                    leaderboardProfileState.openUserId,
+                    leaderboardProfileState.fallbackLogin,
+                    { force: true }
+                ).catch((error) => {
+                    console.warn(`Не удалось обновить публичный профиль игрока во время ${reason}.`, error);
+                })
+            );
+        }
+    }
+
+    if (isProfileModalOpen()) {
+        renderProfileModal();
+    }
+
+    if (tasks.length > 0) {
+        await Promise.allSettled(tasks);
+    }
+}
+
+async function performLiveRefreshCycle(options = {}) {
+    const {
+        reason = 'poll',
+        includeDirtyState = true,
+        silent = true,
+        forceCatalog = false
+    } = options;
+
+    liveSyncState.lastReason = String(reason || 'poll');
+    await synchronizeMainState({ reason, includeDirtyState, silent });
+    await refreshSkinCatalogLive({ force: forceCatalog || isShopOpen() || isLeaderboardPublicProfileOpen() });
+    await refreshOpenLiveSurfaces({ reason });
+}
+
+function requestImmediateLiveRefresh(reason = 'manual', options = {}) {
+    stopLiveSyncTimer();
+    const delayMs = Math.max(
+        LIVE_SYNC_CONFIG.minDelayMs,
+        Number(options.delayMs) || LIVE_SYNC_CONFIG.wakeDelayMs
+    );
+    scheduleLiveSync(delayMs, {
+        reason,
+        includeDirtyState: options.includeDirtyState !== false,
+        silent: options.silent !== false,
+        forceCatalog: Boolean(options.forceCatalog)
+    });
+}
+
+function scheduleLiveSync(delayMs = getLiveSyncInterval(), options = {}) {
     stopLiveSyncTimer();
     if (document.hidden) {
         return;
     }
 
+    const resolvedDelayMs = Math.max(
+        LIVE_SYNC_CONFIG.minDelayMs,
+        Number(delayMs) || getLiveSyncInterval()
+    );
+
     liveSyncState.timer = setTimeout(async () => {
-        await synchronizeMainState({ reason: 'poll', includeDirtyState: true, silent: true });
-        await refreshSkinCatalogLive();
-        scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
-    }, Math.max(2500, Number(delayMs) || LIVE_SYNC_CONFIG.intervalMs));
+        await performLiveRefreshCycle({
+            reason: options.reason || 'poll',
+            includeDirtyState: options.includeDirtyState !== false,
+            silent: options.silent !== false,
+            forceCatalog: Boolean(options.forceCatalog)
+        });
+        scheduleLiveSync(getLiveSyncInterval());
+    }, resolvedDelayMs);
 }
 
 async function synchronizeMainState(options = {}) {
@@ -12331,6 +12484,7 @@ async function synchronizeMainState(options = {}) {
         }
 
         liveSyncState.lastSyncedAt = Date.now();
+        leaderboardProfileState.cache.clear();
         return Boolean(data.account && (data.account.userId || data.account.success));
     } catch (error) {
         if (tryHandleSessionConflictError(error)) {
@@ -12943,6 +13097,11 @@ function shopShow() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     });
+    requestImmediateLiveRefresh('shop_open', {
+        includeDirtyState: true,
+        silent: true,
+        forceCatalog: true
+    });
 }
 
 function shopClose() {
@@ -12968,6 +13127,7 @@ function shopClose() {
     window.requestAnimationFrame(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
+    scheduleLiveSync(getLiveSyncInterval());
 }
 
 async function openFlyBeaverGame() {
@@ -13401,7 +13561,7 @@ window.addEventListener('load', async function() {
                 text: 'Без аккаунта можно посмотреть страницу, но для кликов, магазина, облачного сохранения и профиля нужен вход.'
             });
         }
-        scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
+        scheduleLiveSync(getLiveSyncInterval());
     } finally {
         setLoadingOverlay(false);
     }
@@ -13422,11 +13582,13 @@ document.addEventListener('visibilitychange', function() {
         if (userId) {
             checkAuthenticatedSessionConflict();
         }
-        synchronizeMainState({ reason: 'visibility_return', includeDirtyState: true, silent: true }).then(() => {
-            refreshSkinCatalogLive({ force: true }).catch((error) => {
-                console.warn('Не удалось обновить каталог скинов после возврата во вкладку.', error);
-            });
-            scheduleLiveSync(LIVE_SYNC_CONFIG.intervalMs);
+        performLiveRefreshCycle({
+            reason: 'visibility_return',
+            includeDirtyState: true,
+            silent: true,
+            forceCatalog: true
+        }).finally(() => {
+            scheduleLiveSync(getLiveSyncInterval());
         });
         if (userId) {
             resumePendingSettingsSync().catch((error) => {
@@ -13450,6 +13612,11 @@ window.addEventListener('pageshow', function() {
             console.warn('Не удалось досохранить настройки после pageshow.', error);
         });
     }
+    requestImmediateLiveRefresh('pageshow', {
+        includeDirtyState: true,
+        silent: true,
+        forceCatalog: true
+    });
 });
 
 window.addEventListener('online', function() {
@@ -13458,6 +13625,19 @@ window.addEventListener('online', function() {
             console.warn('Не удалось досохранить настройки после восстановления сети.', error);
         });
     }
+    requestImmediateLiveRefresh('online_return', {
+        includeDirtyState: true,
+        silent: true,
+        forceCatalog: true
+    });
+});
+
+window.addEventListener('focus', function() {
+    requestImmediateLiveRefresh('window_focus', {
+        includeDirtyState: true,
+        silent: true,
+        forceCatalog: true
+    });
 });
 
 window.addEventListener('storage', function(event) {
@@ -13472,6 +13652,10 @@ window.addEventListener('storage', function(event) {
                 updateInputs: true
             });
             updateSettingsStatus('Настройки обновлены из другой вкладки.', 'success');
+            requestImmediateLiveRefresh('storage_settings_cache', {
+                includeDirtyState: true,
+                silent: true
+            });
             return;
         }
 
@@ -13487,6 +13671,10 @@ window.addEventListener('storage', function(event) {
             });
             settingsState.localUpdatedAt = Math.max(0, Number(pendingSync.updatedAt) || settingsState.localUpdatedAt);
             updateSettingsStatus('Настройки обновлены из другой вкладки. Дождёмся облачной синхронизации...', 'saving');
+            requestImmediateLiveRefresh('storage_settings_pending', {
+                includeDirtyState: true,
+                silent: true
+            });
         }
     } catch (error) {
         console.warn('Не удалось применить настройки из другой вкладки.', error);
