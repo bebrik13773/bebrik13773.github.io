@@ -6112,6 +6112,14 @@ const supportLiveRefreshState = {
     inFlight: false,
     lastListRefreshAt: 0
 };
+const ENERGY_SHORTAGE_NOTICE_CONFIG = {
+    cooldownMs: 2200,
+    durationMs: 1800
+};
+const energyShortageNoticeState = {
+    lastShownAt: 0,
+    lastNotificationId: ''
+};
 const skinCatalogLiveRefreshState = {
     inFlight: false,
     lastSyncedAt: 0
@@ -12145,6 +12153,8 @@ function resetUserState() {
     supportSummary = getDefaultSupportSummary();
     supportNoticeState.initialized = false;
     supportNoticeState.lastUnreadReplies = 0;
+    energyShortageNoticeState.lastShownAt = 0;
+    energyShortageNoticeState.lastNotificationId = '';
     supportState.tickets = [];
     supportState.selectedTicketId = 0;
     supportState.selectedTicket = null;
@@ -13229,6 +13239,24 @@ function saveEnergyDebounced() {
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.idleDelayMs });
 }
 
+function notifyInsufficientEnergy() {
+    const now = Date.now();
+    if (now - energyShortageNoticeState.lastShownAt < ENERGY_SHORTAGE_NOTICE_CONFIG.cooldownMs) {
+        return;
+    }
+
+    energyShortageNoticeState.lastShownAt = now;
+    if (energyShortageNoticeState.lastNotificationId) {
+        removeNotification(energyShortageNoticeState.lastNotificationId);
+    }
+
+    energyShortageNoticeState.lastNotificationId = showNotification(
+        'Недостаточно энергии!',
+        'error',
+        ENERGY_SHORTAGE_NOTICE_CONFIG.durationMs
+    );
+}
+
 function buySkin(skinId) {
     const skinConfig = getSkinConfigById(String(skinId || '').trim());
     if (!skinConfig) {
@@ -13385,7 +13413,7 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
             source: 'touchstart',
             description: 'Тап по бобру без достаточного запаса энергии.'
         });
-        showNotification('Недостаточно энергии!', 'error');
+        notifyInsufficientEnergy();
     }
 }, { passive: false });
 
@@ -13540,7 +13568,7 @@ function performSingleClickerActivation(event, options = {}) {
                 ? `Клавиатурный клик по бобру без достаточного запаса энергии (${activationKey || 'keyboard'}).`
                 : 'Клик по бобру без достаточного запаса энергии.'
         });
-        showNotification('Недостаточно энергии!', 'error');
+        notifyInsufficientEnergy();
     }
     return true;
 }
