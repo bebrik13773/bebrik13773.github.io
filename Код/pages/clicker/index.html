@@ -3232,6 +3232,120 @@ Owner decisions:
         color: rgba(255, 255, 255, 0.52) !important;
     }
 
+    .profile-quests-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+
+    .profile-quest-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .profile-quest-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+    }
+
+    .profile-quest-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 24px rgba(4, 8, 22, 0.18);
+    }
+
+    .profile-quest-card.ready {
+        border-color: rgba(126, 241, 255, 0.22);
+    }
+
+    .profile-quest-card.claimed {
+        border-color: rgba(152, 255, 196, 0.22);
+    }
+
+    .profile-quest-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .profile-quest-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #f6fdff;
+        line-height: 1.3;
+    }
+
+    .profile-quest-chip {
+        flex-shrink: 0;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        color: #dffcff;
+        background: rgba(126, 241, 255, 0.12);
+        border: 1px solid rgba(126, 241, 255, 0.16);
+    }
+
+    .profile-quest-chip.claimed {
+        color: #dcffef;
+        background: rgba(152, 255, 196, 0.12);
+        border-color: rgba(152, 255, 196, 0.18);
+    }
+
+    .profile-quest-description,
+    .profile-quest-meta {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .profile-quest-meta {
+        margin-top: 8px;
+    }
+
+    .profile-quest-progress {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .profile-quest-progress-bar {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .profile-quest-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(126, 241, 255, 0.86), rgba(98, 145, 255, 0.92));
+    }
+
+    .profile-quest-card.claimed .profile-quest-progress-fill {
+        background: linear-gradient(90deg, rgba(152, 255, 196, 0.86), rgba(90, 224, 168, 0.94));
+    }
+
+    .profile-quest-progress-text {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: rgba(255, 255, 255, 0.74);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
     .public-profile-loading,
     .public-profile-empty {
         padding: 16px 18px;
@@ -5468,6 +5582,8 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
         <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
+        <div class="profile-achievements-title">Квесты</div>
+        <div class="profile-quests-grid" id="profileModalQuests"></div>
         <div class="profile-achievements-title">Достижения</div>
         <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
@@ -5919,6 +6035,19 @@ function getDefaultSupportSummary() {
     };
 }
 
+function getDefaultQuestState() {
+    return {
+        daily: {
+            periodKey: '',
+            items: []
+        },
+        weekly: {
+            periodKey: '',
+            items: []
+        }
+    };
+}
+
 function normalizePublicProfileSkinItem(rawItem) {
     if (!rawItem || typeof rawItem !== 'object') {
         return null;
@@ -6166,6 +6295,7 @@ let currentLogin = localStorage.getItem('login') || '';
 let flyBeaverState = getDefaultFlyBeaverState();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
+let questState = getDefaultQuestState();
 let unlockedAchievements = [];
 let achievementStats = {};
 let achievementPlayerBase = 0;
@@ -6178,6 +6308,7 @@ let browserNotificationRequestInFlight = false;
 let bootLoadingOverlayDismissed = false;
 window.__boberBanInfo = null;
 const SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY = 'bober_seen_achievement_unlocks';
+const SEEN_QUEST_UNLOCKS_STORAGE_KEY = 'bober_seen_quest_unlocks';
 const SUPPORT_LIVE_REFRESH_CONFIG = {
     threadIntervalMs: 3000,
     listIntervalMs: 7000
@@ -6525,6 +6656,9 @@ const achievementUnlockState = {
     active: null,
     seen: new Set()
 };
+const questUnlockState = {
+    seen: new Set()
+};
 const liveSyncState = {
     timer: null,
     inFlight: false,
@@ -6580,6 +6714,21 @@ try {
     }
 } catch (error) {
     console.warn('Не удалось восстановить локальную историю достижений.', error);
+}
+try {
+    const rawSeenQuestUnlocks = localStorage.getItem(SEEN_QUEST_UNLOCKS_STORAGE_KEY);
+    if (rawSeenQuestUnlocks) {
+        const parsedSeenQuestUnlocks = JSON.parse(rawSeenQuestUnlocks);
+        if (Array.isArray(parsedSeenQuestUnlocks)) {
+            parsedSeenQuestUnlocks
+                .map((item) => String(item || '').trim())
+                .filter(Boolean)
+                .slice(-200)
+                .forEach((item) => questUnlockState.seen.add(item));
+        }
+    }
+} catch (error) {
+    console.warn('Не удалось восстановить локальную историю квестов.', error);
 }
 
 const SUPPORT_CATEGORY_LABELS = Object.freeze({
@@ -8163,14 +8312,16 @@ function renderProfileModal() {
     const subtitleNode = document.getElementById('profileModalSubtitle');
     const badgesNode = document.getElementById('profileModalBadges');
     const statsNode = document.getElementById('profileModalStats');
+    const questsNode = document.getElementById('profileModalQuests');
     const achievementsNode = document.getElementById('profileModalAchievements');
 
-    if (!loginNode || !subtitleNode || !badgesNode || !statsNode || !achievementsNode) {
+    if (!loginNode || !subtitleNode || !badgesNode || !statsNode || !questsNode || !achievementsNode) {
         return;
     }
 
     const resolvedLogin = currentLogin || 'Игрок';
     const summary = normalizeProfileSummary(profileSummary);
+    const normalizedQuests = normalizeQuestState(questState);
     const unlockedItems = normalizeAchievementList(unlockedAchievements);
     const unlockedByKey = unlockedItems.reduce((accumulator, item) => {
         accumulator[item.key] = item;
@@ -8186,6 +8337,8 @@ function renderProfileModal() {
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${formatCompactNumber(summary.ownedSkins)}</span>`);
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || unlockedItems.length)}</span>`);
+    badgeItems.push(`<span class="profile-badge">🗓️ Daily: ${formatCompactNumber(summary.dailyQuestCompleted)}/${formatCompactNumber(summary.dailyQuestTotal)}</span>`);
+    badgeItems.push(`<span class="profile-badge">📆 Weekly: ${formatCompactNumber(summary.weeklyQuestCompleted)}/${formatCompactNumber(summary.weeklyQuestTotal)}</span>`);
     badgeItems.push(`<span class="profile-badge">💬 Ответов: ${formatCompactNumber(supportSummary.unreadReplies || 0)}</span>`);
 
     const stats = [
@@ -8195,6 +8348,8 @@ function renderProfileModal() {
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'В очереди fly-beaver', value: formatLeaderboardScore(summary.flyPending) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
+        { label: 'Daily выполнено', value: `${formatLeaderboardScore(summary.dailyQuestCompleted)}/${formatLeaderboardScore(summary.dailyQuestTotal)}` },
+        { label: 'Weekly выполнено', value: `${formatLeaderboardScore(summary.weeklyQuestCompleted)}/${formatLeaderboardScore(summary.weeklyQuestTotal)}` },
         { label: 'Открытых тикетов', value: formatLeaderboardScore(supportSummary.openTickets || 0) }
     ];
 
@@ -8208,6 +8363,58 @@ function renderProfileModal() {
             <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
             <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
         </div>
+    `).join('');
+
+    const questGroups = [
+        {
+            title: 'Ежедневные задания',
+            subtitle: formatQuestPeriodLabel('daily', normalizedQuests.daily.periodKey),
+            items: normalizedQuests.daily.items
+        },
+        {
+            title: 'Недельные цели',
+            subtitle: formatQuestPeriodLabel('weekly', normalizedQuests.weekly.periodKey),
+            items: normalizedQuests.weekly.items
+        }
+    ];
+
+    questsNode.innerHTML = questGroups.map((group) => `
+        <section class="profile-quest-group">
+            <div class="profile-achievement-group-head">
+                <div>
+                    <div class="profile-achievement-group-title">${escapeHtmlText(group.title)}</div>
+                    <div class="profile-achievement-empty" style="margin-top:8px;padding:10px 12px;">${escapeHtmlText(group.subtitle)}</div>
+                </div>
+                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(group.items.filter((item) => item.claimed).length))}/${escapeHtmlText(formatCompactNumber(group.items.length))}</div>
+            </div>
+            ${group.items.length > 0
+                ? `<div class="profile-quest-list">${group.items.map((item) => {
+                    const progressPercent = Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
+                    const statusLabel = item.claimed
+                        ? 'Награда получена'
+                        : (item.completed ? 'Готово' : 'В процессе');
+                    return `
+                        <article class="profile-quest-card ${item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress')}">
+                            <div class="profile-quest-head">
+                                <div class="profile-quest-title">${escapeHtmlText(item.title)}</div>
+                                <div class="profile-quest-chip ${item.claimed ? 'claimed' : ''}">${escapeHtmlText(statusLabel)}</div>
+                            </div>
+                            <div class="profile-quest-description">${escapeHtmlText(item.description)}</div>
+                            <div class="profile-quest-meta">Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов</div>
+                            <div class="profile-quest-progress">
+                                <div class="profile-quest-progress-bar">
+                                    <div class="profile-quest-progress-fill" style="width:${escapeHtmlText(String(progressPercent.toFixed(2)))}%"></div>
+                                </div>
+                                <div class="profile-quest-progress-text">
+                                    <span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span>
+                                    <span>${escapeHtmlText(Math.round(progressPercent))}%</span>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                }).join('')}</div>`
+                : '<div class="profile-achievement-empty">Квесты для этой ротации пока не назначены.</div>'}
+        </section>
     `).join('');
 
     if (ALL_ACHIEVEMENT_KEYS.length < 1) {
@@ -10735,7 +10942,11 @@ function normalizeProfileSummary(rawSummary) {
         energyMax: Math.max(1, Number(rawSummary.energyMax) || 5000),
         flyBest: Math.max(0, Number(rawSummary.flyBest) || 0),
         flyPending: Math.max(0, Number(rawSummary.flyPending) || 0),
-        flyGamesPlayed: Math.max(0, Number(rawSummary.flyGamesPlayed) || 0)
+        flyGamesPlayed: Math.max(0, Number(rawSummary.flyGamesPlayed) || 0),
+        dailyQuestCompleted: Math.max(0, Number(rawSummary.dailyQuestCompleted) || 0),
+        dailyQuestTotal: Math.max(0, Number(rawSummary.dailyQuestTotal) || 0),
+        weeklyQuestCompleted: Math.max(0, Number(rawSummary.weeklyQuestCompleted) || 0),
+        weeklyQuestTotal: Math.max(0, Number(rawSummary.weeklyQuestTotal) || 0)
     };
 }
 
@@ -10748,6 +10959,57 @@ function normalizeSupportSummary(rawSummary) {
     return {
         unreadReplies: Math.max(0, Number(rawSummary.unreadReplies) || 0),
         openTickets: Math.max(0, Number(rawSummary.openTickets) || 0)
+    };
+}
+
+function normalizeQuestItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey = '') {
+    if (!rawItem || typeof rawItem !== 'object') {
+        return null;
+    }
+
+    const key = String(rawItem.key || '').trim();
+    if (!key) {
+        return null;
+    }
+
+    const goal = Math.max(1, Number(rawItem.goal) || 1);
+    const progress = Math.max(0, Math.min(goal, Number(rawItem.progress) || 0));
+
+    return {
+        scope: String(rawItem.scope || fallbackScope).trim() || fallbackScope,
+        periodKey: String(rawItem.periodKey || fallbackPeriodKey).trim() || fallbackPeriodKey,
+        key,
+        title: String(rawItem.title || key).trim() || key,
+        description: String(rawItem.description || '').trim(),
+        goal,
+        progress,
+        rewardCoins: Math.max(0, Number(rawItem.rewardCoins) || 0),
+        completed: Boolean(rawItem.completed) || progress >= goal,
+        claimed: Boolean(rawItem.claimed),
+        claimedAt: String(rawItem.claimedAt || '').trim()
+    };
+}
+
+function normalizeQuestSection(rawSection, fallbackScope = 'daily') {
+    const periodKey = String(rawSection?.periodKey || '').trim();
+    const items = Array.isArray(rawSection?.items)
+        ? rawSection.items.map((item) => normalizeQuestItem(item, fallbackScope, periodKey)).filter(Boolean)
+        : [];
+
+    return {
+        periodKey,
+        items
+    };
+}
+
+function normalizeQuestState(rawState) {
+    if (!rawState || typeof rawState !== 'object') {
+        return getDefaultQuestState();
+    }
+
+    return {
+        daily: normalizeQuestSection(rawState.daily, 'daily'),
+        weekly: normalizeQuestSection(rawState.weekly, 'weekly')
     };
 }
 
@@ -10888,6 +11150,77 @@ function isAchievementUnlockQueuedOrActive(item) {
     }
 
     return achievementUnlockState.queue.some((queuedItem) => buildAchievementSeenKey(queuedItem) === seenKey);
+}
+
+function buildQuestSeenKey(item) {
+    return [
+        String(item?.scope || '').trim(),
+        String(item?.periodKey || '').trim(),
+        String(item?.key || '').trim(),
+        String(item?.claimedAt || '').trim()
+    ].join('::');
+}
+
+function persistSeenQuestUnlocks() {
+    try {
+        localStorage.setItem(SEEN_QUEST_UNLOCKS_STORAGE_KEY, JSON.stringify(Array.from(questUnlockState.seen).slice(-200)));
+    } catch (error) {
+        console.warn('Не удалось сохранить локальную историю квестов.', error);
+    }
+}
+
+function formatQuestPeriodLabel(scope, periodKey) {
+    const normalizedScope = String(scope || '').trim();
+    const normalizedPeriodKey = String(periodKey || '').trim();
+    if (!normalizedPeriodKey) {
+        return normalizedScope === 'weekly' ? 'Недельная ротация' : 'Ежедневная ротация';
+    }
+
+    if (normalizedScope === 'weekly') {
+        return `Неделя ${normalizedPeriodKey.replace(/^.*W/, '')}`;
+    }
+
+    return normalizedPeriodKey;
+}
+
+function notifyAboutQuestUnlocks(rawItems) {
+    if (!Array.isArray(rawItems) || rawItems.length < 1) {
+        return;
+    }
+
+    rawItems
+        .map((item) => normalizeQuestItem(item, item?.scope || 'daily', item?.periodKey || ''))
+        .filter(Boolean)
+        .forEach((item) => {
+            const seenKey = buildQuestSeenKey(item);
+            if (!seenKey || seenKey === '::::' || questUnlockState.seen.has(seenKey)) {
+                return;
+            }
+
+            questUnlockState.seen.add(seenKey);
+            persistSeenQuestUnlocks();
+
+            const scopeLabel = item.scope === 'weekly' ? 'Недельная цель' : 'Ежедневный квест';
+            const rewardLabel = item.rewardCoins > 0
+                ? ` +${item.rewardCoins.toLocaleString('ru-RU')} коинов`
+                : '';
+            const browserShown = showBrowserNotification(
+                `${scopeLabel} выполнена`,
+                `${item.title}.${rewardLabel}`,
+                {
+                    tag: `bober-quest-${item.scope}`,
+                    renotify: true,
+                    durationMs: 12000,
+                    onClick: () => {
+                        openProfileModal();
+                    }
+                }
+            );
+
+            if (!browserShown || !document.hidden) {
+                showNotification(`${scopeLabel}: ${item.title}.${rewardLabel}`, 'success', 5200);
+            }
+        });
 }
 
 function updateSupportBadgeUI() {
@@ -12654,6 +12987,7 @@ function resetUserState() {
     skin = getDefaultSkinState();
     upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
     profileSummary = getDefaultProfileSummary();
+    questState = getDefaultQuestState();
     unlockedAchievements = [];
     achievementStats = {};
     achievementPlayerBase = 0;
@@ -12729,9 +13063,11 @@ function applyAuthenticatedState(data) {
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    questState = normalizeQuestState(data.quests || data.account?.quests);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
+    notifyAboutQuestUnlocks(data.questUnlocks || data.account?.questUnlocks);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {
         persist: true,
@@ -13444,9 +13780,11 @@ function applySynchronizedAccountState(data) {
 
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    questState = normalizeQuestState(data.quests || data.account?.quests);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
     applySupportSummary(data.supportSummary || data.account?.supportSummary || supportSummary);
+    notifyAboutQuestUnlocks(data.questUnlocks || data.account?.questUnlocks);
     enqueueAchievementUnlocks(data.achievementUnlocks || data.account?.achievementUnlocks);
     applyServerSettingsSnapshot(data.settings || userSettings, data.settingsUpdatedAt || data.account?.settingsUpdatedAt, {
         persist: true,

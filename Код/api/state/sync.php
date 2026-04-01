@@ -112,6 +112,8 @@ try {
         'achievementUnlocks' => $achievementUnlocks,
         'achievementStats' => is_array($account) ? ($account['achievementStats'] ?? []) : [],
         'achievementPlayerBase' => is_array($account) ? ($account['achievementPlayerBase'] ?? 0) : 0,
+        'quests' => is_array($account) ? ($account['quests'] ?? null) : null,
+        'questUnlocks' => is_array($account) ? ($account['questUnlocks'] ?? []) : [],
         'flyBeaver' => $flyBeaver,
         'settings' => $settings,
         'settingsUpdatedAt' => $settingsUpdatedAt,
