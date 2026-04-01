@@ -5905,6 +5905,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             timer: null,
             inFlight: false
         };
+        const ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG = {
+            intervalMs: 12000
+        };
+        const adminSupportUnreadMonitorState = {
+            timer: null,
+            inFlight: false,
+            initialized: false,
+            lastSignature: '',
+            lastUnreadCount: 0
+        };
         let selectedAccountActivityFilter = 'all';
         let selectedAccountActivitySearch = '';
         let selectedAccountClientLogItems = [];
@@ -6052,6 +6062,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 showNotification('Рекомендуется сменить пароль по умолчанию на более сложный', 'warning', 5000);
             }, 2000);
             <?php endif; ?>
+
+            refreshAdminSupportUnreadMonitor({ silent: true }).catch(error => {
+                console.warn('Не удалось запустить монитор непрочитанных тикетов.', error);
+            });
         }
         
         // Функция обновления активного времени
@@ -7433,6 +7447,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         function showSkinsView() {
             currentAdminView = 'skins';
+            scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'block';
             document.getElementById('supportView').style.display = 'none';
@@ -7773,6 +7788,98 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             renderAdminSupportDraftAttachments('reply');
         }
 
+        function buildAdminSupportUnreadSignature(tickets) {
+            const normalizedTickets = Array.isArray(tickets) ? tickets : [];
+            return JSON.stringify(normalizedTickets.map((ticket) => ({
+                id: Number(ticket.id) || 0,
+                unreadByAdmin: Math.max(0, Number(ticket.unreadByAdmin) || 0),
+                updatedAt: String(ticket.updatedAt || '')
+            })));
+        }
+
+        function updateAdminSupportUnreadNoticeState(tickets, options = {}) {
+            const normalizedTickets = Array.isArray(tickets) ? tickets : [];
+            const unreadTickets = normalizedTickets.filter((ticket) => Math.max(0, Number(ticket.unreadByAdmin) || 0) > 0);
+            const unreadCount = unreadTickets.reduce((sum, ticket) => sum + Math.max(0, Number(ticket.unreadByAdmin) || 0), 0);
+            const signature = buildAdminSupportUnreadSignature(unreadTickets);
+            const shouldNotify = unreadCount > 0
+                && signature !== ''
+                && signature !== adminSupportUnreadMonitorState.lastSignature
+                && adminSupportUnreadMonitorState.initialized
+                && !options.silent;
+
+            adminSupportUnreadMonitorState.lastSignature = signature;
+            adminSupportUnreadMonitorState.lastUnreadCount = unreadCount;
+            adminSupportUnreadMonitorState.initialized = true;
+
+            if (shouldNotify) {
+                showNotification(
+                    unreadCount === 1
+                        ? 'В админке появилось новое непрочитанное сообщение поддержки.'
+                        : `В админке ${formatAdminNumber(unreadCount)} новых непрочитанных сообщений поддержки.`,
+                    'warning',
+                    5500
+                );
+            }
+        }
+
+        function stopAdminSupportUnreadMonitor() {
+            if (adminSupportUnreadMonitorState.timer) {
+                clearTimeout(adminSupportUnreadMonitorState.timer);
+                adminSupportUnreadMonitorState.timer = null;
+            }
+        }
+
+        function scheduleAdminSupportUnreadMonitor(delayMs = ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG.intervalMs) {
+            stopAdminSupportUnreadMonitor();
+            if (document.hidden) {
+                return;
+            }
+
+            adminSupportUnreadMonitorState.timer = setTimeout(() => {
+                refreshAdminSupportUnreadMonitor({ silent: false }).catch(error => {
+                    console.warn('Фоновый монитор непрочитанных тикетов завершился ошибкой.', error);
+                });
+            }, Math.max(3000, Number(delayMs) || ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG.intervalMs));
+        }
+
+        function refreshAdminSupportUnreadMonitor(options = {}) {
+            if (document.hidden || adminSupportUnreadMonitorState.inFlight || currentAdminView === 'support') {
+                if (!document.hidden && currentAdminView !== 'support') {
+                    scheduleAdminSupportUnreadMonitor(ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG.intervalMs);
+                }
+                return Promise.resolve();
+            }
+
+            adminSupportUnreadMonitorState.inFlight = true;
+            return postAction({
+                action: 'get_support_tickets',
+                unread: 'admin',
+                limit: 50
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось проверить непрочитанные тикеты поддержки.');
+                }
+
+                const tickets = Array.isArray(data.tickets) ? data.tickets.map(normalizeAdminSupportTicket).filter(Boolean) : [];
+                updateAdminSupportUnreadNoticeState(tickets, {
+                    silent: Boolean(options.silent)
+                });
+            })
+            .catch(error => {
+                if (!options.silent) {
+                    console.warn('Не удалось обновить непрочитанные тикеты поддержки.', error);
+                }
+            })
+            .finally(() => {
+                adminSupportUnreadMonitorState.inFlight = false;
+                if (!document.hidden && currentAdminView !== 'support') {
+                    scheduleAdminSupportUnreadMonitor(ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG.intervalMs);
+                }
+            });
+        }
+
         function stopSupportLiveRefreshAdmin() {
             if (adminSupportLiveRefreshState.timer) {
                 clearTimeout(adminSupportLiveRefreshState.timer);
@@ -7835,6 +7942,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
 
                 supportTickets = Array.isArray(data.tickets) ? data.tickets.map(normalizeAdminSupportTicket).filter(Boolean) : [];
+                updateAdminSupportUnreadNoticeState(supportTickets, {
+                    silent: Boolean(options.silent)
+                });
                 renderSupportTicketsAdmin();
 
                 if (supportTickets.length < 1) {
@@ -7997,6 +8107,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         function showSupportView() {
             currentAdminView = 'support';
+            stopAdminSupportUnreadMonitor();
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
@@ -8373,6 +8484,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showAccountsView(options = {}) {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'accounts';
+            scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
@@ -8398,6 +8510,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showStatistics() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'statistics';
+            scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
@@ -8415,6 +8528,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showMaintenanceView() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'maintenance';
+            scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
@@ -8431,6 +8545,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         function showSqlEditor() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'sql';
+            scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
@@ -10418,6 +10533,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             stopSupportLiveRefreshAdmin();
             currentTable = table;
             currentAdminView = 'table';
+            scheduleAdminSupportUnreadMonitor(2000);
             
             // Показываем карточку с данными таблицы
             document.getElementById('accountsView').style.display = 'none';
@@ -11277,6 +11393,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
                 stopSupportLiveRefreshAdmin();
+                stopAdminSupportUnreadMonitor();
                 return;
             }
 
@@ -11284,7 +11401,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 refreshSupportLiveViewAdmin().catch(error => {
                     console.warn('Не удалось обновить тикеты поддержки после возврата во вкладку.', error);
                 });
+                return;
             }
+
+            refreshAdminSupportUnreadMonitor({ silent: true }).catch(error => {
+                console.warn('Не удалось обновить непрочитанные тикеты после возврата во вкладку.', error);
+            });
         });
     </script>
 </body>
