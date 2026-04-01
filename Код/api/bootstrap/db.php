@@ -5024,6 +5024,52 @@ function bober_fetch_public_player_profile($conn, $userId)
     ];
 }
 
+function bober_fetch_public_player_profile_by_login($conn, $login)
+{
+    $login = trim((string) $login);
+    if ($login === '') {
+        throw new InvalidArgumentException('Некорректный логин игрока.');
+    }
+
+    $stmt = $conn->prepare(
+        'SELECT u.id
+         FROM users u
+         LEFT JOIN user_bans b
+            ON b.user_id = u.id
+            AND b.lifted_at IS NULL
+            AND b.ban_until > CURRENT_TIMESTAMP
+         WHERE LOWER(TRIM(u.login)) = LOWER(TRIM(?))
+            AND u.login IS NOT NULL
+            AND u.login <> \'\'
+            AND LOWER(TRIM(u.login)) <> \'test\'
+            AND b.id IS NULL
+         LIMIT 1'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить поиск публичного профиля игрока.');
+    }
+
+    $stmt->bind_param('s', $login);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось найти публичный профиль игрока.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    $userId = max(0, (int) ($row['id'] ?? 0));
+    if ($userId < 1) {
+        throw new RuntimeException('Игрок не найден в публичной таблице лидеров.');
+    }
+
+    return bober_fetch_public_player_profile($conn, $userId);
+}
+
 function bober_reconcile_fly_beaver_top_reward_skin($conn)
 {
     $skinId = bober_fly_beaver_top_reward_skin_id();

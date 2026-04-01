@@ -2607,6 +2607,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
     #sessionsButton,
@@ -2641,6 +2642,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
     #sessionsButton {
@@ -2658,6 +2660,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #viewPlayerProfileButton,
     #supportAppealButton,
     #sessionsButton {
         border-color: rgba(255, 255, 255, 0.08);
@@ -2682,6 +2685,7 @@ Owner decisions:
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
     #profileDetailsButton:hover,
+    #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #logoutButton:hover,
     #sessionsButton:hover {
@@ -2690,6 +2694,7 @@ Owner decisions:
     }
 
     #profileDetailsButton:hover,
+    #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #sessionsButton:hover {
         box-shadow: none;
@@ -2709,6 +2714,7 @@ Owner decisions:
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
     #profileDetailsButton:active,
+    #viewPlayerProfileButton:active,
     #supportAppealButton:active,
     #logoutButton:active,
     #sessionsButton:active {
@@ -2992,6 +2998,12 @@ Owner decisions:
     .public-profile-modal {
         width: min(100%, 760px);
         max-height: min(88vh, 900px);
+        overflow-y: auto;
+    }
+
+    .public-profile-lookup-modal {
+        width: min(100%, 460px);
+        max-height: min(calc(100dvh - 32px), 520px);
         overflow-y: auto;
     }
 
@@ -3342,6 +3354,42 @@ Owner decisions:
     .public-profile-skin-card.equipped {
         border-color: rgba(126, 241, 255, 0.22);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .public-profile-lookup-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .public-profile-lookup-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.84);
+    }
+
+    .public-profile-lookup-input {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(126, 241, 255, 0.16);
+        background: linear-gradient(180deg, rgba(12, 18, 38, 0.82), rgba(8, 10, 24, 0.94));
+        color: #f4feff;
+        font-size: 15px;
+        outline: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .public-profile-lookup-input:focus {
+        border-color: rgba(126, 241, 255, 0.32);
+        box-shadow: 0 0 0 3px rgba(126, 241, 255, 0.12);
+    }
+
+    .public-profile-lookup-note {
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.64);
     }
 
     .public-profile-skin-media {
@@ -4996,6 +5044,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
                     </div>
                     <button id="profileDetailsButton" type="button">Мой профиль</button>
+                    <button id="viewPlayerProfileButton" type="button">Посмотреть профиль игрока</button>
                     <button id="supportAppealButton" type="button">
                         <span>Поддержка и входящие</span>
                         <span class="profile-menu-button-badge" id="supportAppealBadge" hidden>0</span>
@@ -5408,6 +5457,21 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button secondary" id="leaderboardProfileModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="leaderboardProfileLookupModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal public-profile-lookup-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardProfileLookupModalTitle">
+        <div class="skin-action-modal-title" id="leaderboardProfileLookupModalTitle">Посмотреть профиль игрока</div>
+        <div class="skin-action-modal-text">Введите логин игрока. Откроется та же публичная карточка, что и при нажатии на строку в таблице лидеров.</div>
+        <div class="public-profile-lookup-form">
+            <label class="public-profile-lookup-label" for="leaderboardProfileLookupInput">Логин игрока</label>
+            <input type="text" id="leaderboardProfileLookupInput" class="public-profile-lookup-input" maxlength="32" placeholder="Введите логин" autocomplete="off" spellcheck="false">
+            <div class="public-profile-lookup-note" id="leaderboardProfileLookupNote">Поиск выполняется по точному логину игрока.</div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="leaderboardProfileLookupModalClose">Отмена</button>
+            <button type="button" class="settings-action-button primary" id="leaderboardProfileLookupSubmit">Открыть профиль</button>
         </div>
     </div>
 </div>
@@ -6847,6 +6911,7 @@ function syncGlobalOverlayState() {
         document.getElementById('settingsModal'),
         document.getElementById('profileModal'),
         document.getElementById('leaderboardProfileModal'),
+        document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
         document.getElementById('achievementUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
@@ -6917,6 +6982,10 @@ function getCurrentUiContext() {
 
     if (document.getElementById('settingsModal')?.classList.contains('show')) {
         return 'settings_modal';
+    }
+
+    if (document.getElementById('leaderboardProfileLookupModal')?.classList.contains('show')) {
+        return 'leaderboard_profile_lookup_modal';
     }
 
     if (document.getElementById('shop')?.style.display === 'block') {
@@ -8267,6 +8336,101 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
         silent: true,
         forceCatalog: true
     });
+}
+
+function openLeaderboardProfileLookupModal(prefillLogin = '') {
+    const modal = document.getElementById('leaderboardProfileLookupModal');
+    const input = document.getElementById('leaderboardProfileLookupInput');
+    const note = document.getElementById('leaderboardProfileLookupNote');
+    if (!modal || !input) {
+        return;
+    }
+
+    closeProfileMenu();
+    if (note) {
+        note.textContent = 'Поиск выполняется по точному логину игрока.';
+    }
+    input.value = String(prefillLogin || '').trim();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    window.setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 20);
+}
+
+function closeLeaderboardProfileLookupModal() {
+    const modal = document.getElementById('leaderboardProfileLookupModal');
+    const note = document.getElementById('leaderboardProfileLookupNote');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    if (note) {
+        note.textContent = 'Поиск выполняется по точному логину игрока.';
+    }
+    syncGlobalOverlayState();
+}
+
+async function submitLeaderboardProfileLookup() {
+    const input = document.getElementById('leaderboardProfileLookupInput');
+    const note = document.getElementById('leaderboardProfileLookupNote');
+    if (!input) {
+        return;
+    }
+
+    const login = String(input.value || '').trim();
+    if (!login) {
+        if (note) {
+            note.textContent = 'Введите логин игрока.';
+        }
+        input.focus();
+        return;
+    }
+
+    if (note) {
+        note.textContent = 'Ищу публичный профиль игрока...';
+    }
+
+    closeLeaderboardProfileLookupModal();
+    leaderboardProfileState.openUserId = 0;
+    leaderboardProfileState.fallbackLogin = login;
+    leaderboardProfileState.loading = true;
+    leaderboardProfileState.error = '';
+    leaderboardProfileState.data = null;
+    leaderboardProfileState.lastFetchedAt = 0;
+    leaderboardProfileState.requestToken += 1;
+
+    const modal = document.getElementById('leaderboardProfileModal');
+    if (modal) {
+        renderLeaderboardPublicProfileModal();
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        syncGlobalOverlayState();
+    }
+
+    try {
+        const response = await requestJson(`/api/leaderboards/player-profile.php?login=${encodeURIComponent(login)}`, {
+            method: 'GET'
+        });
+        leaderboardProfileState.data = normalizeLeaderboardPublicProfile(response?.player || response, login);
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.error = '';
+        leaderboardProfileState.lastFetchedAt = Date.now();
+        if (leaderboardProfileState.data?.userId) {
+            leaderboardProfileState.openUserId = Math.max(0, Number(leaderboardProfileState.data.userId) || 0);
+            leaderboardProfileState.cache.set(leaderboardProfileState.openUserId, leaderboardProfileState.data);
+        }
+        renderLeaderboardPublicProfileModal();
+    } catch (error) {
+        leaderboardProfileState.loading = false;
+        leaderboardProfileState.data = null;
+        leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
+        renderLeaderboardPublicProfileModal();
+    }
 }
 
 function closeLeaderboardPublicProfile() {
@@ -11570,6 +11734,15 @@ if (leaderboardProfileModalNode) {
     });
 }
 
+const leaderboardProfileLookupModalNode = document.getElementById('leaderboardProfileLookupModal');
+if (leaderboardProfileLookupModalNode) {
+    leaderboardProfileLookupModalNode.addEventListener('click', (event) => {
+        if (event.target === leaderboardProfileLookupModalNode) {
+            closeLeaderboardProfileLookupModal();
+        }
+    });
+}
+
 const supportModalNode = document.getElementById('supportModal');
 if (supportModalNode) {
     supportModalNode.addEventListener('click', (event) => {
@@ -11606,6 +11779,30 @@ const leaderboardProfileModalCloseButton = document.getElementById('leaderboardP
 if (leaderboardProfileModalCloseButton) {
     leaderboardProfileModalCloseButton.addEventListener('click', () => {
         closeLeaderboardPublicProfile();
+    });
+}
+
+const leaderboardProfileLookupModalCloseButton = document.getElementById('leaderboardProfileLookupModalClose');
+if (leaderboardProfileLookupModalCloseButton) {
+    leaderboardProfileLookupModalCloseButton.addEventListener('click', () => {
+        closeLeaderboardProfileLookupModal();
+    });
+}
+
+const leaderboardProfileLookupSubmitButton = document.getElementById('leaderboardProfileLookupSubmit');
+if (leaderboardProfileLookupSubmitButton) {
+    leaderboardProfileLookupSubmitButton.addEventListener('click', () => {
+        submitLeaderboardProfileLookup();
+    });
+}
+
+const leaderboardProfileLookupInput = document.getElementById('leaderboardProfileLookupInput');
+if (leaderboardProfileLookupInput) {
+    leaderboardProfileLookupInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitLeaderboardProfileLookup();
+        }
     });
 }
 
@@ -11781,6 +11978,19 @@ if (profileDetailsButton) {
         }
 
         openProfileModal();
+    });
+}
+
+const viewPlayerProfileButton = document.getElementById('viewPlayerProfileButton');
+if (viewPlayerProfileButton) {
+    viewPlayerProfileButton.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы искать публичные профили игроков.'
+        })) {
+            return;
+        }
+
+        openLeaderboardProfileLookupModal();
     });
 }
 
