@@ -3637,6 +3637,85 @@ Owner decisions:
         word-break: break-word;
     }
 
+    .support-message-attachments,
+    .support-attachment-draft-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .support-message-attachments {
+        margin-top: 10px;
+    }
+
+    .support-message-attachment,
+    .support-attachment-draft {
+        position: relative;
+        width: 92px;
+        height: 92px;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(126, 241, 255, 0.16);
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 10px 22px rgba(4, 8, 22, 0.16);
+    }
+
+    .support-message-attachment {
+        display: block;
+        transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .support-message-attachment:hover {
+        transform: translateY(-1px);
+        border-color: rgba(126, 241, 255, 0.3);
+        box-shadow: 0 14px 28px rgba(4, 8, 22, 0.22);
+    }
+
+    .support-message-attachment img,
+    .support-attachment-draft img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .support-attachment-remove {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 26px;
+        height: 26px;
+        border: none;
+        border-radius: 999px;
+        background: rgba(8, 12, 26, 0.84);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 900;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 18px rgba(4, 8, 22, 0.18);
+    }
+
+    .support-upload-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .support-upload-button {
+        min-height: 44px;
+    }
+
+    .support-upload-hint {
+        color: rgba(255, 255, 255, 0.64);
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
     .support-form-card {
         padding: 16px;
         border-radius: 18px;
@@ -5251,6 +5330,12 @@ function showNotification(message, type = 'success', duration = 3000) {
                     <div class="support-ticket-thread-messages" id="supportTicketMessages"></div>
                     <div class="support-ticket-reply-box">
                         <textarea id="supportReplyMessage" placeholder="Напишите ответ в тикет..."></textarea>
+                        <input type="file" id="supportReplyImages" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+                        <div class="support-upload-toolbar">
+                            <button type="button" class="settings-action-button secondary support-upload-button" id="supportReplyImagesButton">Добавить фото</button>
+                            <div class="support-upload-hint">До 3 фото в сообщении</div>
+                        </div>
+                        <div class="support-attachment-draft-list" id="supportReplyAttachmentDraftList"></div>
                         <div class="support-ticket-actions">
                             <button type="button" class="settings-action-button primary" id="supportReplyButton">Отправить ответ</button>
                         </div>
@@ -5278,6 +5363,12 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <label for="supportTicketMessage">Сообщение</label>
                         <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
                     </div>
+                    <input type="file" id="supportTicketImages" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+                    <div class="support-upload-toolbar">
+                        <button type="button" class="settings-action-button secondary support-upload-button" id="supportTicketImagesButton">Добавить фото</button>
+                        <div class="support-upload-hint">До 3 фото в тикете</div>
+                    </div>
+                    <div class="support-attachment-draft-list" id="supportTicketAttachmentDraftList"></div>
                     <div class="support-compose-note" id="supportComposeNote">Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.</div>
                 </div>
                 <div class="support-ticket-actions">
@@ -6198,9 +6289,16 @@ const supportState = {
     loadingList: false,
     loadingTicket: false,
     composeAppeal: null,
+    composeAttachments: [],
+    replyAttachments: [],
     listSignature: '',
     threadSignature: ''
 };
+const SUPPORT_ATTACHMENT_CONFIG = Object.freeze({
+    maxFiles: 3,
+    maxBytesPerFile: 3 * 1024 * 1024,
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+});
 const achievementUnlockState = {
     queue: [],
     active: null,
@@ -8060,6 +8158,192 @@ function buildSupportTicketSubject(topic, message) {
     return `${definition.subject}: ${preview}`;
 }
 
+function normalizeSupportAttachment(rawAttachment) {
+    if (!rawAttachment || typeof rawAttachment !== 'object') {
+        return null;
+    }
+
+    const url = String(rawAttachment.url || '').trim();
+    if (!url) {
+        return null;
+    }
+
+    return {
+        name: String(rawAttachment.name || 'photo').trim() || 'photo',
+        url,
+        mimeType: String(rawAttachment.mimeType || rawAttachment.type || 'image/jpeg').trim() || 'image/jpeg',
+        size: Math.max(0, Number(rawAttachment.size) || 0)
+    };
+}
+
+function normalizeSupportDraftAttachment(rawAttachment) {
+    if (!rawAttachment || typeof rawAttachment !== 'object') {
+        return null;
+    }
+
+    const dataUrl = String(rawAttachment.dataUrl || '').trim();
+    if (!dataUrl) {
+        return null;
+    }
+
+    return {
+        name: String(rawAttachment.name || 'photo').trim() || 'photo',
+        dataUrl,
+        mimeType: String(rawAttachment.mimeType || 'image/jpeg').trim() || 'image/jpeg',
+        size: Math.max(0, Number(rawAttachment.size) || 0)
+    };
+}
+
+function getSupportDraftAttachments(kind = 'compose') {
+    return kind === 'reply' ? supportState.replyAttachments : supportState.composeAttachments;
+}
+
+function setSupportDraftAttachments(kind = 'compose', items = []) {
+    const normalizedItems = Array.isArray(items)
+        ? items.map((item) => normalizeSupportDraftAttachment(item)).filter(Boolean)
+        : [];
+
+    if (kind === 'reply') {
+        supportState.replyAttachments = normalizedItems;
+        return;
+    }
+
+    supportState.composeAttachments = normalizedItems;
+}
+
+function resetSupportDraftAttachments(kind = 'all') {
+    if (kind === 'all' || kind === 'compose') {
+        supportState.composeAttachments = [];
+        const composeInput = document.getElementById('supportTicketImages');
+        if (composeInput) {
+            composeInput.value = '';
+        }
+        renderSupportAttachmentDraftList('compose');
+    }
+
+    if (kind === 'all' || kind === 'reply') {
+        supportState.replyAttachments = [];
+        const replyInput = document.getElementById('supportReplyImages');
+        if (replyInput) {
+            replyInput.value = '';
+        }
+        renderSupportAttachmentDraftList('reply');
+    }
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function appendSupportDraftAttachments(kind, fileList) {
+    const files = Array.from(fileList || []);
+    if (files.length < 1) {
+        return;
+    }
+
+    const currentItems = getSupportDraftAttachments(kind);
+    const availableSlots = Math.max(0, SUPPORT_ATTACHMENT_CONFIG.maxFiles - currentItems.length);
+    if (availableSlots < 1) {
+        showNotification(`В одном сообщении можно отправить до ${SUPPORT_ATTACHMENT_CONFIG.maxFiles} фото.`, 'warning');
+        return;
+    }
+
+    const nextItems = [...currentItems];
+    let skippedCount = 0;
+
+    for (const file of files.slice(0, availableSlots)) {
+        const fileType = String(file?.type || '').trim().toLowerCase();
+        if (!SUPPORT_ATTACHMENT_CONFIG.allowedTypes.includes(fileType)) {
+            skippedCount += 1;
+            continue;
+        }
+
+        const fileSize = Math.max(0, Number(file?.size) || 0);
+        if (fileSize > SUPPORT_ATTACHMENT_CONFIG.maxBytesPerFile) {
+            skippedCount += 1;
+            continue;
+        }
+
+        try {
+            const dataUrl = await readFileAsDataUrl(file);
+            nextItems.push({
+                name: String(file.name || 'photo').trim() || 'photo',
+                dataUrl,
+                mimeType: fileType,
+                size: fileSize
+            });
+        } catch (error) {
+            skippedCount += 1;
+        }
+    }
+
+    if (files.length > availableSlots) {
+        skippedCount += files.length - availableSlots;
+    }
+
+    setSupportDraftAttachments(kind, nextItems);
+    renderSupportAttachmentDraftList(kind);
+
+    if (skippedCount > 0) {
+        showNotification('Часть изображений не была добавлена. Проверьте формат, размер или лимит по количеству.', 'warning');
+    }
+}
+
+function removeSupportDraftAttachment(kind, index) {
+    const currentItems = getSupportDraftAttachments(kind);
+    if (!Array.isArray(currentItems) || index < 0 || index >= currentItems.length) {
+        return;
+    }
+
+    const nextItems = currentItems.filter((_, itemIndex) => itemIndex !== index);
+    setSupportDraftAttachments(kind, nextItems);
+    renderSupportAttachmentDraftList(kind);
+}
+
+function renderSupportMessageAttachments(attachments) {
+    const normalizedItems = Array.isArray(attachments)
+        ? attachments.map((item) => normalizeSupportAttachment(item)).filter(Boolean)
+        : [];
+    if (normalizedItems.length < 1) {
+        return '';
+    }
+
+    return `
+        <div class="support-message-attachments">
+            ${normalizedItems.map((item) => `
+                <a class="support-message-attachment" href="${escapeHtmlText(item.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtmlText(item.name)}">
+                    <img src="${escapeHtmlText(item.url)}" alt="${escapeHtmlText(item.name)}" loading="lazy" decoding="async">
+                </a>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderSupportAttachmentDraftList(kind = 'compose') {
+    const listNode = document.getElementById(kind === 'reply' ? 'supportReplyAttachmentDraftList' : 'supportTicketAttachmentDraftList');
+    if (!listNode) {
+        return;
+    }
+
+    const items = getSupportDraftAttachments(kind);
+    if (!Array.isArray(items) || items.length < 1) {
+        listNode.innerHTML = '';
+        return;
+    }
+
+    listNode.innerHTML = items.map((item, index) => `
+        <div class="support-attachment-draft">
+            <img src="${escapeHtmlText(item.dataUrl)}" alt="${escapeHtmlText(item.name)}" loading="lazy" decoding="async">
+            <button type="button" class="support-attachment-remove" data-support-attachment-remove="${kind}:${index}" aria-label="Убрать фото">×</button>
+        </div>
+    `).join('');
+}
+
 function updateSupportComposeFormState() {
     const topicNode = document.getElementById('supportTicketTopic');
     const messageNode = document.getElementById('supportTicketMessage');
@@ -8328,7 +8612,7 @@ function renderSupportTicketThread() {
         status: ticket.status,
         unreadByUser: ticket.unreadByUser,
         updatedAt: ticket.updatedAt,
-        messages: (ticket.messages || []).map((message) => `${message.id}:${message.createdAt}`)
+        messages: (ticket.messages || []).map((message) => `${message.id}:${message.createdAt}:${(message.attachments || []).map((attachment) => attachment.url).join('|')}`)
     });
 
     if (supportState.threadSignature === nextSignature) {
@@ -8352,7 +8636,8 @@ function renderSupportTicketThread() {
                     <span>${escapeHtmlText(message.authorType === 'admin' ? 'Поддержка' : 'Вы')}</span>
                     <span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>
                 </div>
-                <div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>
+                ${message.message ? `<div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>` : ''}
+                ${renderSupportMessageAttachments(message.attachments)}
             </div>
         `).join('')
         : '<div class="empty-list">История переписки пока пуста.</div>';
@@ -8437,12 +8722,14 @@ function applySupportComposeDraft() {
         topicNode.value = 'question';
         messageNode.value = '';
         updateSupportComposeFormState();
+        renderSupportAttachmentDraftList('compose');
         return;
     }
 
     topicNode.value = draft.topic || mapSupportCategoryToTopic(draft.category);
     messageNode.value = draft.message || '';
     updateSupportComposeFormState();
+    renderSupportAttachmentDraftList('compose');
     noteNode.textContent = userId
         ? 'Заявка будет отправлена из текущего аккаунта и сразу появится в вашем списке тикетов.'
         : 'Апелляция будет привязана к указанному аккаунту по логину и user ID.';
@@ -8565,6 +8852,7 @@ function openSupportCenter(options = {}) {
     closeProfileMenu();
     closeProfileModal();
     supportState.composeAppeal = options.appealContext || null;
+    resetSupportDraftAttachments('all');
     applySupportComposeDraft();
     setSupportModalTab(options.appealContext ? 'create' : (options.tab || supportState.activeTab || 'inbox'));
     modal.classList.add('show');
@@ -8596,6 +8884,7 @@ function closeSupportModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     supportState.composeAppeal = null;
+    resetSupportDraftAttachments('all');
     supportState.listSignature = '';
     supportState.threadSignature = '';
     stopSupportLiveRefresh();
@@ -8614,12 +8903,19 @@ async function submitSupportTicket() {
     const topic = String(topicNode.value || 'question');
     const topicDefinition = getSupportTopicDefinition(topic);
     const message = messageNode.value.trim();
+    const attachments = getSupportDraftAttachments('compose').map((item) => ({
+        name: item.name,
+        dataUrl: item.dataUrl,
+        mimeType: item.mimeType,
+        size: item.size
+    }));
 
     const payload = {
         action: 'create_ticket',
         category: topicDefinition.category,
         subject: buildSupportTicketSubject(topic, message),
-        message
+        message,
+        attachments
     };
     if (!userId && supportState.composeAppeal) {
         payload.appealUserId = Number(supportState.composeAppeal.appealUserId) || 0;
@@ -8647,6 +8943,8 @@ async function submitSupportTicket() {
             supportState.composeAppeal = null;
             closeSupportModal();
         }
+        messageNode.value = '';
+        resetSupportDraftAttachments('compose');
         supportLiveRefreshState.lastListRefreshAt = Date.now();
         applySupportSummary(data.summary || supportSummary);
         applySupportComposeDraft();
@@ -8668,8 +8966,14 @@ async function submitSupportReply() {
     }
 
     const message = replyNode.value.trim();
-    if (!message) {
-        showNotification('Введите сообщение для ответа в тикет.', 'warning');
+    const attachments = getSupportDraftAttachments('reply').map((item) => ({
+        name: item.name,
+        dataUrl: item.dataUrl,
+        mimeType: item.mimeType,
+        size: item.size
+    }));
+    if (!message && attachments.length < 1) {
+        showNotification('Введите сообщение или прикрепите фото.', 'warning');
         return;
     }
 
@@ -8683,7 +8987,8 @@ async function submitSupportReply() {
             body: JSON.stringify({
                 action: 'reply_ticket',
                 ticketId,
-                message
+                message,
+                attachments
             })
         });
 
@@ -8691,6 +8996,7 @@ async function submitSupportReply() {
         supportState.selectedTicket = upsertSupportTicket(normalizedTicket);
         supportState.selectedTicketId = normalizedTicket ? normalizedTicket.id : supportState.selectedTicketId;
         replyNode.value = '';
+        resetSupportDraftAttachments('reply');
         applySupportSummary(data.summary || supportSummary);
         renderSupportTicketList();
         renderSupportTicketThread();
@@ -10055,6 +10361,9 @@ function normalizeSupportTicket(rawTicket) {
                 authorType: String(message.authorType || 'user').trim(),
                 authorUserId: Number(message.authorUserId) > 0 ? Number(message.authorUserId) : null,
                 message: String(message.message || '').trim(),
+                attachments: Array.isArray(message.attachments)
+                    ? message.attachments.map((attachment) => normalizeSupportAttachment(attachment)).filter(Boolean)
+                    : [],
                 createdAt: String(message.createdAt || '').trim()
             }))
             : []
@@ -11158,6 +11467,36 @@ if (supportReplyButton) {
     });
 }
 
+const supportTicketImagesButton = document.getElementById('supportTicketImagesButton');
+if (supportTicketImagesButton) {
+    supportTicketImagesButton.addEventListener('click', () => {
+        document.getElementById('supportTicketImages')?.click();
+    });
+}
+
+const supportReplyImagesButton = document.getElementById('supportReplyImagesButton');
+if (supportReplyImagesButton) {
+    supportReplyImagesButton.addEventListener('click', () => {
+        document.getElementById('supportReplyImages')?.click();
+    });
+}
+
+const supportTicketImagesInput = document.getElementById('supportTicketImages');
+if (supportTicketImagesInput) {
+    supportTicketImagesInput.addEventListener('change', async (event) => {
+        await appendSupportDraftAttachments('compose', event.target?.files);
+        event.target.value = '';
+    });
+}
+
+const supportReplyImagesInput = document.getElementById('supportReplyImages');
+if (supportReplyImagesInput) {
+    supportReplyImagesInput.addEventListener('change', async (event) => {
+        await appendSupportDraftAttachments('reply', event.target?.files);
+        event.target.value = '';
+    });
+}
+
 const supportModalTabsNode = document.getElementById('supportModalTabs');
 if (supportModalTabsNode) {
     supportModalTabsNode.addEventListener('click', (event) => {
@@ -11180,9 +11519,29 @@ if (supportTicketListNode) {
 
         const ticketId = Number(ticketButton.dataset.ticketId) || 0;
         if (ticketId > 0) {
+            if (ticketId !== Number(supportState.selectedTicketId || 0)) {
+                resetSupportDraftAttachments('reply');
+            }
             loadSupportTicket(ticketId).catch((error) => {
                 console.warn('Не удалось открыть тикет из списка.', error);
             });
+        }
+    });
+}
+
+const supportAttachmentRemovalNode = document.getElementById('supportModal');
+if (supportAttachmentRemovalNode) {
+    supportAttachmentRemovalNode.addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-support-attachment-remove]');
+        if (!removeButton) {
+            return;
+        }
+
+        const payload = String(removeButton.dataset.supportAttachmentRemove || '');
+        const [kind, indexRaw] = payload.split(':');
+        const index = Number(indexRaw);
+        if ((kind === 'compose' || kind === 'reply') && Number.isInteger(index)) {
+            removeSupportDraftAttachment(kind, index);
         }
     });
 }

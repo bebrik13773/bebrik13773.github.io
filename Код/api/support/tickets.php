@@ -107,6 +107,7 @@ try {
         $category = bober_normalize_support_ticket_category($data['category'] ?? '');
         $subject = (string) ($data['subject'] ?? '');
         $message = (string) ($data['message'] ?? '');
+        $attachments = $data['attachments'] ?? [];
         $resolvedUserId = $sessionUserId;
         if ($resolvedUserId === null) {
             if ($category !== 'ban_appeal') {
@@ -118,7 +119,7 @@ try {
         }
 
         $conn->begin_transaction();
-        $ticket = bober_create_support_ticket($conn, $resolvedUserId, $category, $subject, $message);
+        $ticket = bober_create_support_ticket($conn, $resolvedUserId, $category, $subject, $message, $attachments);
         $summary = bober_fetch_user_support_summary($conn, $resolvedUserId);
         $conn->commit();
         $conn->close();
@@ -138,7 +139,13 @@ try {
         }
 
         $conn->begin_transaction();
-        $ticket = bober_reply_support_ticket_as_user($conn, $sessionUserId, (int) ($data['ticketId'] ?? 0), (string) ($data['message'] ?? ''));
+        $ticket = bober_reply_support_ticket_as_user(
+            $conn,
+            $sessionUserId,
+            (int) ($data['ticketId'] ?? 0),
+            (string) ($data['message'] ?? ''),
+            $data['attachments'] ?? []
+        );
         $summary = bober_fetch_user_support_summary($conn, $sessionUserId);
         $conn->commit();
         $conn->close();

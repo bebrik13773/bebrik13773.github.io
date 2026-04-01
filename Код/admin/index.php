@@ -1292,6 +1292,7 @@ SQL;
             if (requireAdminAuth($response)) {
                 $ticketId = max(0, (int) ($_POST['ticket_id'] ?? 0));
                 $message = (string) ($_POST['message'] ?? '');
+                $attachments = $_POST['attachments_json'] ?? [];
 
                 if ($ticketId < 1) {
                     $response['message'] = 'Не удалось определить тикет для ответа.';
@@ -1300,7 +1301,7 @@ SQL;
                     bober_ensure_project_schema($conn);
                     $conn->begin_transaction();
 
-                    $ticket = bober_reply_support_ticket_as_admin($conn, $ticketId, $message);
+                    $ticket = bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attachments);
                     $conn->commit();
 
                     $response['success'] = true;
@@ -1329,6 +1330,7 @@ SQL;
                 $category = (string) ($_POST['category'] ?? '');
                 $subject = (string) ($_POST['subject'] ?? '');
                 $message = (string) ($_POST['message'] ?? '');
+                $attachments = $_POST['attachments_json'] ?? [];
 
                 if ($userId < 1) {
                     $response['message'] = 'Не удалось определить игрока для исходящего тикета.';
@@ -1337,7 +1339,7 @@ SQL;
                     bober_ensure_project_schema($conn);
                     $conn->begin_transaction();
 
-                    $ticket = bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message);
+                    $ticket = bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message, $attachments);
                     $conn->commit();
 
                     $response['success'] = true;
@@ -4608,6 +4610,66 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             word-break: break-word;
         }
 
+        .support-ticket-thread-attachments,
+        .support-attachment-draft-list-admin {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .support-ticket-thread-attachments {
+            margin-top: 10px;
+        }
+
+        .support-ticket-thread-attachment,
+        .support-attachment-draft-admin {
+            position: relative;
+            width: 96px;
+            height: 96px;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--field-bg);
+            box-shadow: var(--shadow);
+        }
+
+        .support-ticket-thread-attachment {
+            display: block;
+            transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .support-ticket-thread-attachment:hover {
+            transform: translateY(-1px);
+            border-color: rgba(59, 177, 255, 0.42);
+            box-shadow: 0 16px 28px rgba(3, 10, 24, 0.22);
+        }
+
+        .support-ticket-thread-attachment img,
+        .support-attachment-draft-admin img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .support-attachment-remove-admin {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 26px;
+            height: 26px;
+            border-radius: 999px;
+            border: none;
+            background: rgba(8, 12, 26, 0.86);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .support-ticket-admin-actions {
             display: flex;
             flex-wrap: wrap;
@@ -5269,6 +5331,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                     <label class="form-label" for="supportReplyInput">Ответ игроку</label>
                                     <textarea class="form-control" id="supportReplyInput" rows="5" placeholder="Напишите ответ от лица поддержки..."></textarea>
                                 </div>
+                                <input id="supportReplyImagesInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+                                <div class="inline-actions" style="margin-top: 0;">
+                                    <button class="btn btn-outline" type="button" id="supportReplyAttachBtn">
+                                        <span class="material-icons">photo_camera</span>
+                                        Добавить фото
+                                    </button>
+                                    <span class="card-subtitle">До 3 фото в одном ответе</span>
+                                </div>
+                                <div class="support-attachment-draft-list-admin" id="supportReplyAttachmentDrafts"></div>
                                 <div class="inline-actions" style="margin-top: 0;">
                                     <button class="btn btn-primary" id="replySupportBtn">
                                         <span class="material-icons">send</span>
@@ -5819,6 +5890,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let supportTickets = [];
         let selectedSupportTicketId = 0;
         let selectedSupportTicket = null;
+        let supportReplyDraftAttachments = [];
+        let outboundSupportDraftAttachments = [];
+        let outboundSupportDraftUserId = 0;
+        const SUPPORT_ATTACHMENT_CONFIG = {
+            maxFiles: 3,
+            maxBytesPerFile: 3 * 1024 * 1024,
+            allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        };
         const ADMIN_SUPPORT_LIVE_REFRESH_CONFIG = {
             intervalMs: 7000
         };
@@ -5938,12 +6017,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         function postAction(params) {
+            const body = params instanceof FormData
+                ? params
+                : Object.entries(params || {}).reduce((formData, [key, value]) => {
+                    formData.append(key, value == null ? '' : String(value));
+                    return formData;
+                }, new FormData());
+
             return fetch('', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams(params)
+                body
             }).then(response => response.json());
         }
         
@@ -6804,6 +6887,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const supportReplyAttachBtn = document.getElementById('supportReplyAttachBtn');
+            if (supportReplyAttachBtn) {
+                supportReplyAttachBtn.addEventListener('click', function() {
+                    document.getElementById('supportReplyImagesInput')?.click();
+                });
+            }
+
+            const supportReplyImagesInput = document.getElementById('supportReplyImagesInput');
+            if (supportReplyImagesInput) {
+                supportReplyImagesInput.addEventListener('change', async function(event) {
+                    await appendAdminSupportDraftAttachments('reply', event.target?.files);
+                    event.target.value = '';
+                });
+            }
+
             const replySupportBtn = document.getElementById('replySupportBtn');
             if (replySupportBtn) {
                 replySupportBtn.addEventListener('click', function() {
@@ -6817,6 +6915,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     submitSupportStatusAdmin();
                 });
             }
+
+            document.addEventListener('click', function(event) {
+                const removeButton = event.target.closest('[data-admin-support-attachment-remove]');
+                if (!removeButton) {
+                    return;
+                }
+
+                const payload = String(removeButton.dataset.adminSupportAttachmentRemove || '');
+                const [kind, indexRaw] = payload.split(':');
+                const index = Number(indexRaw);
+                if ((kind === 'reply' || kind === 'outbound') && Number.isInteger(index)) {
+                    removeAdminSupportDraftAttachment(kind, index);
+                }
+            });
 
             document.getElementById('sqlEditorBtn').addEventListener('click', function() {
                 showSqlEditor();
@@ -7351,8 +7463,207 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 createdAt: String(rawTicket.createdAt || '').trim(),
                 updatedAt: String(rawTicket.updatedAt || '').trim(),
                 lastMessagePreview: String(rawTicket.lastMessagePreview || '').trim(),
-                messages: Array.isArray(rawTicket.messages) ? rawTicket.messages : []
+                messages: Array.isArray(rawTicket.messages)
+                    ? rawTicket.messages.map((message) => ({
+                        id: Math.max(0, Number(message.id) || 0),
+                        authorType: String(message.authorType || 'user').trim(),
+                        authorUserId: Number(message.authorUserId) > 0 ? Number(message.authorUserId) : null,
+                        message: String(message.message || '').trim(),
+                        createdAt: String(message.createdAt || '').trim(),
+                        attachments: Array.isArray(message.attachments)
+                            ? message.attachments
+                                .map((attachment) => normalizeAdminSupportAttachment(attachment))
+                                .filter(Boolean)
+                            : []
+                    }))
+                    : []
             };
+        }
+
+        function normalizeAdminSupportAttachment(rawAttachment) {
+            if (!rawAttachment || typeof rawAttachment !== 'object') {
+                return null;
+            }
+
+            const url = String(rawAttachment.url || '').trim();
+            if (!url) {
+                return null;
+            }
+
+            return {
+                name: String(rawAttachment.name || 'photo').trim() || 'photo',
+                url,
+                mimeType: String(rawAttachment.mimeType || rawAttachment.type || 'image/jpeg').trim() || 'image/jpeg',
+                size: Math.max(0, Number(rawAttachment.size) || 0)
+            };
+        }
+
+        function normalizeAdminDraftAttachment(rawAttachment) {
+            if (!rawAttachment || typeof rawAttachment !== 'object') {
+                return null;
+            }
+
+            const dataUrl = String(rawAttachment.dataUrl || '').trim();
+            if (!dataUrl) {
+                return null;
+            }
+
+            return {
+                name: String(rawAttachment.name || 'photo').trim() || 'photo',
+                dataUrl,
+                mimeType: String(rawAttachment.mimeType || 'image/jpeg').trim() || 'image/jpeg',
+                size: Math.max(0, Number(rawAttachment.size) || 0)
+            };
+        }
+
+        function getAdminSupportDraftAttachments(kind = 'reply') {
+            return kind === 'outbound' ? outboundSupportDraftAttachments : supportReplyDraftAttachments;
+        }
+
+        function setAdminSupportDraftAttachments(kind = 'reply', items = []) {
+            const normalizedItems = Array.isArray(items)
+                ? items.map((item) => normalizeAdminDraftAttachment(item)).filter(Boolean)
+                : [];
+
+            if (kind === 'outbound') {
+                outboundSupportDraftAttachments = normalizedItems;
+                return;
+            }
+
+            supportReplyDraftAttachments = normalizedItems;
+        }
+
+        function renderAdminSupportDraftAttachments(kind = 'reply') {
+            const listNode = document.getElementById(kind === 'outbound' ? 'accountSupportAttachmentDrafts' : 'supportReplyAttachmentDrafts');
+            if (!listNode) {
+                return;
+            }
+
+            const items = getAdminSupportDraftAttachments(kind);
+            if (!Array.isArray(items) || items.length < 1) {
+                listNode.innerHTML = '';
+                return;
+            }
+
+            listNode.innerHTML = items.map((item, index) => `
+                <div class="support-attachment-draft-admin">
+                    <img src="${escapeHtml(item.dataUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async">
+                    <button class="support-attachment-remove-admin" type="button" data-admin-support-attachment-remove="${kind}:${index}" aria-label="Убрать фото">×</button>
+                </div>
+            `).join('');
+        }
+
+        function resetAdminSupportDraftAttachments(kind = 'all') {
+            if (kind === 'all' || kind === 'reply') {
+                supportReplyDraftAttachments = [];
+                const input = document.getElementById('supportReplyImagesInput');
+                if (input) {
+                    input.value = '';
+                }
+                renderAdminSupportDraftAttachments('reply');
+            }
+
+            if (kind === 'all' || kind === 'outbound') {
+                outboundSupportDraftAttachments = [];
+                const input = document.getElementById('accountSupportImagesInput');
+                if (input) {
+                    input.value = '';
+                }
+                renderAdminSupportDraftAttachments('outbound');
+            }
+        }
+
+        function readAdminFileAsDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function appendAdminSupportDraftAttachments(kind, fileList) {
+            const files = Array.from(fileList || []);
+            if (files.length < 1) {
+                return;
+            }
+
+            const currentItems = getAdminSupportDraftAttachments(kind);
+            const availableSlots = Math.max(0, SUPPORT_ATTACHMENT_CONFIG.maxFiles - currentItems.length);
+            if (availableSlots < 1) {
+                showNotification(`В одном сообщении можно отправить до ${SUPPORT_ATTACHMENT_CONFIG.maxFiles} фото.`, 'warning');
+                return;
+            }
+
+            const nextItems = [...currentItems];
+            let skippedCount = 0;
+
+            for (const file of files.slice(0, availableSlots)) {
+                const fileType = String(file?.type || '').trim().toLowerCase();
+                if (!SUPPORT_ATTACHMENT_CONFIG.allowedTypes.includes(fileType)) {
+                    skippedCount += 1;
+                    continue;
+                }
+
+                const fileSize = Math.max(0, Number(file?.size) || 0);
+                if (fileSize > SUPPORT_ATTACHMENT_CONFIG.maxBytesPerFile) {
+                    skippedCount += 1;
+                    continue;
+                }
+
+                try {
+                    const dataUrl = await readAdminFileAsDataUrl(file);
+                    nextItems.push({
+                        name: String(file.name || 'photo').trim() || 'photo',
+                        dataUrl,
+                        mimeType: fileType,
+                        size: fileSize
+                    });
+                } catch (error) {
+                    skippedCount += 1;
+                }
+            }
+
+            if (files.length > availableSlots) {
+                skippedCount += files.length - availableSlots;
+            }
+
+            setAdminSupportDraftAttachments(kind, nextItems);
+            renderAdminSupportDraftAttachments(kind);
+
+            if (skippedCount > 0) {
+                showNotification('Часть изображений не была добавлена. Проверьте формат, размер или лимит.', 'warning');
+            }
+        }
+
+        function removeAdminSupportDraftAttachment(kind, index) {
+            const currentItems = getAdminSupportDraftAttachments(kind);
+            if (!Array.isArray(currentItems) || index < 0 || index >= currentItems.length) {
+                return;
+            }
+
+            const nextItems = currentItems.filter((_, itemIndex) => itemIndex !== index);
+            setAdminSupportDraftAttachments(kind, nextItems);
+            renderAdminSupportDraftAttachments(kind);
+        }
+
+        function renderAdminSupportMessageAttachments(attachments) {
+            const normalizedItems = Array.isArray(attachments)
+                ? attachments.map((item) => normalizeAdminSupportAttachment(item)).filter(Boolean)
+                : [];
+            if (normalizedItems.length < 1) {
+                return '';
+            }
+
+            return `
+                <div class="support-ticket-thread-attachments">
+                    ${normalizedItems.map((item) => `
+                        <a class="support-ticket-thread-attachment" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.name)}">
+                            <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async">
+                        </a>
+                    `).join('')}
+                </div>
+            `;
         }
 
         function renderSupportTicketsAdmin() {
@@ -7400,7 +7711,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             listNode.querySelectorAll('.support-ticket-admin-card').forEach((node) => {
                 node.addEventListener('click', function() {
-                    loadSupportTicketAdmin(Number(this.dataset.ticketId));
+                    const nextTicketId = Number(this.dataset.ticketId);
+                    if (nextTicketId > 0 && nextTicketId !== Number(selectedSupportTicketId)) {
+                        resetAdminSupportDraftAttachments('reply');
+                    }
+                    loadSupportTicketAdmin(nextTicketId);
                 });
             });
         }
@@ -7417,8 +7732,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const replyInput = document.getElementById('supportReplyInput');
             const replyButton = document.getElementById('replySupportBtn');
             const saveStatusButton = document.getElementById('saveSupportStatusBtn');
+            const attachButton = document.getElementById('supportReplyAttachBtn');
 
-            if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !openProfileButton || !messagesNode || !statusSelect || !replyInput || !replyButton || !saveStatusButton) {
+            if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !openProfileButton || !messagesNode || !statusSelect || !replyInput || !replyButton || !saveStatusButton || !attachButton) {
                 return;
             }
 
@@ -7426,6 +7742,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 emptyNode.style.display = 'flex';
                 contentNode.style.display = 'none';
                 openProfileButton.disabled = true;
+                attachButton.disabled = true;
+                renderAdminSupportDraftAttachments('reply');
                 return;
             }
 
@@ -7439,6 +7757,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             statusSelect.value = selectedSupportTicket.status || 'waiting_support';
             replyInput.disabled = selectedSupportTicket.status === 'closed';
             replyButton.disabled = selectedSupportTicket.status === 'closed';
+            attachButton.disabled = selectedSupportTicket.status === 'closed';
             messagesNode.innerHTML = Array.isArray(selectedSupportTicket.messages) && selectedSupportTicket.messages.length > 0
                 ? selectedSupportTicket.messages.map((message) => `
                     <div class="support-ticket-thread-message ${escapeHtml(message.authorType === 'admin' ? 'admin' : 'user')}">
@@ -7446,10 +7765,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <span>${escapeHtml(message.authorType === 'admin' ? 'Поддержка' : (selectedSupportTicket.login || 'Игрок'))}</span>
                             <span>${escapeHtml(formatAdminDateTime(message.createdAt))}</span>
                         </div>
-                        <div class="support-ticket-thread-text">${escapeHtml(message.message || '')}</div>
+                        ${message.message ? `<div class="support-ticket-thread-text">${escapeHtml(message.message || '')}</div>` : ''}
+                        ${renderAdminSupportMessageAttachments(message.attachments)}
                     </div>
                 `).join('')
                 : '<div class="empty-list">Переписка по тикету пока пуста.</div>';
+            renderAdminSupportDraftAttachments('reply');
         }
 
         function stopSupportLiveRefreshAdmin() {
@@ -7525,7 +7846,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 const hasSelected = supportTickets.some((ticket) => Number(ticket.id) === Number(selectedSupportTicketId));
                 if (!hasSelected) {
-                    selectedSupportTicketId = Number(supportTickets[0].id) || 0;
+                    const nextTicketId = Number(supportTickets[0].id) || 0;
+                    if (nextTicketId > 0 && nextTicketId !== Number(selectedSupportTicketId)) {
+                        resetAdminSupportDraftAttachments('reply');
+                    }
+                    selectedSupportTicketId = nextTicketId;
                 }
 
                 if (selectedSupportTicketId > 0) {
@@ -7554,6 +7879,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (normalizedTicketId < 1) {
                 selectedSupportTicketId = 0;
                 selectedSupportTicket = null;
+                resetAdminSupportDraftAttachments('reply');
                 renderSupportTicketDetailAdmin();
                 return Promise.resolve();
             }
@@ -7592,8 +7918,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             const message = replyInput.value.trim();
-            if (!message) {
-                showNotification('Введите текст ответа пользователю.', 'warning');
+            const attachments = getAdminSupportDraftAttachments('reply').map((item) => ({
+                name: item.name,
+                dataUrl: item.dataUrl,
+                mimeType: item.mimeType,
+                size: item.size
+            }));
+            if (!message && attachments.length < 1) {
+                showNotification('Введите текст ответа или прикрепите фото.', 'warning');
                 return;
             }
 
@@ -7601,7 +7933,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             postAction({
                 action: 'reply_support_ticket',
                 ticket_id: selectedSupportTicket.id,
-                message
+                message,
+                attachments_json: JSON.stringify(attachments)
             })
             .then(data => {
                 if (!data.success) {
@@ -7613,6 +7946,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     supportTickets = supportTickets.map((ticket) => Number(ticket.id) === Number(selectedSupportTicket.id) ? selectedSupportTicket : ticket);
                 }
                 replyInput.value = '';
+                resetAdminSupportDraftAttachments('reply');
                 renderSupportTicketsAdmin();
                 renderSupportTicketDetailAdmin();
                 showNotification(data.message || 'Ответ отправлен пользователю.', 'success');
@@ -8436,10 +8770,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         function loadUserProfile(userId) {
-            selectedAccountId = Number(userId) || 0;
+            const nextSelectedAccountId = Number(userId) || 0;
+            if (nextSelectedAccountId !== Number(selectedAccountId) && outboundSupportDraftAttachments.length > 0) {
+                resetAdminSupportDraftAttachments('outbound');
+            }
+
+            selectedAccountId = nextSelectedAccountId;
             if (selectedAccountId < 1) {
                 return;
             }
+
+            outboundSupportDraftUserId = selectedAccountId;
 
             selectedAccountBaselineSnapshot = '';
             selectedAccountDirty = false;
@@ -9230,11 +9571,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <label class="form-label" for="accountSupportMessage">Сообщение игроку</label>
                                 <textarea class="form-control" id="accountSupportMessage" rows="5" placeholder="Напишите первое сообщение от поддержки. Игрок увидит его во входящих без своего предварительного тикета."></textarea>
                             </div>
+                            <input id="accountSupportImagesInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
                         </div>
                         <div class="card-subtitle" style="margin-bottom: 14px;">
                             Поддержка может первой начать диалог. После отправки у игрока появится новый тикет и непрочитанное сообщение во входящих.
                         </div>
                         <div class="inline-actions" style="margin-top: 0;">
+                            <button class="btn btn-outline" type="button" id="accountSupportAttachBtn">
+                                <span class="material-icons">photo_camera</span>
+                                Добавить фото
+                            </button>
                             <button class="btn btn-primary" type="button" id="accountCreateSupportTicketBtn">
                                 <span class="material-icons">mark_email_unread</span>
                                 Написать игроку
@@ -9244,6 +9590,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 Открыть поддержку
                             </button>
                         </div>
+                        <div class="support-attachment-draft-list-admin" id="accountSupportAttachmentDrafts"></div>
                     </section>
 
                     <section class="detail-section">
@@ -9586,6 +9933,21 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const accountSupportAttachBtn = document.getElementById('accountSupportAttachBtn');
+            if (accountSupportAttachBtn) {
+                accountSupportAttachBtn.addEventListener('click', function() {
+                    document.getElementById('accountSupportImagesInput')?.click();
+                });
+            }
+
+            const accountSupportImagesInput = document.getElementById('accountSupportImagesInput');
+            if (accountSupportImagesInput) {
+                accountSupportImagesInput.addEventListener('change', async function(event) {
+                    await appendAdminSupportDraftAttachments('outbound', event.target?.files);
+                    event.target.value = '';
+                });
+            }
+
             const openSupportViewButton = document.getElementById('accountOpenSupportViewBtn');
             if (openSupportViewButton) {
                 openSupportViewButton.addEventListener('click', function() {
@@ -9593,6 +9955,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            renderAdminSupportDraftAttachments('outbound');
             loadSelectedAccountClientLog();
         }
 
@@ -9614,12 +9977,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const category = String(categoryNode.value || 'other');
             const subject = String(subjectNode.value || '').trim();
             const message = String(messageNode.value || '').trim();
+            const attachments = getAdminSupportDraftAttachments('outbound').map((item) => ({
+                name: item.name,
+                dataUrl: item.dataUrl,
+                mimeType: item.mimeType,
+                size: item.size
+            }));
             if (!subject) {
                 showNotification('Укажите тему исходящего тикета.', 'warning');
                 return;
             }
-            if (!message) {
-                showNotification('Введите сообщение игроку.', 'warning');
+            if (!message && attachments.length < 1) {
+                showNotification('Введите сообщение игроку или прикрепите фото.', 'warning');
                 return;
             }
 
@@ -9632,7 +10001,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 user_id: String(userId),
                 category,
                 subject,
-                message
+                message,
+                attachments_json: JSON.stringify(attachments)
             })
             .then(data => {
                 if (!data.success || !data.ticket) {
@@ -9647,6 +10017,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 subjectNode.value = '';
                 messageNode.value = '';
+                resetAdminSupportDraftAttachments('outbound');
                 currentSupportSearch = '';
                 currentSupportStatusFilter = 'all';
                 currentSupportCategoryFilter = 'all';

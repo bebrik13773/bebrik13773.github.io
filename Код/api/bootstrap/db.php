@@ -2887,6 +2887,8 @@ CREATE TABLE IF NOT EXISTS `support_ticket_messages` (
     `author_type` VARCHAR(16) NOT NULL,
     `author_user_id` INT NULL,
     `message_text` LONGTEXT NOT NULL,
+    `attachments_json` LONGTEXT NULL,
+    `attachments_count` INT NOT NULL DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY `idx_support_ticket_messages_ticket` (`ticket_id`, `created_at`)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -2901,6 +2903,8 @@ SQL;
         'author_type' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `author_type` VARCHAR(16) NOT NULL DEFAULT 'user' AFTER `ticket_id`",
         'author_user_id' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `author_user_id` INT NULL DEFAULT NULL AFTER `author_type`",
         'message_text' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `message_text` LONGTEXT NOT NULL AFTER `author_user_id`",
+        'attachments_json' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `attachments_json` LONGTEXT NULL AFTER `message_text`",
+        'attachments_count' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `attachments_count` INT NOT NULL DEFAULT 0 AFTER `attachments_json`",
         'created_at' => "ALTER TABLE `support_ticket_messages` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `message_text`",
     ];
 
@@ -3108,6 +3112,265 @@ function bober_store_user_settings($conn, $userId, $settings)
     return bober_fetch_user_settings_record($conn, $userId);
 }
 
+function bober_support_attachment_max_count()
+{
+    return 3;
+}
+
+function bober_support_attachment_max_bytes()
+{
+    return 3 * 1024 * 1024;
+}
+
+function bober_support_attachment_allowed_mime_map()
+{
+    return [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+    ];
+}
+
+function bober_support_attachment_storage_directory()
+{
+    return dirname(__DIR__, 2) . '/assets/support-uploads';
+}
+
+function bober_support_attachment_public_prefix()
+{
+    return '/assets/support-uploads';
+}
+
+function bober_support_attachment_safe_name($value, $fallback = 'photo')
+{
+    $name = trim((string) $value);
+    if ($name === '') {
+        $name = $fallback;
+    }
+
+    $name = preg_replace('/[^\p{L}\p{N}\._-]+/u', '-', $name);
+    $name = trim((string) $name, '-._');
+    if ($name === '') {
+        $name = $fallback;
+    }
+
+    if (function_exists('mb_substr')) {
+        $name = mb_substr($name, 0, 120, 'UTF-8');
+    } else {
+        $name = substr($name, 0, 120);
+    }
+
+    return $name;
+}
+
+function bober_normalize_support_ticket_message_optional($value)
+{
+    $message = trim(str_replace(["\r\n", "\r"], "\n", (string) $value));
+    $length = bober_support_text_length($message);
+    if ($length > 6000) {
+        throw new InvalidArgumentException('Сообщение тикета слишком длинное.');
+    }
+
+    return $message;
+}
+
+function bober_normalize_support_ticket_input_attachments($value)
+{
+    if ($value === null || $value === '' || $value === []) {
+        return [];
+    }
+
+    $items = $value;
+    if (is_string($items)) {
+        $decoded = json_decode($items, true);
+        $items = is_array($decoded) ? $decoded : null;
+    }
+
+    if (!is_array($items)) {
+        throw new InvalidArgumentException('Некорректный список вложений для тикета.');
+    }
+
+    $items = array_values($items);
+    if (count($items) > bober_support_attachment_max_count()) {
+        throw new InvalidArgumentException('Слишком много изображений в одном сообщении.');
+    }
+
+    $normalized = [];
+    foreach ($items as $index => $item) {
+        if (!is_array($item)) {
+            throw new InvalidArgumentException('Некорректный формат вложения в тикете.');
+        }
+
+        $dataUrl = trim((string) ($item['dataUrl'] ?? $item['data_url'] ?? $item['data'] ?? ''));
+        if ($dataUrl === '') {
+            throw new InvalidArgumentException('Пустое изображение в тикете.');
+        }
+
+        $normalized[] = [
+            'name' => bober_support_attachment_safe_name($item['name'] ?? ('photo-' . ($index + 1)), 'photo-' . ($index + 1)),
+            'dataUrl' => $dataUrl,
+        ];
+    }
+
+    return $normalized;
+}
+
+function bober_prepare_support_ticket_message_payload($message, $attachments = [])
+{
+    $normalizedMessage = bober_normalize_support_ticket_message_optional($message);
+    $normalizedAttachments = bober_normalize_support_ticket_input_attachments($attachments);
+
+    if ($normalizedMessage === '' && count($normalizedAttachments) < 1) {
+        throw new InvalidArgumentException('Сообщение тикета не должно быть пустым.');
+    }
+
+    return [
+        'message' => $normalizedMessage,
+        'attachments' => $normalizedAttachments,
+    ];
+}
+
+function bober_cleanup_support_attachment_paths(array $paths)
+{
+    foreach ($paths as $path) {
+        $normalizedPath = trim((string) $path);
+        if ($normalizedPath === '' || !is_file($normalizedPath)) {
+            continue;
+        }
+
+        @unlink($normalizedPath);
+    }
+}
+
+function bober_store_support_ticket_attachments($ticketId, $authorType, array $attachments)
+{
+    $ticketId = max(0, (int) $ticketId);
+    $authorType = trim((string) $authorType);
+    if ($ticketId < 1 || $authorType === '' || count($attachments) < 1) {
+        return [
+            'attachments' => [],
+            'paths' => [],
+        ];
+    }
+
+    $mimeMap = bober_support_attachment_allowed_mime_map();
+    $maxBytes = bober_support_attachment_max_bytes();
+    $baseDirectory = bober_support_attachment_storage_directory();
+    $relativeDirectory = date('Y/m');
+    $targetDirectory = $baseDirectory . '/' . $relativeDirectory;
+
+    if (!is_dir($targetDirectory) && !mkdir($targetDirectory, 0775, true) && !is_dir($targetDirectory)) {
+        throw new RuntimeException('Не удалось подготовить каталог для вложений тикетов.');
+    }
+
+    $storedAttachments = [];
+    $storedPaths = [];
+
+    foreach ($attachments as $index => $attachment) {
+        $dataUrl = trim((string) ($attachment['dataUrl'] ?? ''));
+        if (!preg_match('#^data:(image/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=\r\n]+)$#', $dataUrl, $matches)) {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new InvalidArgumentException('Поддерживаются только изображения JPEG, PNG, WEBP или GIF.');
+        }
+
+        $mimeType = strtolower(trim((string) ($matches[1] ?? '')));
+        if (!isset($mimeMap[$mimeType])) {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new InvalidArgumentException('Недопустимый тип изображения в тикете.');
+        }
+
+        $binary = base64_decode((string) ($matches[2] ?? ''), true);
+        if ($binary === false || $binary === '') {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new InvalidArgumentException('Не удалось прочитать изображение в тикете.');
+        }
+
+        $size = strlen($binary);
+        if ($size > $maxBytes) {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new InvalidArgumentException('Одно изображение в тикете слишком большое.');
+        }
+
+        $imageInfo = @getimagesizefromstring($binary);
+        if (!is_array($imageInfo) || max(0, (int) ($imageInfo[0] ?? 0)) < 1 || max(0, (int) ($imageInfo[1] ?? 0)) < 1) {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new InvalidArgumentException('Вложение не похоже на корректное изображение.');
+        }
+
+        $extension = $mimeMap[$mimeType];
+        $safeBaseName = bober_support_attachment_safe_name($attachment['name'] ?? ('photo-' . ($index + 1)), 'photo-' . ($index + 1));
+        $safeBaseName = preg_replace('/\.[A-Za-z0-9]+$/', '', $safeBaseName);
+        $fileName = sprintf(
+            'ticket-%d-%s-%s-%02d-%s.%s',
+            $ticketId,
+            $authorType,
+            date('YmdHis'),
+            $index + 1,
+            bin2hex(random_bytes(4)),
+            $extension
+        );
+        $targetPath = $targetDirectory . '/' . $fileName;
+
+        if (file_put_contents($targetPath, $binary) === false) {
+            bober_cleanup_support_attachment_paths($storedPaths);
+            throw new RuntimeException('Не удалось сохранить изображение тикета.');
+        }
+
+        $storedPaths[] = $targetPath;
+        $storedAttachments[] = [
+            'name' => $safeBaseName . '.' . $extension,
+            'url' => bober_support_attachment_public_prefix() . '/' . $relativeDirectory . '/' . $fileName,
+            'mimeType' => $mimeType,
+            'size' => $size,
+        ];
+    }
+
+    return [
+        'attachments' => $storedAttachments,
+        'paths' => $storedPaths,
+    ];
+}
+
+function bober_normalize_support_ticket_stored_attachments($value)
+{
+    if ($value === null || $value === '' || $value === []) {
+        return [];
+    }
+
+    $items = $value;
+    if (is_string($items)) {
+        $decoded = json_decode($items, true);
+        $items = is_array($decoded) ? $decoded : [];
+    }
+
+    if (!is_array($items)) {
+        return [];
+    }
+
+    $publicPrefix = bober_support_attachment_public_prefix() . '/';
+    $normalized = [];
+    foreach ($items as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+
+        $url = trim((string) ($attachment['url'] ?? ''));
+        if ($url === '' || strpos($url, $publicPrefix) !== 0) {
+            continue;
+        }
+
+        $normalized[] = [
+            'name' => bober_support_attachment_safe_name($attachment['name'] ?? 'photo', 'photo'),
+            'url' => $url,
+            'mimeType' => trim((string) ($attachment['mimeType'] ?? 'image/jpeg')),
+            'size' => max(0, (int) ($attachment['size'] ?? 0)),
+        ];
+    }
+
+    return $normalized;
+}
+
 function bober_support_ticket_categories()
 {
     return [
@@ -3245,7 +3508,7 @@ function bober_fetch_support_ticket_messages($conn, $ticketId)
         return [];
     }
 
-    $stmt = $conn->prepare('SELECT id, author_type, author_user_id, message_text, created_at FROM support_ticket_messages WHERE ticket_id = ? ORDER BY id ASC');
+    $stmt = $conn->prepare('SELECT id, author_type, author_user_id, message_text, attachments_json, attachments_count, created_at FROM support_ticket_messages WHERE ticket_id = ? ORDER BY id ASC');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить чтение сообщений тикета.');
     }
@@ -3264,6 +3527,8 @@ function bober_fetch_support_ticket_messages($conn, $ticketId)
             'authorType' => (string) ($row['author_type'] ?? 'user'),
             'authorUserId' => isset($row['author_user_id']) ? max(0, (int) $row['author_user_id']) : null,
             'message' => (string) ($row['message_text'] ?? ''),
+            'attachments' => bober_normalize_support_ticket_stored_attachments($row['attachments_json'] ?? null),
+            'attachmentsCount' => max(0, (int) ($row['attachments_count'] ?? 0)),
             'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
         ];
     }
@@ -3298,7 +3563,11 @@ function bober_fetch_user_support_tickets($conn, $userId, array $options = [])
             t.last_user_message_at,
             t.last_admin_message_at,
             (
-                SELECT LEFT(m.message_text, 220)
+                SELECT CASE
+                    WHEN CHAR_LENGTH(TRIM(COALESCE(m.message_text, ''))) > 0 THEN LEFT(m.message_text, 220)
+                    WHEN COALESCE(m.attachments_count, 0) > 0 THEN CONCAT('Фото: ', m.attachments_count)
+                    ELSE ''
+                END
                 FROM support_ticket_messages m
                 WHERE m.ticket_id = t.id
                 ORDER BY m.id DESC
@@ -3396,7 +3665,7 @@ function bober_fetch_user_support_ticket($conn, $userId, $ticketId, $markRead = 
     return $ticket;
 }
 
-function bober_create_support_ticket($conn, $userId, $category, $subject, $message)
+function bober_create_support_ticket($conn, $userId, $category, $subject, $message, $attachments = [])
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -3406,7 +3675,7 @@ function bober_create_support_ticket($conn, $userId, $category, $subject, $messa
     bober_ensure_support_schema($conn);
     $category = bober_normalize_support_ticket_category($category);
     $subject = bober_normalize_support_ticket_subject($subject);
-    $message = bober_normalize_support_ticket_message($message);
+    $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
     $status = 'waiting_support';
 
     $ticketStmt = $conn->prepare('INSERT INTO support_tickets (user_id, category, subject, status, unread_by_user, unread_by_admin, last_user_message_at) VALUES (?, ?, ?, ?, 0, 1, CURRENT_TIMESTAMP)');
@@ -3426,23 +3695,40 @@ function bober_create_support_ticket($conn, $userId, $category, $subject, $messa
         throw new RuntimeException('Не удалось определить созданный тикет поддержки.');
     }
 
-    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, ?, ?)');
-    if (!$messageStmt) {
-        throw new RuntimeException('Не удалось подготовить сохранение сообщения тикета.');
-    }
-
     $authorType = 'user';
-    $messageStmt->bind_param('isis', $ticketId, $authorType, $userId, $message);
-    if (!$messageStmt->execute()) {
+    $storedAttachmentPaths = [];
+    try {
+        $storedAttachmentResult = bober_store_support_ticket_attachments($ticketId, $authorType, $payload['attachments']);
+        $storedAttachments = $storedAttachmentResult['attachments'];
+        $storedAttachmentPaths = $storedAttachmentResult['paths'];
+        $attachmentsCount = count($storedAttachments);
+        $attachmentsJson = $attachmentsCount > 0
+            ? json_encode($storedAttachments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        if ($attachmentsCount > 0 && $attachmentsJson === false) {
+            throw new RuntimeException('Не удалось сериализовать вложения тикета.');
+        }
+
+        $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text, attachments_json, attachments_count) VALUES (?, ?, ?, ?, ?, ?)');
+        if (!$messageStmt) {
+            throw new RuntimeException('Не удалось подготовить сохранение сообщения тикета.');
+        }
+
+        $messageStmt->bind_param('isissi', $ticketId, $authorType, $userId, $payload['message'], $attachmentsJson, $attachmentsCount);
+        if (!$messageStmt->execute()) {
+            $messageStmt->close();
+            throw new RuntimeException('Не удалось сохранить сообщение тикета.');
+        }
         $messageStmt->close();
-        throw new RuntimeException('Не удалось сохранить сообщение тикета.');
+    } catch (Throwable $error) {
+        bober_cleanup_support_attachment_paths($storedAttachmentPaths);
+        throw $error;
     }
-    $messageStmt->close();
 
     return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 }
 
-function bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message)
+function bober_create_support_ticket_as_admin($conn, $userId, $category, $subject, $message, $attachments = [])
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -3452,7 +3738,7 @@ function bober_create_support_ticket_as_admin($conn, $userId, $category, $subjec
     bober_ensure_support_schema($conn);
     $category = bober_normalize_support_ticket_category($category);
     $subject = bober_normalize_support_ticket_subject($subject);
-    $message = bober_normalize_support_ticket_message($message);
+    $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
     $status = 'waiting_user';
 
     $userCheckStmt = $conn->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
@@ -3494,23 +3780,40 @@ function bober_create_support_ticket_as_admin($conn, $userId, $category, $subjec
         throw new RuntimeException('Не удалось определить созданный исходящий тикет поддержки.');
     }
 
-    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, NULL, ?)');
-    if (!$messageStmt) {
-        throw new RuntimeException('Не удалось подготовить первое сообщение исходящего тикета.');
-    }
-
     $authorType = 'admin';
-    $messageStmt->bind_param('iss', $ticketId, $authorType, $message);
-    if (!$messageStmt->execute()) {
+    $storedAttachmentPaths = [];
+    try {
+        $storedAttachmentResult = bober_store_support_ticket_attachments($ticketId, $authorType, $payload['attachments']);
+        $storedAttachments = $storedAttachmentResult['attachments'];
+        $storedAttachmentPaths = $storedAttachmentResult['paths'];
+        $attachmentsCount = count($storedAttachments);
+        $attachmentsJson = $attachmentsCount > 0
+            ? json_encode($storedAttachments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        if ($attachmentsCount > 0 && $attachmentsJson === false) {
+            throw new RuntimeException('Не удалось сериализовать вложения тикета.');
+        }
+
+        $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text, attachments_json, attachments_count) VALUES (?, ?, NULL, ?, ?, ?)');
+        if (!$messageStmt) {
+            throw new RuntimeException('Не удалось подготовить первое сообщение исходящего тикета.');
+        }
+
+        $messageStmt->bind_param('isssi', $ticketId, $authorType, $payload['message'], $attachmentsJson, $attachmentsCount);
+        if (!$messageStmt->execute()) {
+            $messageStmt->close();
+            throw new RuntimeException('Не удалось сохранить первое сообщение исходящего тикета.');
+        }
         $messageStmt->close();
-        throw new RuntimeException('Не удалось сохранить первое сообщение исходящего тикета.');
+    } catch (Throwable $error) {
+        bober_cleanup_support_attachment_paths($storedAttachmentPaths);
+        throw $error;
     }
-    $messageStmt->close();
 
     return bober_fetch_admin_support_ticket($conn, $ticketId, false);
 }
 
-function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message)
+function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message, $attachments = [])
 {
     $userId = max(0, (int) $userId);
     $ticketId = max(0, (int) $ticketId);
@@ -3518,21 +3821,38 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message)
         throw new InvalidArgumentException('Не удалось определить тикет пользователя.');
     }
 
-    $message = bober_normalize_support_ticket_message($message);
+    $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
     $ticket = bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 
-    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, ?, ?)');
-    if (!$messageStmt) {
-        throw new RuntimeException('Не удалось подготовить ответ в тикет.');
-    }
-
     $authorType = 'user';
-    $messageStmt->bind_param('isis', $ticketId, $authorType, $userId, $message);
-    if (!$messageStmt->execute()) {
+    $storedAttachmentPaths = [];
+    try {
+        $storedAttachmentResult = bober_store_support_ticket_attachments($ticketId, $authorType, $payload['attachments']);
+        $storedAttachments = $storedAttachmentResult['attachments'];
+        $storedAttachmentPaths = $storedAttachmentResult['paths'];
+        $attachmentsCount = count($storedAttachments);
+        $attachmentsJson = $attachmentsCount > 0
+            ? json_encode($storedAttachments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        if ($attachmentsCount > 0 && $attachmentsJson === false) {
+            throw new RuntimeException('Не удалось сериализовать вложения тикета.');
+        }
+
+        $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text, attachments_json, attachments_count) VALUES (?, ?, ?, ?, ?, ?)');
+        if (!$messageStmt) {
+            throw new RuntimeException('Не удалось подготовить ответ в тикет.');
+        }
+
+        $messageStmt->bind_param('isissi', $ticketId, $authorType, $userId, $payload['message'], $attachmentsJson, $attachmentsCount);
+        if (!$messageStmt->execute()) {
+            $messageStmt->close();
+            throw new RuntimeException('Не удалось сохранить ответ пользователя.');
+        }
         $messageStmt->close();
-        throw new RuntimeException('Не удалось сохранить ответ пользователя.');
+    } catch (Throwable $error) {
+        bober_cleanup_support_attachment_paths($storedAttachmentPaths);
+        throw $error;
     }
-    $messageStmt->close();
 
     $status = 'waiting_support';
     $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? LIMIT 1');
@@ -3614,7 +3934,11 @@ function bober_fetch_admin_support_tickets($conn, array $options = [])
             t.last_user_message_at,
             t.last_admin_message_at,
             (
-                SELECT LEFT(m.message_text, 220)
+                SELECT CASE
+                    WHEN CHAR_LENGTH(TRIM(COALESCE(m.message_text, ''))) > 0 THEN LEFT(m.message_text, 220)
+                    WHEN COALESCE(m.attachments_count, 0) > 0 THEN CONCAT('Фото: ', m.attachments_count)
+                    ELSE ''
+                END
                 FROM support_ticket_messages m
                 WHERE m.ticket_id = t.id
                 ORDER BY m.id DESC
@@ -3681,28 +4005,45 @@ function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true)
     return $ticket;
 }
 
-function bober_reply_support_ticket_as_admin($conn, $ticketId, $message)
+function bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attachments = [])
 {
     $ticketId = max(0, (int) $ticketId);
     if ($ticketId < 1) {
         throw new InvalidArgumentException('Не удалось определить тикет для ответа.');
     }
 
-    $message = bober_normalize_support_ticket_message($message);
+    $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
     $ticket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
 
-    $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text) VALUES (?, ?, NULL, ?)');
-    if (!$messageStmt) {
-        throw new RuntimeException('Не удалось подготовить ответ поддержки.');
-    }
-
     $authorType = 'admin';
-    $messageStmt->bind_param('iss', $ticketId, $authorType, $message);
-    if (!$messageStmt->execute()) {
+    $storedAttachmentPaths = [];
+    try {
+        $storedAttachmentResult = bober_store_support_ticket_attachments($ticketId, $authorType, $payload['attachments']);
+        $storedAttachments = $storedAttachmentResult['attachments'];
+        $storedAttachmentPaths = $storedAttachmentResult['paths'];
+        $attachmentsCount = count($storedAttachments);
+        $attachmentsJson = $attachmentsCount > 0
+            ? json_encode($storedAttachments, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            : null;
+        if ($attachmentsCount > 0 && $attachmentsJson === false) {
+            throw new RuntimeException('Не удалось сериализовать вложения тикета.');
+        }
+
+        $messageStmt = $conn->prepare('INSERT INTO support_ticket_messages (ticket_id, author_type, author_user_id, message_text, attachments_json, attachments_count) VALUES (?, ?, NULL, ?, ?, ?)');
+        if (!$messageStmt) {
+            throw new RuntimeException('Не удалось подготовить ответ поддержки.');
+        }
+
+        $messageStmt->bind_param('isssi', $ticketId, $authorType, $payload['message'], $attachmentsJson, $attachmentsCount);
+        if (!$messageStmt->execute()) {
+            $messageStmt->close();
+            throw new RuntimeException('Не удалось сохранить ответ поддержки.');
+        }
         $messageStmt->close();
-        throw new RuntimeException('Не удалось сохранить ответ поддержки.');
+    } catch (Throwable $error) {
+        bober_cleanup_support_attachment_paths($storedAttachmentPaths);
+        throw $error;
     }
-    $messageStmt->close();
 
     $status = 'waiting_user';
     $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_user = unread_by_user + 1, unread_by_admin = 0, updated_at = CURRENT_TIMESTAMP, last_admin_message_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
