@@ -836,48 +836,173 @@ Owner decisions:
         z-index: 10120;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 12px;
+        width: min(380px, calc(100vw - var(--safe-left) - var(--safe-right) - 40px));
         pointer-events: none;
     }
 
     .notification {
-        padding: 15px 25px;
-        border-radius: 10px;
+        --notification-accent: #7ef1ff;
+        position: relative;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: start;
+        padding: 14px 14px 16px;
+        border-radius: 20px;
         color: white;
-        font-size: 16px;
-        font-weight: 500;
         opacity: 0;
-        transform: translateX(30px);
-        transition: all 0.3s ease;
+        transform: translateY(-10px) scale(0.98);
+        transition: opacity 0.24s ease, transform 0.24s ease;
         pointer-events: auto;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        cursor: pointer;
-        min-width: 200px;
+        overflow: hidden;
+        background:
+            linear-gradient(180deg, rgba(18, 22, 48, 0.96), rgba(10, 12, 28, 0.98)),
+            radial-gradient(circle at top right, rgba(126, 241, 255, 0.08), transparent 38%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 18px 34px rgba(4, 8, 24, 0.34), 0 0 0 1px rgba(126, 241, 255, 0.05) inset;
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+
+    .notification::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), var(--notification-accent));
     }
 
     .notification.success {
-        background-color: rgba(75, 192, 161, 0.9);
+        --notification-accent: #68f0b1;
     }
 
     .notification.error {
-        background-color: rgba(241, 76, 76, 0.9);
+        --notification-accent: #ff7373;
+    }
+
+    .notification.warning {
+        --notification-accent: #ffd36c;
+    }
+
+    .notification.info {
+        --notification-accent: #7ec7ff;
     }
 
     .notification.show {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateY(0) scale(1);
+    }
+
+    .notification__icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        line-height: 1;
+        color: #f8fdff;
+        background: color-mix(in srgb, var(--notification-accent) 20%, rgba(255, 255, 255, 0.04));
+        border: 1px solid color-mix(in srgb, var(--notification-accent) 36%, rgba(255, 255, 255, 0.1));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    .notification__body {
+        min-width: 0;
+    }
+
+    .notification__title {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        color: #f6fdff;
+    }
+
+    .notification__message {
+        display: block;
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.82);
+        word-break: break-word;
+    }
+
+    .notification__close {
+        appearance: none;
+        border: 0;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.74);
+        width: 32px;
+        height: 32px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .notification__close:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+    .notification__progress {
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        bottom: 8px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+    }
+
+    .notification__progress::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform-origin: left center;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--notification-accent) 62%, #ffffff), var(--notification-accent));
+        animation: notificationProgress var(--notification-duration, 3000ms) linear forwards;
+    }
+
+    @keyframes notificationProgress {
+        from {
+            transform: scaleX(1);
+        }
+        to {
+            transform: scaleX(0);
+        }
     }
 
     @media (max-width: 768px) {
         .notification-container {
             top: 15px;
             right: 15px;
+            width: min(100%, calc(100vw - var(--safe-left) - var(--safe-right) - 30px));
         }
         
         .notification {
-            font-size: 14px;
-            padding: 12px 20px;
-            min-width: 160px;
+            padding: 13px 13px 15px;
+            border-radius: 18px;
+        }
+
+        .notification__icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 13px;
+            font-size: 18px;
+        }
+
+        .notification__title {
+            font-size: 13px;
+        }
+
+        .notification__message {
+            font-size: 12px;
         }
     }
     #leaderboard {
@@ -4259,6 +4384,39 @@ Owner decisions:
 <!-- Функция уведомлений -->
 <script src="/assets/js/shared-client.js"></script>
 <script>
+function getNotificationPresentation(type) {
+    const normalizedType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
+    const map = {
+        success: { title: 'Успешно', icon: '✓' },
+        error: { title: 'Ошибка', icon: '!' },
+        warning: { title: 'Внимание', icon: '!' },
+        info: { title: 'Информация', icon: 'i' }
+    };
+
+    return {
+        type: normalizedType,
+        title: map[normalizedType].title,
+        icon: map[normalizedType].icon
+    };
+}
+
+function removeNotificationNode(node) {
+    if (!(node instanceof HTMLElement) || node.dataset.removing === '1') {
+        return;
+    }
+
+    node.dataset.removing = '1';
+    if (node.__notificationTimer) {
+        window.clearTimeout(node.__notificationTimer);
+        node.__notificationTimer = null;
+    }
+
+    node.classList.remove('show');
+    window.setTimeout(() => {
+        node.remove();
+    }, 240);
+}
+
 function showNotification(message, type = 'success', duration = 3000) {
     const settings = window.__boberUserSettings && typeof window.__boberUserSettings === 'object'
         ? window.__boberUserSettings
@@ -4269,22 +4427,68 @@ function showNotification(message, type = 'success', duration = 3000) {
     }
 
     const container = document.getElementById('notifications');
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    
-    container.appendChild(notification);
-    notification.classList.add('show');
-    
-    setTimeout(() => {
-        notification.style.opacity = 0;
-        notification.style.transform = 'translateX(30px)';
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, duration);
+    if (!container) {
+        return null;
+    }
+
+    const presentation = getNotificationPresentation(type);
+    const notification = document.createElement('article');
+    notification.className = `notification ${presentation.type}`;
+    notification.setAttribute('role', presentation.type === 'error' || presentation.type === 'warning' ? 'alert' : 'status');
+
+    const icon = document.createElement('div');
+    icon.className = 'notification__icon';
+    icon.textContent = presentation.icon;
+
+    const body = document.createElement('div');
+    body.className = 'notification__body';
+
+    const title = document.createElement('strong');
+    title.className = 'notification__title';
+    title.textContent = presentation.title;
+
+    const messageNode = document.createElement('span');
+    messageNode.className = 'notification__message';
+    messageNode.textContent = String(message || '').trim() || presentation.title;
+
+    body.append(title, messageNode);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'notification__close';
+    closeButton.setAttribute('aria-label', 'Закрыть уведомление');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        removeNotificationNode(notification);
+    });
+
+    notification.append(icon, body, closeButton);
+
+    if (duration > 0) {
+        const progress = document.createElement('div');
+        progress.className = 'notification__progress';
+        progress.style.setProperty('--notification-duration', `${duration}ms`);
+        notification.appendChild(progress);
+        notification.__notificationTimer = window.setTimeout(() => {
+            removeNotificationNode(notification);
+        }, duration);
+    }
+
+    notification.addEventListener('click', () => {
+        removeNotificationNode(notification);
+    });
+
+    container.prepend(notification);
+    while (container.children.length > 4) {
+        container.lastElementChild?.remove();
+    }
+
+    window.requestAnimationFrame(() => {
+        notification.classList.add('show');
+    });
+
+    return notification;
 }
 </script>
 <div id="clicerMex" data-palette="clicker">
