@@ -5948,6 +5948,16 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             lastSignature: '',
             lastUnreadCount: 0
         };
+        const ADMIN_SERVICE_HEALTH_MONITOR_CONFIG = {
+            intervalMs: 45000
+        };
+        const adminServiceHealthMonitorState = {
+            timer: null,
+            inFlight: false,
+            initialized: false,
+            lastStatus: 'unknown',
+            lastSignature: ''
+        };
         let selectedAccountActivityFilter = 'all';
         let selectedAccountActivitySearch = '';
         let selectedAccountClientLogItems = [];
@@ -6098,6 +6108,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             refreshAdminSupportUnreadMonitor({ silent: true }).catch(error => {
                 console.warn('Не удалось запустить монитор непрочитанных тикетов.', error);
+            });
+            refreshAdminServiceHealthMonitor({ silent: true }).catch(error => {
+                console.warn('Не удалось запустить монитор health endpoint.', error);
             });
         }
         
@@ -7911,6 +7924,112 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     scheduleAdminSupportUnreadMonitor(ADMIN_SUPPORT_UNREAD_MONITOR_CONFIG.intervalMs);
                 }
             });
+        }
+
+        function getAdminHealthServiceLabel(serviceKey) {
+            const normalizedKey = String(serviceKey || '').trim();
+            if (normalizedKey === 'database') {
+                return 'база данных';
+            }
+            if (normalizedKey === 'sync') {
+                return 'sync-state';
+            }
+            if (normalizedKey === 'catalog') {
+                return 'каталог скинов';
+            }
+            if (normalizedKey === 'support') {
+                return 'поддержка';
+            }
+            return normalizedKey || 'неизвестный сервис';
+        }
+
+        function stopAdminServiceHealthMonitor() {
+            if (adminServiceHealthMonitorState.timer) {
+                clearTimeout(adminServiceHealthMonitorState.timer);
+                adminServiceHealthMonitorState.timer = null;
+            }
+        }
+
+        function scheduleAdminServiceHealthMonitor(delayMs = ADMIN_SERVICE_HEALTH_MONITOR_CONFIG.intervalMs) {
+            stopAdminServiceHealthMonitor();
+            if (document.hidden) {
+                return;
+            }
+
+            adminServiceHealthMonitorState.timer = setTimeout(() => {
+                refreshAdminServiceHealthMonitor({ silent: false }).catch(error => {
+                    console.warn('Фоновая проверка health endpoint завершилась ошибкой.', error);
+                });
+            }, Math.max(5000, Number(delayMs) || ADMIN_SERVICE_HEALTH_MONITOR_CONFIG.intervalMs));
+        }
+
+        async function refreshAdminServiceHealthMonitor(options = {}) {
+            if (document.hidden || adminServiceHealthMonitorState.inFlight) {
+                if (!document.hidden) {
+                    scheduleAdminServiceHealthMonitor(ADMIN_SERVICE_HEALTH_MONITOR_CONFIG.intervalMs);
+                }
+                return;
+            }
+
+            adminServiceHealthMonitorState.inFlight = true;
+            try {
+                const response = await fetch('/api/health/check.php', { cache: 'no-store' });
+                const data = await response.json().catch(() => null);
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Health endpoint вернул некорректный ответ.');
+                }
+
+                const services = data.services && typeof data.services === 'object' ? data.services : {};
+                const failedServices = Object.entries(services)
+                    .filter(([, service]) => !service || service.ok !== true)
+                    .map(([key, service]) => ({
+                        key,
+                        message: String((service && service.message) || '').trim()
+                    }));
+                const nextStatus = failedServices.length > 0 ? 'degraded' : 'ok';
+                const nextSignature = JSON.stringify(failedServices);
+                const shouldNotifyFailure = failedServices.length > 0
+                    && adminServiceHealthMonitorState.initialized
+                    && adminServiceHealthMonitorState.lastSignature !== nextSignature
+                    && !options.silent;
+                const shouldNotifyRecovery = failedServices.length < 1
+                    && adminServiceHealthMonitorState.initialized
+                    && adminServiceHealthMonitorState.lastStatus !== 'ok'
+                    && !options.silent;
+
+                adminServiceHealthMonitorState.initialized = true;
+                adminServiceHealthMonitorState.lastStatus = nextStatus;
+                adminServiceHealthMonitorState.lastSignature = nextSignature;
+
+                if (shouldNotifyFailure) {
+                    showNotification(
+                        `Проблемы сервисов: ${failedServices.map((service) => getAdminHealthServiceLabel(service.key)).join(', ')}.`,
+                        'error',
+                        7000
+                    );
+                } else if (shouldNotifyRecovery) {
+                    showNotification('Ключевые сервисы снова отвечают нормально.', 'success', 4500);
+                }
+            } catch (error) {
+                const nextSignature = `request:${String(error.message || 'health_check_failed').trim()}`;
+                const shouldNotifyFailure = adminServiceHealthMonitorState.initialized
+                    && adminServiceHealthMonitorState.lastSignature !== nextSignature
+                    && !options.silent;
+
+                adminServiceHealthMonitorState.initialized = true;
+                adminServiceHealthMonitorState.lastStatus = 'down';
+                adminServiceHealthMonitorState.lastSignature = nextSignature;
+
+                if (shouldNotifyFailure) {
+                    showNotification(error.message || 'Health endpoint недоступен.', 'error', 7000);
+                }
+                console.warn('Не удалось выполнить health-check админки.', error);
+            } finally {
+                adminServiceHealthMonitorState.inFlight = false;
+                if (!document.hidden) {
+                    scheduleAdminServiceHealthMonitor(ADMIN_SERVICE_HEALTH_MONITOR_CONFIG.intervalMs);
+                }
+            }
         }
 
         function stopSupportLiveRefreshAdmin() {
@@ -11439,6 +11558,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (document.hidden) {
                 stopSupportLiveRefreshAdmin();
                 stopAdminSupportUnreadMonitor();
+                stopAdminServiceHealthMonitor();
                 return;
             }
 
@@ -11446,11 +11566,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 refreshSupportLiveViewAdmin().catch(error => {
                     console.warn('Не удалось обновить тикеты поддержки после возврата во вкладку.', error);
                 });
-                return;
             }
 
             refreshAdminSupportUnreadMonitor({ silent: true }).catch(error => {
                 console.warn('Не удалось обновить непрочитанные тикеты после возврата во вкладку.', error);
+            });
+            refreshAdminServiceHealthMonitor({ silent: true }).catch(error => {
+                console.warn('Не удалось обновить health endpoint после возврата во вкладку.', error);
             });
         });
     </script>
