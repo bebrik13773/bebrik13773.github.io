@@ -5804,6 +5804,7 @@ function getDefaultLeaderboardPublicProfile() {
         profile: {
             ownedSkins: 0,
             collectionSkins: 0,
+            achievementsUnlocked: 0,
             clickerTop1: false,
             flyTop1: false,
             score: 0,
@@ -5815,7 +5816,8 @@ function getDefaultLeaderboardPublicProfile() {
         skins: {
             equipped: null,
             collection: []
-        }
+        },
+        achievements: []
     };
 }
 
@@ -5865,6 +5867,7 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
     const collection = Array.isArray(rawPlayer.skins?.collection)
         ? rawPlayer.skins.collection.map((item) => normalizePublicProfileSkinItem(item)).filter(Boolean)
         : [];
+    const achievements = normalizeAchievementList(rawPlayer.achievements);
 
     return {
         userId: Math.max(0, Number(rawPlayer.userId) || 0),
@@ -5872,6 +5875,7 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
         profile: {
             ownedSkins: Math.max(0, Number(rawProfile.ownedSkins) || 0),
             collectionSkins: Math.max(0, Number(rawProfile.collectionSkins) || collection.length),
+            achievementsUnlocked: Math.max(0, Number(rawProfile.achievementsUnlocked) || achievements.length),
             clickerTop1: Boolean(rawProfile.clickerTop1),
             flyTop1: Boolean(rawProfile.flyTop1),
             score: Math.max(0, Number(rawProfile.score) || 0),
@@ -5883,7 +5887,8 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
         skins: {
             equipped: equippedSkin,
             collection
-        }
+        },
+        achievements
     };
 }
 
@@ -8065,6 +8070,7 @@ function renderLeaderboardPublicProfileModal() {
     const summary = data.profile;
     const equippedSkin = data.skins.equipped;
     const collectionSkins = Array.isArray(data.skins.collection) ? data.skins.collection : [];
+    const unlockedAchievements = Array.isArray(data.achievements) ? [...data.achievements] : [];
     const badgeItems = [];
 
     if (summary.clickerTop1) {
@@ -8075,6 +8081,7 @@ function renderLeaderboardPublicProfileModal() {
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
     badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
+    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${escapeHtmlText(formatCompactNumber(summary.achievementsUnlocked || unlockedAchievements.length))}</span>`);
 
     const stats = [
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
@@ -8116,6 +8123,37 @@ function renderLeaderboardPublicProfileModal() {
         `
         : '<div class="public-profile-empty">У игрока пока только стартовые скины или коллекция еще не собрана.</div>';
 
+    const achievementsHtml = unlockedAchievements.length > 0
+        ? `
+            <div class="profile-achievement-list">
+                ${unlockedAchievements
+                    .sort((left, right) => {
+                        const leftTime = Date.parse(String(left?.unlockedAt || '').replace(' ', 'T')) || 0;
+                        const rightTime = Date.parse(String(right?.unlockedAt || '').replace(' ', 'T')) || 0;
+                        return rightTime - leftTime;
+                    })
+                    .map((item) => {
+                        const definition = ACHIEVEMENT_DEFINITIONS[item.key] || {
+                            title: item.key,
+                            description: 'Достижение разблокировано.',
+                            icon: '✨'
+                        };
+                        return `
+                            <article class="profile-achievement-card unlocked">
+                                <div class="profile-achievement-icon">${escapeHtmlText(String(definition.icon || '✨'))}</div>
+                                <div>
+                                    <strong>${escapeHtmlText(String(definition.title || item.key))}</strong>
+                                    <span>${escapeHtmlText(String(definition.description || 'Достижение разблокировано.'))}</span>
+                                    <span class="profile-achievement-percent">${escapeHtmlText(formatAchievementOwnership(getAchievementStat(item.key, item.meta)))}</span>
+                                    <span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(item.unlockedAt))}</span>
+                                </div>
+                            </article>
+                        `;
+                    }).join('')}
+            </div>
+        `
+        : '<div class="public-profile-empty">Игрок пока не открыл публичные достижения.</div>';
+
     contentNode.innerHTML = `
         <div class="profile-modal-hero">
             <div class="public-profile-avatar">
@@ -8134,6 +8172,10 @@ function renderLeaderboardPublicProfileModal() {
                     <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
                 </div>
             `).join('')}
+        </div>
+        <div class="public-profile-skin-section">
+            <div class="profile-achievements-title">Достижения игрока</div>
+            ${achievementsHtml}
         </div>
         <div class="public-profile-skin-section">
             <div class="profile-achievements-title">Установленный скин</div>

@@ -4992,6 +4992,15 @@ function bober_fetch_public_player_profile($conn, $userId)
         }
     }
 
+    $achievementStatsBundle = bober_fetch_achievement_stats($conn);
+    $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
+    $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
+    $achievementItems = bober_enrich_achievement_items(
+        bober_fetch_user_achievements($conn, $userId),
+        $achievementStats,
+        $achievementPlayerBase
+    );
+
     return [
         'userId' => max(0, (int) ($row['id'] ?? $userId)),
         'login' => (string) ($row['login'] ?? ''),
@@ -5003,6 +5012,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             'flyGamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
             'ownedSkins' => count($ownedSkinIds),
             'collectionSkins' => count($collectionSkins),
+            'achievementsUnlocked' => count($achievementItems),
             'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
             'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
         ],
@@ -5010,6 +5020,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             'equipped' => $equippedSkin,
             'collection' => $collectionSkins,
         ],
+        'achievements' => $achievementItems,
     ];
 }
 
