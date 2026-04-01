@@ -6,11 +6,14 @@
     <title>Future Roadmap</title>
     <style>
         :root {
-            --bg-a: #0f1024;
+            --bg-a: #0b1023;
             --bg-b: #1a1240;
-            --panel: rgba(20, 16, 42, 0.82);
-            --border: rgba(126, 238, 255, 0.24);
+            --panel: rgba(18, 16, 40, 0.82);
+            --panel-strong: rgba(10, 13, 30, 0.86);
+            --border: rgba(126, 238, 255, 0.2);
             --accent: #7eeeff;
+            --accent-soft: rgba(126, 238, 255, 0.12);
+            --success: #98ffc4;
             --text: #f5fbff;
             --muted: rgba(234, 244, 255, 0.76);
             --shadow: 0 24px 60px rgba(2, 6, 20, 0.42);
@@ -32,12 +35,13 @@
         }
 
         .page {
-            width: min(920px, calc(100% - 28px));
+            width: min(1080px, calc(100% - 28px));
             margin: 0 auto;
             padding: 28px 0 56px;
         }
 
-        .card {
+        .hero,
+        .section {
             padding: 28px;
             border-radius: 28px;
             background: var(--panel);
@@ -45,6 +49,10 @@
             box-shadow: var(--shadow);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
+        }
+
+        .section {
+            margin-top: 20px;
         }
 
         .kicker {
@@ -68,6 +76,11 @@
             line-height: 0.98;
         }
 
+        h2 {
+            margin: 0 0 8px;
+            font-size: 28px;
+        }
+
         p {
             margin: 0;
             color: var(--muted);
@@ -75,37 +88,73 @@
             font-size: 16px;
         }
 
-        .status-grid {
+        .hero-grid,
+        .section-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 16px;
             margin-top: 22px;
         }
 
-        .status-item {
+        .hero-item,
+        .task-group {
             padding: 18px;
             border-radius: 22px;
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(126, 238, 255, 0.14);
         }
 
-        .status-item strong {
+        .hero-item strong,
+        .task-group strong {
             display: block;
             margin-bottom: 8px;
             font-size: 16px;
         }
 
-        .done {
+        .status {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            margin-top: 22px;
+            margin-top: 20px;
             padding: 10px 14px;
             border-radius: 999px;
-            background: rgba(91, 255, 180, 0.12);
-            border: 1px solid rgba(91, 255, 180, 0.18);
-            color: #dfffee;
+            background: rgba(255, 215, 120, 0.1);
+            border: 1px solid rgba(255, 215, 120, 0.18);
+            color: #fff5cf;
             font-weight: 700;
+        }
+
+        .priority {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            border: 1px solid rgba(126, 238, 255, 0.16);
+            color: #defcff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        ul {
+            margin: 14px 0 0;
+            padding-left: 20px;
+            color: var(--muted);
+        }
+
+        li {
+            margin: 10px 0;
+            line-height: 1.62;
+        }
+
+        .section-note {
+            margin-top: 12px;
+            color: rgba(255, 255, 255, 0.66);
+            font-size: 14px;
         }
 
         code {
@@ -116,39 +165,252 @@
             font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
             font-size: 0.95em;
         }
+
+        .footer-note {
+            margin-top: 22px;
+            padding: 18px;
+            border-radius: 22px;
+            background: var(--panel-strong);
+            border: 1px solid rgba(126, 238, 255, 0.12);
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                width: min(100%, calc(100% - 16px));
+                padding: 16px 0 28px;
+            }
+
+            .hero,
+            .section {
+                padding: 20px;
+                border-radius: 22px;
+            }
+
+            h2 {
+                font-size: 22px;
+            }
+        }
     </style>
 </head>
 <body>
     <main class="page">
-        <section class="card">
-            <div class="kicker">Roadmap Status</div>
-            <h1>Активных задач в roadmap нет</h1>
+        <section class="hero">
+            <div class="kicker">Roadmap</div>
+            <h1>Что ещё улучшить</h1>
             <p>
-                Текущий пакет работ закрыт. Главная страница, поддержка, достижения, профиль, топ-награды,
-                админка и <code>fly-beaver</code> синхронизированы и доведены до рабочего состояния, а остаточные
-                задачи вынесены в историю коммитов, а не в активный backlog.
+                Ниже собран новый активный backlog по проекту. Приоритет отдан стабильности, мобильному UX,
+                качеству облачной синхронизации, развитию кликера, <code>fly-beaver</code>, поддержки и админки.
             </p>
 
-            <div class="status-grid">
-                <article class="status-item">
-                    <strong>Стабильность</strong>
-                    <p>Image-safe рендер, live-sync, support flow, настройки и облачные сценарии работают согласованно.</p>
+            <div class="hero-grid">
+                <article class="hero-item">
+                    <strong>Сначала</strong>
+                    <p>Стабильность, мобильные баги, sync-state, производительность, артефакты и автообновление.</p>
                 </article>
-                <article class="status-item">
-                    <strong>Контент</strong>
-                    <p>Каталог скинов, grant-only логика, top-награды, достижения и профильные награды уже подключены.</p>
+                <article class="hero-item">
+                    <strong>Потом</strong>
+                    <p>Новые игровые системы: ивенты, квесты, сезонный контент, углубление профиля и экономики.</p>
                 </article>
-                <article class="status-item">
-                    <strong>Система</strong>
-                    <p><code>/api/state/sync.php</code>, тикеты поддержки, автообновление, лидерборды и достижения выведены в рабочий контур.</p>
-                </article>
-                <article class="status-item">
-                    <strong>Админка и forensic</strong>
-                    <p>Поддержка, редактор каталога, mobile-layout, forensic viewer и работа с файлами закрыты текущим пакетом.</p>
+                <article class="hero-item">
+                    <strong>Отдельно</strong>
+                    <p>Инфраструктура: уведомления браузера, резервные копии, error monitoring, деплой и серверный контроль.</p>
                 </article>
             </div>
 
-            <div class="done">Всё выполнено</div>
+            <div class="status">Активный roadmap снова открыт</div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 1</div>
+            <h2>Стабильность и скорость</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Рендер и мобильные лаги</strong>
+                    <ul>
+                        <li>Дожать все остаточные лаги в магазине, профиле, поддержке и тяжёлых модалках на телефоне.</li>
+                        <li>Убрать оставшиеся GPU-артефакты возле картинок и blur-слоёв на слабых устройствах.</li>
+                        <li>Сделать адаптивное отключение дорогих эффектов по производительности устройства, а не только по ручной настройке.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Cloud sync и сохранения</strong>
+                    <ul>
+                        <li>Закрыть все редкие рассинхроны между локальным состоянием, <code>sync-state</code> и cloud-сохранением.</li>
+                        <li>Добавить более понятный статус фонового сохранения: локально, в очереди, синхронизировано, ошибка.</li>
+                        <li>Сделать отдельный recovery-поток после сетевых сбоев и восстановления вкладки.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Прод-качество</strong>
+                    <ul>
+                        <li>Подключить реальные серверные <code>ErrorDocument</code> для 403/404/500/503, а не только страницы по URL.</li>
+                        <li>Добавить централизованный лог ошибок клиента и сервера с фильтрацией мусора.</li>
+                        <li>Сделать ежедневный backup каталога, конфигурации и базы.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 2</div>
+            <h2>Основная игра</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Новые игровые системы</strong>
+                    <ul>
+                        <li>Ежедневные задания и недельные цели с отдельными наградами.</li>
+                        <li>Серии кликов, временные бусты и короткие ивенты без поломки баланса.</li>
+                        <li>Престиж или мягкая late-game система, чтобы у больших аккаунтов была новая цель.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Экономика и магазин</strong>
+                    <ul>
+                        <li>Больше типов улучшений: шанс крита, пассивный доход, редкие модификаторы, специальные ветки.</li>
+                        <li>Нормальный просмотр формулы роста цен и окупаемости улучшений прямо в UI.</li>
+                        <li>Сезонные и тематические витрины скинов вместо одной статичной ленты.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Качество UX</strong>
+                    <ul>
+                        <li>Горячие клавиши для магазина, профиля, настроек и перехода в <code>fly-beaver</code>.</li>
+                        <li>История покупок и последних крупных событий аккаунта.</li>
+                        <li>Более явные причины блокировки покупки и прогноз, когда игрок сможет купить предмет.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 3</div>
+            <h2>Достижения, секреты и профиль</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Система достижений</strong>
+                    <ul>
+                        <li>Добавить ещё больше достижений по сериям кликов, необычным действиям, редким состояниям и долгим целям.</li>
+                        <li>Сделать многоступенчатые секретные достижения и цепочки, где одно открывает следующее.</li>
+                        <li>Показывать прогресс до достижения в процентах или шагах там, где это не ломает секретность.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Профиль игрока</strong>
+                    <ul>
+                        <li>Расширить профиль до полноценной карточки игрока: история, редкость достижений, трофеи, медали топа.</li>
+                        <li>Добавить красивую витрину уникальных и top-скинов.</li>
+                        <li>Сделать профиль пригодным для шаринга и открытой ссылки на игрока.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Редкость и статус</strong>
+                    <ul>
+                        <li>Показывать глобальную редкость достижений и уникальных скинов ещё на карточках профиля.</li>
+                        <li>Добавить статусные рамки, титулы и бейджи за долгие игровые заслуги.</li>
+                        <li>Сделать сезонные достижения и архив уже недоступных наград.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 4</div>
+            <h2>Fly-Beaver</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Контент мини-игры</strong>
+                    <ul>
+                        <li>Новые биомы и погодные режимы с отдельным настроением и редкими визуальными событиями.</li>
+                        <li>Больше препятствий и вариаций генерации, чтобы забеги меньше повторялись.</li>
+                        <li>Режимы забега: спокойный, быстрый, экстремальный, ежедневный челлендж.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Игровой прогресс</strong>
+                    <ul>
+                        <li>Отдельные достижения и награды только для <code>fly-beaver</code>.</li>
+                        <li>Новые уникальные награды за рекорд, серию без ошибок, общее число забегов и скорость набора очков.</li>
+                        <li>История лучших забегов и экран разбора последнего падения.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Качество геймплея</strong>
+                    <ul>
+                        <li>Дожать все граничные случаи с поворотом экрана, паузой, возвратом во вкладку и клавиатурным управлением.</li>
+                        <li>Улучшить читаемость сцены на маленьких экранах и в быстрых фазах забега.</li>
+                        <li>Добавить плавный tutorial-onboarding для новых игроков.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 5</div>
+            <h2>Поддержка и админка</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Поддержка игрока</strong>
+                    <ul>
+                        <li>Добавить вложения в тикеты: скриншоты, client-log, данные о бане и устройстве.</li>
+                        <li>Сделать нормальную историю статусов тикета и системные сообщения.</li>
+                        <li>Подключить системные уведомления браузера о новом ответе поддержки при явном разрешении пользователя.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Админка</strong>
+                    <ul>
+                        <li>Пакетные действия по игрокам, тикетам и скинам.</li>
+                        <li>Более быстрый forensic viewer с фильтрами, поиском по паттернам и связкой с банами.</li>
+                        <li>Отдельный раздел для работы с достижениями, наградами и топ-скинами.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Модерация и античит</strong>
+                    <ul>
+                        <li>Тоньше разделить keyboard, mouse и mobile паттерны, чтобы убрать редкие ложные баны.</li>
+                        <li>Добавить уровень подозрительности и историю античит-событий по аккаунту.</li>
+                        <li>Сделать ручной review-flow спорных банов прямо в админке.</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="priority">Priority 6</div>
+            <h2>Инфраструктура и релизный процесс</h2>
+            <div class="section-grid">
+                <article class="task-group">
+                    <strong>Деплой</strong>
+                    <ul>
+                        <li>Уйти от ручного FTP как основного пути релиза и оставить его только как аварийный канал.</li>
+                        <li>Сделать предсказуемый deploy-script: backup, upload, verify, rollback.</li>
+                        <li>Проверять наличие критичных файлов на проде после выкладки: <code>favicon</code>, assets, wrapper-файлы, <code>api</code>.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Конфигурация сервера</strong>
+                    <ul>
+                        <li>Явно оформить правила редиректов, антибот-параметров и служебных query-string.</li>
+                        <li>Проверить и минимизировать зависимость приложения от служебного <code>i=1</code> в URL.</li>
+                        <li>Подготовить безопасный переход на SFTP/SSH вместо обычного FTP.</li>
+                    </ul>
+                </article>
+                <article class="task-group">
+                    <strong>Наблюдаемость</strong>
+                    <ul>
+                        <li>Сводка по ошибкам клиента и сервера в одном месте.</li>
+                        <li>Мониторинг доступности <code>/api/state/sync.php</code>, логина, поддержки и загрузки каталога скинов.</li>
+                        <li>Уведомления админу о падении ключевых эндпоинтов и переполнении очередей логов.</li>
+                    </ul>
+                </article>
+            </div>
+
+            <div class="footer-note">
+                <p>
+                    Этот backlog intentionally шире, чем один пакет задач. Он нужен как список направлений для следующих итераций.
+                    При следующем заходе лучше брать один раздел и закрывать его отдельным релизом, а не тащить всё сразу.
+                </p>
+            </div>
         </section>
     </main>
 </body>

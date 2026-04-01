@@ -1,5 +1,13 @@
 # Future Roadmap
 
-Активных задач в roadmap сейчас нет.
+Roadmap снова активен.
 
-Актуальная статус-страница находится в [FUTURE.html](/home/craft-bober/github/bebrik13773.github.io/Код/docs/FUTURE.html).
+Основные направления:
+- стабильность, производительность и cloud sync
+- развитие основной игры и экономики
+- новые достижения, секреты и профиль игрока
+- контент и режимы для `fly-beaver`
+- поддержка, админка и античит
+- инфраструктура, деплой и мониторинг
+
+Полная страница roadmap находится в [FUTURE.html](/home/craft-bober/github/bebrik13773.github.io/Код/docs/FUTURE.html).
