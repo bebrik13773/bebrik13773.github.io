@@ -2260,6 +2260,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             --pill-active-bg: rgba(67, 215, 163, 0.14);
             --pill-active-text: #107a5a;
             --pill-active-border: rgba(67, 215, 163, 0.24);
+            --pill-warning-bg: rgba(247, 201, 105, 0.18);
+            --pill-warning-text: #8a5a00;
+            --pill-warning-border: rgba(247, 201, 105, 0.34);
             --pill-banned-bg: rgba(255, 107, 138, 0.14);
             --pill-banned-text: #c34a66;
             --pill-banned-border: rgba(255, 107, 138, 0.26);
@@ -2302,6 +2305,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             --pill-active-bg: rgba(67, 215, 163, 0.12);
             --pill-active-text: #a6ffd9;
             --pill-active-border: rgba(67, 215, 163, 0.2);
+            --pill-warning-bg: rgba(247, 201, 105, 0.16);
+            --pill-warning-text: #ffe08c;
+            --pill-warning-border: rgba(247, 201, 105, 0.28);
             --pill-banned-bg: rgba(255, 107, 138, 0.12);
             --pill-banned-text: #ffc0ce;
             --pill-banned-border: rgba(255, 107, 138, 0.22);
@@ -4224,6 +4230,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             background: var(--pill-active-bg);
             color: var(--pill-active-text);
             border-color: var(--pill-active-border);
+        }
+
+        .status-pill.warning {
+            background: var(--pill-warning-bg);
+            color: var(--pill-warning-text);
+            border-color: var(--pill-warning-border);
         }
 
         .status-pill.banned {
@@ -7704,7 +7716,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 : getSupportCategoryLabel(currentSupportCategoryFilter);
             metaNode.textContent = `Показано тикетов: ${formatAdminNumber(supportTickets.length)}. ${statusLabel}, ${categoryLabel}.`;
             listNode.innerHTML = supportTickets.map((ticket) => {
-                const statusClass = ticket.status === 'closed' ? 'banned' : 'active';
+                const statusClass = getSupportStatusClass(ticket.status);
                 return `
                     <button class="support-ticket-admin-card ${Number(ticket.id) === Number(selectedSupportTicketId) ? 'active' : ''}" data-ticket-id="${ticket.id}" type="button">
                         <div class="support-ticket-admin-head">
@@ -7766,7 +7778,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             contentNode.style.display = 'flex';
             titleNode.textContent = selectedSupportTicket.subject || 'Тикет поддержки';
             metaNode.textContent = `${selectedSupportTicket.login || 'Игрок'} • ${getSupportCategoryLabel(selectedSupportTicket.category)} • открыт ${formatAdminDateTime(selectedSupportTicket.createdAt)} • обновлен ${formatAdminDateTime(selectedSupportTicket.updatedAt)}`;
-            statusNode.className = `status-pill ${selectedSupportTicket.status === 'closed' ? 'banned' : 'active'}`;
+            statusNode.className = `status-pill ${getSupportStatusClass(selectedSupportTicket.status)}`;
             statusNode.textContent = getSupportStatusLabel(selectedSupportTicket.status);
             openProfileButton.disabled = Number(selectedSupportTicket.userId || 0) < 1;
             statusSelect.value = selectedSupportTicket.status || 'waiting_support';
@@ -8703,6 +8715,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             };
 
             return labels[String(status || '').toLowerCase()] || 'Ждет поддержку';
+        }
+
+        function getSupportStatusClass(status) {
+            const normalizedStatus = String(status || '').toLowerCase();
+            if (normalizedStatus === 'closed') {
+                return 'banned';
+            }
+            if (normalizedStatus === 'waiting_user') {
+                return 'warning';
+            }
+
+            return 'active';
         }
 
         function getSkinRarityOrder(rarity) {
