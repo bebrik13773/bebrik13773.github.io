@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>408 · Время запроса истекло</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
+</head>
+<body style="--error-accent:#7fe7ff;--error-accent-strong:#6b72ff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Таймаут запроса</span>
+                    <h1 class="error-title">Соединение оборвалось <strong>слишком рано</strong></h1>
+                    <p class="error-lead">Сервер ждал запрос или данные дольше допустимого времени и закрыл соединение.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item"><strong>Код</strong><span>HTTP 408</span></div>
+                        <div class="error-meta-item"><strong>Решение</strong><span>Повторить действие при стабильной сети</span></div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="error-button error-button-primary" type="button" onclick="window.location.reload();">Повторить запрос</button>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/">В кликер</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Request Timeout</span>
+                    <div class="error-side-code">408</div>
+                    <h2 class="error-side-title">Проверьте сеть и повторите</h2>
+                    <p class="error-side-text">Чаще всего это временная проблема связи, долгий upload или нестабильный интернет на клиенте.</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

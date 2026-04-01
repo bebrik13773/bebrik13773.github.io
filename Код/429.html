@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>429 · Слишком много запросов</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
+</head>
+<body style="--error-accent:#ffe08e;--error-accent-strong:#ff7066;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Слишком частые запросы</span>
+                    <h1 class="error-title">Сервер попросил <strong>сбавить темп</strong></h1>
+                    <p class="error-lead">За короткое время было отправлено слишком много запросов. Обычно это временное ограничение защиты или API-лимита.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item"><strong>Код</strong><span>HTTP 429</span></div>
+                        <div class="error-meta-item"><strong>Совет</strong><span>Подождать несколько секунд и повторить</span></div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="error-button error-button-primary" type="button" onclick="window.location.reload();">Проверить снова</button>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/">Вернуться</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Too Many Requests</span>
+                    <div class="error-side-code">429</div>
+                    <h2 class="error-side-title">Включилось ограничение частоты</h2>
+                    <p class="error-side-text">Для проекта это может быть связано с антибот-защитой, частым live-refresh или повтором запросов к API.</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

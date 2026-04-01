@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>502 · Плохой ответ шлюза</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
+</head>
+<body style="--error-accent:#ffd799;--error-accent-strong:#ff7b88;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Сбой между серверами</span>
+                    <h1 class="error-title">Промежуточный сервер получил <strong>плохой ответ</strong></h1>
+                    <p class="error-lead">Один сервер обратился к другому, но получил битый или неожиданный ответ. Обычно это временный внешний сбой.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item"><strong>Код</strong><span>HTTP 502</span></div>
+                        <div class="error-meta-item"><strong>Решение</strong><span>Подождать и повторить запрос</span></div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="error-button error-button-primary" type="button" onclick="window.location.reload();">Повторить</button>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/">В кликер</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Bad Gateway</span>
+                    <div class="error-side-code">502</div>
+                    <h2 class="error-side-title">Проблема на цепочке прокси</h2>
+                    <p class="error-side-text">Это полезная страница для ошибок между антибот-защитой, прокси, backend и upstream-сервисами.</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

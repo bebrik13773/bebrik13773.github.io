@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>504 · Таймаут шлюза</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
+</head>
+<body style="--error-accent:#8de7ff;--error-accent-strong:#6480ff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Таймаут upstream</span>
+                    <h1 class="error-title">Один из серверов <strong>не ответил вовремя</strong></h1>
+                    <p class="error-lead">Шлюз или прокси дождался лимита времени и завершил ожидание ответа от следующего сервера в цепочке.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item"><strong>Код</strong><span>HTTP 504</span></div>
+                        <div class="error-meta-item"><strong>Решение</strong><span>Повторить позже</span></div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="error-button error-button-primary" type="button" onclick="window.location.reload();">Проверить снова</button>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/">На главную</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Gateway Timeout</span>
+                    <div class="error-side-code">504</div>
+                    <h2 class="error-side-title">Ответ upstream задержался</h2>
+                    <p class="error-side-text">Страница подходит для сетевых таймаутов между веб-сервером, API, прокси и внешними сервисами.</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

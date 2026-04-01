@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>401 · Нужна авторизация</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/css/error-pages.css">
+</head>
+<body style="--error-accent:#86f2ce;--error-accent-strong:#2eb2ff;">
+    <main class="error-shell">
+        <section class="error-card">
+            <div class="error-content">
+                <div class="error-copy">
+                    <span class="error-chip">Требуется вход</span>
+                    <h1 class="error-title">Сначала нужно <strong>авторизоваться</strong></h1>
+                    <p class="error-lead">Этот маршрут доступен только после входа в аккаунт или при действующей игровой сессии.</p>
+                    <div class="error-meta">
+                        <div class="error-meta-item"><strong>Код</strong><span>HTTP 401</span></div>
+                        <div class="error-meta-item"><strong>Решение</strong><span>Открыть вход или обновить сессию</span></div>
+                    </div>
+                    <div class="error-actions">
+                        <a class="error-button error-button-primary" href="/pages/clicker/#auth">Войти</a>
+                        <a class="error-button error-button-secondary" href="/pages/clicker/">В кликер</a>
+                    </div>
+                </div>
+                <aside class="error-side">
+                    <span class="error-side-label">Нет авторизации</span>
+                    <div class="error-side-code">401</div>
+                    <h2 class="error-side-title">Сессия отсутствует или истекла</h2>
+                    <p class="error-side-text">Если вы уже входили, скорее всего, сессия завершилась или запрос ушёл без нужных cookie.</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
