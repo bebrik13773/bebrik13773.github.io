@@ -5169,6 +5169,32 @@ Owner decisions:
         width: auto;
     }
 
+    .footer-link-button-with-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .footer-link-button-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+        color: #071822;
+        background: linear-gradient(180deg, rgba(126, 241, 255, 0.98), rgba(78, 212, 255, 0.96));
+        box-shadow: 0 8px 16px rgba(12, 88, 120, 0.22);
+    }
+
+    .footer-link-button-badge[hidden] {
+        display: none !important;
+    }
+
     .footer-bottom {
         margin-top: 18px;
     }
@@ -7412,6 +7438,7 @@ function openSupportCenterFromEntry(entryPoint = 'footer') {
 
 window.openAnnouncementCenterFromEntry = openAnnouncementCenterFromEntry;
 window.openSupportCenterFromEntry = openSupportCenterFromEntry;
+window.openTicketInboxFromFooter = () => openSupportCenterFromEntry('footer');
 
 function closeAnnouncementModal() {
     const modal = document.getElementById('announcementModal');
@@ -14078,6 +14105,7 @@ function updateSupportBadgeUI() {
     const openTickets = Math.max(0, Number(supportSummary.openTickets) || 0);
     const topBadge = document.getElementById('profileMenuUnreadBadge');
     const menuBadge = document.getElementById('supportAppealBadge');
+    const footerBadge = document.getElementById('footerSupportBadge');
     const unreadChip = document.getElementById('supportSummaryUnreadChip');
     const openChip = document.getElementById('supportSummaryOpenChip');
 
@@ -14089,6 +14117,11 @@ function updateSupportBadgeUI() {
     if (menuBadge) {
         menuBadge.hidden = unread < 1;
         menuBadge.textContent = unread > 99 ? '99+' : String(unread);
+    }
+
+    if (footerBadge) {
+        footerBadge.hidden = unread < 1;
+        footerBadge.textContent = unread > 99 ? '99+' : String(unread);
     }
 
     if (unreadChip) {
@@ -20122,11 +20155,12 @@ console.log('Настройки античита:', clickDetector.config);
 	                    </svg>
 	                    Новости
 	                </button>
-	                <button type="button" class="footer-link footer-link-button" onclick="openSupportCenterFromEntry('footer')">
+	                <button type="button" class="footer-link footer-link-button footer-link-button-with-badge" onclick="openTicketInboxFromFooter()">
 	                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
 	                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
 	                    </svg>
-	                    Тикеты и поддержка
+	                    <span>Мои тикеты</span>
+	                    <span class="footer-link-button-badge" id="footerSupportBadge" hidden>0</span>
 	                </button>
 	            </div>
         </div>
