@@ -2412,8 +2412,16 @@ Owner decisions:
         width: 100%;
     }
 
-    .profile-menu-shell {
+    .top-utility-actions-left,
+    .top-utility-actions-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .top-utility-actions-right {
         margin-left: auto;
+        justify-content: flex-end;
     }
 
     .utility-glass-button {
@@ -2455,9 +2463,20 @@ Owner decisions:
         background: linear-gradient(180deg, rgba(19, 23, 53, 0.84), rgba(10, 13, 31, 0.88));
     }
 
+    .utility-glass-button.quests {
+        padding: 12px 16px;
+        background: linear-gradient(180deg, rgba(255, 223, 136, 0.92), rgba(233, 162, 49, 0.96));
+        color: #382100;
+        box-shadow: 0 14px 26px rgba(55, 34, 5, 0.18);
+    }
+
     .utility-glass-icon {
         font-size: 18px;
         line-height: 1;
+    }
+
+    .utility-glass-label {
+        white-space: nowrap;
     }
 
     .profile-menu-shell {
@@ -2607,6 +2626,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #profileAchievementsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
@@ -2642,6 +2662,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #profileAchievementsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
@@ -2660,6 +2681,7 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #profileAchievementsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #sessionsButton {
@@ -2685,6 +2707,7 @@ Owner decisions:
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
     #profileDetailsButton:hover,
+    #profileAchievementsButton:hover,
     #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #logoutButton:hover,
@@ -2694,6 +2717,7 @@ Owner decisions:
     }
 
     #profileDetailsButton:hover,
+    #profileAchievementsButton:hover,
     #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #sessionsButton:hover {
@@ -2714,6 +2738,7 @@ Owner decisions:
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
     #profileDetailsButton:active,
+    #profileAchievementsButton:active,
     #viewPlayerProfileButton:active,
     #supportAppealButton:active,
     #logoutButton:active,
@@ -2881,8 +2906,7 @@ Owner decisions:
         }
     }
 
-    #questsOpenButton,
-    #flyBeaverOpenButton {
+    .game-mode-action-stack #flyBeaverOpenButton {
         width: min(100%, 360px);
         min-height: 60px;
         padding: 16px 22px;
@@ -2893,22 +2917,14 @@ Owner decisions:
             inset 0 1px 0 rgba(255, 255, 255, 0.44);
     }
 
-    #questsOpenButton {
-        background:
-            linear-gradient(180deg, rgba(255, 225, 126, 0.94), rgba(244, 163, 36, 0.96)),
-            rgba(255, 255, 255, 0.06);
-        color: #3a2400;
-    }
-
-    #flyBeaverOpenButton {
+    .game-mode-action-stack #flyBeaverOpenButton {
         background:
             linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
             rgba(255, 255, 255, 0.06);
         color: #062035;
     }
 
-    #questsOpenButton:hover,
-    #flyBeaverOpenButton:hover {
+    .game-mode-action-stack #flyBeaverOpenButton:hover {
         box-shadow:
             0 28px 36px rgba(6, 13, 30, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.52);
@@ -4965,6 +4981,11 @@ Owner decisions:
             gap: 8px;
         }
 
+        .top-utility-actions-left,
+        .top-utility-actions-right {
+            gap: 8px;
+        }
+
         .utility-glass-button.settings {
             min-width: 52px;
             min-height: 52px;
@@ -5440,33 +5461,41 @@ function showNotification(message, type = 'success', duration = 3000) {
     <h1>БОБЕР 🦫 КЛИКЕР 2</h1>
     <div class="top-utility-bar" data-palette="profile">
         <div class="top-utility-actions">
-            <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки" title="Настройки (S)">
-                <span class="utility-glass-icon">⚙️</span>
-            </button>
-            <div class="profile-menu-shell" id="profileMenuShell" hidden>
-                <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true" title="Профиль (P)">
-                    <span class="profile-menu-avatar">🦫</span>
-                    <span class="profile-menu-text">
-                        <span class="profile-menu-label">Профиль</span>
-                        <span class="profile-menu-login" id="profileMenuLogin">Игрок</span>
-                    </span>
-                    <span class="profile-menu-unread-badge" id="profileMenuUnreadBadge" hidden>0</span>
-                    <span class="profile-menu-chevron">▼</span>
+            <div class="top-utility-actions-left">
+                <button type="button" class="utility-glass-button settings" id="settingsButton" aria-label="Настройки" title="Настройки (S)">
+                    <span class="utility-glass-icon">⚙️</span>
                 </button>
-                <div class="profile-menu-dropdown" id="profileMenuDropdown">
-                    <div class="profile-menu-summary">
-                        <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
-                        <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
-                    </div>
-                    <button id="profileDetailsButton" type="button">Мой профиль</button>
-                    <button id="profileAchievementsButton" type="button">Достижения</button>
-                    <button id="viewPlayerProfileButton" type="button">Посмотреть профиль игрока</button>
-                    <button id="supportAppealButton" type="button">
-                        <span>Поддержка и входящие</span>
-                        <span class="profile-menu-button-badge" id="supportAppealBadge" hidden>0</span>
+            </div>
+            <div class="top-utility-actions-right">
+                <button type="button" class="utility-glass-button quests" id="questsOpenButton" title="Квесты (Q)">
+                    <span class="utility-glass-icon" aria-hidden="true">📜</span>
+                    <span class="utility-glass-label">Квесты</span>
+                </button>
+                <div class="profile-menu-shell" id="profileMenuShell" hidden>
+                    <button type="button" class="profile-menu-trigger" id="profileMenuButton" aria-expanded="false" aria-haspopup="true" title="Профиль (P)">
+                        <span class="profile-menu-avatar">🦫</span>
+                        <span class="profile-menu-text">
+                            <span class="profile-menu-label">Профиль</span>
+                            <span class="profile-menu-login" id="profileMenuLogin">Игрок</span>
+                        </span>
+                        <span class="profile-menu-unread-badge" id="profileMenuUnreadBadge" hidden>0</span>
+                        <span class="profile-menu-chevron">▼</span>
                     </button>
-                    <button id="sessionsButton" type="button">Мои сессии</button>
-                    <button id="logoutButton" type="button">Выйти</button>
+                    <div class="profile-menu-dropdown" id="profileMenuDropdown">
+                        <div class="profile-menu-summary">
+                            <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
+                            <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
+                        </div>
+                        <button id="profileDetailsButton" type="button">Мой профиль</button>
+                        <button id="profileAchievementsButton" type="button">Достижения</button>
+                        <button id="viewPlayerProfileButton" type="button">Посмотреть профиль игрока</button>
+                        <button id="supportAppealButton" type="button">
+                            <span>Поддержка и входящие</span>
+                            <span class="profile-menu-button-badge" id="supportAppealBadge" hidden>0</span>
+                        </button>
+                        <button id="sessionsButton" type="button">Мои сессии</button>
+                        <button id="logoutButton" type="button">Выйти</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -5511,10 +5540,6 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <div class="game-mode-action-stack">
-    <button class="shop-action-btn" id="questsOpenButton" type="button" title="Квесты (Q)">
-        <span aria-hidden="true">📜</span>
-        <span>Квесты</span>
-    </button>
     <button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">
         <span aria-hidden="true">🪽</span>
         <span>Летающий бобер</span>
@@ -5929,7 +5954,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             <div class="support-modal-panel support-ticket-list-panel" id="supportTicketListPanel">
                 <div class="support-panel-title">Входящие</div>
                 <div class="support-summary-row">
-                    <span class="support-summary-chip" id="supportSummaryUnreadChip">Ответов: 0</span>
+                    <span class="support-summary-chip" id="supportSummaryUnreadChip">Непрочитано: 0</span>
                     <span class="support-summary-chip" id="supportSummaryOpenChip">Открыто: 0</span>
                 </div>
                 <div class="support-ticket-list" id="supportTicketList"></div>
@@ -6004,7 +6029,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="support-unread-alert-icon">💬</div>
         <div class="support-unread-alert-title" id="supportUnreadAlertTitle">Есть новые ответы</div>
         <div class="support-unread-alert-text" id="supportUnreadAlertText">Поддержка ответила на ваш тикет. Откройте входящие, чтобы прочитать сообщение.</div>
-        <div class="support-unread-alert-count" id="supportUnreadAlertCount">Ответов: 0</div>
+        <div class="support-unread-alert-count" id="supportUnreadAlertCount">0 непрочитанных ответов</div>
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button primary" id="supportUnreadAlertOpen">Открыть входящие</button>
             <button type="button" class="settings-action-button secondary" id="supportUnreadAlertClose">Позже</button>
@@ -8838,9 +8863,8 @@ function renderProfileModal() {
         badgeItems.push(`<span class="profile-badge">🔐 Эксклюзивных: ${formatCompactNumber(summary.grantOnlySkins)}</span>`);
     }
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || unlockedItems.length)}</span>`);
-    badgeItems.push(`<span class="profile-badge">🗓️ Daily: ${formatCompactNumber(summary.dailyQuestCompleted)}/${formatCompactNumber(summary.dailyQuestTotal)}</span>`);
-    badgeItems.push(`<span class="profile-badge">📆 Weekly: ${formatCompactNumber(summary.weeklyQuestCompleted)}/${formatCompactNumber(summary.weeklyQuestTotal)}</span>`);
-    badgeItems.push(`<span class="profile-badge">💬 Ответов: ${formatCompactNumber(supportSummary.unreadReplies || 0)}</span>`);
+    badgeItems.push(`<span class="profile-badge">🗓️ Выполнено ежедневных заданий: ${formatCompactNumber(summary.dailyQuestCompleted)}/${formatCompactNumber(summary.dailyQuestTotal)}</span>`);
+    badgeItems.push(`<span class="profile-badge">📆 Выполнено недельных заданий: ${formatCompactNumber(summary.weeklyQuestCompleted)}/${formatCompactNumber(summary.weeklyQuestTotal)}</span>`);
 
     const stats = [
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
@@ -8851,8 +8875,8 @@ function renderProfileModal() {
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
         { label: 'Редких скинов', value: formatLeaderboardScore(summary.rareSkins) },
         { label: 'Топ-наград', value: formatLeaderboardScore(summary.topRewardSkins) },
-        { label: 'Daily выполнено', value: `${formatLeaderboardScore(summary.dailyQuestCompleted)}/${formatLeaderboardScore(summary.dailyQuestTotal)}` },
-        { label: 'Weekly выполнено', value: `${formatLeaderboardScore(summary.weeklyQuestCompleted)}/${formatLeaderboardScore(summary.weeklyQuestTotal)}` },
+        { label: 'Выполнено ежедневных заданий', value: `${formatLeaderboardScore(summary.dailyQuestCompleted)}/${formatLeaderboardScore(summary.dailyQuestTotal)}` },
+        { label: 'Выполнено недельных заданий', value: `${formatLeaderboardScore(summary.weeklyQuestCompleted)}/${formatLeaderboardScore(summary.weeklyQuestTotal)}` },
         { label: 'Открытых тикетов', value: formatLeaderboardScore(supportSummary.openTickets || 0) }
     ];
 
@@ -11896,7 +11920,7 @@ function updateSupportBadgeUI() {
     }
 
     if (unreadChip) {
-        unreadChip.textContent = `Ответов: ${formatCompactNumber(unread)}`;
+        unreadChip.textContent = `Непрочитано: ${formatCompactNumber(unread)}`;
     }
 
     if (openChip) {

@@ -962,6 +962,170 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_quest_catalog') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $questItems = bober_fetch_quest_templates($conn);
+                $response['success'] = true;
+                $response['quests'] = array_values($questItems);
+                $response['total'] = count($questItems);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'create_quest_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $questScope = bober_normalize_quest_scope($_POST['quest_scope'] ?? 'daily');
+                $questTitle = trim((string) ($_POST['quest_title'] ?? ''));
+                $questDescription = trim((string) ($_POST['quest_description'] ?? ''));
+                $questMetric = bober_normalize_quest_metric($_POST['quest_metric'] ?? 'scoreGain');
+                $questGoal = max(1, (int) ($_POST['quest_goal'] ?? 1));
+                $questRewardCoins = max(0, (int) ($_POST['quest_reward_coins'] ?? 0));
+                $questActive = !array_key_exists('quest_active', $_POST) || postBooleanFlag($_POST['quest_active']);
+
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                try {
+                    $questItem = bober_save_quest_template($conn, [
+                        'scope' => $questScope,
+                        'title' => $questTitle,
+                        'description' => $questDescription,
+                        'metric' => $questMetric,
+                        'goal' => $questGoal,
+                        'rewardCoins' => $questRewardCoins,
+                        'isActive' => $questActive,
+                    ]);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Квест добавлен в общий каталог.';
+                    $response['quest'] = $questItem;
+                    $response['total'] = count(bober_fetch_quest_templates($conn));
+                    invalidateAdminRuntimeCaches($conn);
+
+                    bober_admin_log_action($conn, 'create_quest_catalog_item', [
+                        'target_table' => 'quest_templates',
+                        'query_text' => 'CREATE QUEST ' . (string) ($questItem['key'] ?? ''),
+                        'affected_rows' => 1,
+                        'meta' => [
+                            'quest_id' => (int) ($questItem['id'] ?? 0),
+                            'quest_key' => (string) ($questItem['key'] ?? ''),
+                            'scope' => (string) ($questItem['scope'] ?? $questScope),
+                            'title' => (string) ($questItem['title'] ?? $questTitle),
+                            'metric' => (string) ($questItem['metric'] ?? $questMetric),
+                            'goal' => max(1, (int) ($questItem['goal'] ?? $questGoal)),
+                            'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? $questRewardCoins)),
+                            'is_active' => !empty($questItem['isActive']),
+                        ],
+                    ]);
+                } finally {
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'update_quest_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $questId = max(0, (int) ($_POST['quest_id'] ?? 0));
+                $questScope = bober_normalize_quest_scope($_POST['quest_scope'] ?? 'daily');
+                $questTitle = trim((string) ($_POST['quest_title'] ?? ''));
+                $questDescription = trim((string) ($_POST['quest_description'] ?? ''));
+                $questMetric = bober_normalize_quest_metric($_POST['quest_metric'] ?? 'scoreGain');
+                $questGoal = max(1, (int) ($_POST['quest_goal'] ?? 1));
+                $questRewardCoins = max(0, (int) ($_POST['quest_reward_coins'] ?? 0));
+                $questActive = !array_key_exists('quest_active', $_POST) || postBooleanFlag($_POST['quest_active']);
+
+                if ($questId < 1) {
+                    $response['message'] = 'Не указан идентификатор квеста.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $currentQuestItem = bober_fetch_quest_template_by_id($conn, $questId);
+                        if ($currentQuestItem === null) {
+                            $response['message'] = 'Квест не найден.';
+                        } else {
+                            $questItem = bober_save_quest_template($conn, [
+                                'scope' => $questScope,
+                                'title' => $questTitle,
+                                'description' => $questDescription,
+                                'metric' => $questMetric,
+                                'goal' => $questGoal,
+                                'rewardCoins' => $questRewardCoins,
+                                'isActive' => $questActive,
+                            ], $questId);
+
+                            $response['success'] = true;
+                            $response['message'] = 'Квест обновлен.';
+                            $response['quest'] = $questItem;
+                            invalidateAdminRuntimeCaches($conn);
+
+                            bober_admin_log_action($conn, 'update_quest_catalog_item', [
+                                'target_table' => 'quest_templates',
+                                'query_text' => 'UPDATE QUEST ' . (string) ($questItem['key'] ?? ''),
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'quest_id' => (int) ($questItem['id'] ?? $questId),
+                                    'quest_key' => (string) ($questItem['key'] ?? ''),
+                                    'previous_scope' => (string) ($currentQuestItem['scope'] ?? ''),
+                                    'scope' => (string) ($questItem['scope'] ?? $questScope),
+                                    'previous_title' => (string) ($currentQuestItem['title'] ?? ''),
+                                    'title' => (string) ($questItem['title'] ?? $questTitle),
+                                    'metric' => (string) ($questItem['metric'] ?? $questMetric),
+                                    'goal' => max(1, (int) ($questItem['goal'] ?? $questGoal)),
+                                    'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? $questRewardCoins)),
+                                    'is_active' => !empty($questItem['isActive']),
+                                ],
+                            ]);
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
+        if ($action === 'delete_quest_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $questId = max(0, (int) ($_POST['quest_id'] ?? 0));
+
+                if ($questId < 1) {
+                    $response['message'] = 'Не указан идентификатор квеста.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $deletedQuestItem = bober_delete_quest_template($conn, $questId);
+
+                        $response['success'] = true;
+                        $response['message'] = 'Квест удален из каталога.';
+                        $response['deleted_quest_id'] = $questId;
+                        $response['total'] = count(bober_fetch_quest_templates($conn));
+                        invalidateAdminRuntimeCaches($conn);
+
+                        bober_admin_log_action($conn, 'delete_quest_catalog_item', [
+                            'target_table' => 'quest_templates',
+                            'query_text' => 'DELETE QUEST ' . (string) ($deletedQuestItem['key'] ?? ''),
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'quest_id' => (int) ($deletedQuestItem['id'] ?? $questId),
+                                'quest_key' => (string) ($deletedQuestItem['key'] ?? ''),
+                                'scope' => (string) ($deletedQuestItem['scope'] ?? ''),
+                                'title' => (string) ($deletedQuestItem['title'] ?? ''),
+                            ],
+                        ]);
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
         if ($action === 'get_users_overview') {
             if (requireAdminAuth($response)) {
                 $search = trim((string) ($_POST['search'] ?? ''));
@@ -3525,6 +3689,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             margin-top: auto;
         }
 
+        .quest-catalog-card {
+            min-height: 100%;
+        }
+
+        .quest-catalog-card .skin-catalog-card-body {
+            gap: 14px;
+        }
+
         @media (max-width: 768px) {
             .modal-content {
                 width: calc(100% - 16px);
@@ -5033,6 +5205,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">palette</span>
             <span>Скины</span>
         </div>
+
+        <div class="sidebar-item" id="questsBtn">
+            <span class="material-icons">task_alt</span>
+            <span>Квесты</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -5229,6 +5406,48 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <div class="skin-catalog-meta" id="skinCatalogMeta">Загрузка каталога скинов...</div>
                     <div class="skin-catalog-grid" id="skinCatalogGrid"></div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="questsView" style="display: none;">
+                <div class="card skins-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">task_alt</span>
+                                Каталог квестов
+                            </h2>
+                            <div class="card-subtitle">Активные шаблоны используются для индивидуальной ротации. Для каждого игрока система случайно выбирает задания из этого каталога отдельно на daily и weekly.</div>
+                        </div>
+                        <button class="btn btn-primary" id="createQuestBtn">
+                            <span class="material-icons">add_task</span>
+                            Новый квест
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="questCatalogSearchInput" class="search-input" placeholder="Найти квест по названию, описанию или ключу">
+                        </div>
+                        <select class="form-control account-sort-select" id="questCatalogScopeSelect" aria-label="Фильтр по типу квеста">
+                            <option value="all">Все типы</option>
+                            <option value="daily">Только ежедневные</option>
+                            <option value="weekly">Только недельные</option>
+                        </select>
+                        <select class="form-control account-sort-select" id="questCatalogStatusSelect" aria-label="Фильтр по активности квеста">
+                            <option value="all">Все статусы</option>
+                            <option value="active">Только активные</option>
+                            <option value="inactive">Только выключенные</option>
+                        </select>
+                        <button class="btn btn-outline" id="refreshQuestCatalogBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-meta" id="questCatalogMeta">Загрузка каталога квестов...</div>
+                    <div class="skin-catalog-grid" id="questCatalogGrid"></div>
                 </div>
             </div>
 
@@ -5908,6 +6127,75 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         </div>
     </div>
 
+    <div class="modal-overlay" id="addQuestModal">
+        <div class="modal-content">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">task_alt</span>
+                        <span id="addQuestModalTitle">Новый квест</span>
+                    </h3>
+                    <div class="card-subtitle" id="addQuestModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Создаете шаблон, который потом сможет выпадать игрокам в персональной ротации.
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeAddQuestModal" type="button">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="addQuestForm">
+                    <div class="form-group">
+                        <label class="form-label" for="addQuestTitleInput">Название</label>
+                        <input class="form-control" id="addQuestTitleInput" type="text" maxlength="160" placeholder="Например: Ускорение дня" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="addQuestDescriptionInput">Описание</label>
+                        <textarea class="form-control" id="addQuestDescriptionInput" rows="4" maxlength="255" placeholder="Что именно должен сделать игрок" required></textarea>
+                    </div>
+                    <div class="maintenance-form-row">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="addQuestScopeInput">Тип</label>
+                            <select class="form-control" id="addQuestScopeInput">
+                                <option value="daily">Ежедневный</option>
+                                <option value="weekly">Недельный</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="addQuestMetricInput">Метрика</label>
+                            <select class="form-control" id="addQuestMetricInput">
+                                <option value="scoreGain">Заработанные коины</option>
+                                <option value="upgradeBuys">Покупки улучшений</option>
+                                <option value="plusGain">Рост силы клика</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="maintenance-form-row">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="addQuestGoalInput">Цель</label>
+                            <input class="form-control" id="addQuestGoalInput" type="number" min="1" step="1" value="1" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="addQuestRewardInput">Награда, коинов</label>
+                            <input class="form-control" id="addQuestRewardInput" type="number" min="0" step="1" value="0" required>
+                        </div>
+                    </div>
+                    <label class="form-label" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input id="addQuestActiveInput" type="checkbox" checked>
+                        <span>Использовать этот шаблон в ротации</span>
+                    </label>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelAddQuestModal" type="button">Отмена</button>
+                <button class="btn btn-primary" id="saveAddQuestBtn" type="button">
+                    <span class="btn-text">Сохранить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="deleteSkinModal">
         <div class="modal-content modal-content-danger">
             <div class="card-header">
@@ -6053,11 +6341,20 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let skinCatalogSearch = '';
         let skinCatalogCategoryFilter = localStorage.getItem('admin_skin_category_filter') || 'all';
         let skinCatalogSort = localStorage.getItem('admin_skin_sort') || 'manual';
+        let questCatalogItems = [];
+        let questCatalogSearch = '';
+        let questCatalogScopeFilter = 'all';
+        let questCatalogStatusFilter = 'all';
         let pendingDeleteSkinId = '';
         let skinEditorState = {
             mode: 'create',
             skinId: '',
             currentImage: ''
+        };
+        let questEditorState = {
+            mode: 'create',
+            templateId: 0,
+            questKey: ''
         };
         let pendingBanDurationSelection = {
             isPermanent: false,
@@ -6832,6 +7129,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const createQuestBtn = document.getElementById('createQuestBtn');
+            if (createQuestBtn) {
+                createQuestBtn.addEventListener('click', function() {
+                    showAddQuestModal('create');
+                });
+            }
+
             const addSkinModal = document.getElementById('addSkinModal');
             if (addSkinModal) {
                 addSkinModal.addEventListener('click', function(event) {
@@ -6874,6 +7178,36 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (saveAddSkinBtn) {
                 saveAddSkinBtn.addEventListener('click', function() {
                     submitAddSkinModal();
+                });
+            }
+
+            const addQuestModal = document.getElementById('addQuestModal');
+            if (addQuestModal) {
+                addQuestModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideAddQuestModal();
+                    }
+                });
+            }
+
+            const closeAddQuestModalBtn = document.getElementById('closeAddQuestModal');
+            if (closeAddQuestModalBtn) {
+                closeAddQuestModalBtn.addEventListener('click', function() {
+                    hideAddQuestModal();
+                });
+            }
+
+            const cancelAddQuestModalBtn = document.getElementById('cancelAddQuestModal');
+            if (cancelAddQuestModalBtn) {
+                cancelAddQuestModalBtn.addEventListener('click', function() {
+                    hideAddQuestModal();
+                });
+            }
+
+            const saveAddQuestBtn = document.getElementById('saveAddQuestBtn');
+            if (saveAddQuestBtn) {
+                saveAddQuestBtn.addEventListener('click', function() {
+                    submitAddQuestModal();
                 });
             }
 
@@ -6925,6 +7259,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 showSkinsView();
                 closeSidebarForCompactViewport();
             });
+
+            document.getElementById('questsBtn').addEventListener('click', function() {
+                showQuestsView();
+                closeSidebarForCompactViewport();
+            });
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
                 showStatistics();
@@ -6948,6 +7287,37 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshStatsBtn) {
                 refreshStatsBtn.addEventListener('click', function() {
                     loadDashboardStats(true);
+                });
+            }
+
+            const questCatalogSearchInput = document.getElementById('questCatalogSearchInput');
+            if (questCatalogSearchInput) {
+                questCatalogSearchInput.addEventListener('input', function() {
+                    questCatalogSearch = this.value.trim();
+                    renderQuestCatalogList();
+                });
+            }
+
+            const questCatalogScopeSelect = document.getElementById('questCatalogScopeSelect');
+            if (questCatalogScopeSelect) {
+                questCatalogScopeSelect.addEventListener('change', function() {
+                    questCatalogScopeFilter = this.value || 'all';
+                    renderQuestCatalogList();
+                });
+            }
+
+            const questCatalogStatusSelect = document.getElementById('questCatalogStatusSelect');
+            if (questCatalogStatusSelect) {
+                questCatalogStatusSelect.addEventListener('change', function() {
+                    questCatalogStatusFilter = this.value || 'all';
+                    renderQuestCatalogList();
+                });
+            }
+
+            const refreshQuestCatalogBtn = document.getElementById('refreshQuestCatalogBtn');
+            if (refreshQuestCatalogBtn) {
+                refreshQuestCatalogBtn.addEventListener('click', function() {
+                    loadQuestCatalogAdmin();
                 });
             }
 
@@ -7585,11 +7955,426 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function normalizeAdminQuestTemplate(rawQuest) {
+            if (!rawQuest || typeof rawQuest !== 'object') {
+                return null;
+            }
+
+            return {
+                id: Math.max(0, Number(rawQuest.id) || 0),
+                key: String(rawQuest.key || rawQuest.quest_key || '').trim(),
+                scope: String(rawQuest.scope || 'daily').trim().toLowerCase() === 'weekly' ? 'weekly' : 'daily',
+                title: String(rawQuest.title || '').trim(),
+                description: String(rawQuest.description || '').trim(),
+                metric: String(rawQuest.metric || 'scoreGain').trim(),
+                goal: Math.max(1, Number(rawQuest.goal) || 1),
+                rewardCoins: Math.max(0, Number(rawQuest.rewardCoins ?? rawQuest.reward_coins) || 0),
+                isActive: Boolean(rawQuest.isActive ?? rawQuest.is_active ?? true),
+                createdAt: String(rawQuest.createdAt || rawQuest.created_at || '').trim(),
+                updatedAt: String(rawQuest.updatedAt || rawQuest.updated_at || '').trim()
+            };
+        }
+
+        function getQuestScopeLabel(scope) {
+            return String(scope || '').trim().toLowerCase() === 'weekly'
+                ? 'Недельный'
+                : 'Ежедневный';
+        }
+
+        function getQuestMetricLabel(metric) {
+            const normalizedMetric = String(metric || '').trim();
+            if (normalizedMetric === 'upgradeBuys') {
+                return 'Покупки улучшений';
+            }
+            if (normalizedMetric === 'plusGain') {
+                return 'Рост силы клика';
+            }
+
+            return 'Заработанные коины';
+        }
+
+        function getFilteredQuestCatalogItems() {
+            const query = questCatalogSearch.toLowerCase();
+
+            return questCatalogItems.filter(item => {
+                if (!item) {
+                    return false;
+                }
+
+                if (questCatalogScopeFilter !== 'all' && String(item.scope) !== questCatalogScopeFilter) {
+                    return false;
+                }
+
+                if (questCatalogStatusFilter === 'active' && !item.isActive) {
+                    return false;
+                }
+
+                if (questCatalogStatusFilter === 'inactive' && item.isActive) {
+                    return false;
+                }
+
+                if (!query) {
+                    return true;
+                }
+
+                return [
+                    String(item.title || ''),
+                    String(item.description || ''),
+                    String(item.key || ''),
+                    getQuestScopeLabel(item.scope),
+                    getQuestMetricLabel(item.metric)
+                ].some(value => value.toLowerCase().includes(query));
+            });
+        }
+
+        function renderQuestCatalogList() {
+            const grid = document.getElementById('questCatalogGrid');
+            const meta = document.getElementById('questCatalogMeta');
+
+            if (!grid || !meta) {
+                return;
+            }
+
+            const filteredItems = getFilteredQuestCatalogItems();
+            const scopeLabel = questCatalogScopeFilter === 'all'
+                ? 'все'
+                : getQuestScopeLabel(questCatalogScopeFilter).toLowerCase();
+            const statusLabel = questCatalogStatusFilter === 'all'
+                ? 'все'
+                : (questCatalogStatusFilter === 'active' ? 'только активные' : 'только выключенные');
+
+            meta.textContent = questCatalogSearch
+                ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(questCatalogItems.length)} квестов по запросу "${questCatalogSearch}".`
+                : `Всего шаблонов: ${formatAdminNumber(questCatalogItems.length)}. Тип: ${scopeLabel}. Статус: ${statusLabel}.`;
+
+            if (filteredItems.length === 0) {
+                grid.innerHTML = '<div class="empty-list">По текущим фильтрам квесты не найдены.</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => `
+                <article class="skin-catalog-card quest-catalog-card" data-quest-id="${escapeHtml(String(item.id || 0))}">
+                    <div class="skin-catalog-card-body">
+                        <div class="skin-catalog-card-head">
+                            <div>
+                                <div class="skin-catalog-card-title">${escapeHtml(item.title || item.key || `Квест #${item.id}`)}</div>
+                                <div class="skin-catalog-card-id">ID ${escapeHtml(String(item.id || 0))} • ${escapeHtml(item.key || 'без ключа')}</div>
+                            </div>
+                            <span class="status-pill ${item.isActive ? 'active' : 'banned'}">${item.isActive ? 'Активен' : 'Выключен'}</span>
+                        </div>
+                        <div class="card-subtitle">${escapeHtml(item.description || 'Описание не задано.')}</div>
+                        <div class="inline-actions" style="margin-top: 0;">
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">event_repeat</span>${escapeHtml(getQuestScopeLabel(item.scope))}</span>
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">tune</span>${escapeHtml(getQuestMetricLabel(item.metric))}</span>
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">flag</span>Цель: ${formatAdminNumber(item.goal)}</span>
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">payments</span>Награда: ${formatAdminNumber(item.rewardCoins)}</span>
+                        </div>
+                        <div class="skin-catalog-card-actions">
+                            <button class="btn btn-outline btn-small edit-quest-btn" type="button" data-quest-id="${escapeHtml(String(item.id || 0))}">
+                                <span class="material-icons">edit</span>
+                                Редактировать
+                            </button>
+                            <button class="btn btn-danger btn-small delete-quest-btn" type="button" data-quest-id="${escapeHtml(String(item.id || 0))}">
+                                <span class="material-icons">delete</span>
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            `).join('');
+
+            grid.querySelectorAll('.edit-quest-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const questId = Number(this.dataset.questId || 0);
+                    const questItem = questCatalogItems.find(item => Number(item.id) === questId);
+                    if (questItem) {
+                        showAddQuestModal('edit', questItem);
+                    }
+                });
+            });
+
+            grid.querySelectorAll('.delete-quest-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const questId = Number(this.dataset.questId || 0);
+                    const questItem = questCatalogItems.find(item => Number(item.id) === questId);
+                    if (questItem) {
+                        deleteQuestCatalogItem(questItem);
+                    }
+                });
+            });
+        }
+
+        function loadQuestCatalogAdmin() {
+            const grid = document.getElementById('questCatalogGrid');
+            const meta = document.getElementById('questCatalogMeta');
+
+            if (grid) {
+                grid.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю каталог квестов...</div>';
+            }
+            if (meta) {
+                meta.textContent = 'Загрузка каталога квестов...';
+            }
+
+            postAction({
+                action: 'get_quest_catalog'
+            })
+            .then(data => {
+                if (!data.success || !Array.isArray(data.quests)) {
+                    throw new Error(data.message || 'Не удалось загрузить каталог квестов');
+                }
+
+                questCatalogItems = data.quests
+                    .map(item => normalizeAdminQuestTemplate(item))
+                    .filter(Boolean);
+                renderQuestCatalogList();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                if (grid) {
+                    grid.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки каталога')}</div>`;
+                }
+                if (meta) {
+                    meta.textContent = 'Не удалось загрузить каталог квестов';
+                }
+                showNotification(error.message || 'Ошибка загрузки каталога квестов', 'error');
+            });
+        }
+
+        function resetAddQuestForm() {
+            const form = document.getElementById('addQuestForm');
+            if (form) {
+                form.reset();
+            }
+
+            const scopeInput = document.getElementById('addQuestScopeInput');
+            const metricInput = document.getElementById('addQuestMetricInput');
+            const goalInput = document.getElementById('addQuestGoalInput');
+            const rewardInput = document.getElementById('addQuestRewardInput');
+            const activeInput = document.getElementById('addQuestActiveInput');
+
+            if (scopeInput) {
+                scopeInput.value = 'daily';
+            }
+            if (metricInput) {
+                metricInput.value = 'scoreGain';
+            }
+            if (goalInput) {
+                goalInput.value = '1';
+            }
+            if (rewardInput) {
+                rewardInput.value = '0';
+            }
+            if (activeInput) {
+                activeInput.checked = true;
+            }
+
+            questEditorState = {
+                mode: 'create',
+                templateId: 0,
+                questKey: ''
+            };
+        }
+
+        function showAddQuestModal(mode = 'create', questItem = null) {
+            resetAddQuestForm();
+
+            const titleNode = document.getElementById('addQuestModalTitle');
+            const subtitleNode = document.getElementById('addQuestModalSubtitle');
+            const saveButtonText = document.querySelector('#saveAddQuestBtn .btn-text');
+            const titleInput = document.getElementById('addQuestTitleInput');
+            const descriptionInput = document.getElementById('addQuestDescriptionInput');
+            const scopeInput = document.getElementById('addQuestScopeInput');
+            const metricInput = document.getElementById('addQuestMetricInput');
+            const goalInput = document.getElementById('addQuestGoalInput');
+            const rewardInput = document.getElementById('addQuestRewardInput');
+            const activeInput = document.getElementById('addQuestActiveInput');
+
+            if (mode === 'edit' && questItem) {
+                questEditorState = {
+                    mode: 'edit',
+                    templateId: Number(questItem.id || 0),
+                    questKey: String(questItem.key || '')
+                };
+
+                if (titleNode) {
+                    titleNode.textContent = 'Редактировать квест';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = `ID: ${questEditorState.templateId}. Ключ: ${questEditorState.questKey || 'не задан'}. Этот шаблон участвует в персональной ротации игроков.`;
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Сохранить изменения';
+                }
+                if (titleInput) {
+                    titleInput.value = String(questItem.title || '');
+                }
+                if (descriptionInput) {
+                    descriptionInput.value = String(questItem.description || '');
+                }
+                if (scopeInput) {
+                    scopeInput.value = String(questItem.scope || 'daily');
+                }
+                if (metricInput) {
+                    metricInput.value = String(questItem.metric || 'scoreGain');
+                }
+                if (goalInput) {
+                    goalInput.value = String(Math.max(1, Number(questItem.goal) || 1));
+                }
+                if (rewardInput) {
+                    rewardInput.value = String(Math.max(0, Number(questItem.rewardCoins) || 0));
+                }
+                if (activeInput) {
+                    activeInput.checked = Boolean(questItem.isActive);
+                }
+            } else {
+                if (titleNode) {
+                    titleNode.textContent = 'Новый квест';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = 'Новый шаблон попадет в общий каталог и сможет случайно выдаваться игрокам своего типа.';
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Добавить квест';
+                }
+            }
+
+            document.getElementById('addQuestModal').classList.add('active');
+        }
+
+        function hideAddQuestModal() {
+            document.getElementById('addQuestModal').classList.remove('active');
+        }
+
+        function submitAddQuestModal() {
+            const titleInput = document.getElementById('addQuestTitleInput');
+            const descriptionInput = document.getElementById('addQuestDescriptionInput');
+            const scopeInput = document.getElementById('addQuestScopeInput');
+            const metricInput = document.getElementById('addQuestMetricInput');
+            const goalInput = document.getElementById('addQuestGoalInput');
+            const rewardInput = document.getElementById('addQuestRewardInput');
+            const activeInput = document.getElementById('addQuestActiveInput');
+            const saveButton = document.getElementById('saveAddQuestBtn');
+            const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
+            const loader = saveButton ? saveButton.querySelector('.loader') : null;
+
+            const questTitle = titleInput ? titleInput.value.trim() : '';
+            const questDescription = descriptionInput ? descriptionInput.value.trim() : '';
+            const questScope = scopeInput ? String(scopeInput.value || 'daily') : 'daily';
+            const questMetric = metricInput ? String(metricInput.value || 'scoreGain') : 'scoreGain';
+            const questGoal = Math.max(1, Math.floor(Number(goalInput ? goalInput.value : 1) || 1));
+            const questRewardCoins = Math.max(0, Math.floor(Number(rewardInput ? rewardInput.value : 0) || 0));
+            const questActive = !activeInput || activeInput.checked;
+
+            if (questTitle.length < 2) {
+                showNotification('Введите название квеста.', 'error');
+                return;
+            }
+
+            if (questDescription.length < 4) {
+                showNotification('Добавьте понятное описание квеста.', 'error');
+                return;
+            }
+
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: questEditorState.mode === 'edit' ? 'update_quest_catalog_item' : 'create_quest_catalog_item',
+                quest_id: String(questEditorState.templateId || 0),
+                quest_scope: questScope,
+                quest_title: questTitle,
+                quest_description: questDescription,
+                quest_metric: questMetric,
+                quest_goal: String(questGoal),
+                quest_reward_coins: String(questRewardCoins),
+                quest_active: questActive ? '1' : '0'
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось сохранить квест');
+                }
+
+                hideAddQuestModal();
+                loadQuestCatalogAdmin();
+                showNotification(data.message || 'Квест сохранен', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка сохранения квеста', 'error');
+            })
+            .finally(() => {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                }
+                if (btnText) {
+                    btnText.style.display = 'inline';
+                }
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+            });
+        }
+
+        function deleteQuestCatalogItem(questItem) {
+            const questId = Number(questItem && questItem.id ? questItem.id : 0);
+            if (questId < 1) {
+                return;
+            }
+
+            const questTitle = String(questItem.title || questItem.key || `квест #${questId}`);
+            if (!window.confirm(`Удалить "${questTitle}" из каталога квестов?`)) {
+                return;
+            }
+
+            postAction({
+                action: 'delete_quest_catalog_item',
+                quest_id: String(questId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось удалить квест');
+                }
+
+                loadQuestCatalogAdmin();
+                showNotification(data.message || 'Квест удален', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка удаления квеста', 'error');
+            });
+        }
+
+        function showQuestsView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'quests';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'block';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('questsBtn');
+            loadDashboardStats();
+            loadQuestCatalogAdmin();
+        }
+
         function showSkinsView() {
             currentAdminView = 'skins';
             scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'block';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8446,6 +9231,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             hideAdminSupportUnreadModal({ markSeen: false });
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8824,6 +9610,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8850,6 +9637,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8868,6 +9656,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8885,6 +9674,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             scheduleAdminSupportUnreadMonitor(2000);
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10889,6 +11679,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             // Показываем карточку с данными таблицы
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';

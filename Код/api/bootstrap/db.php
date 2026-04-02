@@ -454,6 +454,16 @@ function bober_file_cache_store($cacheKey, $payload)
     return @file_put_contents($path, $encoded, LOCK_EX) !== false;
 }
 
+function bober_file_cache_delete($cacheKey)
+{
+    $path = bober_file_cache_path($cacheKey);
+    if ($path === '' || !is_file($path)) {
+        return false;
+    }
+
+    return @unlink($path);
+}
+
 function bober_identifier_is_valid($identifier)
 {
     return is_string($identifier) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) === 1;
@@ -1066,6 +1076,23 @@ function bober_index_exists($conn, $table, $indexName)
 
     if ($result === false) {
         throw new RuntimeException('Не удалось прочитать индексы таблицы.');
+    }
+
+    $exists = $result->num_rows > 0;
+    $result->free();
+
+    return $exists;
+}
+
+function bober_table_exists($conn, $table)
+{
+    bober_require_identifier($table, 'Имя таблицы');
+
+    $escapedTable = $conn->real_escape_string($table);
+    $result = $conn->query("SHOW TABLES LIKE '{$escapedTable}'");
+
+    if ($result === false) {
+        throw new RuntimeException('Не удалось проверить существование таблицы.');
     }
 
     $exists = $result->num_rows > 0;
@@ -3301,6 +3328,11 @@ function bober_ensure_user_quests_schema($conn)
         return;
     }
 
+    if (bober_schema_guard_is_fresh('user_quests')) {
+        $schemaEnsured = true;
+        return;
+    }
+
     $createQuestsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `user_quest_progress` (
     `user_id` INT NOT NULL PRIMARY KEY,
@@ -3336,6 +3368,61 @@ SQL;
         }
     }
 
+    $questTemplatesTableExists = bober_table_exists($conn, 'quest_templates');
+    $createQuestTemplatesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `quest_templates` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `quest_key` VARCHAR(120) NOT NULL,
+    `scope` VARCHAR(16) NOT NULL,
+    `title` VARCHAR(160) NOT NULL,
+    `description` VARCHAR(255) NOT NULL DEFAULT '',
+    `metric` VARCHAR(32) NOT NULL,
+    `goal` INT NOT NULL DEFAULT 1,
+    `reward_coins` INT NOT NULL DEFAULT 0,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uniq_quest_templates_key` (`quest_key`),
+    KEY `idx_quest_templates_scope` (`scope`, `is_active`, `id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createQuestTemplatesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу шаблонов квестов.');
+    }
+
+    $questTemplateAlterStatements = [
+        'quest_key' => "ALTER TABLE `quest_templates` ADD COLUMN `quest_key` VARCHAR(120) NOT NULL DEFAULT '' AFTER `id`",
+        'scope' => "ALTER TABLE `quest_templates` ADD COLUMN `scope` VARCHAR(16) NOT NULL DEFAULT 'daily' AFTER `quest_key`",
+        'title' => "ALTER TABLE `quest_templates` ADD COLUMN `title` VARCHAR(160) NOT NULL DEFAULT '' AFTER `scope`",
+        'description' => "ALTER TABLE `quest_templates` ADD COLUMN `description` VARCHAR(255) NOT NULL DEFAULT '' AFTER `title`",
+        'metric' => "ALTER TABLE `quest_templates` ADD COLUMN `metric` VARCHAR(32) NOT NULL DEFAULT 'scoreGain' AFTER `description`",
+        'goal' => "ALTER TABLE `quest_templates` ADD COLUMN `goal` INT NOT NULL DEFAULT 1 AFTER `metric`",
+        'reward_coins' => "ALTER TABLE `quest_templates` ADD COLUMN `reward_coins` INT NOT NULL DEFAULT 0 AFTER `goal`",
+        'is_active' => "ALTER TABLE `quest_templates` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1 AFTER `reward_coins`",
+        'created_at' => "ALTER TABLE `quest_templates` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `is_active`",
+        'updated_at' => "ALTER TABLE `quest_templates` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
+    ];
+
+    foreach ($questTemplateAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'quest_templates', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру шаблонов квестов.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'quest_templates', 'uniq_quest_templates_key') && !$conn->query("ALTER TABLE `quest_templates` ADD UNIQUE KEY `uniq_quest_templates_key` (`quest_key`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс шаблонов квестов.');
+    }
+
+    if (!bober_index_exists($conn, 'quest_templates', 'idx_quest_templates_scope') && !$conn->query("CREATE INDEX `idx_quest_templates_scope` ON `quest_templates` (`scope`, `is_active`, `id`)")) {
+        throw new RuntimeException('Не удалось создать индекс шаблонов квестов по области.');
+    }
+
+    if (!$questTemplatesTableExists) {
+        bober_seed_default_quest_templates($conn);
+    }
+
+    bober_schema_guard_touch('user_quests');
     $schemaEnsured = true;
 }
 
@@ -6206,6 +6293,388 @@ function bober_get_weekly_quest_definitions()
     ];
 }
 
+function bober_default_quest_template_catalog()
+{
+    $items = [];
+
+    foreach (bober_get_daily_quest_definitions() as $questKey => $definition) {
+        $items[] = [
+            'quest_key' => (string) $questKey,
+            'scope' => 'daily',
+            'title' => (string) ($definition['title'] ?? $questKey),
+            'description' => (string) ($definition['description'] ?? ''),
+            'metric' => (string) ($definition['metric'] ?? 'scoreGain'),
+            'goal' => max(1, (int) ($definition['goal'] ?? 1)),
+            'reward_coins' => max(0, (int) ($definition['rewardCoins'] ?? 0)),
+            'is_active' => 1,
+        ];
+    }
+
+    foreach (bober_get_weekly_quest_definitions() as $questKey => $definition) {
+        $items[] = [
+            'quest_key' => (string) $questKey,
+            'scope' => 'weekly',
+            'title' => (string) ($definition['title'] ?? $questKey),
+            'description' => (string) ($definition['description'] ?? ''),
+            'metric' => (string) ($definition['metric'] ?? 'scoreGain'),
+            'goal' => max(1, (int) ($definition['goal'] ?? 1)),
+            'reward_coins' => max(0, (int) ($definition['rewardCoins'] ?? 0)),
+            'is_active' => 1,
+        ];
+    }
+
+    return $items;
+}
+
+function bober_normalize_quest_scope($scope)
+{
+    return strtolower(trim((string) $scope)) === 'weekly' ? 'weekly' : 'daily';
+}
+
+function bober_normalize_quest_metric($metric)
+{
+    $normalizedMetric = trim((string) $metric);
+    $allowedMetrics = ['scoreGain', 'upgradeBuys', 'plusGain'];
+
+    return in_array($normalizedMetric, $allowedMetrics, true) ? $normalizedMetric : 'scoreGain';
+}
+
+function bober_normalize_quest_template_row($row)
+{
+    if (!is_array($row)) {
+        return null;
+    }
+
+    return [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'key' => trim((string) ($row['quest_key'] ?? $row['key'] ?? '')),
+        'scope' => bober_normalize_quest_scope($row['scope'] ?? 'daily'),
+        'title' => trim((string) ($row['title'] ?? '')),
+        'description' => trim((string) ($row['description'] ?? '')),
+        'metric' => bober_normalize_quest_metric($row['metric'] ?? 'scoreGain'),
+        'goal' => max(1, (int) ($row['goal'] ?? 1)),
+        'rewardCoins' => max(0, (int) ($row['reward_coins'] ?? $row['rewardCoins'] ?? 0)),
+        'isActive' => !array_key_exists('is_active', $row)
+            ? !empty($row['isActive'])
+            : (int) ($row['is_active'] ?? 0) === 1,
+        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : ((string) ($row['createdAt'] ?? '')),
+        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : ((string) ($row['updatedAt'] ?? '')),
+    ];
+}
+
+function bober_clear_quest_template_caches()
+{
+    bober_file_cache_delete('quest_templates_active_daily');
+    bober_file_cache_delete('quest_templates_active_weekly');
+}
+
+function bober_seed_default_quest_templates($conn)
+{
+    $countResult = $conn->query('SELECT COUNT(*) AS total FROM `quest_templates`');
+    if (!$countResult) {
+        throw new RuntimeException('Не удалось проверить каталог шаблонов квестов.');
+    }
+
+    $countRow = $countResult->fetch_assoc();
+    $countResult->free();
+    if (max(0, (int) ($countRow['total'] ?? 0)) > 0) {
+        return;
+    }
+
+    $stmt = $conn->prepare(
+        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить заполнение шаблонов квестов.');
+    }
+
+    foreach (bober_default_quest_template_catalog() as $item) {
+        $questKey = trim((string) ($item['quest_key'] ?? ''));
+        $scope = bober_normalize_quest_scope($item['scope'] ?? 'daily');
+        $title = trim((string) ($item['title'] ?? ''));
+        $description = trim((string) ($item['description'] ?? ''));
+        $metric = bober_normalize_quest_metric($item['metric'] ?? 'scoreGain');
+        $goal = max(1, (int) ($item['goal'] ?? 1));
+        $rewardCoins = max(0, (int) ($item['reward_coins'] ?? 0));
+        $isActive = !empty($item['is_active']) ? 1 : 0;
+
+        $stmt->bind_param('sssssiii', $questKey, $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось заполнить стартовый каталог квестов.');
+        }
+    }
+
+    $stmt->close();
+    bober_clear_quest_template_caches();
+}
+
+function bober_fetch_quest_templates($conn, array $options = [])
+{
+    bober_ensure_user_quests_schema($conn);
+
+    $scope = trim((string) ($options['scope'] ?? ''));
+    $activeOnly = !empty($options['activeOnly']) || !empty($options['active_only']);
+    $conditions = [];
+    $params = [];
+    $types = '';
+
+    if ($scope !== '') {
+        $conditions[] = '`scope` = ?';
+        $params[] = bober_normalize_quest_scope($scope);
+        $types .= 's';
+    }
+
+    if ($activeOnly) {
+        $conditions[] = '`is_active` = 1';
+    }
+
+    $sql = 'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+            FROM `quest_templates`';
+    if ($conditions) {
+        $sql .= ' WHERE ' . implode(' AND ', $conditions);
+    }
+    $sql .= " ORDER BY FIELD(`scope`, 'daily', 'weekly'), `is_active` DESC, `updated_at` DESC, `id` DESC";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение шаблонов квестов.');
+    }
+
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось прочитать шаблоны квестов.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    if ($result instanceof mysqli_result) {
+        while ($row = $result->fetch_assoc()) {
+            $normalizedRow = bober_normalize_quest_template_row($row);
+            if ($normalizedRow !== null) {
+                $items[] = $normalizedRow;
+            }
+        }
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_fetch_quest_template_by_id($conn, $templateId)
+{
+    $templateId = max(0, (int) $templateId);
+    if ($templateId < 1) {
+        return null;
+    }
+
+    bober_ensure_user_quests_schema($conn);
+    $stmt = $conn->prepare(
+        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+         FROM `quest_templates`
+         WHERE `id` = ?
+         LIMIT 1'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение шаблона квеста.');
+    }
+
+    $stmt->bind_param('i', $templateId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось прочитать шаблон квеста.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return bober_normalize_quest_template_row($row);
+}
+
+function bober_fetch_active_quest_definitions($conn, $scope)
+{
+    $normalizedScope = bober_normalize_quest_scope($scope);
+    $cacheKey = 'quest_templates_active_' . $normalizedScope;
+    $cachedDefinitions = bober_file_cache_fetch($cacheKey, 300);
+    if (is_array($cachedDefinitions)) {
+        return $cachedDefinitions;
+    }
+
+    $definitions = [];
+    foreach (bober_fetch_quest_templates($conn, ['scope' => $normalizedScope, 'activeOnly' => true]) as $item) {
+        $questKey = trim((string) ($item['key'] ?? ''));
+        if ($questKey === '') {
+            continue;
+        }
+
+        $definitions[$questKey] = [
+            'title' => (string) ($item['title'] ?? $questKey),
+            'description' => (string) ($item['description'] ?? ''),
+            'metric' => (string) ($item['metric'] ?? 'scoreGain'),
+            'goal' => max(1, (int) ($item['goal'] ?? 1)),
+            'rewardCoins' => max(0, (int) ($item['rewardCoins'] ?? 0)),
+        ];
+    }
+
+    bober_file_cache_store($cacheKey, $definitions);
+
+    return $definitions;
+}
+
+function bober_generate_quest_template_key($conn, $scope)
+{
+    $normalizedScope = bober_normalize_quest_scope($scope);
+
+    for ($attempt = 0; $attempt < 8; $attempt++) {
+        try {
+            $suffix = strtolower(bin2hex(random_bytes(4)));
+        } catch (Throwable $error) {
+            $suffix = strtolower(str_replace('.', '', uniqid('', true)));
+        }
+
+        $candidateKey = $normalizedScope . '_custom_' . $suffix;
+        $stmt = $conn->prepare('SELECT `id` FROM `quest_templates` WHERE `quest_key` = ? LIMIT 1');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить проверку ключа квеста.');
+        }
+
+        $stmt->bind_param('s', $candidateKey);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось проверить уникальность ключа квеста.');
+        }
+
+        $result = $stmt->get_result();
+        $exists = $result instanceof mysqli_result && $result->fetch_assoc();
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+
+        if (!$exists) {
+            return $candidateKey;
+        }
+    }
+
+    throw new RuntimeException('Не удалось сгенерировать уникальный ключ квеста.');
+}
+
+function bober_save_quest_template($conn, array $data, $templateId = 0)
+{
+    bober_ensure_user_quests_schema($conn);
+
+    $templateId = max(0, (int) $templateId);
+    $scope = bober_normalize_quest_scope($data['scope'] ?? 'daily');
+    $title = trim((string) ($data['title'] ?? ''));
+    $description = trim((string) ($data['description'] ?? ''));
+    $metric = bober_normalize_quest_metric($data['metric'] ?? 'scoreGain');
+    $goal = max(1, (int) ($data['goal'] ?? 1));
+    $rewardCoins = max(0, (int) ($data['rewardCoins'] ?? $data['reward_coins'] ?? 0));
+    $isActive = !empty($data['isActive']) || !empty($data['is_active']) ? 1 : 0;
+
+    $titleLength = function_exists('mb_strlen') ? mb_strlen($title) : strlen($title);
+    if ($titleLength < 2) {
+        throw new InvalidArgumentException('Введите название квеста.');
+    }
+
+    if ($description === '') {
+        throw new InvalidArgumentException('Добавьте описание квеста.');
+    }
+
+    if ($templateId > 0) {
+        $currentTemplate = bober_fetch_quest_template_by_id($conn, $templateId);
+        if ($currentTemplate === null) {
+            throw new RuntimeException('Шаблон квеста не найден.');
+        }
+
+        $questKey = (string) ($currentTemplate['key'] ?? '');
+        $stmt = $conn->prepare(
+            'UPDATE `quest_templates`
+             SET `scope` = ?, `title` = ?, `description` = ?, `metric` = ?, `goal` = ?, `reward_coins` = ?, `is_active` = ?
+             WHERE `id` = ?
+             LIMIT 1'
+        );
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить обновление квеста.');
+        }
+
+        $stmt->bind_param('ssssiiii', $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive, $templateId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось обновить шаблон квеста.');
+        }
+        $stmt->close();
+        $savedTemplateId = $templateId;
+    } else {
+        $questKey = bober_generate_quest_template_key($conn, $scope);
+        $stmt = $conn->prepare(
+            'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить создание квеста.');
+        }
+
+        $stmt->bind_param('sssssiii', $questKey, $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось создать шаблон квеста.');
+        }
+        $savedTemplateId = (int) $stmt->insert_id;
+        $stmt->close();
+    }
+
+    bober_clear_quest_template_caches();
+
+    $savedTemplate = bober_fetch_quest_template_by_id($conn, $savedTemplateId);
+    if ($savedTemplate === null) {
+        throw new RuntimeException('Шаблон квеста сохранен, но не удалось прочитать его обратно.');
+    }
+
+    return $savedTemplate;
+}
+
+function bober_delete_quest_template($conn, $templateId)
+{
+    bober_ensure_user_quests_schema($conn);
+
+    $templateId = max(0, (int) $templateId);
+    if ($templateId < 1) {
+        throw new InvalidArgumentException('Не указан шаблон квеста.');
+    }
+
+    $template = bober_fetch_quest_template_by_id($conn, $templateId);
+    if ($template === null) {
+        throw new RuntimeException('Шаблон квеста не найден.');
+    }
+
+    $stmt = $conn->prepare('DELETE FROM `quest_templates` WHERE `id` = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить удаление квеста.');
+    }
+
+    $stmt->bind_param('i', $templateId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось удалить шаблон квеста.');
+    }
+    $stmt->close();
+
+    bober_clear_quest_template_caches();
+
+    return $template;
+}
+
 function bober_select_rotating_quest_keys(array $definitions, $userId, $periodKey, $count)
 {
     $scoredItems = [];
@@ -6402,8 +6871,8 @@ function bober_refresh_user_quests($conn, $userId)
     }
 
     $state = bober_prepare_user_quest_progress_state($conn, $userId, true);
-    $dailyDefinitions = bober_get_daily_quest_definitions();
-    $weeklyDefinitions = bober_get_weekly_quest_definitions();
+    $dailyDefinitions = bober_fetch_active_quest_definitions($conn, 'daily');
+    $weeklyDefinitions = bober_fetch_active_quest_definitions($conn, 'weekly');
     $dailyKeys = bober_select_rotating_quest_keys($dailyDefinitions, $userId, $state['dailyPeriodKey'], 2);
     $weeklyKeys = bober_select_rotating_quest_keys($weeklyDefinitions, $userId, $state['weeklyPeriodKey'], 2);
     $rewardCoinsTotal = 0;
