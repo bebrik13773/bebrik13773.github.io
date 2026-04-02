@@ -6667,7 +6667,9 @@ const LIVE_SYNC_CONFIG = {
     publicProfileRefreshMs: 9000,
     failureBaseDelayMs: 12000,
     failureMaxDelayMs: 60000,
-    failureImmediateFloorMs: 8000
+    failureImmediateFloorMs: 8000,
+    dbQuotaCooldownMs: 15 * 60 * 1000,
+    dbQuotaNoticeCooldownMs: 60 * 1000
 };
 const INTERACTION_PALETTES = {
     main: {
@@ -6932,7 +6934,10 @@ const liveSyncState = {
     lastSyncedAt: 0,
     lastReason: '',
     errorStreak: 0,
-    lastErrorAt: 0
+    lastErrorAt: 0,
+    dbQuotaCooldownUntil: 0,
+    dbQuotaNotifiedAt: 0,
+    dbQuotaMessage: ''
 };
 const interactionFxState = {
     rafId: 0,
@@ -13776,6 +13781,40 @@ function isLikelyNetworkError(error) {
     );
 }
 
+function isDatabaseQuotaExceededError(error) {
+    const message = String((error && error.message) || '').toLowerCase();
+    return (
+        message.includes('max_queries_per_hour') ||
+        (message.includes('queries_per_hour') && message.includes('exceeded')) ||
+        (message.includes('resource') && message.includes('queries') && message.includes('exceeded'))
+    );
+}
+
+function isDatabaseQuotaCooldownActive() {
+    return Number(liveSyncState.dbQuotaCooldownUntil || 0) > Date.now();
+}
+
+function getDatabaseQuotaCooldownRemainingMs() {
+    return Math.max(0, Number(liveSyncState.dbQuotaCooldownUntil || 0) - Date.now());
+}
+
+function activateDatabaseQuotaCooldown(error) {
+    const nextCooldownUntil = Date.now() + LIVE_SYNC_CONFIG.dbQuotaCooldownMs;
+    liveSyncState.dbQuotaCooldownUntil = Math.max(
+        Number(liveSyncState.dbQuotaCooldownUntil || 0),
+        nextCooldownUntil
+    );
+    liveSyncState.dbQuotaMessage = String(
+        (error && error.message) || 'Сервер временно исчерпал лимит запросов к базе данных.'
+    );
+
+    const now = Date.now();
+    if ((now - Number(liveSyncState.dbQuotaNotifiedAt || 0)) >= LIVE_SYNC_CONFIG.dbQuotaNoticeCooldownMs) {
+        liveSyncState.dbQuotaNotifiedAt = now;
+        showNotification('Сервер временно уперся в лимит базы данных. Повторим позже автоматически.', 'warning', 6000);
+    }
+}
+
 function buildUnexpectedErrorReport(error, context = 'runtime', extra = {}) {
     const payload = error && error.payload && typeof error.payload === 'object'
         ? error.payload
@@ -14366,6 +14405,8 @@ async function performLiveRefreshCycle(options = {}) {
         await refreshOpenLiveSurfaces({ reason });
         liveSyncState.errorStreak = 0;
         liveSyncState.lastErrorAt = 0;
+        liveSyncState.dbQuotaCooldownUntil = 0;
+        liveSyncState.dbQuotaMessage = '';
         return true;
     } catch (error) {
         liveSyncState.errorStreak = Math.min(8, Number(liveSyncState.errorStreak || 0) + 1);
@@ -14376,6 +14417,10 @@ async function performLiveRefreshCycle(options = {}) {
 }
 
 function getLiveSyncFailureDelay() {
+    if (isDatabaseQuotaCooldownActive()) {
+        return Math.max(LIVE_SYNC_CONFIG.failureImmediateFloorMs, getDatabaseQuotaCooldownRemainingMs());
+    }
+
     const streak = Math.max(0, Number(liveSyncState.errorStreak) || 0);
     if (streak < 1) {
         return getLiveSyncInterval();
@@ -14432,6 +14477,10 @@ async function synchronizeMainState(options = {}) {
         silent = true,
         settingsPatch = null
     } = options;
+
+    if (isDatabaseQuotaCooldownActive()) {
+        return false;
+    }
 
     if (liveSyncState.inFlight || autosaveState.inFlight) {
         return false;
@@ -14510,6 +14559,11 @@ async function synchronizeMainState(options = {}) {
         leaderboardProfileState.cache.clear();
         return true;
     } catch (error) {
+        if (isDatabaseQuotaExceededError(error)) {
+            activateDatabaseQuotaCooldown(error);
+            setSaveStatus('error', 'Сервер временно уперся в лимит БД. Повторим позже.');
+            return false;
+        }
         if (tryHandleSessionConflictError(error)) {
             return false;
         }
@@ -15100,6 +15154,15 @@ document.getElementById('submitLogin').onclick = async function() {
         return;
     }
 
+    if (isDatabaseQuotaCooldownActive()) {
+        showNotification(
+            liveSyncState.dbQuotaMessage || 'Сервер временно уперся в лимит базы данных. Попробуйте позже.',
+            'warning',
+            6000
+        );
+        return;
+    }
+
     const loginValue = document.getElementById('login').value.trim();
     const passwordValue = document.getElementById('password').value;
 
@@ -15138,6 +15201,8 @@ document.getElementById('submitLogin').onclick = async function() {
         }
 
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : loginValue;
+        liveSyncState.dbQuotaCooldownUntil = 0;
+        liveSyncState.dbQuotaMessage = '';
         applyAuthenticatedState(data);
         logClientEvent('auth', 'login_success_client', {
             login: currentLogin,
@@ -15152,6 +15217,9 @@ document.getElementById('submitLogin').onclick = async function() {
             showNotification('Успешный вход!', 'success');
         }
     } catch (error) {
+        if (isDatabaseQuotaExceededError(error)) {
+            activateDatabaseQuotaCooldown(error);
+        }
         if (tryHandleSessionConflictError(error, {
             login: loginValue,
             password: passwordValue
