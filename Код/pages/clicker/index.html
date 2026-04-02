@@ -7408,6 +7408,7 @@ if (bootPendingSettingsSync && bootPendingSettingsSync.settings) {
     userSettings = bootPendingSettingsSync.settings;
     settingsState.localUpdatedAt = Math.max(0, Number(bootPendingSettingsSync.updatedAt) || 0);
 }
+userSettings = repairUserSettingsShape(userSettings);
 window.__boberUserSettings = userSettings;
 try {
     const rawSeenAchievementUnlocks = localStorage.getItem(SEEN_ACHIEVEMENT_UNLOCKS_STORAGE_KEY);
@@ -7493,10 +7494,101 @@ const SUPPORT_TOPIC_DEFINITIONS = Object.freeze({
     }
 });
 
+function getDefaultUserSettingsShape() {
+    return {
+        audio: { musicEnabled: true, effectsEnabled: true, flyVolume: 100 },
+        vibration: { enabled: true, intensity: 'medium' },
+        animations: { mode: 'full' },
+        notifications: { enabled: true, browserEnabled: false },
+        effects: { quality: 'high' },
+        privacy: { publicProfile: true },
+        performance: { autoOptimize: true, autoProfile: '' }
+    };
+}
+
+function repairUserSettingsShape(settings) {
+    const defaults = getDefaultUserSettingsShape();
+    const candidate = settings && typeof settings === 'object' ? settings : {};
+    const audio = candidate.audio && typeof candidate.audio === 'object' ? candidate.audio : {};
+    const vibration = candidate.vibration && typeof candidate.vibration === 'object' ? candidate.vibration : {};
+    const animations = candidate.animations && typeof candidate.animations === 'object' ? candidate.animations : {};
+    const notifications = candidate.notifications && typeof candidate.notifications === 'object' ? candidate.notifications : {};
+    const effects = candidate.effects && typeof candidate.effects === 'object' ? candidate.effects : {};
+    const privacy = candidate.privacy && typeof candidate.privacy === 'object' ? candidate.privacy : {};
+    const performance = candidate.performance && typeof candidate.performance === 'object' ? candidate.performance : {};
+
+    let vibrationIntensity = String(vibration.intensity || defaults.vibration.intensity).trim();
+    let animationMode = String(animations.mode || defaults.animations.mode).trim();
+    let effectsQuality = String(effects.quality || defaults.effects.quality).trim();
+    let autoProfile = String(performance.autoProfile || defaults.performance.autoProfile).trim();
+
+    if (!['low', 'medium', 'high'].includes(vibrationIntensity)) {
+        vibrationIntensity = defaults.vibration.intensity;
+    }
+
+    if (!['full', 'reduced', 'off'].includes(animationMode)) {
+        animationMode = defaults.animations.mode;
+    }
+
+    if (!['low', 'medium', 'high'].includes(effectsQuality)) {
+        effectsQuality = defaults.effects.quality;
+    }
+
+    return {
+        audio: {
+            musicEnabled: Object.prototype.hasOwnProperty.call(audio, 'musicEnabled')
+                ? Boolean(audio.musicEnabled)
+                : defaults.audio.musicEnabled,
+            effectsEnabled: Object.prototype.hasOwnProperty.call(audio, 'effectsEnabled')
+                ? Boolean(audio.effectsEnabled)
+                : defaults.audio.effectsEnabled,
+            flyVolume: Math.max(0, Math.min(100, Number(audio.flyVolume ?? defaults.audio.flyVolume) || 0))
+        },
+        vibration: {
+            enabled: Object.prototype.hasOwnProperty.call(vibration, 'enabled')
+                ? Boolean(vibration.enabled)
+                : defaults.vibration.enabled,
+            intensity: vibrationIntensity
+        },
+        animations: {
+            mode: animationMode
+        },
+        notifications: {
+            enabled: Object.prototype.hasOwnProperty.call(notifications, 'enabled')
+                ? Boolean(notifications.enabled)
+                : defaults.notifications.enabled,
+            browserEnabled: Object.prototype.hasOwnProperty.call(notifications, 'browserEnabled')
+                ? Boolean(notifications.browserEnabled)
+                : defaults.notifications.browserEnabled
+        },
+        effects: {
+            quality: effectsQuality
+        },
+        privacy: {
+            publicProfile: Object.prototype.hasOwnProperty.call(privacy, 'publicProfile')
+                ? Boolean(privacy.publicProfile)
+                : defaults.privacy.publicProfile
+        },
+        performance: {
+            autoOptimize: Object.prototype.hasOwnProperty.call(performance, 'autoOptimize')
+                ? Boolean(performance.autoOptimize)
+                : defaults.performance.autoOptimize,
+            autoProfile: autoProfile
+        }
+    };
+}
+
 function normalizeUserSettings(settings) {
-    return SHARED_CLIENT.normalizeUserSettings
-        ? SHARED_CLIENT.normalizeUserSettings(settings)
-        : userSettings;
+    let sharedNormalized = settings;
+    try {
+        sharedNormalized = SHARED_CLIENT.normalizeUserSettings
+            ? SHARED_CLIENT.normalizeUserSettings(settings)
+            : settings;
+    } catch (error) {
+        console.warn('Не удалось нормализовать пользовательские настройки через shared client.', error);
+        sharedNormalized = settings;
+    }
+    return repairUserSettingsShape(sharedNormalized);
 }
 
 function detectDevicePerformanceSummary() {
