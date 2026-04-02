@@ -2869,21 +2869,33 @@ Owner decisions:
         }
     }
 
+    #questsOpenButton,
     #flyBeaverOpenButton {
         width: min(100%, 360px);
         min-height: 60px;
         padding: 16px 22px;
         font-size: 17px;
         border-radius: 20px;
-        background:
-            linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
-            rgba(255, 255, 255, 0.06);
-        color: #062035;
         box-shadow:
             0 24px 32px rgba(6, 13, 30, 0.24),
             inset 0 1px 0 rgba(255, 255, 255, 0.44);
     }
 
+    #questsOpenButton {
+        background:
+            linear-gradient(180deg, rgba(255, 225, 126, 0.94), rgba(244, 163, 36, 0.96)),
+            rgba(255, 255, 255, 0.06);
+        color: #3a2400;
+    }
+
+    #flyBeaverOpenButton {
+        background:
+            linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
+            rgba(255, 255, 255, 0.06);
+        color: #062035;
+    }
+
+    #questsOpenButton:hover,
     #flyBeaverOpenButton:hover {
         box-shadow:
             0 28px 36px rgba(6, 13, 30, 0.28),
@@ -5378,6 +5390,8 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <br>
+<button class="shop-action-btn" id="questsOpenButton" type="button" title="Квесты (Q)">Квесты</button>
+<br>
 <button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">Летающий бобер</button>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
@@ -5730,12 +5744,20 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
-        <div class="profile-achievements-title">Квесты</div>
-        <div class="profile-quests-grid" id="profileModalQuests"></div>
         <div class="profile-achievements-title">Достижения</div>
         <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="questsModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="questsModalTitle">
+        <div class="skin-action-modal-title" id="questsModalTitle">Квесты</div>
+        <div class="skin-action-modal-text">Ежедневные задания и недельные цели с прогрессом и наградами.</div>
+        <div class="profile-quests-grid" id="questsModalContent"></div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="questsModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -7312,6 +7334,7 @@ function syncGlobalOverlayState() {
         document.getElementById('authModal'),
         document.getElementById('settingsModal'),
         document.getElementById('profileModal'),
+        document.getElementById('questsModal'),
         document.getElementById('leaderboardProfileModal'),
         document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
@@ -7953,6 +7976,7 @@ function isHeavyUiSurfaceOpen() {
         document.getElementById('supportModal')?.classList.contains('show') ||
         document.getElementById('settingsModal')?.classList.contains('show') ||
         document.getElementById('profileModal')?.classList.contains('show') ||
+        document.getElementById('questsModal')?.classList.contains('show') ||
         document.getElementById('leaderboardProfileModal')?.classList.contains('show') ||
         document.getElementById('authModal')?.classList.contains('show') ||
         document.getElementById('achievementUnlockModal')?.classList.contains('show')
@@ -8558,17 +8582,15 @@ function renderProfileModal() {
     const badgesNode = document.getElementById('profileModalBadges');
     const trophiesNode = document.getElementById('profileModalTrophies');
     const statsNode = document.getElementById('profileModalStats');
-    const questsNode = document.getElementById('profileModalQuests');
     const achievementsNode = document.getElementById('profileModalAchievements');
 
-    if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !questsNode || !achievementsNode) {
+    if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !achievementsNode) {
         return;
     }
 
     const resolvedLogin = currentLogin || 'Игрок';
     const summary = normalizeProfileSummary(profileSummary);
     const honors = normalizeProfileHonors(summary.honors);
-    const normalizedQuests = normalizeQuestState(questState);
     const unlockedItems = normalizeAchievementList(unlockedAchievements);
     const unlockedByKey = unlockedItems.reduce((accumulator, item) => {
         accumulator[item.key] = item;
@@ -8622,58 +8644,6 @@ function renderProfileModal() {
             <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
             <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
         </div>
-    `).join('');
-
-    const questGroups = [
-        {
-            title: 'Ежедневные задания',
-            subtitle: formatQuestPeriodLabel('daily', normalizedQuests.daily.periodKey),
-            items: normalizedQuests.daily.items
-        },
-        {
-            title: 'Недельные цели',
-            subtitle: formatQuestPeriodLabel('weekly', normalizedQuests.weekly.periodKey),
-            items: normalizedQuests.weekly.items
-        }
-    ];
-
-    questsNode.innerHTML = questGroups.map((group) => `
-        <section class="profile-quest-group">
-            <div class="profile-achievement-group-head">
-                <div>
-                    <div class="profile-achievement-group-title">${escapeHtmlText(group.title)}</div>
-                    <div class="profile-achievement-empty" style="margin-top:8px;padding:10px 12px;">${escapeHtmlText(group.subtitle)}</div>
-                </div>
-                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(group.items.filter((item) => item.claimed).length))}/${escapeHtmlText(formatCompactNumber(group.items.length))}</div>
-            </div>
-            ${group.items.length > 0
-                ? `<div class="profile-quest-list">${group.items.map((item) => {
-                    const progressPercent = Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
-                    const statusLabel = item.claimed
-                        ? 'Награда получена'
-                        : (item.completed ? 'Готово' : 'В процессе');
-                    return `
-                        <article class="profile-quest-card ${item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress')}">
-                            <div class="profile-quest-head">
-                                <div class="profile-quest-title">${escapeHtmlText(item.title)}</div>
-                                <div class="profile-quest-chip ${item.claimed ? 'claimed' : ''}">${escapeHtmlText(statusLabel)}</div>
-                            </div>
-                            <div class="profile-quest-description">${escapeHtmlText(item.description)}</div>
-                            <div class="profile-quest-meta">Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов</div>
-                            <div class="profile-quest-progress">
-                                <div class="profile-quest-progress-bar">
-                                    <div class="profile-quest-progress-fill" style="width:${escapeHtmlText(String(progressPercent.toFixed(2)))}%"></div>
-                                </div>
-                                <div class="profile-quest-progress-text">
-                                    <span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span>
-                                    <span>${escapeHtmlText(Math.round(progressPercent))}%</span>
-                                </div>
-                            </div>
-                        </article>
-                    `;
-                }).join('')}</div>`
-                : '<div class="profile-achievement-empty">Квесты для этой ротации пока не назначены.</div>'}
-        </section>
     `).join('');
 
     if (ALL_ACHIEVEMENT_KEYS.length < 1) {
@@ -8752,6 +8722,69 @@ function renderProfileModal() {
     `;
 }
 
+function buildQuestGroupsHtml(normalizedQuests) {
+    const questGroups = [
+        {
+            title: 'Ежедневные задания',
+            subtitle: formatQuestPeriodLabel('daily', normalizedQuests.daily.periodKey),
+            items: normalizedQuests.daily.items
+        },
+        {
+            title: 'Недельные цели',
+            subtitle: formatQuestPeriodLabel('weekly', normalizedQuests.weekly.periodKey),
+            items: normalizedQuests.weekly.items
+        }
+    ];
+
+    return questGroups.map((group) => `
+        <section class="profile-quest-group">
+            <div class="profile-achievement-group-head">
+                <div>
+                    <div class="profile-achievement-group-title">${escapeHtmlText(group.title)}</div>
+                    <div class="profile-achievement-empty" style="margin-top:8px;padding:10px 12px;">${escapeHtmlText(group.subtitle)}</div>
+                </div>
+                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(group.items.filter((item) => item.claimed).length))}/${escapeHtmlText(formatCompactNumber(group.items.length))}</div>
+            </div>
+            ${group.items.length > 0
+                ? `<div class="profile-quest-list">${group.items.map((item) => {
+                    const progressPercent = Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
+                    const statusLabel = item.claimed
+                        ? 'Награда получена'
+                        : (item.completed ? 'Готово' : 'В процессе');
+                    return `
+                        <article class="profile-quest-card ${item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress')}">
+                            <div class="profile-quest-head">
+                                <div class="profile-quest-title">${escapeHtmlText(item.title)}</div>
+                                <div class="profile-quest-chip ${item.claimed ? 'claimed' : ''}">${escapeHtmlText(statusLabel)}</div>
+                            </div>
+                            <div class="profile-quest-description">${escapeHtmlText(item.description)}</div>
+                            <div class="profile-quest-meta">Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов</div>
+                            <div class="profile-quest-progress">
+                                <div class="profile-quest-progress-bar">
+                                    <div class="profile-quest-progress-fill" style="width:${escapeHtmlText(String(progressPercent.toFixed(2)))}%"></div>
+                                </div>
+                                <div class="profile-quest-progress-text">
+                                    <span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span>
+                                    <span>${escapeHtmlText(Math.round(progressPercent))}%</span>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                }).join('')}</div>`
+                : '<div class="profile-achievement-empty">Квесты для этой ротации пока не назначены.</div>'}
+        </section>
+    `).join('');
+}
+
+function renderQuestsModal() {
+    const questsNode = document.getElementById('questsModalContent');
+    if (!questsNode) {
+        return;
+    }
+
+    questsNode.innerHTML = buildQuestGroupsHtml(normalizeQuestState(questState));
+}
+
 function openProfileModal() {
     const modal = document.getElementById('profileModal');
     if (!modal || !userId) {
@@ -8767,6 +8800,35 @@ function openProfileModal() {
         includeDirtyState: true,
         silent: true
     });
+}
+
+function openQuestsModal() {
+    const modal = document.getElementById('questsModal');
+    if (!modal || !userId) {
+        return;
+    }
+
+    closeProfileMenu();
+    renderQuestsModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    requestImmediateLiveRefresh('quests_open', {
+        includeDirtyState: true,
+        silent: true
+    });
+}
+
+function closeQuestsModal() {
+    const modal = document.getElementById('questsModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
 }
 
 function closeProfileModal() {
@@ -9411,6 +9473,15 @@ function isProfileModalOpen() {
     );
 }
 
+function isQuestsModalOpen() {
+    const modal = document.getElementById('questsModal');
+    return Boolean(
+        modal &&
+        modal.classList.contains('show') &&
+        modal.getAttribute('aria-hidden') === 'false'
+    );
+}
+
 function isLeaderboardPublicProfileOpen() {
     const modal = document.getElementById('leaderboardProfileModal');
     return Boolean(
@@ -9429,6 +9500,7 @@ function hasPriorityLiveSurfaceOpen() {
         isShopOpen() ||
         isSupportModalOpen() ||
         isProfileModalOpen() ||
+        isQuestsModalOpen() ||
         isLeaderboardPublicProfileOpen()
     );
 }
@@ -12634,6 +12706,15 @@ if (profileModalNode) {
     });
 }
 
+const questsModalNode = document.getElementById('questsModal');
+if (questsModalNode) {
+    questsModalNode.addEventListener('click', (event) => {
+        if (event.target === questsModalNode) {
+            closeQuestsModal();
+        }
+    });
+}
+
 const leaderboardProfileModalNode = document.getElementById('leaderboardProfileModal');
 if (leaderboardProfileModalNode) {
     leaderboardProfileModalNode.addEventListener('click', (event) => {
@@ -12690,6 +12771,13 @@ const profileModalCloseButton = document.getElementById('profileModalClose');
 if (profileModalCloseButton) {
     profileModalCloseButton.addEventListener('click', () => {
         closeProfileModal();
+    });
+}
+
+const questsModalCloseButton = document.getElementById('questsModalClose');
+if (questsModalCloseButton) {
+    questsModalCloseButton.addEventListener('click', () => {
+        closeQuestsModal();
     });
 }
 
@@ -12911,6 +12999,19 @@ if (profileDetailsButton) {
         }
 
         openProfileModal();
+    });
+}
+
+const questsOpenButton = document.getElementById('questsOpenButton');
+if (questsOpenButton) {
+    questsOpenButton.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы открыть квесты и синхронизировать их прогресс.'
+        })) {
+            return;
+        }
+
+        openQuestsModal();
     });
 }
 
@@ -13453,6 +13554,7 @@ function applyAuthenticatedState(data) {
     updateProfileMenuUI();
     updateSupportBadgeUI();
     renderProfileModal();
+    renderQuestsModal();
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
@@ -14161,6 +14263,7 @@ function applySynchronizedAccountState(data) {
     updateProfileMenuUI();
     updateSupportBadgeUI();
     renderProfileModal();
+    renderQuestsModal();
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
     return true;
@@ -14204,6 +14307,10 @@ async function refreshOpenLiveSurfaces(options = {}) {
 
     if (isProfileModalOpen()) {
         renderProfileModal();
+    }
+
+    if (isQuestsModalOpen()) {
+        renderQuestsModal();
     }
 
     if (tasks.length > 0) {
@@ -14911,6 +15018,19 @@ document.addEventListener('keydown', function(event) {
                     return;
                 }
                 openProfileModal();
+            }
+        },
+        KeyQ: {
+            label: 'квесты',
+            handler: () => {
+                if (!userId) {
+                    requestAuthModal('login', {
+                        title: 'Нужен аккаунт',
+                        text: 'Войдите в аккаунт, чтобы открыть квесты и облачный прогресс.'
+                    });
+                    return;
+                }
+                openQuestsModal();
             }
         },
         KeyS: {
