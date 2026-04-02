@@ -1058,7 +1058,7 @@ function bober_upgrade_shop_catalog()
             'description' => 'Куплено улучшение +10000 к запасу энергии.',
         ],
         'clickRate' => [
-            'baseCost' => 1800000,
+            'baseCost' => 1500000,
             'actionType' => 'upgrade_click_rate_purchase',
             'description' => 'Куплено улучшение лимита засчитываемых кликов.',
         ],
@@ -4065,6 +4065,8 @@ CREATE TABLE IF NOT EXISTS `achievement_catalog` (
     `is_secret` TINYINT(1) NULL DEFAULT NULL,
     `reward_coins` INT NULL DEFAULT NULL,
     `is_active` TINYINT(1) NULL DEFAULT NULL,
+    `condition_mode` VARCHAR(8) NOT NULL DEFAULT 'all',
+    `conditions_json` LONGTEXT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -4072,6 +4074,17 @@ SQL;
 
     if (!$conn->query($createCatalogSql)) {
         throw new RuntimeException('Не удалось создать таблицу каталога достижений.');
+    }
+
+    $achievementCatalogAlterStatements = [
+        'condition_mode' => "ALTER TABLE `achievement_catalog` ADD COLUMN `condition_mode` VARCHAR(8) NOT NULL DEFAULT 'all' AFTER `is_active`",
+        'conditions_json' => "ALTER TABLE `achievement_catalog` ADD COLUMN `conditions_json` LONGTEXT NULL AFTER `condition_mode`",
+    ];
+
+    foreach ($achievementCatalogAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'achievement_catalog', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру каталога достижений.');
+        }
     }
 
     bober_schema_guard_touch('achievement_catalog');
@@ -4177,6 +4190,8 @@ CREATE TABLE IF NOT EXISTS `quest_templates` (
     `description` VARCHAR(255) NOT NULL DEFAULT '',
     `metric` VARCHAR(32) NOT NULL,
     `goal` INT NOT NULL DEFAULT 1,
+    `condition_mode` VARCHAR(8) NOT NULL DEFAULT 'all',
+    `conditions_json` LONGTEXT NULL,
     `reward_coins` INT NOT NULL DEFAULT 0,
     `is_active` TINYINT(1) NOT NULL DEFAULT 1,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -4197,7 +4212,9 @@ SQL;
         'description' => "ALTER TABLE `quest_templates` ADD COLUMN `description` VARCHAR(255) NOT NULL DEFAULT '' AFTER `title`",
         'metric' => "ALTER TABLE `quest_templates` ADD COLUMN `metric` VARCHAR(32) NOT NULL DEFAULT 'scoreGain' AFTER `description`",
         'goal' => "ALTER TABLE `quest_templates` ADD COLUMN `goal` INT NOT NULL DEFAULT 1 AFTER `metric`",
-        'reward_coins' => "ALTER TABLE `quest_templates` ADD COLUMN `reward_coins` INT NOT NULL DEFAULT 0 AFTER `goal`",
+        'condition_mode' => "ALTER TABLE `quest_templates` ADD COLUMN `condition_mode` VARCHAR(8) NOT NULL DEFAULT 'all' AFTER `goal`",
+        'conditions_json' => "ALTER TABLE `quest_templates` ADD COLUMN `conditions_json` LONGTEXT NULL AFTER `condition_mode`",
+        'reward_coins' => "ALTER TABLE `quest_templates` ADD COLUMN `reward_coins` INT NOT NULL DEFAULT 0 AFTER `conditions_json`",
         'is_active' => "ALTER TABLE `quest_templates` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1 AFTER `reward_coins`",
         'created_at' => "ALTER TABLE `quest_templates` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `is_active`",
         'updated_at' => "ALTER TABLE `quest_templates` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
@@ -5833,11 +5850,236 @@ function bober_get_default_achievement_definition_map()
     ];
 }
 
+function bober_get_achievement_metric_definitions()
+{
+    return [
+        'score' => ['label' => 'Коины'],
+        'plus' => ['label' => 'Сила клика'],
+        'energyMax' => ['label' => 'Максимальная энергия'],
+        'ownedSkinCount' => ['label' => 'Скины'],
+        'totalUpgradePurchases' => ['label' => 'Всего улучшений'],
+        'flyBest' => ['label' => 'Рекорд fly-beaver'],
+        'flyGamesPlayed' => ['label' => 'Забегов fly-beaver'],
+        'clickerTop1' => ['label' => 'Топ-1 кликера'],
+        'flyTop1' => ['label' => 'Топ-1 fly-beaver'],
+        'tapSmall' => ['label' => 'Маленький тап'],
+        'tapBig' => ['label' => 'Большой тап'],
+        'energy' => ['label' => 'Энергия'],
+        'tapHuge' => ['label' => 'Огромный тап'],
+        'regenBoost' => ['label' => 'Разгон ритма'],
+        'energyHuge' => ['label' => 'Огромный запас'],
+        'clickRate' => ['label' => 'Предел CPS'],
+    ];
+}
+
+function bober_get_default_achievement_condition_map()
+{
+    $map = [];
+
+    foreach ([
+        'clicker_10k' => 10000,
+        'clicker_50k' => 50000,
+        'clicker_100k' => 100000,
+        'clicker_500k' => 500000,
+        'clicker_1m' => 1000000,
+        'clicker_5m' => 5000000,
+        'clicker_10m' => 10000000,
+        'clicker_50m' => 50000000,
+        'clicker_100m' => 100000000,
+        'clicker_250m' => 250000000,
+        'clicker_500m' => 500000000,
+        'clicker_1b' => 1000000000,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'score', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'collector_1' => 1,
+        'collector_3' => 3,
+        'collector_5' => 5,
+        'collector_10' => 10,
+        'collector_20' => 20,
+        'collector_30' => 30,
+        'collector_40' => 40,
+        'collector_50' => 50,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'ownedSkinCount', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'fly_best_10' => 10,
+        'fly_best_25' => 25,
+        'fly_best_50' => 50,
+        'fly_best_75' => 75,
+        'fly_best_100' => 100,
+        'fly_best_150' => 150,
+        'fly_best_200' => 200,
+        'fly_best_300' => 300,
+        'fly_best_400' => 400,
+        'fly_best_500' => 500,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'flyBest', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'fly_games_10' => 10,
+        'fly_games_50' => 50,
+        'fly_games_100' => 100,
+        'fly_games_250' => 250,
+        'fly_games_500' => 500,
+        'fly_games_750' => 750,
+        'fly_games_1000' => 1000,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'flyGamesPlayed', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'upgrades_total_10' => 10,
+        'upgrades_total_25' => 25,
+        'upgrades_total_50' => 50,
+        'upgrades_total_100' => 100,
+        'upgrades_total_200' => 200,
+        'upgrades_total_300' => 300,
+        'upgrades_total_500' => 500,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'totalUpgradePurchases', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'plus_100' => 100,
+        'plus_500' => 500,
+        'plus_1000' => 1000,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'plus', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'energy_25k' => 25000,
+        'energy_100k' => 100000,
+        'energy_250k' => 250000,
+        'energy_500k' => 500000,
+    ] as $key => $goal) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [['metric' => 'energyMax', 'goal' => $goal]]];
+    }
+
+    foreach ([
+        'tap_small_25' => ['metric' => 'tapSmall', 'goal' => 25],
+        'tap_big_25' => ['metric' => 'tapBig', 'goal' => 25],
+        'energy_upgrade_25' => ['metric' => 'energy', 'goal' => 25],
+        'tap_huge_25' => ['metric' => 'tapHuge', 'goal' => 25],
+        'regen_boost_25' => ['metric' => 'regenBoost', 'goal' => 25],
+        'energy_huge_10' => ['metric' => 'energyHuge', 'goal' => 10],
+        'top_clicker_1' => ['metric' => 'clickerTop1', 'goal' => 1],
+        'top_fly_1' => ['metric' => 'flyTop1', 'goal' => 1],
+    ] as $key => $condition) {
+        $map[$key] = ['conditionMode' => 'all', 'conditions' => [$condition]];
+    }
+
+    $map['every_upgrade_once'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'tapSmall', 'goal' => 1],
+            ['metric' => 'tapBig', 'goal' => 1],
+            ['metric' => 'energy', 'goal' => 1],
+            ['metric' => 'tapHuge', 'goal' => 1],
+            ['metric' => 'regenBoost', 'goal' => 1],
+            ['metric' => 'energyHuge', 'goal' => 1],
+        ],
+    ];
+    $map['secret_double_top'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'clickerTop1', 'goal' => 1],
+            ['metric' => 'flyTop1', 'goal' => 1],
+        ],
+    ];
+    $map['secret_all_rounder'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'score', 'goal' => 10000000],
+            ['metric' => 'flyBest', 'goal' => 100],
+            ['metric' => 'ownedSkinCount', 'goal' => 10],
+            ['metric' => 'totalUpgradePurchases', 'goal' => 50],
+        ],
+    ];
+    $map['secret_grand_collector'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'ownedSkinCount', 'goal' => 30],
+            ['metric' => 'totalUpgradePurchases', 'goal' => 100],
+        ],
+    ];
+    $map['secret_marathon_runner'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'flyGamesPlayed', 'goal' => 500],
+            ['metric' => 'flyBest', 'goal' => 200],
+        ],
+    ];
+    $map['secret_overclocked'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'plus', 'goal' => 500],
+            ['metric' => 'energyMax', 'goal' => 100000],
+        ],
+    ];
+    $map['secret_six_mastery'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'tapSmall', 'goal' => 10],
+            ['metric' => 'tapBig', 'goal' => 10],
+            ['metric' => 'energy', 'goal' => 10],
+            ['metric' => 'tapHuge', 'goal' => 10],
+            ['metric' => 'regenBoost', 'goal' => 10],
+            ['metric' => 'energyHuge', 'goal' => 10],
+        ],
+    ];
+    $map['secret_clicker_legend'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'score', 'goal' => 1000000000],
+            ['metric' => 'totalUpgradePurchases', 'goal' => 500],
+        ],
+    ];
+    $map['secret_fly_machine'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'flyBest', 'goal' => 400],
+            ['metric' => 'flyGamesPlayed', 'goal' => 1000],
+            ['metric' => 'tapSmall', 'goal' => 10],
+            ['metric' => 'tapBig', 'goal' => 10],
+            ['metric' => 'energy', 'goal' => 10],
+            ['metric' => 'tapHuge', 'goal' => 10],
+            ['metric' => 'regenBoost', 'goal' => 10],
+            ['metric' => 'energyHuge', 'goal' => 10],
+        ],
+    ];
+    $map['secret_full_collection'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'ownedSkinCount', 'goal' => 50],
+            ['metric' => 'clickerTop1', 'goal' => 1],
+        ],
+    ];
+    $map['secret_balance_monster'] = [
+        'conditionMode' => 'all',
+        'conditions' => [
+            ['metric' => 'plus', 'goal' => 1000],
+            ['metric' => 'energyMax', 'goal' => 500000],
+            ['metric' => 'ownedSkinCount', 'goal' => 40],
+        ],
+    ];
+
+    return $map;
+}
+
 function bober_fetch_achievement_catalog_map($conn, $forceRefresh = false)
 {
     $defaultRewardMap = bober_get_default_achievement_reward_map();
     $defaultDefinitionMap = bober_get_default_achievement_definition_map();
-    $cacheKey = 'achievement_catalog_map_v1';
+    $defaultConditionMap = bober_get_default_achievement_condition_map();
+    $metricDefinitions = bober_get_achievement_metric_definitions();
+    $cacheKey = 'achievement_catalog_map_v2';
 
     if (!$forceRefresh) {
         $cached = bober_runtime_cache_fetch($conn, $cacheKey);
@@ -5849,8 +6091,22 @@ function bober_fetch_achievement_catalog_map($conn, $forceRefresh = false)
     bober_ensure_achievement_catalog_schema($conn);
 
     $catalogMap = [];
-    foreach ($defaultRewardMap as $achievementKey => $rewardCoins) {
+    $defaultKeys = array_values(array_unique(array_merge(
+        array_keys($defaultRewardMap),
+        array_keys($defaultDefinitionMap),
+        array_keys($defaultConditionMap)
+    )));
+    foreach ($defaultKeys as $achievementKey) {
+        $rewardCoins = max(0, (int) ($defaultRewardMap[$achievementKey] ?? 0));
         $defaultDefinition = is_array($defaultDefinitionMap[$achievementKey] ?? null) ? $defaultDefinitionMap[$achievementKey] : [];
+        $defaultConditions = is_array($defaultConditionMap[$achievementKey] ?? null) ? $defaultConditionMap[$achievementKey] : [];
+        $defaultConditionMode = bober_normalize_condition_mode($defaultConditions['conditionMode'] ?? 'all');
+        $normalizedConditions = bober_normalize_threshold_condition_list(
+            $defaultConditions['conditions'] ?? [],
+            $metricDefinitions,
+            'score',
+            1
+        );
         $catalogMap[(string) $achievementKey] = [
             'key' => (string) $achievementKey,
             'title' => trim((string) ($defaultDefinition['title'] ?? '')),
@@ -5862,37 +6118,66 @@ function bober_fetch_achievement_catalog_map($conn, $forceRefresh = false)
             'secret' => array_key_exists('secret', $defaultDefinition) ? !empty($defaultDefinition['secret']) : null,
             'rewardCoins' => max(0, (int) $rewardCoins),
             'isActive' => true,
+            'conditionMode' => $defaultConditionMode,
+            'conditions' => $normalizedConditions,
             'createdAt' => '',
             'updatedAt' => '',
         ];
     }
 
-    $stmt = $conn->prepare('SELECT achievement_key, title, description, icon, locked_title, locked_description, locked_icon, is_secret, reward_coins, is_active, created_at, updated_at FROM achievement_catalog');
+    $stmt = $conn->prepare('SELECT achievement_key, title, description, icon, locked_title, locked_description, locked_icon, is_secret, reward_coins, is_active, condition_mode, conditions_json, created_at, updated_at FROM achievement_catalog');
     if ($stmt && $stmt->execute()) {
         $result = $stmt->get_result();
         while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
             $achievementKey = trim((string) ($row['achievement_key'] ?? ''));
-            if ($achievementKey === '' || !array_key_exists($achievementKey, $catalogMap)) {
+            if ($achievementKey === '') {
                 continue;
             }
 
+            $existingItem = is_array($catalogMap[$achievementKey] ?? null) ? $catalogMap[$achievementKey] : [
+                'key' => $achievementKey,
+                'title' => '',
+                'description' => '',
+                'icon' => '',
+                'lockedTitle' => '',
+                'lockedDescription' => '',
+                'lockedIcon' => '',
+                'secret' => null,
+                'rewardCoins' => 0,
+                'isActive' => true,
+                'conditionMode' => 'all',
+                'conditions' => bober_normalize_threshold_condition_list([], $metricDefinitions, 'score', 1),
+                'createdAt' => '',
+                'updatedAt' => '',
+            ];
+
+            $conditionMode = bober_normalize_condition_mode($row['condition_mode'] ?? $existingItem['conditionMode'] ?? 'all');
+            $conditions = bober_normalize_threshold_condition_list(
+                bober_decode_json_list((string) ($row['conditions_json'] ?? ''), $existingItem['conditions'] ?? []),
+                $metricDefinitions,
+                ($existingItem['conditions'][0]['metric'] ?? 'score'),
+                ($existingItem['conditions'][0]['goal'] ?? 1)
+            );
+
             $catalogMap[$achievementKey] = [
                 'key' => $achievementKey,
-                'title' => trim((string) ($row['title'] ?? '')),
-                'description' => trim((string) ($row['description'] ?? '')),
-                'icon' => trim((string) ($row['icon'] ?? '')),
-                'lockedTitle' => trim((string) ($row['locked_title'] ?? '')),
-                'lockedDescription' => trim((string) ($row['locked_description'] ?? '')),
-                'lockedIcon' => trim((string) ($row['locked_icon'] ?? '')),
+                'title' => trim((string) ($row['title'] ?? '')) !== '' ? trim((string) ($row['title'] ?? '')) : (string) ($existingItem['title'] ?? ''),
+                'description' => trim((string) ($row['description'] ?? '')) !== '' ? trim((string) ($row['description'] ?? '')) : (string) ($existingItem['description'] ?? ''),
+                'icon' => trim((string) ($row['icon'] ?? '')) !== '' ? trim((string) ($row['icon'] ?? '')) : (string) ($existingItem['icon'] ?? ''),
+                'lockedTitle' => trim((string) ($row['locked_title'] ?? '')) !== '' ? trim((string) ($row['locked_title'] ?? '')) : (string) ($existingItem['lockedTitle'] ?? ''),
+                'lockedDescription' => trim((string) ($row['locked_description'] ?? '')) !== '' ? trim((string) ($row['locked_description'] ?? '')) : (string) ($existingItem['lockedDescription'] ?? ''),
+                'lockedIcon' => trim((string) ($row['locked_icon'] ?? '')) !== '' ? trim((string) ($row['locked_icon'] ?? '')) : (string) ($existingItem['lockedIcon'] ?? ''),
                 'secret' => array_key_exists('is_secret', $row) && $row['is_secret'] !== null
                     ? ((int) $row['is_secret'] === 1)
-                    : null,
+                    : ($existingItem['secret'] ?? null),
                 'rewardCoins' => array_key_exists('reward_coins', $row) && $row['reward_coins'] !== null
                     ? max(0, (int) $row['reward_coins'])
-                    : $catalogMap[$achievementKey]['rewardCoins'],
+                    : max(0, (int) ($existingItem['rewardCoins'] ?? 0)),
                 'isActive' => array_key_exists('is_active', $row) && $row['is_active'] !== null
                     ? ((int) $row['is_active'] === 1)
-                    : true,
+                    : !empty($existingItem['isActive']),
+                'conditionMode' => $conditionMode,
+                'conditions' => $conditions,
                 'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
                 'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
             ];
@@ -5946,8 +6231,12 @@ function bober_get_achievement_reward_coins($achievementKey, $conn = null)
     return max(0, (int) ($map[$achievementKey] ?? 0));
 }
 
-function bober_get_all_achievement_keys()
+function bober_get_all_achievement_keys($conn = null)
 {
+    if ($conn instanceof mysqli) {
+        return array_values(array_keys(bober_fetch_achievement_catalog_map($conn)));
+    }
+
     return array_values(array_keys(bober_get_default_achievement_reward_map()));
 }
 
@@ -5973,14 +6262,17 @@ function bober_is_achievement_active($achievementKey, $conn = null)
 function bober_normalize_achievement_catalog_payload($achievementKey, array $data = [])
 {
     $achievementKey = trim((string) $achievementKey);
-    if ($achievementKey === '' || !array_key_exists($achievementKey, bober_get_default_achievement_reward_map())) {
+    if ($achievementKey === '' || preg_match('/^[a-z0-9_]{3,120}$/', $achievementKey) !== 1) {
         throw new InvalidArgumentException('Некорректный ключ достижения.');
     }
 
     $defaultDefinitionMap = bober_get_default_achievement_definition_map();
     $defaultDefinition = is_array($defaultDefinitionMap[$achievementKey] ?? null) ? $defaultDefinitionMap[$achievementKey] : [];
+    $defaultConditionMap = bober_get_default_achievement_condition_map();
+    $defaultCondition = is_array($defaultConditionMap[$achievementKey] ?? null) ? $defaultConditionMap[$achievementKey] : [];
+    $metricDefinitions = bober_get_achievement_metric_definitions();
 
-    $title = trim((string) ($data['title'] ?? $defaultDefinition['title'] ?? ''));
+    $title = trim((string) ($data['title'] ?? $defaultDefinition['title'] ?? $achievementKey));
     $description = trim((string) ($data['description'] ?? $defaultDefinition['description'] ?? ''));
     $icon = trim((string) ($data['icon'] ?? $defaultDefinition['icon'] ?? ''));
     $lockedTitle = trim((string) ($data['lockedTitle'] ?? $data['locked_title'] ?? $defaultDefinition['lockedTitle'] ?? ''));
@@ -5993,6 +6285,21 @@ function bober_normalize_achievement_catalog_payload($achievementKey, array $dat
     $isSecret = !array_key_exists('isSecret', $data)
         ? ((isset($data['is_secret']) && (int) $data['is_secret'] === 1) || !empty($defaultDefinition['secret']))
         : !empty($data['isSecret']);
+    $defaultConditions = bober_normalize_threshold_condition_list(
+        $defaultCondition['conditions'] ?? [],
+        $metricDefinitions,
+        'score',
+        1
+    );
+    $conditionMode = bober_normalize_condition_mode(
+        $data['conditionMode'] ?? $data['condition_mode'] ?? $defaultCondition['conditionMode'] ?? 'all'
+    );
+    $conditions = bober_normalize_threshold_condition_list(
+        $data['conditions'] ?? bober_decode_json_list((string) ($data['conditions_json'] ?? ''), $defaultConditions),
+        $metricDefinitions,
+        $defaultConditions[0]['metric'] ?? 'score',
+        $defaultConditions[0]['goal'] ?? 1
+    );
 
     $textLength = static function ($value) {
         $text = (string) $value;
@@ -6033,6 +6340,8 @@ function bober_normalize_achievement_catalog_payload($achievementKey, array $dat
         'secret' => $isSecret,
         'rewardCoins' => $rewardCoins,
         'isActive' => $isActive,
+        'conditionMode' => $conditionMode,
+        'conditions' => $conditions,
     ];
 }
 
@@ -6052,8 +6361,10 @@ function bober_update_achievement_catalog_item($conn, $achievementKey, array $da
             locked_icon,
             is_secret,
             reward_coins,
-            is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            is_active,
+            condition_mode,
+            conditions_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             description = VALUES(description),
@@ -6063,7 +6374,9 @@ function bober_update_achievement_catalog_item($conn, $achievementKey, array $da
             locked_icon = VALUES(locked_icon),
             is_secret = VALUES(is_secret),
             reward_coins = VALUES(reward_coins),
-            is_active = VALUES(is_active)'
+            is_active = VALUES(is_active),
+            condition_mode = VALUES(condition_mode),
+            conditions_json = VALUES(conditions_json)'
     );
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сохранение каталога достижений.');
@@ -6071,8 +6384,10 @@ function bober_update_achievement_catalog_item($conn, $achievementKey, array $da
 
     $secretFlag = $item['secret'] ? 1 : 0;
     $activeFlag = $item['isActive'] ? 1 : 0;
+    $conditionMode = bober_normalize_condition_mode($item['conditionMode'] ?? 'all');
+    $conditionsJson = bober_encode_threshold_condition_list($item['conditions'] ?? []);
     $stmt->bind_param(
-        'sssssssiii',
+        'sssssssiiiss',
         $item['key'],
         $item['title'],
         $item['description'],
@@ -6082,7 +6397,9 @@ function bober_update_achievement_catalog_item($conn, $achievementKey, array $da
         $item['lockedIcon'],
         $secretFlag,
         $item['rewardCoins'],
-        $activeFlag
+        $activeFlag,
+        $conditionMode,
+        $conditionsJson
     );
     if (!$stmt->execute()) {
         $stmt->close();
@@ -6090,7 +6407,8 @@ function bober_update_achievement_catalog_item($conn, $achievementKey, array $da
     }
     $stmt->close();
 
-    bober_runtime_cache_delete($conn, 'achievement_catalog_map_v1');
+    bober_runtime_cache_delete($conn, 'achievement_catalog_map_v2');
+    bober_runtime_cache_delete($conn, 'public_achievement_stats_v1');
     return bober_fetch_achievement_catalog_item($conn, $achievementKey);
 }
 
@@ -6143,7 +6461,7 @@ function bober_fetch_achievement_stats($conn, $forceRefresh = false)
         }
     }
 
-    $allKeys = bober_get_all_achievement_keys();
+    $allKeys = bober_get_all_achievement_keys($conn);
     $totalPlayers = 0;
     $totalStmt = $conn->prepare("SELECT COUNT(*) AS total FROM users WHERE login <> 'test'");
     if ($totalStmt && $totalStmt->execute()) {
@@ -6257,244 +6575,88 @@ function bober_enrich_achievement_items(array $items, array $achievementStats, $
     return $enrichedItems;
 }
 
-function bober_collect_expected_achievement_keys(array $snapshot)
+function bober_build_achievement_metric_snapshot(array $snapshot)
 {
-    $keys = [];
-    $score = max(0, (int) ($snapshot['score'] ?? 0));
-    $plus = max(0, (int) ($snapshot['plus'] ?? 0));
-    $energyMax = max(0, (int) ($snapshot['energyMax'] ?? 0));
-    $ownedSkinCount = max(0, (int) ($snapshot['ownedSkinCount'] ?? 0));
-    $totalUpgradePurchases = max(0, (int) ($snapshot['totalUpgradePurchases'] ?? 0));
-    $clickerTop1 = !empty($snapshot['clickerTop1']);
-    $flyTop1 = !empty($snapshot['flyTop1']);
-    $upgradeCounts = is_array($snapshot['upgradeCounts'] ?? null) ? $snapshot['upgradeCounts'] : [];
-    $normalizedUpgradeCounts = [
-        max(0, (int) ($upgradeCounts['tapSmall'] ?? 0)),
-        max(0, (int) ($upgradeCounts['tapBig'] ?? 0)),
-        max(0, (int) ($upgradeCounts['energy'] ?? 0)),
-        max(0, (int) ($upgradeCounts['tapHuge'] ?? 0)),
-        max(0, (int) ($upgradeCounts['regenBoost'] ?? 0)),
-        max(0, (int) ($upgradeCounts['energyHuge'] ?? 0)),
-    ];
-    $allUpgradeTypesBought = !empty($normalizedUpgradeCounts) && min($normalizedUpgradeCounts) >= 1;
-    $allUpgradeTypesMastered = !empty($normalizedUpgradeCounts) && min($normalizedUpgradeCounts) >= 10;
+    $upgradeCounts = bober_normalize_upgrade_counts($snapshot['upgradeCounts'] ?? []);
     $flyBeaver = is_array($snapshot['flyBeaver'] ?? null) ? $snapshot['flyBeaver'] : [];
-    $flyBest = max(0, (int) ($flyBeaver['bestScore'] ?? 0));
-    $flyGamesPlayed = max(0, (int) ($flyBeaver['gamesPlayed'] ?? ($snapshot['flyGamesPlayed'] ?? 0)));
 
-    if ($score >= 10000) {
-        $keys[] = 'clicker_10k';
-    }
-    if ($score >= 50000) {
-        $keys[] = 'clicker_50k';
-    }
+    return [
+        'score' => max(0, (int) ($snapshot['score'] ?? 0)),
+        'plus' => max(0, (int) ($snapshot['plus'] ?? 0)),
+        'energyMax' => max(0, (int) ($snapshot['energyMax'] ?? 0)),
+        'ownedSkinCount' => max(0, (int) ($snapshot['ownedSkinCount'] ?? 0)),
+        'totalUpgradePurchases' => max(0, (int) ($snapshot['totalUpgradePurchases'] ?? array_sum($upgradeCounts))),
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? ($snapshot['flyBest'] ?? 0))),
+        'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? ($snapshot['flyGamesPlayed'] ?? 0))),
+        'clickerTop1' => !empty($snapshot['clickerTop1']) ? 1 : 0,
+        'flyTop1' => !empty($snapshot['flyTop1']) ? 1 : 0,
+        'tapSmall' => max(0, (int) ($upgradeCounts['tapSmall'] ?? 0)),
+        'tapBig' => max(0, (int) ($upgradeCounts['tapBig'] ?? 0)),
+        'energy' => max(0, (int) ($upgradeCounts['energy'] ?? 0)),
+        'tapHuge' => max(0, (int) ($upgradeCounts['tapHuge'] ?? 0)),
+        'regenBoost' => max(0, (int) ($upgradeCounts['regenBoost'] ?? 0)),
+        'energyHuge' => max(0, (int) ($upgradeCounts['energyHuge'] ?? 0)),
+        'clickRate' => max(0, (int) ($upgradeCounts['clickRate'] ?? 0)),
+    ];
+}
 
-    if ($score >= 100000) {
-        $keys[] = 'clicker_100k';
-    }
-    if ($score >= 500000) {
-        $keys[] = 'clicker_500k';
-    }
-    if ($score >= 1000000) {
-        $keys[] = 'clicker_1m';
-    }
-    if ($score >= 5000000) {
-        $keys[] = 'clicker_5m';
-    }
-    if ($score >= 10000000) {
-        $keys[] = 'clicker_10m';
-    }
-    if ($score >= 50000000) {
-        $keys[] = 'clicker_50m';
-    }
-    if ($score >= 100000000) {
-        $keys[] = 'clicker_100m';
-    }
-    if ($score >= 250000000) {
-        $keys[] = 'clicker_250m';
-    }
-    if ($score >= 500000000) {
-        $keys[] = 'clicker_500m';
-    }
-    if ($score >= 1000000000) {
-        $keys[] = 'clicker_1b';
-    }
-    if ($ownedSkinCount >= 1) {
-        $keys[] = 'collector_1';
-    }
-    if ($ownedSkinCount >= 5) {
-        $keys[] = 'collector_5';
-    }
-    if ($ownedSkinCount >= 10) {
-        $keys[] = 'collector_10';
-    }
-    if ($ownedSkinCount >= 20) {
-        $keys[] = 'collector_20';
-    }
-    if ($ownedSkinCount >= 30) {
-        $keys[] = 'collector_30';
-    }
-    if ($ownedSkinCount >= 40) {
-        $keys[] = 'collector_40';
-    }
-    if ($ownedSkinCount >= 50) {
-        $keys[] = 'collector_50';
-    }
-    if ($flyBest >= 10) {
-        $keys[] = 'fly_best_10';
-    }
-    if ($flyBest >= 25) {
-        $keys[] = 'fly_best_25';
-    }
-    if ($flyBest >= 50) {
-        $keys[] = 'fly_best_50';
-    }
-    if ($flyBest >= 75) {
-        $keys[] = 'fly_best_75';
-    }
-    if ($flyBest >= 100) {
-        $keys[] = 'fly_best_100';
-    }
-    if ($flyBest >= 150) {
-        $keys[] = 'fly_best_150';
-    }
-    if ($flyBest >= 200) {
-        $keys[] = 'fly_best_200';
-    }
-    if ($flyBest >= 300) {
-        $keys[] = 'fly_best_300';
-    }
-    if ($flyBest >= 400) {
-        $keys[] = 'fly_best_400';
-    }
-    if ($flyBest >= 500) {
-        $keys[] = 'fly_best_500';
-    }
-    if ($flyGamesPlayed >= 10) {
-        $keys[] = 'fly_games_10';
-    }
-    if ($flyGamesPlayed >= 50) {
-        $keys[] = 'fly_games_50';
-    }
-    if ($flyGamesPlayed >= 100) {
-        $keys[] = 'fly_games_100';
-    }
-    if ($flyGamesPlayed >= 250) {
-        $keys[] = 'fly_games_250';
-    }
-    if ($flyGamesPlayed >= 500) {
-        $keys[] = 'fly_games_500';
-    }
-    if ($flyGamesPlayed >= 750) {
-        $keys[] = 'fly_games_750';
-    }
-    if ($flyGamesPlayed >= 1000) {
-        $keys[] = 'fly_games_1000';
-    }
-    if ($ownedSkinCount >= 3) {
-        $keys[] = 'collector_3';
-    }
-    if ($totalUpgradePurchases >= 10) {
-        $keys[] = 'upgrades_total_10';
-    }
-    if ($totalUpgradePurchases >= 25) {
-        $keys[] = 'upgrades_total_25';
-    }
-    if ($totalUpgradePurchases >= 50) {
-        $keys[] = 'upgrades_total_50';
-    }
-    if ($totalUpgradePurchases >= 100) {
-        $keys[] = 'upgrades_total_100';
-    }
-    if ($totalUpgradePurchases >= 200) {
-        $keys[] = 'upgrades_total_200';
-    }
-    if ($totalUpgradePurchases >= 300) {
-        $keys[] = 'upgrades_total_300';
-    }
-    if ($totalUpgradePurchases >= 500) {
-        $keys[] = 'upgrades_total_500';
-    }
-    if ($plus >= 100) {
-        $keys[] = 'plus_100';
-    }
-    if ($plus >= 500) {
-        $keys[] = 'plus_500';
-    }
-    if ($plus >= 1000) {
-        $keys[] = 'plus_1000';
-    }
-    if ($energyMax >= 25000) {
-        $keys[] = 'energy_25k';
-    }
-    if ($energyMax >= 100000) {
-        $keys[] = 'energy_100k';
-    }
-    if ($energyMax >= 250000) {
-        $keys[] = 'energy_250k';
-    }
-    if ($energyMax >= 500000) {
-        $keys[] = 'energy_500k';
-    }
-    if ($allUpgradeTypesBought) {
-        $keys[] = 'every_upgrade_once';
-    }
-    if (max(0, (int) ($upgradeCounts['tapSmall'] ?? 0)) >= 25) {
-        $keys[] = 'tap_small_25';
-    }
-    if (max(0, (int) ($upgradeCounts['tapBig'] ?? 0)) >= 25) {
-        $keys[] = 'tap_big_25';
-    }
-    if (max(0, (int) ($upgradeCounts['energy'] ?? 0)) >= 25) {
-        $keys[] = 'energy_upgrade_25';
-    }
-    if (max(0, (int) ($upgradeCounts['tapHuge'] ?? 0)) >= 25) {
-        $keys[] = 'tap_huge_25';
-    }
-    if (max(0, (int) ($upgradeCounts['regenBoost'] ?? 0)) >= 25) {
-        $keys[] = 'regen_boost_25';
-    }
-    if (max(0, (int) ($upgradeCounts['energyHuge'] ?? 0)) >= 10) {
-        $keys[] = 'energy_huge_10';
-    }
-    if ($clickerTop1) {
-        $keys[] = 'top_clicker_1';
-    }
-    if ($flyTop1) {
-        $keys[] = 'top_fly_1';
-    }
-    if ($clickerTop1 && $flyTop1) {
-        $keys[] = 'secret_double_top';
-    }
-    if ($score >= 10000000 && $flyBest >= 100 && $ownedSkinCount >= 10 && $totalUpgradePurchases >= 50) {
-        $keys[] = 'secret_all_rounder';
-    }
-    if ($ownedSkinCount >= 30 && $totalUpgradePurchases >= 100) {
-        $keys[] = 'secret_grand_collector';
-    }
-    if ($flyGamesPlayed >= 500 && $flyBest >= 200) {
-        $keys[] = 'secret_marathon_runner';
-    }
-    if ($plus >= 500 && $energyMax >= 100000) {
-        $keys[] = 'secret_overclocked';
-    }
-    if ($allUpgradeTypesMastered) {
-        $keys[] = 'secret_six_mastery';
-    }
-    if ($score >= 1000000000 && $totalUpgradePurchases >= 500) {
-        $keys[] = 'secret_clicker_legend';
-    }
-    if ($flyBest >= 400 && $flyGamesPlayed >= 1000 && $allUpgradeTypesMastered) {
-        $keys[] = 'secret_fly_machine';
-    }
-    if ($ownedSkinCount >= 50 && $clickerTop1) {
-        $keys[] = 'secret_full_collection';
-    }
-    if ($plus >= 1000 && $energyMax >= 500000 && $ownedSkinCount >= 40) {
-        $keys[] = 'secret_balance_monster';
+function bober_collect_expected_achievement_keys(array $snapshot, array $catalogMap = [])
+{
+    $metricDefinitions = bober_get_achievement_metric_definitions();
+    $valueMap = bober_build_achievement_metric_snapshot($snapshot);
+    $resolvedCatalogMap = $catalogMap;
+
+    if (!$resolvedCatalogMap) {
+        $defaultRewardMap = bober_get_default_achievement_reward_map();
+        $defaultDefinitionMap = bober_get_default_achievement_definition_map();
+        $defaultConditionMap = bober_get_default_achievement_condition_map();
+        $defaultKeys = array_values(array_unique(array_merge(
+            array_keys($defaultRewardMap),
+            array_keys($defaultDefinitionMap),
+            array_keys($defaultConditionMap)
+        )));
+        foreach ($defaultKeys as $achievementKey) {
+            $defaultConditions = is_array($defaultConditionMap[$achievementKey] ?? null) ? $defaultConditionMap[$achievementKey] : [];
+            $resolvedCatalogMap[$achievementKey] = [
+                'key' => (string) $achievementKey,
+                'isActive' => true,
+                'conditionMode' => bober_normalize_condition_mode($defaultConditions['conditionMode'] ?? 'all'),
+                'conditions' => bober_normalize_threshold_condition_list(
+                    $defaultConditions['conditions'] ?? [],
+                    $metricDefinitions,
+                    'score',
+                    1
+                ),
+            ];
+        }
     }
 
-    return array_values(array_unique($keys));
+    $keys = [];
+    foreach ($resolvedCatalogMap as $achievementKey => $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $conditions = bober_normalize_threshold_condition_list(
+            $item['conditions'] ?? [],
+            $metricDefinitions,
+            'score',
+            1
+        );
+        $evaluation = bober_evaluate_threshold_conditions(
+            $conditions,
+            $item['conditionMode'] ?? 'all',
+            $valueMap,
+            $metricDefinitions
+        );
+        if (!empty($evaluation['completed'])) {
+            $keys[] = (string) $achievementKey;
+        }
+    }
+
+    return array_values(array_unique(array_filter($keys, static function ($achievementKey) {
+        return trim((string) $achievementKey) !== '';
+    })));
 }
 
 function bober_fetch_user_achievement_override_map($conn, $userId)
@@ -6639,7 +6801,7 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
 
     $catalogMap = bober_fetch_achievement_catalog_map($conn);
     $autoExpectedKeys = array_values(array_filter(
-        bober_collect_expected_achievement_keys($snapshot),
+        bober_collect_expected_achievement_keys($snapshot, $catalogMap),
         static function ($achievementKey) use ($catalogMap) {
             return !empty($catalogMap[(string) $achievementKey]['isActive']);
         }
@@ -6892,13 +7054,16 @@ function bober_set_user_achievement_state($conn, $userId, $achievementKey, $mode
     if (!in_array($mode, ['grant', 'revoke', 'auto'], true)) {
         throw new InvalidArgumentException('Некорректный режим изменения достижения.');
     }
-    if ($achievementKey === '' || !array_key_exists($achievementKey, bober_get_default_achievement_reward_map())) {
+    if ($achievementKey === '') {
         throw new InvalidArgumentException('Некорректный ключ достижения.');
     }
 
     bober_ensure_user_achievement_overrides_schema($conn);
     bober_ensure_user_achievements_schema($conn);
     $catalogItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+    if (!is_array($catalogItem)) {
+        throw new InvalidArgumentException('Некорректный ключ достижения.');
+    }
 
     if ($mode === 'auto') {
         $clearStmt = $conn->prepare('DELETE FROM user_achievement_overrides WHERE user_id = ? AND achievement_key = ? LIMIT 1');
@@ -6916,7 +7081,7 @@ function bober_set_user_achievement_state($conn, $userId, $achievementKey, $mode
         if ($snapshot !== null) {
             $catalogMap = bober_fetch_achievement_catalog_map($conn);
             $autoExpectedKeys = array_values(array_filter(
-                bober_collect_expected_achievement_keys($snapshot),
+                bober_collect_expected_achievement_keys($snapshot, $catalogMap),
                 static function ($expectedKey) use ($catalogMap) {
                     return !empty($catalogMap[(string) $expectedKey]['isActive']);
                 }
@@ -8013,31 +8178,189 @@ function bober_get_quest_metric_definitions()
     ];
 }
 
+function bober_normalize_condition_mode($mode, $default = 'all')
+{
+    $normalizedDefault = strtolower(trim((string) $default)) === 'any' ? 'any' : 'all';
+    return strtolower(trim((string) $mode)) === 'any' ? 'any' : $normalizedDefault;
+}
+
+function bober_normalize_threshold_condition_list($rawConditions, array $metricDefinitions, $fallbackMetric = '', $fallbackGoal = 1)
+{
+    $allowedMetrics = array_keys($metricDefinitions);
+    if (!$allowedMetrics) {
+        return [];
+    }
+
+    $resolvedFallbackMetric = in_array((string) $fallbackMetric, $allowedMetrics, true)
+        ? (string) $fallbackMetric
+        : (string) $allowedMetrics[0];
+    $resolvedFallbackGoal = max(1, (int) $fallbackGoal);
+    $candidateConditions = is_array($rawConditions) ? array_values($rawConditions) : [];
+    $normalizedConditions = [];
+
+    foreach ($candidateConditions as $rawCondition) {
+        if (!is_array($rawCondition)) {
+            continue;
+        }
+
+        $metric = trim((string) ($rawCondition['metric'] ?? ''));
+        if (!in_array($metric, $allowedMetrics, true)) {
+            $metric = $resolvedFallbackMetric;
+        }
+
+        $goal = max(1, (int) ($rawCondition['goal'] ?? $resolvedFallbackGoal));
+        $normalizedConditions[] = [
+            'metric' => $metric,
+            'goal' => $goal,
+        ];
+    }
+
+    if (!$normalizedConditions) {
+        $normalizedConditions[] = [
+            'metric' => $resolvedFallbackMetric,
+            'goal' => $resolvedFallbackGoal,
+        ];
+    }
+
+    return array_values(array_slice($normalizedConditions, 0, 8));
+}
+
+function bober_encode_threshold_condition_list(array $conditions)
+{
+    $encoded = json_encode(array_values($conditions), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return $encoded === false ? '[]' : $encoded;
+}
+
+function bober_evaluate_threshold_conditions(array $conditions, $conditionMode, array $valueMap, array $metricDefinitions)
+{
+    $normalizedMode = bober_normalize_condition_mode($conditionMode);
+    $normalizedConditions = [];
+
+    foreach ($conditions as $condition) {
+        if (!is_array($condition)) {
+            continue;
+        }
+
+        $metric = trim((string) ($condition['metric'] ?? ''));
+        if (!array_key_exists($metric, $metricDefinitions)) {
+            continue;
+        }
+
+        $goal = max(1, (int) ($condition['goal'] ?? 1));
+        $value = max(0, (int) ($valueMap[$metric] ?? 0));
+        $ratio = min(1, $goal > 0 ? ($value / $goal) : 0);
+
+        $normalizedConditions[] = [
+            'metric' => $metric,
+            'label' => (string) ($metricDefinitions[$metric]['label'] ?? $metric),
+            'goal' => $goal,
+            'progress' => min($goal, $value),
+            'value' => $value,
+            'completed' => $value >= $goal,
+            'progressPercent' => round($ratio * 100, 2),
+        ];
+    }
+
+    if (!$normalizedConditions) {
+        return [
+            'conditionMode' => $normalizedMode,
+            'conditions' => [],
+            'completed' => false,
+            'completedCount' => 0,
+            'totalCount' => 0,
+            'progress' => 0,
+            'goal' => 1,
+            'progressPercent' => 0,
+            'progressLabelLeft' => '0 / 1',
+            'progressLabelRight' => '0%',
+        ];
+    }
+
+    $totalCount = count($normalizedConditions);
+    $completedCount = count(array_filter($normalizedConditions, static function ($condition) {
+        return !empty($condition['completed']);
+    }));
+    $aggregateRatio = 0;
+
+    if ($totalCount === 1) {
+        $aggregateRatio = max(0, min(1, (float) ($normalizedConditions[0]['progressPercent'] ?? 0) / 100));
+        $completed = !empty($normalizedConditions[0]['completed']);
+        $progress = max(0, (int) ($normalizedConditions[0]['progress'] ?? 0));
+        $goal = max(1, (int) ($normalizedConditions[0]['goal'] ?? 1));
+        $progressLabelLeft = $progress . ' / ' . $goal;
+        $progressLabelRight = (string) round($aggregateRatio * 100) . '%';
+    } elseif ($normalizedMode === 'any') {
+        foreach ($normalizedConditions as $condition) {
+            $aggregateRatio = max($aggregateRatio, max(0, min(1, (float) ($condition['progressPercent'] ?? 0) / 100)));
+        }
+        $completed = $completedCount > 0;
+        $progress = min(1, $completedCount);
+        $goal = 1;
+        $progressLabelLeft = $completed ? 'Одно условие выполнено' : ('Любое из ' . $totalCount . ' условий');
+        $progressLabelRight = 'ИЛИ';
+    } else {
+        foreach ($normalizedConditions as $condition) {
+            $aggregateRatio += max(0, min(1, (float) ($condition['progressPercent'] ?? 0) / 100));
+        }
+        $aggregateRatio = $totalCount > 0 ? ($aggregateRatio / $totalCount) : 0;
+        $completed = $completedCount >= $totalCount;
+        $progress = $completedCount;
+        $goal = $totalCount;
+        $progressLabelLeft = $completedCount . ' / ' . $totalCount . ' условий';
+        $progressLabelRight = 'И';
+    }
+
+    return [
+        'conditionMode' => $normalizedMode,
+        'conditions' => $normalizedConditions,
+        'completed' => $completed,
+        'completedCount' => $completedCount,
+        'totalCount' => $totalCount,
+        'progress' => $progress,
+        'goal' => $goal,
+        'progressPercent' => round(max(0, min(1, $aggregateRatio)) * 100, 2),
+        'progressLabelLeft' => $progressLabelLeft,
+        'progressLabelRight' => $progressLabelRight,
+    ];
+}
+
 function bober_default_quest_template_catalog()
 {
     $items = [];
 
     foreach (bober_get_daily_quest_definitions() as $questKey => $definition) {
+        $metric = (string) ($definition['metric'] ?? 'scoreGain');
+        $goal = max(1, (int) ($definition['goal'] ?? 1));
         $items[] = [
             'quest_key' => (string) $questKey,
             'scope' => 'daily',
             'title' => (string) ($definition['title'] ?? $questKey),
             'description' => (string) ($definition['description'] ?? ''),
-            'metric' => (string) ($definition['metric'] ?? 'scoreGain'),
-            'goal' => max(1, (int) ($definition['goal'] ?? 1)),
+            'metric' => $metric,
+            'goal' => $goal,
+            'condition_mode' => 'all',
+            'conditions_json' => bober_encode_threshold_condition_list([
+                ['metric' => $metric, 'goal' => $goal],
+            ]),
             'reward_coins' => max(0, (int) ($definition['rewardCoins'] ?? 0)),
             'is_active' => 1,
         ];
     }
 
     foreach (bober_get_weekly_quest_definitions() as $questKey => $definition) {
+        $metric = (string) ($definition['metric'] ?? 'scoreGain');
+        $goal = max(1, (int) ($definition['goal'] ?? 1));
         $items[] = [
             'quest_key' => (string) $questKey,
             'scope' => 'weekly',
             'title' => (string) ($definition['title'] ?? $questKey),
             'description' => (string) ($definition['description'] ?? ''),
-            'metric' => (string) ($definition['metric'] ?? 'scoreGain'),
-            'goal' => max(1, (int) ($definition['goal'] ?? 1)),
+            'metric' => $metric,
+            'goal' => $goal,
+            'condition_mode' => 'all',
+            'conditions_json' => bober_encode_threshold_condition_list([
+                ['metric' => $metric, 'goal' => $goal],
+            ]),
             'reward_coins' => max(0, (int) ($definition['rewardCoins'] ?? 0)),
             'is_active' => 1,
         ];
@@ -8073,6 +8396,13 @@ function bober_normalize_quest_template_row($row)
         'description' => trim((string) ($row['description'] ?? '')),
         'metric' => bober_normalize_quest_metric($row['metric'] ?? 'scoreGain'),
         'goal' => max(1, (int) ($row['goal'] ?? 1)),
+        'conditionMode' => bober_normalize_condition_mode($row['condition_mode'] ?? $row['conditionMode'] ?? 'all'),
+        'conditions' => bober_normalize_threshold_condition_list(
+            bober_decode_json_list((string) ($row['conditions_json'] ?? $row['conditionsJson'] ?? ''), []),
+            bober_get_quest_metric_definitions(),
+            $row['metric'] ?? 'scoreGain',
+            $row['goal'] ?? 1
+        ),
         'rewardCoins' => max(0, (int) ($row['reward_coins'] ?? $row['rewardCoins'] ?? 0)),
         'isActive' => !array_key_exists('is_active', $row)
             ? !empty($row['isActive'])
@@ -8102,8 +8432,8 @@ function bober_seed_default_quest_templates($conn)
     }
 
     $stmt = $conn->prepare(
-        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить заполнение шаблонов квестов.');
@@ -8116,10 +8446,17 @@ function bober_seed_default_quest_templates($conn)
         $description = trim((string) ($item['description'] ?? ''));
         $metric = bober_normalize_quest_metric($item['metric'] ?? 'scoreGain');
         $goal = max(1, (int) ($item['goal'] ?? 1));
+        $conditionMode = bober_normalize_condition_mode($item['condition_mode'] ?? 'all');
+        $conditionsJson = bober_encode_threshold_condition_list(bober_normalize_threshold_condition_list(
+            bober_decode_json_list((string) ($item['conditions_json'] ?? ''), []),
+            bober_get_quest_metric_definitions(),
+            $metric,
+            $goal
+        ));
         $rewardCoins = max(0, (int) ($item['reward_coins'] ?? 0));
         $isActive = !empty($item['is_active']) ? 1 : 0;
 
-        $stmt->bind_param('sssssiii', $questKey, $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive);
+        $stmt->bind_param('sssssissii', $questKey, $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive);
         if (!$stmt->execute()) {
             $stmt->close();
             throw new RuntimeException('Не удалось заполнить стартовый каталог квестов.');
@@ -8157,8 +8494,8 @@ function bober_sync_default_quest_templates($conn)
     }
 
     $stmt = $conn->prepare(
-        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить обновление стартовых шаблонов квестов.');
@@ -8171,10 +8508,17 @@ function bober_sync_default_quest_templates($conn)
         $description = trim((string) ($item['description'] ?? ''));
         $metric = bober_normalize_quest_metric($item['metric'] ?? 'scoreGain');
         $goal = max(1, (int) ($item['goal'] ?? 1));
+        $conditionMode = bober_normalize_condition_mode($item['condition_mode'] ?? 'all');
+        $conditionsJson = bober_encode_threshold_condition_list(bober_normalize_threshold_condition_list(
+            bober_decode_json_list((string) ($item['conditions_json'] ?? ''), []),
+            bober_get_quest_metric_definitions(),
+            $metric,
+            $goal
+        ));
         $rewardCoins = max(0, (int) ($item['reward_coins'] ?? 0));
         $isActive = !empty($item['is_active']) ? 1 : 0;
 
-        $stmt->bind_param('sssssiii', $questKey, $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive);
+        $stmt->bind_param('sssssissii', $questKey, $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive);
         if (!$stmt->execute()) {
             $stmt->close();
             throw new RuntimeException('Не удалось добавить новые стартовые шаблоны квестов.');
@@ -8205,7 +8549,7 @@ function bober_fetch_quest_templates($conn, array $options = [])
         $conditions[] = '`is_active` = 1';
     }
 
-    $sql = 'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+    $sql = 'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`, `created_at`, `updated_at`
             FROM `quest_templates`';
     if ($conditions) {
         $sql .= ' WHERE ' . implode(' AND ', $conditions);
@@ -8251,7 +8595,7 @@ function bober_fetch_quest_template_by_id($conn, $templateId)
 
     bober_ensure_user_quests_schema($conn);
     $stmt = $conn->prepare(
-        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`, `created_at`, `updated_at`
          FROM `quest_templates`
          WHERE `id` = ?
          LIMIT 1'
@@ -8285,7 +8629,7 @@ function bober_fetch_quest_template_by_key($conn, $questKey)
 
     bober_ensure_user_quests_schema($conn);
     $stmt = $conn->prepare(
-        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`, `created_at`, `updated_at`
          FROM `quest_templates`
          WHERE `quest_key` = ?
          LIMIT 1'
@@ -8323,6 +8667,13 @@ function bober_build_quest_definition_from_template(array $item)
         'description' => (string) ($item['description'] ?? ''),
         'metric' => (string) ($item['metric'] ?? 'scoreGain'),
         'goal' => max(1, (int) ($item['goal'] ?? 1)),
+        'conditionMode' => bober_normalize_condition_mode($item['conditionMode'] ?? $item['condition_mode'] ?? 'all'),
+        'conditions' => bober_normalize_threshold_condition_list(
+            $item['conditions'] ?? bober_decode_json_list((string) ($item['conditions_json'] ?? ''), []),
+            bober_get_quest_metric_definitions(),
+            $item['metric'] ?? 'scoreGain',
+            $item['goal'] ?? 1
+        ),
         'rewardCoins' => max(0, (int) ($item['rewardCoins'] ?? $item['reward_coins'] ?? 0)),
         'isActive' => !array_key_exists('isActive', $item) || !empty($item['isActive']) || !empty($item['is_active']),
     ];
@@ -8403,6 +8754,17 @@ function bober_save_quest_template($conn, array $data, $templateId = 0)
     $description = trim((string) ($data['description'] ?? ''));
     $metric = bober_normalize_quest_metric($data['metric'] ?? 'scoreGain');
     $goal = max(1, (int) ($data['goal'] ?? 1));
+    $conditionMode = bober_normalize_condition_mode($data['conditionMode'] ?? $data['condition_mode'] ?? 'all');
+    $conditions = bober_normalize_threshold_condition_list(
+        $data['conditions'] ?? bober_decode_json_list((string) ($data['conditions_json'] ?? ''), []),
+        bober_get_quest_metric_definitions(),
+        $metric,
+        $goal
+    );
+    $primaryCondition = $conditions[0] ?? ['metric' => $metric, 'goal' => $goal];
+    $metric = bober_normalize_quest_metric($primaryCondition['metric'] ?? $metric);
+    $goal = max(1, (int) ($primaryCondition['goal'] ?? $goal));
+    $conditionsJson = bober_encode_threshold_condition_list($conditions);
     $rewardCoins = max(0, (int) ($data['rewardCoins'] ?? $data['reward_coins'] ?? 0));
     $isActive = !empty($data['isActive']) || !empty($data['is_active']) ? 1 : 0;
 
@@ -8424,7 +8786,7 @@ function bober_save_quest_template($conn, array $data, $templateId = 0)
         $questKey = (string) ($currentTemplate['key'] ?? '');
         $stmt = $conn->prepare(
             'UPDATE `quest_templates`
-             SET `scope` = ?, `title` = ?, `description` = ?, `metric` = ?, `goal` = ?, `reward_coins` = ?, `is_active` = ?
+             SET `scope` = ?, `title` = ?, `description` = ?, `metric` = ?, `goal` = ?, `condition_mode` = ?, `conditions_json` = ?, `reward_coins` = ?, `is_active` = ?
              WHERE `id` = ?
              LIMIT 1'
         );
@@ -8432,7 +8794,7 @@ function bober_save_quest_template($conn, array $data, $templateId = 0)
             throw new RuntimeException('Не удалось подготовить обновление квеста.');
         }
 
-        $stmt->bind_param('ssssiiii', $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive, $templateId);
+        $stmt->bind_param('ssssissiii', $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive, $templateId);
         if (!$stmt->execute()) {
             $stmt->close();
             throw new RuntimeException('Не удалось обновить шаблон квеста.');
@@ -8442,14 +8804,14 @@ function bober_save_quest_template($conn, array $data, $templateId = 0)
     } else {
         $questKey = bober_generate_quest_template_key($conn, $scope);
         $stmt = $conn->prepare(
-            'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if (!$stmt) {
             throw new RuntimeException('Не удалось подготовить создание квеста.');
         }
 
-        $stmt->bind_param('sssssiii', $questKey, $scope, $title, $description, $metric, $goal, $rewardCoins, $isActive);
+        $stmt->bind_param('sssssissii', $questKey, $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive);
         if (!$stmt->execute()) {
             $stmt->close();
             throw new RuntimeException('Не удалось создать шаблон квеста.');
@@ -8884,10 +9246,22 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
             }
 
             $definition = $definitions[$questKey];
-            $metric = (string) ($definition['metric'] ?? '');
-            $goal = max(1, (int) ($definition['goal'] ?? 1));
-            $progress = min($goal, max(0, (int) ($counters[$metric] ?? 0)));
-            $completed = $progress >= $goal;
+            $conditions = bober_normalize_threshold_condition_list(
+                $definition['conditions'] ?? [],
+                bober_get_quest_metric_definitions(),
+                $definition['metric'] ?? 'scoreGain',
+                $definition['goal'] ?? 1
+            );
+            $evaluation = bober_evaluate_threshold_conditions(
+                $conditions,
+                $definition['conditionMode'] ?? 'all',
+                $counters,
+                bober_get_quest_metric_definitions()
+            );
+            $metric = (string) ($definition['metric'] ?? ($conditions[0]['metric'] ?? 'scoreGain'));
+            $goal = max(1, (int) ($evaluation['goal'] ?? ($definition['goal'] ?? 1)));
+            $progress = max(0, (int) ($evaluation['progress'] ?? 0));
+            $completed = !empty($evaluation['completed']);
             $claimedAt = trim((string) ($claimedMap[$questKey] ?? ''));
 
             if ($completed && $claimedAt === '' && $applyRewards) {
@@ -8907,6 +9281,8 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
                     'rewardCoins' => $rewardCoins,
                     'claimedAt' => $claimedAt,
                     'isSecret' => !empty($slot['secret']),
+                    'conditionMode' => (string) ($evaluation['conditionMode'] ?? 'all'),
+                    'conditions' => $evaluation['conditions'] ?? [],
                 ];
             }
 
@@ -8929,6 +9305,13 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
                 'metric' => $isHiddenSecret ? '' : $metric,
                 'goal' => $isHiddenSecret ? 0 : $goal,
                 'progress' => $isHiddenSecret ? 0 : $progress,
+                'conditionMode' => $isHiddenSecret ? '' : (string) ($evaluation['conditionMode'] ?? 'all'),
+                'conditions' => $isHiddenSecret ? [] : ($evaluation['conditions'] ?? []),
+                'progressPercent' => $isHiddenSecret ? 0 : max(0, (float) ($evaluation['progressPercent'] ?? 0)),
+                'progressLabelLeft' => $isHiddenSecret ? 'Условия скрыты' : (string) ($evaluation['progressLabelLeft'] ?? ''),
+                'progressLabelRight' => $isHiddenSecret ? '???' : (string) ($evaluation['progressLabelRight'] ?? ''),
+                'completedCount' => $isHiddenSecret ? 0 : max(0, (int) ($evaluation['completedCount'] ?? 0)),
+                'totalConditions' => $isHiddenSecret ? 0 : max(0, (int) ($evaluation['totalCount'] ?? 0)),
                 'slotIndex' => $slotIndex,
                 'manual' => !empty($slot['manual']),
                 'isSecret' => $isSecret,

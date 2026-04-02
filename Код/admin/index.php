@@ -1014,6 +1014,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'create_achievement_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $achievementKey = trim((string) ($_POST['achievement_key'] ?? ''));
+                if ($achievementKey === '') {
+                    $response['message'] = 'Не указан ключ достижения.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $existingAchievementItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+                        if ($existingAchievementItem !== null) {
+                            $response['message'] = 'Достижение с таким ключом уже существует.';
+                        } else {
+                            $achievementItem = bober_update_achievement_catalog_item($conn, $achievementKey, [
+                                'title' => trim((string) ($_POST['achievement_title'] ?? '')),
+                                'description' => trim((string) ($_POST['achievement_description'] ?? '')),
+                                'icon' => trim((string) ($_POST['achievement_icon'] ?? '')),
+                                'lockedTitle' => trim((string) ($_POST['achievement_locked_title'] ?? '')),
+                                'lockedDescription' => trim((string) ($_POST['achievement_locked_description'] ?? '')),
+                                'lockedIcon' => trim((string) ($_POST['achievement_locked_icon'] ?? '')),
+                                'rewardCoins' => max(0, (int) ($_POST['achievement_reward_coins'] ?? 0)),
+                                'isActive' => !array_key_exists('achievement_active', $_POST) || postBooleanFlag($_POST['achievement_active']),
+                                'isSecret' => !empty($_POST['achievement_secret']) && postBooleanFlag($_POST['achievement_secret']),
+                                'conditionMode' => trim((string) ($_POST['achievement_condition_mode'] ?? 'all')),
+                                'conditions_json' => trim((string) ($_POST['achievement_conditions_json'] ?? '')),
+                            ]);
+
+                            $response['success'] = true;
+                            $response['message'] = 'Достижение создано.';
+                            $response['achievement'] = $achievementItem;
+                            invalidateAdminRuntimeCaches($conn);
+
+                            bober_admin_log_action($conn, 'create_achievement_catalog_item', [
+                                'target_table' => 'achievement_catalog',
+                                'query_text' => 'CREATE ACHIEVEMENT ' . $achievementKey,
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'achievement_key' => $achievementKey,
+                                    'title' => (string) ($achievementItem['title'] ?? ''),
+                                    'reward_coins' => max(0, (int) ($achievementItem['rewardCoins'] ?? 0)),
+                                    'is_active' => !empty($achievementItem['isActive']),
+                                    'is_secret' => !empty($achievementItem['secret']),
+                                    'condition_mode' => (string) ($achievementItem['conditionMode'] ?? 'all'),
+                                    'conditions' => $achievementItem['conditions'] ?? [],
+                                ],
+                            ]);
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
         if ($action === 'update_achievement_catalog_item') {
             if (requireAdminAuth($response)) {
                 $achievementKey = trim((string) ($_POST['achievement_key'] ?? ''));
@@ -1038,6 +1093,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'rewardCoins' => max(0, (int) ($_POST['achievement_reward_coins'] ?? 0)),
                                 'isActive' => !array_key_exists('achievement_active', $_POST) || postBooleanFlag($_POST['achievement_active']),
                                 'isSecret' => !empty($_POST['achievement_secret']) && postBooleanFlag($_POST['achievement_secret']),
+                                'conditionMode' => trim((string) ($_POST['achievement_condition_mode'] ?? 'all')),
+                                'conditions_json' => trim((string) ($_POST['achievement_conditions_json'] ?? '')),
                             ]);
 
                             $response['success'] = true;
@@ -1056,6 +1113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                     'reward_coins' => max(0, (int) ($achievementItem['rewardCoins'] ?? 0)),
                                     'is_active' => !empty($achievementItem['isActive']),
                                     'is_secret' => !empty($achievementItem['secret']),
+                                    'condition_mode' => (string) ($achievementItem['conditionMode'] ?? 'all'),
+                                    'conditions' => $achievementItem['conditions'] ?? [],
                                 ],
                             ]);
                         }
@@ -1110,6 +1169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'description' => $questDescription,
                         'metric' => $questMetric,
                         'goal' => $questGoal,
+                        'conditionMode' => trim((string) ($_POST['quest_condition_mode'] ?? 'all')),
+                        'conditions_json' => trim((string) ($_POST['quest_conditions_json'] ?? '')),
                         'rewardCoins' => $questRewardCoins,
                         'isActive' => $questActive,
                     ]);
@@ -1131,6 +1192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             'title' => (string) ($questItem['title'] ?? $questTitle),
                             'metric' => (string) ($questItem['metric'] ?? $questMetric),
                             'goal' => max(1, (int) ($questItem['goal'] ?? $questGoal)),
+                            'condition_mode' => (string) ($questItem['conditionMode'] ?? 'all'),
+                            'conditions' => $questItem['conditions'] ?? [],
                             'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? $questRewardCoins)),
                             'is_active' => !empty($questItem['isActive']),
                         ],
@@ -1169,6 +1232,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                 'description' => $questDescription,
                                 'metric' => $questMetric,
                                 'goal' => $questGoal,
+                                'conditionMode' => trim((string) ($_POST['quest_condition_mode'] ?? 'all')),
+                                'conditions_json' => trim((string) ($_POST['quest_conditions_json'] ?? '')),
                                 'rewardCoins' => $questRewardCoins,
                                 'isActive' => $questActive,
                             ], $questId);
@@ -1191,6 +1256,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                                     'title' => (string) ($questItem['title'] ?? $questTitle),
                                     'metric' => (string) ($questItem['metric'] ?? $questMetric),
                                     'goal' => max(1, (int) ($questItem['goal'] ?? $questGoal)),
+                                    'condition_mode' => (string) ($questItem['conditionMode'] ?? 'all'),
+                                    'conditions' => $questItem['conditions'] ?? [],
                                     'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? $questRewardCoins)),
                                     'is_active' => !empty($questItem['isActive']),
                                 ],
@@ -5952,12 +6019,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="material-icons">military_tech</span>
                                 Каталог достижений
                             </h2>
-                            <div class="card-subtitle">Встроенные достижения можно переопределять в админке: менять текст, иконку, секретность, награду и участие в авто-выдаче. Новые ключи здесь не создаются.</div>
+                            <div class="card-subtitle">Достижения теперь можно создавать в админке, задавать им несколько условий и выбирать логику И/ИЛИ для авто-выдачи.</div>
                         </div>
-                        <button class="btn btn-outline" id="refreshAchievementCatalogBtn">
-                            <span class="material-icons">refresh</span>
-                            Обновить
-                        </button>
+                        <div class="inline-actions" style="margin-top: 0;">
+                            <button class="btn btn-primary" id="createAchievementBtn">
+                                <span class="material-icons">add</span>
+                                Новое достижение
+                            </button>
+                            <button class="btn btn-outline" id="refreshAchievementCatalogBtn">
+                                <span class="material-icons">refresh</span>
+                                Обновить
+                            </button>
+                        </div>
                     </div>
 
                     <div class="skin-catalog-toolbar">
@@ -6731,24 +6804,24 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             </select>
                         </div>
                         <div class="form-group" style="margin: 0;">
-                            <label class="form-label" for="addQuestMetricInput">Метрика</label>
-                            <select class="form-control" id="addQuestMetricInput">
-                                <option value="scoreGain">Заработанные коины</option>
-                                <option value="upgradeBuys">Покупки улучшений</option>
-                                <option value="plusGain">Рост силы клика</option>
-                                <option value="energyMaxGain">Рост запаса энергии</option>
-                                <option value="skinPurchases">Покупки скинов</option>
-                                <option value="flyRuns">Забеги в fly-beaver</option>
-                                <option value="flyScoreGain">Очки в fly-beaver</option>
-                                <option value="flyRewardCoins">Вывод коинов из fly-beaver</option>
+                            <label class="form-label" for="addQuestConditionModeInput">Логика условий</label>
+                            <select class="form-control" id="addQuestConditionModeInput">
+                                <option value="all">И — должны выполниться все</option>
+                                <option value="any">ИЛИ — достаточно одного</option>
                             </select>
                         </div>
                     </div>
-                    <div class="maintenance-form-row">
-                        <div class="form-group" style="margin: 0;">
-                            <label class="form-label" for="addQuestGoalInput">Цель</label>
-                            <input class="form-control" id="addQuestGoalInput" type="number" min="1" step="1" value="1" required>
+                    <div class="form-group">
+                        <label class="form-label">Условия квеста</label>
+                        <div class="stack-list" id="addQuestConditionsList"></div>
+                        <div class="inline-actions" style="margin-top: 12px;">
+                            <button class="btn btn-outline btn-small" id="addQuestConditionBtn" type="button">
+                                <span class="material-icons">add_task</span>
+                                Добавить условие
+                            </button>
                         </div>
+                    </div>
+                    <div class="maintenance-form-row">
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label" for="addQuestRewardInput">Награда, коинов</label>
                             <input class="form-control" id="addQuestRewardInput" type="number" min="0" step="1" value="0" required>
@@ -6790,7 +6863,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 <form id="editAchievementForm">
                     <div class="form-group">
                         <label class="form-label" for="editAchievementKeyInput">Ключ</label>
-                        <input class="form-control" id="editAchievementKeyInput" type="text" readonly>
+                        <input class="form-control" id="editAchievementKeyInput" type="text" maxlength="120" placeholder="Например: special_combo_master">
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="editAchievementTitleInput">Название</label>
@@ -6808,6 +6881,23 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label" for="editAchievementRewardInput">Награда, коинов</label>
                             <input class="form-control" id="editAchievementRewardInput" type="number" min="0" step="1" value="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editAchievementConditionModeInput">Логика условий</label>
+                        <select class="form-control" id="editAchievementConditionModeInput">
+                            <option value="all">И — должны выполниться все</option>
+                            <option value="any">ИЛИ — достаточно одного</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Условия достижения</label>
+                        <div class="stack-list" id="editAchievementConditionsList"></div>
+                        <div class="inline-actions" style="margin-top: 12px;">
+                            <button class="btn btn-outline btn-small" id="addAchievementConditionBtn" type="button">
+                                <span class="material-icons">add</span>
+                                Добавить условие
+                            </button>
                         </div>
                     </div>
                     <label class="form-label" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 12px;">
@@ -7059,6 +7149,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             questKey: ''
         };
         let achievementEditorState = {
+            mode: 'create',
             key: ''
         };
         let announcementEditorState = {
@@ -7912,6 +8003,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const createAchievementBtn = document.getElementById('createAchievementBtn');
+            if (createAchievementBtn) {
+                createAchievementBtn.addEventListener('click', function() {
+                    showEditAchievementModal(null, 'create');
+                });
+            }
+
             const createAnnouncementBtn = document.getElementById('createAnnouncementBtn');
             if (createAnnouncementBtn) {
                 createAnnouncementBtn.addEventListener('click', function() {
@@ -7999,6 +8097,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 addQuestForm.addEventListener('submit', function(event) {
                     event.preventDefault();
                     submitAddQuestModal();
+                });
+            }
+
+            const addQuestConditionBtn = document.getElementById('addQuestConditionBtn');
+            if (addQuestConditionBtn) {
+                addQuestConditionBtn.addEventListener('click', function() {
+                    addQuestConditionRow();
                 });
             }
 
@@ -8181,6 +8286,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 achievementCatalogSecretSelect.addEventListener('change', function() {
                     achievementCatalogSecretFilter = this.value || 'all';
                     renderAchievementCatalogList();
+                });
+            }
+
+            const addAchievementConditionBtn = document.getElementById('addAchievementConditionBtn');
+            if (addAchievementConditionBtn) {
+                addAchievementConditionBtn.addEventListener('click', function() {
+                    addAchievementConditionRow();
                 });
             }
 
@@ -8891,6 +9003,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return null;
             }
 
+            const rawConditions = Array.isArray(rawQuest.conditions)
+                ? rawQuest.conditions
+                : [];
+
             return {
                 id: Math.max(0, Number(rawQuest.id) || 0),
                 key: String(rawQuest.key || rawQuest.quest_key || '').trim(),
@@ -8899,6 +9015,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 description: String(rawQuest.description || '').trim(),
                 metric: String(rawQuest.metric || 'scoreGain').trim(),
                 goal: Math.max(1, Number(rawQuest.goal) || 1),
+                conditionMode: String(rawQuest.conditionMode || rawQuest.condition_mode || 'all').trim().toLowerCase() === 'any' ? 'any' : 'all',
+                conditions: rawConditions
+                    .map(item => ({
+                        metric: String(item && item.metric ? item.metric : rawQuest.metric || 'scoreGain').trim() || 'scoreGain',
+                        goal: Math.max(1, Number(item && item.goal ? item.goal : rawQuest.goal || 1) || 1),
+                        label: String(item && item.label ? item.label : '').trim(),
+                        progress: Math.max(0, Number(item && item.progress ? item.progress : 0) || 0),
+                        completed: Boolean(item && item.completed),
+                        progressPercent: Math.max(0, Math.min(100, Number(item && item.progressPercent ? item.progressPercent : 0) || 0))
+                    }))
+                    .filter(item => item.metric),
                 rewardCoins: Math.max(0, Number(rawQuest.rewardCoins ?? rawQuest.reward_coins) || 0),
                 isActive: Boolean(rawQuest.isActive ?? rawQuest.is_active ?? true),
                 createdAt: String(rawQuest.createdAt || rawQuest.created_at || '').trim(),
@@ -8928,6 +9055,213 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             return labels[normalizedMetric] || labels.scoreGain;
         }
 
+        function getAchievementMetricLabel(metric) {
+            const normalizedMetric = String(metric || '').trim();
+            const labels = {
+                score: 'Коины',
+                plus: 'Сила клика',
+                energyMax: 'Максимальная энергия',
+                ownedSkinCount: 'Скины',
+                totalUpgradePurchases: 'Всего улучшений',
+                flyBest: 'Рекорд fly-beaver',
+                flyGamesPlayed: 'Забегов fly-beaver',
+                clickerTop1: 'Топ-1 кликера',
+                flyTop1: 'Топ-1 fly-beaver',
+                tapSmall: 'Маленький тап',
+                tapBig: 'Большой тап',
+                energy: 'Энергия',
+                tapHuge: 'Огромный тап',
+                regenBoost: 'Разгон ритма',
+                energyHuge: 'Огромный запас',
+                clickRate: 'Предел CPS'
+            };
+
+            return labels[normalizedMetric] || labels.score;
+        }
+
+        function normalizeAdminConditionMode(value) {
+            return String(value || '').trim().toLowerCase() === 'any' ? 'any' : 'all';
+        }
+
+        function normalizeAdminConditionList(rawConditions, options = {}) {
+            const allowedMetrics = Array.isArray(options.allowedMetrics) ? options.allowedMetrics : [];
+            const fallbackMetric = String(options.fallbackMetric || allowedMetrics[0] || '').trim();
+            const rows = Array.isArray(rawConditions) ? rawConditions : [];
+            const normalized = rows
+                .map(item => ({
+                    metric: String(item && item.metric ? item.metric : fallbackMetric).trim(),
+                    goal: Math.max(1, Math.floor(Number(item && item.goal ? item.goal : 1) || 1)),
+                    label: String(item && item.label ? item.label : '').trim(),
+                    progress: Math.max(0, Number(item && item.progress ? item.progress : 0) || 0),
+                    completed: Boolean(item && item.completed),
+                    progressPercent: Math.max(0, Math.min(100, Number(item && item.progressPercent ? item.progressPercent : 0) || 0))
+                }))
+                .filter(item => allowedMetrics.length < 1 || allowedMetrics.includes(item.metric));
+
+            if (normalized.length > 0) {
+                return normalized.slice(0, 8);
+            }
+
+            return fallbackMetric
+                ? [{
+                    metric: fallbackMetric,
+                    goal: 1,
+                    label: '',
+                    progress: 0,
+                    completed: false,
+                    progressPercent: 0
+                }]
+                : [];
+        }
+
+        function buildAdminConditionSummary(conditionMode, conditions, labelResolver) {
+            const normalizedMode = normalizeAdminConditionMode(conditionMode);
+            const normalizedConditions = Array.isArray(conditions) ? conditions : [];
+            if (normalizedConditions.length < 1) {
+                return 'Условия не заданы';
+            }
+
+            if (normalizedConditions.length === 1) {
+                const item = normalizedConditions[0];
+                return `${labelResolver(item.metric)} ≥ ${formatAdminNumber(item.goal)}`;
+            }
+
+            return `${normalizedMode === 'any' ? 'ИЛИ' : 'И'} • ${formatAdminNumber(normalizedConditions.length)} условия`;
+        }
+
+        const ADMIN_QUEST_METRIC_OPTIONS = ['scoreGain', 'upgradeBuys', 'plusGain', 'energyMaxGain', 'skinPurchases', 'flyRuns', 'flyScoreGain', 'flyRewardCoins'];
+        const ADMIN_ACHIEVEMENT_METRIC_OPTIONS = ['score', 'plus', 'energyMax', 'ownedSkinCount', 'totalUpgradePurchases', 'flyBest', 'flyGamesPlayed', 'clickerTop1', 'flyTop1', 'tapSmall', 'tapBig', 'energy', 'tapHuge', 'regenBoost', 'energyHuge', 'clickRate'];
+
+        function buildAdminConditionMetricOptionsHtml(selectedMetric, allowedMetrics, labelResolver) {
+            return allowedMetrics.map(metric => `<option value="${escapeHtml(metric)}"${metric === selectedMetric ? ' selected' : ''}>${escapeHtml(labelResolver(metric))}</option>`).join('');
+        }
+
+        function renderQuestConditionRows(rawConditions = []) {
+            const container = document.getElementById('addQuestConditionsList');
+            if (!container) {
+                return;
+            }
+
+            const conditions = normalizeAdminConditionList(rawConditions, {
+                allowedMetrics: ADMIN_QUEST_METRIC_OPTIONS,
+                fallbackMetric: 'scoreGain'
+            });
+            container.innerHTML = conditions.map((condition, index) => `
+                <div class="stack-item admin-condition-row" data-condition-index="${index}">
+                    <div class="maintenance-form-row">
+                        <div class="form-group" style="margin: 0; flex: 1 1 260px;">
+                            <label class="form-label">Метрика</label>
+                            <select class="form-control quest-condition-metric">
+                                ${buildAdminConditionMetricOptionsHtml(condition.metric, ADMIN_QUEST_METRIC_OPTIONS, getQuestMetricLabel)}
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0; width: 180px;">
+                            <label class="form-label">Цель</label>
+                            <input class="form-control quest-condition-goal" type="number" min="1" step="1" value="${Math.max(1, Number(condition.goal) || 1)}">
+                        </div>
+                        <div class="inline-actions" style="margin-top: 28px;">
+                            <button class="btn btn-danger btn-small remove-quest-condition-btn" type="button"${conditions.length < 2 ? ' disabled' : ''}>
+                                <span class="material-icons">delete</span>
+                                Убрать
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.querySelectorAll('.remove-quest-condition-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const row = this.closest('.admin-condition-row');
+                    const nextConditions = collectQuestConditionRows().filter((_, index) => index !== Number(row?.dataset.conditionIndex || -1));
+                    renderQuestConditionRows(nextConditions);
+                });
+            });
+        }
+
+        function collectQuestConditionRows() {
+            const container = document.getElementById('addQuestConditionsList');
+            if (!container) {
+                return [];
+            }
+
+            return Array.from(container.querySelectorAll('.admin-condition-row')).map(row => ({
+                metric: String(row.querySelector('.quest-condition-metric')?.value || 'scoreGain').trim() || 'scoreGain',
+                goal: Math.max(1, Math.floor(Number(row.querySelector('.quest-condition-goal')?.value || 1) || 1))
+            }));
+        }
+
+        function addQuestConditionRow() {
+            const nextConditions = collectQuestConditionRows();
+            nextConditions.push({
+                metric: 'scoreGain',
+                goal: 1
+            });
+            renderQuestConditionRows(nextConditions);
+        }
+
+        function renderAchievementConditionRows(rawConditions = []) {
+            const container = document.getElementById('editAchievementConditionsList');
+            if (!container) {
+                return;
+            }
+
+            const conditions = normalizeAdminConditionList(rawConditions, {
+                allowedMetrics: ADMIN_ACHIEVEMENT_METRIC_OPTIONS,
+                fallbackMetric: 'score'
+            });
+            container.innerHTML = conditions.map((condition, index) => `
+                <div class="stack-item admin-achievement-condition-row" data-condition-index="${index}">
+                    <div class="maintenance-form-row">
+                        <div class="form-group" style="margin: 0; flex: 1 1 260px;">
+                            <label class="form-label">Метрика</label>
+                            <select class="form-control achievement-condition-metric">
+                                ${buildAdminConditionMetricOptionsHtml(condition.metric, ADMIN_ACHIEVEMENT_METRIC_OPTIONS, getAchievementMetricLabel)}
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0; width: 180px;">
+                            <label class="form-label">Цель</label>
+                            <input class="form-control achievement-condition-goal" type="number" min="1" step="1" value="${Math.max(1, Number(condition.goal) || 1)}">
+                        </div>
+                        <div class="inline-actions" style="margin-top: 28px;">
+                            <button class="btn btn-danger btn-small remove-achievement-condition-btn" type="button"${conditions.length < 2 ? ' disabled' : ''}>
+                                <span class="material-icons">delete</span>
+                                Убрать
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.querySelectorAll('.remove-achievement-condition-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const row = this.closest('.admin-achievement-condition-row');
+                    const nextConditions = collectAchievementConditionRows().filter((_, index) => index !== Number(row?.dataset.conditionIndex || -1));
+                    renderAchievementConditionRows(nextConditions);
+                });
+            });
+        }
+
+        function collectAchievementConditionRows() {
+            const container = document.getElementById('editAchievementConditionsList');
+            if (!container) {
+                return [];
+            }
+
+            return Array.from(container.querySelectorAll('.admin-achievement-condition-row')).map(row => ({
+                metric: String(row.querySelector('.achievement-condition-metric')?.value || 'score').trim() || 'score',
+                goal: Math.max(1, Math.floor(Number(row.querySelector('.achievement-condition-goal')?.value || 1) || 1))
+            }));
+        }
+
+        function addAchievementConditionRow() {
+            const nextConditions = collectAchievementConditionRows();
+            nextConditions.push({
+                metric: 'score',
+                goal: 1
+            });
+            renderAchievementConditionRows(nextConditions);
+        }
+
         function normalizeAdminQuestRuntimeItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey = '') {
             if (!rawItem || typeof rawItem !== 'object') {
                 return null;
@@ -8935,6 +9269,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             const goal = Math.max(1, Number(rawItem.goal) || 1);
             const progress = Math.max(0, Number(rawItem.progress) || 0);
+            const conditions = normalizeAdminConditionList(rawItem.conditions, {
+                allowedMetrics: ['scoreGain', 'upgradeBuys', 'plusGain', 'energyMaxGain', 'skinPurchases', 'flyRuns', 'flyScoreGain', 'flyRewardCoins'],
+                fallbackMetric: String(rawItem.metric || 'scoreGain').trim() || 'scoreGain'
+            });
 
             return {
                 key: String(rawItem.key || '').trim(),
@@ -8946,6 +9284,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 metric: String(rawItem.metric || 'scoreGain').trim(),
                 goal,
                 progress,
+                conditionMode: normalizeAdminConditionMode(rawItem.conditionMode || rawItem.condition_mode || 'all'),
+                conditions,
+                progressLabelLeft: String(rawItem.progressLabelLeft || rawItem.progress_label_left || '').trim(),
+                progressLabelRight: String(rawItem.progressLabelRight || rawItem.progress_label_right || '').trim(),
+                completedCount: Math.max(0, Number(rawItem.completedCount ?? rawItem.completed_count) || 0),
+                totalConditions: Math.max(0, Number(rawItem.totalConditions ?? rawItem.total_conditions) || conditions.length),
                 slotIndex: Math.max(0, Number(rawItem.slotIndex ?? rawItem.slot_index) || 0),
                 manual: Boolean(rawItem.manual),
                 completed: Boolean(rawItem.completed),
@@ -9019,7 +9363,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 : 'Пусто';
             const selectedTemplateId = item ? Number(item.templateId || 0) : 0;
             const description = item
-                ? `${item.title || item.key || 'Квест'} · ${getQuestMetricLabel(item.metric)} · ${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)}`
+                ? `${item.title || item.key || 'Квест'} · ${buildAdminConditionSummary(item.conditionMode, item.conditions, getQuestMetricLabel)} · ${item.progressLabelLeft || `${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)}`}`
                 : 'Слот сейчас пустой. Можно вручную выдать шаблон или вернуть авто-ротацию.';
 
             return `
@@ -9074,8 +9418,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                             </div>
                                             <div class="stack-item-meta">
                                                 ${escapeHtml(item.description || 'Описание не задано.')}<br>
-                                                Метрика: ${escapeHtml(getQuestMetricLabel(item.metric))}<br>
-                                                Прогресс: ${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)} (${progressPercent.toFixed(0)}%)<br>
+                                                Условия: ${escapeHtml(buildAdminConditionSummary(item.conditionMode, item.conditions, getQuestMetricLabel))}<br>
+                                                Прогресс: ${escapeHtml(item.progressLabelLeft || `${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)}`)} ${item.progressLabelRight ? `(${escapeHtml(item.progressLabelRight)})` : `(${progressPercent.toFixed(0)}%)`}<br>
                                                 Награда: ${formatAdminNumber(item.rewardCoins)} коинов<br>
                                                 Слот: ${formatAdminNumber((Number(item.slotIndex) || 0) + 1)} · Источник: ${item.manual ? 'выдан вручную' : 'авто-ротация'}
                                             </div>
@@ -9180,8 +9524,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <div class="card-subtitle">${escapeHtml(item.description || 'Описание не задано.')}</div>
                         <div class="inline-actions" style="margin-top: 0;">
                             <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">event_repeat</span>${escapeHtml(getQuestScopeLabel(item.scope))}</span>
-                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">tune</span>${escapeHtml(getQuestMetricLabel(item.metric))}</span>
-                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">flag</span>Цель: ${formatAdminNumber(item.goal)}</span>
+                            <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">tune</span>${escapeHtml(buildAdminConditionSummary(item.conditionMode, item.conditions, getQuestMetricLabel))}</span>
                             <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">payments</span>Награда: ${formatAdminNumber(item.rewardCoins)}</span>
                         </div>
                         <div class="skin-catalog-card-actions">
@@ -9286,19 +9629,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             const scopeInput = document.getElementById('addQuestScopeInput');
-            const metricInput = document.getElementById('addQuestMetricInput');
-            const goalInput = document.getElementById('addQuestGoalInput');
+            const conditionModeInput = document.getElementById('addQuestConditionModeInput');
             const rewardInput = document.getElementById('addQuestRewardInput');
             const activeInput = document.getElementById('addQuestActiveInput');
 
             if (scopeInput) {
                 scopeInput.value = 'daily';
             }
-            if (metricInput) {
-                metricInput.value = 'scoreGain';
-            }
-            if (goalInput) {
-                goalInput.value = '1';
+            if (conditionModeInput) {
+                conditionModeInput.value = 'all';
             }
             if (rewardInput) {
                 rewardInput.value = '0';
@@ -9306,6 +9645,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (activeInput) {
                 activeInput.checked = true;
             }
+            renderQuestConditionRows([{
+                metric: 'scoreGain',
+                goal: 1
+            }]);
 
             questEditorState = {
                 mode: 'create',
@@ -9323,8 +9666,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const titleInput = document.getElementById('addQuestTitleInput');
             const descriptionInput = document.getElementById('addQuestDescriptionInput');
             const scopeInput = document.getElementById('addQuestScopeInput');
-            const metricInput = document.getElementById('addQuestMetricInput');
-            const goalInput = document.getElementById('addQuestGoalInput');
+            const conditionModeInput = document.getElementById('addQuestConditionModeInput');
             const rewardInput = document.getElementById('addQuestRewardInput');
             const activeInput = document.getElementById('addQuestActiveInput');
 
@@ -9353,11 +9695,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (scopeInput) {
                     scopeInput.value = String(questItem.scope || 'daily');
                 }
-                if (metricInput) {
-                    metricInput.value = String(questItem.metric || 'scoreGain');
-                }
-                if (goalInput) {
-                    goalInput.value = String(Math.max(1, Number(questItem.goal) || 1));
+                if (conditionModeInput) {
+                    conditionModeInput.value = normalizeAdminConditionMode(questItem.conditionMode || 'all');
                 }
                 if (rewardInput) {
                     rewardInput.value = String(Math.max(0, Number(questItem.rewardCoins) || 0));
@@ -9365,6 +9704,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (activeInput) {
                     activeInput.checked = Boolean(questItem.isActive);
                 }
+                renderQuestConditionRows(questItem.conditions);
             } else {
                 if (titleNode) {
                     titleNode.textContent = 'Новый квест';
@@ -9375,6 +9715,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (saveButtonText) {
                     saveButtonText.textContent = 'Добавить квест';
                 }
+                renderQuestConditionRows([{
+                    metric: 'scoreGain',
+                    goal: 1
+                }]);
             }
 
             document.getElementById('addQuestModal').classList.add('active');
@@ -9417,8 +9761,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const titleInput = document.getElementById('addQuestTitleInput');
             const descriptionInput = document.getElementById('addQuestDescriptionInput');
             const scopeInput = document.getElementById('addQuestScopeInput');
-            const metricInput = document.getElementById('addQuestMetricInput');
-            const goalInput = document.getElementById('addQuestGoalInput');
+            const conditionModeInput = document.getElementById('addQuestConditionModeInput');
             const rewardInput = document.getElementById('addQuestRewardInput');
             const activeInput = document.getElementById('addQuestActiveInput');
             const saveButton = document.getElementById('saveAddQuestBtn');
@@ -9428,8 +9771,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const questTitle = titleInput ? titleInput.value.trim() : '';
             const questDescription = descriptionInput ? descriptionInput.value.trim() : '';
             const questScope = scopeInput ? String(scopeInput.value || 'daily') : 'daily';
-            const questMetric = metricInput ? String(metricInput.value || 'scoreGain') : 'scoreGain';
-            const questGoal = Math.max(1, Math.floor(Number(goalInput ? goalInput.value : 1) || 1));
+            const questConditionMode = normalizeAdminConditionMode(conditionModeInput ? conditionModeInput.value : 'all');
+            const questConditions = collectQuestConditionRows();
+            const questMetric = String(questConditions[0]?.metric || 'scoreGain');
+            const questGoal = Math.max(1, Math.floor(Number(questConditions[0]?.goal || 1) || 1));
             const questRewardCoins = Math.max(0, Math.floor(Number(rewardInput ? rewardInput.value : 0) || 0));
             const questActive = !activeInput || activeInput.checked;
 
@@ -9440,6 +9785,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             if (questDescription.length < 4) {
                 showNotification('Добавьте понятное описание квеста.', 'error');
+                return;
+            }
+            if (questConditions.length < 1) {
+                showNotification('Добавьте хотя бы одно условие квеста.', 'error');
                 return;
             }
 
@@ -9461,6 +9810,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 quest_description: questDescription,
                 quest_metric: questMetric,
                 quest_goal: String(questGoal),
+                quest_condition_mode: questConditionMode,
+                quest_conditions_json: JSON.stringify(questConditions),
                 quest_reward_coins: String(questRewardCoins),
                 quest_active: questActive ? '1' : '0'
             })
@@ -9524,6 +9875,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return null;
             }
 
+            const conditions = normalizeAdminConditionList(rawAchievement.conditions, {
+                allowedMetrics: ADMIN_ACHIEVEMENT_METRIC_OPTIONS,
+                fallbackMetric: 'score'
+            });
+
             return {
                 key: String(rawAchievement.key || rawAchievement.achievement_key || '').trim(),
                 title: String(rawAchievement.title || '').trim(),
@@ -9535,6 +9891,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 secret: Boolean(rawAchievement.secret ?? rawAchievement.isSecret ?? rawAchievement.is_secret),
                 rewardCoins: Math.max(0, Number(rawAchievement.rewardCoins ?? rawAchievement.reward_coins) || 0),
                 isActive: Boolean(rawAchievement.isActive ?? rawAchievement.is_active ?? true),
+                conditionMode: normalizeAdminConditionMode(rawAchievement.conditionMode || rawAchievement.condition_mode || 'all'),
+                conditions,
                 createdAt: String(rawAchievement.createdAt || rawAchievement.created_at || '').trim(),
                 updatedAt: String(rawAchievement.updatedAt || rawAchievement.updated_at || '').trim()
             };
@@ -9647,7 +10005,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <div class="stack-item-meta">
                             ${escapeHtml(item.description || 'Описание не задано.')}<br>
                             Награда: ${formatAdminNumber(item.rewardCoins)} коинов<br>
-                            Тип: ${item.secret ? 'секретное' : 'обычное'}
+                            Тип: ${item.secret ? 'секретное' : 'обычное'}<br>
+                            Условия: ${escapeHtml(buildAdminConditionSummary(item.conditionMode, item.conditions, getAchievementMetricLabel))}
                             ${item.secret ? `<br>Locked: ${escapeHtml(item.lockedTitle || 'Секретное достижение')}` : ''}
                         </div>
                         <div class="skin-catalog-card-actions">
@@ -9699,29 +10058,59 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
         }
 
-        function showEditAchievementModal(achievementItem) {
-            const item = normalizeAdminAchievementTemplate(achievementItem);
-            if (!item || !item.key) {
+        function showEditAchievementModal(achievementItem, mode = 'edit') {
+            const item = mode === 'create'
+                ? {
+                    key: '',
+                    title: '',
+                    description: '',
+                    icon: '',
+                    lockedTitle: '',
+                    lockedDescription: '',
+                    lockedIcon: '',
+                    secret: false,
+                    rewardCoins: 0,
+                    isActive: true,
+                    conditionMode: 'all',
+                    conditions: [{
+                        metric: 'score',
+                        goal: 1
+                    }]
+                }
+                : normalizeAdminAchievementTemplate(achievementItem);
+            if (!item) {
                 showNotification('Не удалось открыть достижение для редактирования.', 'error');
                 return;
             }
 
             achievementEditorState = {
+                mode: mode === 'create' ? 'create' : 'edit',
                 key: item.key
             };
 
-            document.getElementById('editAchievementKeyInput').value = item.key;
+            const keyInput = document.getElementById('editAchievementKeyInput');
+            if (keyInput) {
+                keyInput.value = item.key || '';
+                keyInput.readOnly = mode !== 'create';
+            }
             document.getElementById('editAchievementTitleInput').value = item.title || '';
             document.getElementById('editAchievementDescriptionInput').value = item.description || '';
             document.getElementById('editAchievementIconInput').value = item.icon || '';
             document.getElementById('editAchievementRewardInput').value = String(Math.max(0, Number(item.rewardCoins) || 0));
             document.getElementById('editAchievementSecretInput').checked = Boolean(item.secret);
             document.getElementById('editAchievementActiveInput').checked = Boolean(item.isActive);
+            document.getElementById('editAchievementConditionModeInput').value = normalizeAdminConditionMode(item.conditionMode || 'all');
             document.getElementById('editAchievementLockedTitleInput').value = item.lockedTitle || '';
             document.getElementById('editAchievementLockedDescriptionInput').value = item.lockedDescription || '';
             document.getElementById('editAchievementLockedIconInput').value = item.lockedIcon || '';
-            document.getElementById('editAchievementModalTitle').textContent = `Редактировать: ${item.title || item.key}`;
-            document.getElementById('editAchievementModalSubtitle').textContent = `Ключ: ${item.key}. Изменения затронут отображение и правила авто-выдачи этого встроенного достижения.`;
+            renderAchievementConditionRows(item.conditions);
+            document.getElementById('editAchievementModalTitle').textContent = mode === 'create'
+                ? 'Новое достижение'
+                : `Редактировать: ${item.title || item.key}`;
+            document.getElementById('editAchievementModalSubtitle').textContent = mode === 'create'
+                ? 'Создайте новое достижение и задайте ему правила авто-выдачи через несколько условий.'
+                : `Ключ: ${item.key}. Можно менять отображение и условия авто-выдачи.`;
+            document.querySelector('#saveEditAchievementBtn .btn-text').textContent = mode === 'create' ? 'Создать достижение' : 'Сохранить';
             document.getElementById('editAchievementModal').classList.add('active');
         }
 
@@ -9759,9 +10148,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         }
 
         function submitEditAchievementModal() {
-            const achievementKey = String(achievementEditorState.key || '').trim();
+            const achievementKey = String(document.getElementById('editAchievementKeyInput').value || '').trim();
             if (!achievementKey) {
                 showNotification('Не удалось определить достижение для сохранения.', 'error');
+                return;
+            }
+            const achievementConditions = collectAchievementConditionRows();
+            if (achievementConditions.length < 1) {
+                showNotification('Добавьте хотя бы одно условие достижения.', 'error');
                 return;
             }
 
@@ -9780,7 +10174,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             postAction({
-                action: 'update_achievement_catalog_item',
+                action: achievementEditorState.mode === 'create' ? 'create_achievement_catalog_item' : 'update_achievement_catalog_item',
                 achievement_key: achievementKey,
                 achievement_title: String(document.getElementById('editAchievementTitleInput').value || '').trim(),
                 achievement_description: String(document.getElementById('editAchievementDescriptionInput').value || '').trim(),
@@ -9788,6 +10182,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 achievement_reward_coins: String(Math.max(0, Math.floor(Number(document.getElementById('editAchievementRewardInput').value || 0) || 0))),
                 achievement_secret: document.getElementById('editAchievementSecretInput').checked ? '1' : '0',
                 achievement_active: document.getElementById('editAchievementActiveInput').checked ? '1' : '0',
+                achievement_condition_mode: normalizeAdminConditionMode(document.getElementById('editAchievementConditionModeInput').value || 'all'),
+                achievement_conditions_json: JSON.stringify(achievementConditions),
                 achievement_locked_title: String(document.getElementById('editAchievementLockedTitleInput').value || '').trim(),
                 achievement_locked_description: String(document.getElementById('editAchievementLockedDescriptionInput').value || '').trim(),
                 achievement_locked_icon: String(document.getElementById('editAchievementLockedIconInput').value || '').trim()

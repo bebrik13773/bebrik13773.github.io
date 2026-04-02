@@ -3092,6 +3092,19 @@ Owner decisions:
         margin-bottom: 16px;
     }
 
+    .profile-modal-top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 16px;
+    }
+
+    .profile-modal-top-actions .settings-action-button {
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
+    }
+
     .profile-modal-hero[data-frame="rare"] {
         border-color: rgba(126, 241, 255, 0.22);
         box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.06), 0 18px 28px rgba(5, 10, 28, 0.18);
@@ -3472,6 +3485,52 @@ Owner decisions:
 
     .profile-quest-meta {
         margin-top: 8px;
+    }
+
+    .profile-quest-condition-mode {
+        margin-top: 10px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+    }
+
+    .profile-quest-condition-list {
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .profile-quest-condition-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .profile-quest-condition-item.completed {
+        border-color: rgba(152, 255, 196, 0.18);
+        background: rgba(152, 255, 196, 0.07);
+    }
+
+    .profile-quest-condition-name {
+        color: #f6fdff;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .profile-quest-condition-progress {
+        flex-shrink: 0;
+        color: rgba(255, 255, 255, 0.74);
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
     }
 
     .profile-quest-progress {
@@ -5083,6 +5142,15 @@ Owner decisions:
         -webkit-backdrop-filter: blur(10px);
     }
 
+    .footer-link-button {
+        appearance: none;
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        width: auto;
+    }
+
     .footer-bottom {
         margin-top: 18px;
     }
@@ -5336,6 +5404,17 @@ Owner decisions:
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             align-items: start;
+        }
+
+        .profile-modal-top-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            margin-bottom: 14px;
+        }
+
+        .profile-modal-top-actions .settings-action-button {
+            width: 100%;
+            max-width: none;
         }
 
         .settings-modal-actions .settings-action-button,
@@ -6061,22 +6140,22 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="profileModal" aria-hidden="true" data-palette="modal">
-    <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
-        <div class="skin-action-modal-title" id="profileModalTitle">Профиль</div>
-        <div class="skin-action-modal-text">Статистика кликера, мини-игры, лидерских наград и достижений.</div>
-        <div class="profile-modal-hero" id="profileModalHero">
-            <div class="profile-modal-avatar">🦫</div>
-            <div>
-                <div class="profile-modal-login" id="profileModalLogin">Игрок</div>
-                <div class="profile-title-chip" id="profileModalTitleChip">Начинающий бобр</div>
-                <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
-            </div>
-        </div>
-        <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
-            <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
-        </div>
-        <div class="profile-badge-row" id="profileModalBadges"></div>
+	<div class="modal-backdrop" id="profileModal" aria-hidden="true" data-palette="modal">
+	    <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+	        <div class="skin-action-modal-title" id="profileModalTitle">Профиль</div>
+	        <div class="skin-action-modal-text">Статистика кликера, мини-игры, лидерских наград и достижений.</div>
+	        <div class="profile-modal-top-actions">
+	            <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
+	        </div>
+	        <div class="profile-modal-hero" id="profileModalHero">
+	            <div class="profile-modal-avatar">🦫</div>
+	            <div>
+	                <div class="profile-modal-login" id="profileModalLogin">Игрок</div>
+	                <div class="profile-title-chip" id="profileModalTitleChip">Начинающий бобр</div>
+	                <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
+	            </div>
+	        </div>
+	        <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
         <div class="profile-achievements-title">Последние события</div>
@@ -6098,13 +6177,13 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<div class="modal-backdrop" id="leaderboardProfileModal" aria-hidden="true" data-palette="modal">
-    <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardProfileModalTitle">
-        <div class="skin-action-modal-title" id="leaderboardProfileModalTitle">Профиль игрока</div>
-        <div class="skin-action-modal-text">Публичная карточка игрока из таблицы лидеров.</div>
-        <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
-            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
-        </div>
+	<div class="modal-backdrop" id="leaderboardProfileModal" aria-hidden="true" data-palette="modal">
+	    <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardProfileModalTitle">
+	        <div class="skin-action-modal-title" id="leaderboardProfileModalTitle">Профиль игрока</div>
+	        <div class="skin-action-modal-text">Публичная карточка игрока из таблицы лидеров.</div>
+	        <div class="profile-modal-top-actions">
+	            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
+	        </div>
         <div id="leaderboardProfileContent">
             <div class="public-profile-loading">Загружаю профиль игрока...</div>
         </div>
@@ -6724,6 +6803,113 @@ function getDefaultQuestState() {
     };
 }
 
+const QUEST_METRIC_LABELS = Object.freeze({
+    scoreGain: 'Заработанные коины',
+    upgradeBuys: 'Покупки улучшений',
+    plusGain: 'Рост силы клика',
+    energyMaxGain: 'Рост запаса энергии',
+    skinPurchases: 'Покупки скинов',
+    flyRuns: 'Забеги в fly-beaver',
+    flyScoreGain: 'Очки в fly-beaver',
+    flyRewardCoins: 'Вывод коинов из fly-beaver'
+});
+
+function getQuestMetricLabel(metric) {
+    const normalizedMetric = String(metric || '').trim();
+    return QUEST_METRIC_LABELS[normalizedMetric] || normalizedMetric || 'Условие';
+}
+
+function normalizeQuestConditionMode(value) {
+    return String(value || '').trim().toLowerCase() === 'any' ? 'any' : 'all';
+}
+
+function normalizeQuestConditionList(rawConditions, fallbackMetric = 'scoreGain', fallbackGoal = 1) {
+    const normalizedConditions = Array.isArray(rawConditions)
+        ? rawConditions.map((condition) => {
+            if (!condition || typeof condition !== 'object') {
+                return null;
+            }
+
+            const metric = String(condition.metric || fallbackMetric || 'scoreGain').trim() || 'scoreGain';
+            const goal = Math.max(1, Number(condition.goal) || fallbackGoal || 1);
+            const progress = Math.max(0, Math.min(goal, Number(condition.progress) || 0));
+            const progressPercent = Math.max(
+                0,
+                Math.min(
+                    100,
+                    Number.isFinite(Number(condition.progressPercent))
+                        ? Number(condition.progressPercent)
+                        : (goal > 0 ? (progress / goal) * 100 : 0)
+                )
+            );
+
+            return {
+                metric,
+                goal,
+                label: String(condition.label || '').trim(),
+                progress,
+                completed: Boolean(condition.completed) || progress >= goal,
+                progressPercent
+            };
+        }).filter(Boolean)
+        : [];
+
+    if (normalizedConditions.length > 0) {
+        return normalizedConditions;
+    }
+
+    return [{
+        metric: String(fallbackMetric || 'scoreGain').trim() || 'scoreGain',
+        goal: Math.max(1, Number(fallbackGoal) || 1),
+        label: '',
+        progress: 0,
+        completed: false,
+        progressPercent: 0
+    }];
+}
+
+function buildQuestConditionSummary(item, options = {}) {
+    const isHiddenSecret = Boolean(options.isHiddenSecret);
+    if (isHiddenSecret) {
+        return 'Условия скрыты до выполнения';
+    }
+
+    const conditions = Array.isArray(item?.conditions) ? item.conditions : [];
+    if (conditions.length < 1) {
+        return '';
+    }
+
+    const conjunction = item?.conditionMode === 'any' ? ' ИЛИ ' : ' И ';
+    return conditions
+        .map((condition) => String(condition.label || getQuestMetricLabel(condition.metric)).trim())
+        .filter(Boolean)
+        .join(conjunction);
+}
+
+function buildQuestConditionListHtml(item, options = {}) {
+    const isHiddenSecret = Boolean(options.isHiddenSecret);
+    const conditions = Array.isArray(item?.conditions) ? item.conditions : [];
+    if (isHiddenSecret || conditions.length < 2) {
+        return '';
+    }
+
+    const modeLabel = item.conditionMode === 'any'
+        ? 'Достаточно выполнить любое условие'
+        : 'Нужно выполнить все условия';
+
+    return `
+        <div class="profile-quest-condition-mode">${escapeHtmlText(modeLabel)}</div>
+        <div class="profile-quest-condition-list">
+            ${conditions.map((condition) => `
+                <div class="profile-quest-condition-item ${condition.completed ? 'completed' : ''}">
+                    <div class="profile-quest-condition-name">${escapeHtmlText(condition.label || getQuestMetricLabel(condition.metric))}</div>
+                    <div class="profile-quest-condition-progress">${escapeHtmlText(formatCompactNumber(condition.progress))} / ${escapeHtmlText(formatCompactNumber(condition.goal))}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
 function getDefaultRecentActivity() {
     return [];
 }
@@ -7181,6 +7367,32 @@ function openAnnouncementModal() {
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
 }
+
+function openAnnouncementCenterFromEntry(entryPoint = 'menu') {
+    if (getAnnouncementFeedItems().length < 1) {
+        showNotification('Лента новостей пока недоступна.', 'warning');
+        return false;
+    }
+
+    if (entryPoint === 'menu' || entryPoint === 'footer') {
+        closeProfileMenu();
+    }
+
+    openAnnouncementModal();
+    return true;
+}
+
+function openSupportCenterFromEntry(entryPoint = 'footer') {
+    if (entryPoint === 'menu' || entryPoint === 'footer') {
+        closeProfileMenu();
+    }
+
+    openSupportCenter({ tab: 'inbox' });
+    return true;
+}
+
+window.openAnnouncementCenterFromEntry = openAnnouncementCenterFromEntry;
+window.openSupportCenterFromEntry = openSupportCenterFromEntry;
 
 function closeAnnouncementModal() {
     const modal = document.getElementById('announcementModal');
@@ -10402,25 +10614,23 @@ function renderProfileModal() {
         'Крупные события аккаунта появятся здесь после покупок, достижений, квестов и забегов.'
     );
 
-    if (ALL_ACHIEVEMENT_KEYS.length < 1) {
+    const achievementRenderKeys = collectAchievementRenderKeys(unlockedItems, achievementStats);
+    if (achievementRenderKeys.length < 1) {
         achievementsNode.innerHTML = '<div class="empty-list">Список достижений пока недоступен.</div>';
         return;
     }
 
-    const achievementCards = ALL_ACHIEVEMENT_KEYS.map((achievementKey) => {
-        const definition = ACHIEVEMENT_DEFINITIONS[achievementKey] || {
-            title: achievementKey,
-            description: 'Достижение разблокировано.',
-            icon: '✨'
-        };
+    const achievementCards = achievementRenderKeys.map((achievementKey) => {
         const unlockedItem = unlockedByKey[achievementKey] || null;
+        const definition = resolveAchievementDefinition(achievementKey, unlockedItem?.meta);
         const isSecretLocked = !unlockedItem && Boolean(definition.secret);
         const stat = getAchievementStat(achievementKey, unlockedItem?.meta);
         const statusLine = unlockedItem
             ? `<span class="profile-achievement-status">Открыто</span>`
             : `<span class="profile-achievement-status">${isSecretLocked ? 'Секретное' : 'Пока не открыто'}</span>`;
-        const rewardLine = !isSecretLocked && Number(unlockedItem?.meta?.rewardCoins) > 0
-            ? `<span>Награда: +${escapeHtmlText((Number(unlockedItem.meta.rewardCoins) || 0).toLocaleString('ru-RU'))} коинов</span>`
+        const rewardCoins = Math.max(0, Number(unlockedItem?.meta?.rewardCoins ?? definition.rewardCoins) || 0);
+        const rewardLine = !isSecretLocked && rewardCoins > 0
+            ? `<span>Награда: +${escapeHtmlText(rewardCoins.toLocaleString('ru-RU'))} коинов</span>`
             : '';
         const timeLine = unlockedItem
             ? `<span class="profile-achievement-time">${escapeHtmlText(formatAchievementDate(unlockedItem.unlockedAt))}</span>`
@@ -10546,7 +10756,7 @@ function buildQuestGroupsHtml(normalizedQuests) {
                     const isHiddenSecret = Boolean(item.isSecret) && Boolean(item.hidden) && !item.claimed && !item.completed;
                     const progressPercent = isHiddenSecret
                         ? 0
-                        : Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
+                        : Math.max(0, Math.min(100, Number(item.progressPercent) || 0));
                     const statusLabel = item.claimed
                         ? 'Награда получена'
                         : (item.completed ? 'Готово' : (isHiddenSecret ? 'Секретно' : 'В процессе'));
@@ -10562,9 +10772,11 @@ function buildQuestGroupsHtml(normalizedQuests) {
                     ].filter(Boolean).join(' ');
                     const progressText = isHiddenSecret
                         ? '<span>Условия скрыты</span><span>???</span>'
-                        : `<span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span><span>${escapeHtmlText(Math.round(progressPercent))}%</span>`;
+                        : `<span>${escapeHtmlText(String(item.progressLabelLeft || formatCompactNumber(item.progress)))} / ${escapeHtmlText(String(item.progressLabelRight || formatCompactNumber(item.goal)))}</span><span>${escapeHtmlText(Math.round(progressPercent))}%</span>`;
                     const metaParts = [
                         item.isSecret ? 'Тип: секретный недельный квест' : '',
+                        !isHiddenSecret && item.totalConditions > 1 ? `Условий выполнено: ${formatCompactNumber(item.completedCount)}/${formatCompactNumber(item.totalConditions)}` : '',
+                        !isHiddenSecret ? `Условия: ${buildQuestConditionSummary(item, { isHiddenSecret })}` : '',
                         `Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов`
                     ].filter(Boolean);
                     return `
@@ -10575,6 +10787,7 @@ function buildQuestGroupsHtml(normalizedQuests) {
                             </div>
                             <div class="profile-quest-description">${escapeHtmlText(item.description)}</div>
                             <div class="profile-quest-meta">${escapeHtmlText(metaParts.join(' • '))}</div>
+                            ${buildQuestConditionListHtml(item, { isHiddenSecret })}
                             <div class="profile-quest-progress">
                                 <div class="profile-quest-progress-bar">
                                     <div class="profile-quest-progress-fill" style="width:${escapeHtmlText(String(progressPercent.toFixed(2)))}%"></div>
@@ -10782,11 +10995,7 @@ function renderLeaderboardPublicProfileModal() {
                         return rightTime - leftTime;
                     })
                     .map((item) => {
-                        const definition = ACHIEVEMENT_DEFINITIONS[item.key] || {
-                            title: item.key,
-                            description: 'Достижение разблокировано.',
-                            icon: '✨'
-                        };
+                        const definition = resolveAchievementDefinition(item.key, item.meta);
                         return `
                             <article class="profile-achievement-card unlocked">
                                 <div class="profile-achievement-icon">${escapeHtmlText(String(definition.icon || '✨'))}</div>
@@ -13452,6 +13661,24 @@ function normalizeQuestItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey 
 
     const goal = Math.max(1, Number(rawItem.goal) || 1);
     const progress = Math.max(0, Math.min(goal, Number(rawItem.progress) || 0));
+    const conditionMode = normalizeQuestConditionMode(rawItem.conditionMode || rawItem.condition_mode || 'all');
+    const conditions = normalizeQuestConditionList(rawItem.conditions, rawItem.metric || 'scoreGain', goal);
+    const completedCount = Math.max(
+        0,
+        Number.isFinite(Number(rawItem.completedCount))
+            ? Number(rawItem.completedCount)
+            : conditions.filter((condition) => condition.completed).length
+    );
+    const totalConditions = Math.max(conditions.length, Number(rawItem.totalConditions) || conditions.length);
+    const progressPercent = Math.max(
+        0,
+        Math.min(
+            100,
+            Number.isFinite(Number(rawItem.progressPercent))
+                ? Number(rawItem.progressPercent)
+                : (goal > 0 ? (progress / goal) * 100 : 0)
+        )
+    );
 
     return {
         scope: String(rawItem.scope || fallbackScope).trim() || fallbackScope,
@@ -13461,6 +13688,13 @@ function normalizeQuestItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey 
         description: String(rawItem.description || '').trim(),
         goal,
         progress,
+        conditionMode,
+        conditions,
+        progressPercent,
+        progressLabelLeft: String(rawItem.progressLabelLeft || rawItem.progress_label_left || '').trim() || formatCompactNumber(progress),
+        progressLabelRight: String(rawItem.progressLabelRight || rawItem.progress_label_right || '').trim() || formatCompactNumber(goal),
+        completedCount: Math.min(totalConditions, completedCount),
+        totalConditions,
         rewardCoins: Math.max(0, Number(rawItem.rewardCoins) || 0),
         isSecret: Boolean(rawItem.isSecret || rawItem.secret),
         hidden: Boolean(rawItem.hidden),
@@ -13534,7 +13768,7 @@ function normalizeAchievementList(rawAchievements) {
     return rawAchievements
         .map((item) => {
             const key = String(item && item.key ? item.key : '').trim();
-            if (!key || !ACHIEVEMENT_DEFINITIONS[key]) {
+            if (!key) {
                 return null;
             }
 
@@ -13547,11 +13781,92 @@ function normalizeAchievementList(rawAchievements) {
         .filter(Boolean);
 }
 
+function resolveAchievementDefinition(key, meta = null) {
+    const normalizedKey = String(key || '').trim();
+    const fallbackMeta = meta && typeof meta === 'object' ? meta : {};
+    const builtIn = ACHIEVEMENT_DEFINITIONS[normalizedKey] || {};
+    const resolvedTitle = String(fallbackMeta.title || builtIn.title || normalizedKey || 'Достижение').trim() || normalizedKey || 'Достижение';
+    const resolvedDescription = String(fallbackMeta.description || builtIn.description || 'Достижение разблокировано.').trim() || 'Достижение разблокировано.';
+    const resolvedIcon = String(fallbackMeta.icon || builtIn.icon || '✨').trim() || '✨';
+    const lockedTitle = String(fallbackMeta.lockedTitle || fallbackMeta.locked_title || builtIn.lockedTitle || 'Секретное достижение').trim() || 'Секретное достижение';
+    const lockedDescription = String(fallbackMeta.lockedDescription || fallbackMeta.locked_description || builtIn.lockedDescription || 'Условие раскроется только после выполнения.').trim() || 'Условие раскроется только после выполнения.';
+    const lockedIcon = String(fallbackMeta.lockedIcon || fallbackMeta.locked_icon || builtIn.lockedIcon || '❓').trim() || '❓';
+
+    return {
+        key: normalizedKey,
+        title: resolvedTitle,
+        description: resolvedDescription,
+        icon: resolvedIcon,
+        lockedTitle,
+        lockedDescription,
+        lockedIcon,
+        secret: Boolean(
+            fallbackMeta.secret
+            ?? fallbackMeta.isSecret
+            ?? fallbackMeta.is_secret
+            ?? builtIn.secret
+        ),
+        rewardCoins: Math.max(0, Number(fallbackMeta.rewardCoins ?? fallbackMeta.reward_coins ?? builtIn.rewardCoins) || 0)
+    };
+}
+
+function collectAchievementRenderKeys(unlockedItems = [], stats = achievementStats) {
+    const knownKeys = new Set(ALL_ACHIEVEMENT_KEYS);
+    if (Array.isArray(unlockedItems)) {
+        unlockedItems.forEach((item) => {
+            const key = String(item?.key || '').trim();
+            if (key) {
+                knownKeys.add(key);
+            }
+        });
+    }
+
+    if (stats && typeof stats === 'object') {
+        Object.keys(stats).forEach((key) => {
+            const normalizedKey = String(key || '').trim();
+            if (!normalizedKey || normalizedKey === 'totalPlayers' || normalizedKey === 'playerBase') {
+                return;
+            }
+            if (stats[key] && typeof stats[key] === 'object') {
+                knownKeys.add(normalizedKey);
+            }
+        });
+    }
+
+    return Array.from(knownKeys).sort((left, right) => {
+        const leftIndex = ALL_ACHIEVEMENT_KEYS.indexOf(left);
+        const rightIndex = ALL_ACHIEVEMENT_KEYS.indexOf(right);
+        if (leftIndex >= 0 && rightIndex >= 0) {
+            return leftIndex - rightIndex;
+        }
+        if (leftIndex >= 0) {
+            return -1;
+        }
+        if (rightIndex >= 0) {
+            return 1;
+        }
+        return left.localeCompare(right, 'ru');
+    });
+}
+
 function normalizeAchievementStats(rawStats, rawPlayerBase = 0) {
     const resolvedPlayerBase = Math.max(0, Number(rawPlayerBase) || 0);
     const normalizedStats = {};
+    const candidateKeys = collectAchievementRenderKeys([], {});
 
-    ALL_ACHIEVEMENT_KEYS.forEach((key) => {
+    if (rawStats && typeof rawStats === 'object') {
+        Object.keys(rawStats).forEach((key) => {
+            const normalizedKey = String(key || '').trim();
+            if (!normalizedKey || normalizedKey === 'totalPlayers' || normalizedKey === 'playerBase') {
+                return;
+            }
+            if (rawStats[key] && typeof rawStats[key] === 'object' && !candidateKeys.includes(normalizedKey)) {
+                candidateKeys.push(normalizedKey);
+            }
+        });
+    }
+
+    candidateKeys.forEach((key) => {
         const rawItem = rawStats && typeof rawStats === 'object' ? rawStats[key] : null;
         const unlockCount = Math.max(0, Number(rawItem?.unlockCount) || 0);
         const totalPlayers = Math.max(0, Number(rawItem?.totalPlayers) || resolvedPlayerBase);
@@ -13920,11 +14235,7 @@ function renderAchievementUnlockModal() {
     }
 
     const activeUnlock = achievementUnlockState.active;
-    const definition = ACHIEVEMENT_DEFINITIONS[activeUnlock.key] || {
-        title: activeUnlock.key,
-        description: 'Достижение разблокировано.',
-        icon: '✨'
-    };
+    const definition = resolveAchievementDefinition(activeUnlock.key, activeUnlock.meta);
     const rewardCoins = Math.max(0, Number(activeUnlock.meta?.rewardCoins) || 0);
 
     titleNode.textContent = definition.title;
@@ -14976,13 +15287,7 @@ if (profileModalCopyLinkButton) {
 const profileMenuNewsButton = document.getElementById('profileMenuNewsButton');
 if (profileMenuNewsButton) {
     profileMenuNewsButton.addEventListener('click', () => {
-        if (getAnnouncementFeedItems().length < 1) {
-            showNotification('Лента новостей пока недоступна.', 'warning');
-            return;
-        }
-
-        closeProfileMenu();
-        openAnnouncementModal();
+        openAnnouncementCenterFromEntry('menu');
     });
 }
 
@@ -19786,19 +20091,25 @@ console.log('Настройки античита:', clickDetector.config);
                     GitHub
                 </a>
                 
-                <a href="https://t.me/+lxcAKwXFono2ODZi" class="footer-link" target="_blank">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 106 111" aria-hidden="true">
-                        <path d="M74.5 19.7c-1.6.8-5.2 3.5-8 5.8-7.6 6.4-8 6.5-24 6.5-21.7 0-24.5 2-24.5 18 0 9.8 1.9 14.6 6.5 16.5 2.4 1.1 3.6 2.6 5.4 7.2 3.3 8.3 6.8 14.1 9.5 15.8 1.8 1.2 3.3 1.3 7.7.5 7.4-1.4 8.9-3.4 8.9-12 0-9.2 1-9.9 8.5-5.4 3.3 2 7 4.5 8.4 5.5 3.7 3 10.4 2.6 13.6-.9 1.4-1.5 2.8-3.6 3.1-4.7.3-1.1.4-12.8.2-25.9l-.3-23.8-2.8-2.4c-3.3-2.8-7.8-3.1-12.2-.7z"/>
-                    </svg>
-                    Канал
-                </a>
-                                <a href="https://forms.yandex.ru/u/68e2472302848f9edc066ce2" class="footer-link" target="_blank">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
-                    </svg>
-                    Обратиться в поддержку
-                </a>
-            </div>
+	                <a href="https://t.me/+lxcAKwXFono2ODZi" class="footer-link" target="_blank">
+	                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 106 111" aria-hidden="true">
+	                        <path d="M74.5 19.7c-1.6.8-5.2 3.5-8 5.8-7.6 6.4-8 6.5-24 6.5-21.7 0-24.5 2-24.5 18 0 9.8 1.9 14.6 6.5 16.5 2.4 1.1 3.6 2.6 5.4 7.2 3.3 8.3 6.8 14.1 9.5 15.8 1.8 1.2 3.3 1.3 7.7.5 7.4-1.4 8.9-3.4 8.9-12 0-9.2 1-9.9 8.5-5.4 3.3 2 7 4.5 8.4 5.5 3.7 3 10.4 2.6 13.6-.9 1.4-1.5 2.8-3.6 3.1-4.7.3-1.1.4-12.8.2-25.9l-.3-23.8-2.8-2.4c-3.3-2.8-7.8-3.1-12.2-.7z"/>
+	                    </svg>
+	                    Канал
+	                </a>
+	                <button type="button" class="footer-link footer-link-button" onclick="openAnnouncementCenterFromEntry('footer')">
+	                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+	                        <path d="M4 4h16v12H7.172L4 19.172V4zm2 2v8.344L6.828 14H18V6H6z"/>
+	                    </svg>
+	                    Новости
+	                </button>
+	                <button type="button" class="footer-link footer-link-button" onclick="openSupportCenterFromEntry('footer')">
+	                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+	                        <path d="M12 0c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.14.141-.259.259-.374.261l.213-3.053 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+	                    </svg>
+	                    Тикеты и поддержка
+	                </button>
+	            </div>
         </div>
                     <br>
             <p id="comit">Загрузка последнего изменения...</p>
