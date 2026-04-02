@@ -2646,6 +2646,7 @@ Owner decisions:
         margin-right: 6px;
     }
 
+    #profileMenuNewsButton,
     #supportAppealButton {
         justify-content: space-between;
         gap: 12px;
@@ -2653,6 +2654,7 @@ Owner decisions:
 
     #profileDetailsButton,
     #profileAchievementsButton,
+    #profileMenuNewsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
@@ -2689,6 +2691,7 @@ Owner decisions:
 
     #profileDetailsButton,
     #profileAchievementsButton,
+    #profileMenuNewsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #logoutButton,
@@ -2708,6 +2711,7 @@ Owner decisions:
 
     #profileDetailsButton,
     #profileAchievementsButton,
+    #profileMenuNewsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
     #sessionsButton {
@@ -2734,6 +2738,7 @@ Owner decisions:
     .session-conflict-actions button:hover,
     #profileDetailsButton:hover,
     #profileAchievementsButton:hover,
+    #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #logoutButton:hover,
@@ -2744,6 +2749,7 @@ Owner decisions:
 
     #profileDetailsButton:hover,
     #profileAchievementsButton:hover,
+    #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
     #supportAppealButton:hover,
     #sessionsButton:hover {
@@ -2765,6 +2771,7 @@ Owner decisions:
     .session-conflict-actions button:active,
     #profileDetailsButton:active,
     #profileAchievementsButton:active,
+    #profileMenuNewsButton:active,
     #viewPlayerProfileButton:active,
     #supportAppealButton:active,
     #logoutButton:active,
@@ -5618,6 +5625,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
                         <button id="profileAchievementsButton" type="button">Достижения</button>
+                        <button id="profileMenuNewsButton" type="button">
+                            <span>Новости</span>
+                            <span class="profile-menu-button-badge" id="profileMenuNewsBadge" hidden>0</span>
+                        </button>
                         <button id="viewPlayerProfileButton" type="button">Посмотреть профиль игрока</button>
                         <button id="supportAppealButton" type="button">
                             <span>Поддержка и входящие</span>
@@ -6052,7 +6063,6 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
-            <button type="button" class="settings-action-button muted" id="profileModalNewsButton">Новости</button>
             <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
         </div>
         <div class="profile-badge-row" id="profileModalBadges"></div>
@@ -9906,6 +9916,8 @@ function updateProfileMenuUI() {
     const loginNode = document.getElementById('profileMenuLogin');
     const titleNode = document.getElementById('profileMenuSummaryTitle');
     const textNode = document.getElementById('profileMenuSummaryText');
+    const newsButtonNode = document.getElementById('profileMenuNewsButton');
+    const newsBadgeNode = document.getElementById('profileMenuNewsBadge');
     const resolvedLogin = currentLogin || 'Игрок';
     if (loginNode) {
         loginNode.textContent = resolvedLogin;
@@ -9921,6 +9933,22 @@ function updateProfileMenuUI() {
                 ? `Есть ${formatCompactNumber(supportSummary.unreadReplies)} новых ответов поддержки.`
                 : 'Здесь доступны профиль, сессии, поддержка и выход из аккаунта.')
             : 'Войдите в аккаунт, чтобы управлять сессиями и профилем.';
+    }
+
+    if (newsButtonNode) {
+        const feed = getAnnouncementFeedItems();
+        const latestAnnouncement = feed[0] || normalizeAnnouncement(announcementState.latestPublished);
+        const unreadCount = getAnnouncementUnreadCount(feed);
+        newsButtonNode.disabled = !latestAnnouncement;
+        newsButtonNode.title = latestAnnouncement
+            ? unreadCount > 0
+                ? `Открыть новости (${formatCompactNumber(unreadCount)} непрочит.).`
+                : `Открыть ленту новостей. Последняя публикация: ${latestAnnouncement.title}`
+            : 'Лента новостей пока недоступна';
+        if (newsBadgeNode) {
+            newsBadgeNode.hidden = unreadCount < 1;
+            newsBadgeNode.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+        }
     }
 }
 
@@ -10238,7 +10266,6 @@ function renderProfileModal() {
     const statsNode = document.getElementById('profileModalStats');
     const activityNode = document.getElementById('profileModalActivity');
     const achievementsNode = document.getElementById('profileModalAchievements');
-    const newsButtonNode = document.getElementById('profileModalNewsButton');
     const copyButtonNode = document.getElementById('profileModalCopyLink');
 
     if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !activityNode || !achievementsNode) {
@@ -10392,18 +10419,6 @@ function renderProfileModal() {
         copyButtonNode.title = resolvedLogin
             ? `Скопировать публичную ссылку на профиль ${resolvedLogin}`
             : 'Сначала войдите в аккаунт';
-    }
-
-    if (newsButtonNode) {
-        const feed = getAnnouncementFeedItems();
-        const latestAnnouncement = feed[0] || normalizeAnnouncement(announcementState.latestPublished);
-        const unreadCount = getAnnouncementUnreadCount(feed);
-        newsButtonNode.disabled = !latestAnnouncement;
-        newsButtonNode.title = latestAnnouncement
-            ? unreadCount > 0
-                ? `Открыть ленту новостей (${formatCompactNumber(unreadCount)} непрочит.).`
-                : `Открыть ленту новостей. Последняя публикация: ${latestAnnouncement.title}`
-            : 'Лента новостей пока недоступна';
     }
 
     if (economyProfileModalState.source === 'private') {
@@ -14868,14 +14883,15 @@ if (profileModalCopyLinkButton) {
     });
 }
 
-const profileModalNewsButton = document.getElementById('profileModalNewsButton');
-if (profileModalNewsButton) {
-    profileModalNewsButton.addEventListener('click', () => {
+const profileMenuNewsButton = document.getElementById('profileMenuNewsButton');
+if (profileMenuNewsButton) {
+    profileMenuNewsButton.addEventListener('click', () => {
         if (getAnnouncementFeedItems().length < 1) {
             showNotification('Лента новостей пока недоступна.', 'warning');
             return;
         }
 
+        closeProfileMenu();
         openAnnouncementModal();
     });
 }
