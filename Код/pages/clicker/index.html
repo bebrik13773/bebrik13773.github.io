@@ -17002,6 +17002,71 @@ function buildKeyboardClickerActivationEvent() {
     };
 }
 
+const pendingNativeKeyboardClickerIntent = {
+    at: 0,
+    key: ''
+};
+
+function rememberPendingNativeKeyboardClickerIntent(event) {
+    const clicker = document.getElementById('clicker');
+    const target = event && event.target instanceof Element ? event.target : null;
+    if (!clicker || !target || !target.closest || !target.closest('#clicker')) {
+        return;
+    }
+
+    const isSpace = event.code === 'Space' || event.key === ' ';
+    const isEnter = event.code === 'Enter' || event.key === 'Enter';
+    if (!isSpace && !isEnter) {
+        return;
+    }
+
+    pendingNativeKeyboardClickerIntent.at = performance.now();
+    pendingNativeKeyboardClickerIntent.key = isSpace ? 'Space' : 'Enter';
+}
+
+function consumePendingNativeKeyboardClickerIntent(maxAgeMs = 1200) {
+    const ageMs = performance.now() - Number(pendingNativeKeyboardClickerIntent.at || 0);
+    if (ageMs < 0 || ageMs > maxAgeMs) {
+        pendingNativeKeyboardClickerIntent.at = 0;
+        pendingNativeKeyboardClickerIntent.key = '';
+        return null;
+    }
+
+    const resolved = {
+        source: 'keyboard',
+        activationKey: String(pendingNativeKeyboardClickerIntent.key || '')
+    };
+    pendingNativeKeyboardClickerIntent.at = 0;
+    pendingNativeKeyboardClickerIntent.key = '';
+    return resolved;
+}
+
+function resolveKeyboardLikeClickerSource(event) {
+    const clicker = document.getElementById('clicker');
+    const currentTarget = event && event.currentTarget instanceof Element ? event.currentTarget : null;
+    if (!clicker || currentTarget !== clicker) {
+        return null;
+    }
+
+    if (!event || event.isTrusted === false || Number(event.detail || 0) !== 0) {
+        return null;
+    }
+
+    const pendingIntent = consumePendingNativeKeyboardClickerIntent();
+    if (pendingIntent) {
+        return pendingIntent;
+    }
+
+    if (document.activeElement === clicker) {
+        return {
+            source: 'keyboard',
+            activationKey: ''
+        };
+    }
+
+    return null;
+}
+
 function isEditableKeyboardTarget(target) {
     return Boolean(
         target instanceof Element &&
@@ -17038,6 +17103,8 @@ document.addEventListener('keydown', function(event) {
     if (!isSpace && !isEnter) {
         return;
     }
+
+    rememberPendingNativeKeyboardClickerIntent(event);
 
     if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) {
         return;
@@ -17131,7 +17198,8 @@ document.addEventListener('keydown', function(event) {
 });
 
 document.getElementById('clicker').onclick = function(e) {
-    performSingleClickerActivation(e, {
+    const keyboardLikeSource = resolveKeyboardLikeClickerSource(e);
+    performSingleClickerActivation(e, keyboardLikeSource || {
         source: 'click'
     });
 };
