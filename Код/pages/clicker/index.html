@@ -3427,6 +3427,116 @@ Owner decisions:
         font-weight: 700;
     }
 
+    .profile-activity-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .profile-activity-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+    }
+
+    .profile-activity-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 12px 24px rgba(4, 8, 22, 0.18);
+    }
+
+    .profile-activity-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .profile-activity-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, rgba(93, 240, 217, 0.18), rgba(66, 116, 255, 0.24));
+        border: 1px solid rgba(191, 255, 249, 0.18);
+        font-size: 20px;
+    }
+
+    .profile-activity-body {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .profile-activity-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .profile-activity-title {
+        color: #f6fdff;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.3;
+    }
+
+    .profile-activity-time {
+        flex-shrink: 0;
+        color: rgba(255, 255, 255, 0.48);
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .profile-activity-description {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .profile-activity-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .profile-activity-chip {
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.76);
+    }
+
+    .profile-activity-chip.positive {
+        color: #dcffef;
+        background: rgba(152, 255, 196, 0.12);
+        border-color: rgba(152, 255, 196, 0.2);
+    }
+
+    .profile-activity-chip.negative {
+        color: #ffdede;
+        background: rgba(255, 122, 122, 0.12);
+        border-color: rgba(255, 122, 122, 0.2);
+    }
+
+    .profile-activity-chip.neutral {
+        color: #dffcff;
+        background: rgba(126, 241, 255, 0.12);
+        border-color: rgba(126, 241, 255, 0.18);
+    }
+
     .public-profile-loading,
     .public-profile-empty {
         padding: 16px 18px;
@@ -5744,6 +5854,8 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
+        <div class="profile-achievements-title">Последние события</div>
+        <div class="profile-activity-section" id="profileModalActivity"></div>
         <div class="profile-achievements-title">Достижения</div>
         <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
@@ -6249,7 +6361,8 @@ function getDefaultLeaderboardPublicProfile() {
             equipped: null,
             collection: []
         },
-        achievements: []
+        achievements: [],
+        recentActivity: []
     };
 }
 
@@ -6271,6 +6384,10 @@ function getDefaultQuestState() {
             items: []
         }
     };
+}
+
+function getDefaultRecentActivity() {
+    return [];
 }
 
 function normalizeProfileTrophy(rawTrophy) {
@@ -6371,7 +6488,8 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
             equipped: equippedSkin,
             collection
         },
-        achievements
+        achievements,
+        recentActivity: normalizeProfileActivityList(rawPlayer.recentActivity)
     };
 }
 
@@ -6558,6 +6676,7 @@ let currentLogin = localStorage.getItem('login') || '';
 let flyBeaverState = getDefaultFlyBeaverState();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
+let recentActivity = getDefaultRecentActivity();
 let questState = getDefaultQuestState();
 let unlockedAchievements = [];
 let achievementStats = {};
@@ -8601,6 +8720,68 @@ function formatAchievementDate(value) {
     });
 }
 
+function formatProfileActivitySignedValue(value) {
+    const numericValue = Number(value) || 0;
+    const absoluteValue = Math.abs(numericValue);
+    const sign = numericValue > 0 ? '+' : (numericValue < 0 ? '-' : '');
+    return `${sign}${formatCompactNumber(absoluteValue)}`;
+}
+
+function buildProfileActivityListHtml(activityItems, emptyMessage) {
+    const normalizedItems = normalizeProfileActivityList(activityItems);
+    if (normalizedItems.length < 1) {
+        return `<div class="profile-achievement-empty">${escapeHtmlText(emptyMessage)}</div>`;
+    }
+
+    return `
+        <div class="profile-activity-list">
+            ${normalizedItems.map((item) => {
+                const metaChips = [];
+
+                if (item.coinsDelta !== 0) {
+                    metaChips.push(`
+                        <span class="profile-activity-chip ${item.coinsDelta > 0 ? 'positive' : 'negative'}">
+                            Коины ${escapeHtmlText(formatProfileActivitySignedValue(item.coinsDelta))}
+                        </span>
+                    `);
+                }
+
+                if (item.coinsDelta === 0 && item.scoreDelta !== 0) {
+                    metaChips.push(`
+                        <span class="profile-activity-chip ${item.scoreDelta > 0 ? 'positive' : 'negative'}">
+                            ${escapeHtmlText(item.actionGroup === 'fly_beaver' ? 'Очки' : 'Изменение')} ${escapeHtmlText(formatProfileActivitySignedValue(item.scoreDelta))}
+                        </span>
+                    `);
+                }
+
+                if (metaChips.length < 1 && item.actionGroup) {
+                    metaChips.push(`
+                        <span class="profile-activity-chip neutral">
+                            ${escapeHtmlText(item.actionGroup.replace(/_/g, ' '))}
+                        </span>
+                    `);
+                }
+
+                return `
+                    <article class="profile-activity-card">
+                        <div class="profile-activity-head">
+                            <div class="profile-activity-icon">${escapeHtmlText(item.icon)}</div>
+                            <div class="profile-activity-body">
+                                <div class="profile-activity-title-row">
+                                    <div class="profile-activity-title">${escapeHtmlText(item.title)}</div>
+                                    <div class="profile-activity-time">${escapeHtmlText(formatAchievementDate(item.createdAt))}</div>
+                                </div>
+                                ${item.description ? `<div class="profile-activity-description">${escapeHtmlText(item.description)}</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="profile-activity-meta-row">${metaChips.join('')}</div>
+                    </article>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
 function renderProfileModal() {
     const heroNode = document.getElementById('profileModalHero');
     const loginNode = document.getElementById('profileModalLogin');
@@ -8609,9 +8790,10 @@ function renderProfileModal() {
     const badgesNode = document.getElementById('profileModalBadges');
     const trophiesNode = document.getElementById('profileModalTrophies');
     const statsNode = document.getElementById('profileModalStats');
+    const activityNode = document.getElementById('profileModalActivity');
     const achievementsNode = document.getElementById('profileModalAchievements');
 
-    if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !achievementsNode) {
+    if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !activityNode || !achievementsNode) {
         return;
     }
 
@@ -8672,6 +8854,10 @@ function renderProfileModal() {
             <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
         </div>
     `).join('');
+    activityNode.innerHTML = buildProfileActivityListHtml(
+        recentActivity,
+        'Крупные события аккаунта появятся здесь после покупок, достижений, квестов и забегов.'
+    );
 
     if (ALL_ACHIEVEMENT_KEYS.length < 1) {
         achievementsNode.innerHTML = '<div class="empty-list">Список достижений пока недоступен.</div>';
@@ -9003,6 +9189,13 @@ function renderLeaderboardPublicProfileModal() {
                     <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
                 </div>
             `).join('')}
+        </div>
+        <div class="public-profile-skin-section">
+            <div class="profile-achievements-title">Последние события</div>
+            ${buildProfileActivityListHtml(
+                data.recentActivity,
+                'Публичная лента игрока заполнится после заметных игровых событий.'
+            )}
         </div>
         <div class="public-profile-skin-section">
             <div class="profile-achievements-title">Достижения игрока</div>
@@ -11389,6 +11582,39 @@ function normalizeQuestState(rawState) {
     };
 }
 
+function normalizeProfileActivityItem(rawItem) {
+    if (!rawItem || typeof rawItem !== 'object') {
+        return null;
+    }
+
+    const title = String(rawItem.title || '').trim();
+    if (!title) {
+        return null;
+    }
+
+    const scoreDelta = Number(rawItem.scoreDelta);
+    const coinsDelta = Number(rawItem.coinsDelta);
+
+    return {
+        actionType: String(rawItem.actionType || rawItem.action_type || '').trim(),
+        actionGroup: String(rawItem.actionGroup || rawItem.action_group || '').trim() || 'general',
+        icon: String(rawItem.icon || '✨').trim() || '✨',
+        title,
+        description: String(rawItem.description || '').trim(),
+        createdAt: String(rawItem.createdAt || rawItem.created_at || '').trim(),
+        scoreDelta: Number.isFinite(scoreDelta) ? scoreDelta : 0,
+        coinsDelta: Number.isFinite(coinsDelta) ? coinsDelta : 0
+    };
+}
+
+function normalizeProfileActivityList(rawItems) {
+    if (!Array.isArray(rawItems)) {
+        return getDefaultRecentActivity();
+    }
+
+    return rawItems.map((item) => normalizeProfileActivityItem(item)).filter(Boolean);
+}
+
 function normalizeAchievementList(rawAchievements) {
     if (!Array.isArray(rawAchievements)) {
         return [];
@@ -13469,6 +13695,7 @@ function resetUserState() {
     skin = getDefaultSkinState();
     upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
     profileSummary = getDefaultProfileSummary();
+    recentActivity = getDefaultRecentActivity();
     questState = getDefaultQuestState();
     unlockedAchievements = [];
     achievementStats = {};
@@ -13547,6 +13774,9 @@ function applyAuthenticatedState(data) {
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    recentActivity = Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')
+        ? normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity)
+        : getDefaultRecentActivity();
     questState = normalizeQuestState(data.quests || data.account?.quests);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
@@ -14299,6 +14529,9 @@ function applySynchronizedAccountState(data) {
 
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    if (Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')) {
+        recentActivity = normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity);
+    }
     questState = normalizeQuestState(data.quests || data.account?.quests);
     unlockedAchievements = normalizeAchievementList(data.achievements || data.account?.achievements);
     applyAchievementStats(data.achievementStats || data.account?.achievementStats, data.achievementPlayerBase || data.account?.achievementPlayerBase);
@@ -14477,6 +14710,7 @@ async function synchronizeMainState(options = {}) {
         silent = true,
         settingsPatch = null
     } = options;
+    const includeProfileActivity = Boolean(options.includeProfileActivity) || isProfileModalOpen();
 
     if (isDatabaseQuotaCooldownActive()) {
         return false;
@@ -14495,6 +14729,9 @@ async function synchronizeMainState(options = {}) {
         let requestOptions = { cache: 'no-store' };
         if (userId) {
             const payload = { userId: userId };
+            if (includeProfileActivity) {
+                payload.includeProfileActivity = true;
+            }
             if (settingsPatch && typeof settingsPatch === 'object') {
                 payload.settings = settingsPatch;
             }

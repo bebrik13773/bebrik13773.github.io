@@ -25,6 +25,7 @@ try {
     $settingsUpdatedAt = '';
     $saveResult = null;
     $settingsSaved = false;
+    $includeProfileActivity = is_array($data) && !empty($data['includeProfileActivity']);
 
     $wantsStateSave = is_array($data) && (
         array_key_exists('score', $data) ||
@@ -88,7 +89,9 @@ try {
             $settingsSaved = true;
         }
 
-        $account = bober_fetch_account_snapshot($conn, $sessionUserId);
+        $account = bober_fetch_account_snapshot($conn, $sessionUserId, [
+            'includeActivity' => $includeProfileActivity,
+        ]);
         $settings = $account['settings'] ?? $settings;
         $settingsUpdatedAt = (string) ($account['settingsUpdatedAt'] ?? $settingsUpdatedAt);
         $flyBeaver = $account['flyBeaver'] ?? $flyBeaver;

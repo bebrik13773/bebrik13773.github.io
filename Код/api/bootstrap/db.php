@@ -1786,6 +1786,245 @@ function bober_log_user_activity($conn, $userId, $actionType, $details = [])
     return $success;
 }
 
+function bober_get_profile_activity_action_types($publicOnly = false)
+{
+    $types = [
+        'upgrade_tap_small_purchase',
+        'upgrade_tap_big_purchase',
+        'upgrade_energy_purchase',
+        'upgrade_tap_huge_purchase',
+        'upgrade_regen_boost_purchase',
+        'upgrade_energy_huge_purchase',
+        'equip_skin',
+        'unlock_skin',
+        'achievement_unlock',
+        'quest_complete',
+        'fly_run_saved',
+        'fly_reward_claim',
+    ];
+
+    if ($publicOnly) {
+        return $types;
+    }
+
+    return $types;
+}
+
+function bober_format_activity_number($value)
+{
+    return number_format((float) ((int) $value), 0, '.', ' ');
+}
+
+function bober_describe_activity_skin_names(array $catalog, array $skinIds)
+{
+    $names = [];
+    foreach ($skinIds as $skinId) {
+        $resolvedId = trim((string) $skinId);
+        if ($resolvedId === '') {
+            continue;
+        }
+
+        $skinConfig = is_array($catalog[$resolvedId] ?? null) ? $catalog[$resolvedId] : null;
+        if ($skinConfig) {
+            $names[] = trim((string) ($skinConfig['name'] ?? $resolvedId));
+        } else {
+            $names[] = $resolvedId;
+        }
+    }
+
+    $names = array_values(array_unique(array_filter(array_map('strval', $names), static function ($value) {
+        return trim((string) $value) !== '';
+    })));
+
+    if (count($names) < 1) {
+        return '';
+    }
+
+    if (count($names) === 1) {
+        return $names[0];
+    }
+
+    $visibleNames = array_slice($names, 0, 3);
+    $suffix = count($names) > count($visibleNames)
+        ? ' и еще ' . (count($names) - count($visibleNames))
+        : '';
+
+    return implode(', ', $visibleNames) . $suffix;
+}
+
+function bober_build_profile_activity_item(array $row, array $catalog)
+{
+    $actionType = trim((string) ($row['action_type'] ?? ''));
+    if ($actionType === '') {
+        return null;
+    }
+
+    $actionGroup = trim((string) ($row['action_group'] ?? 'general'));
+    $storedDescription = trim((string) ($row['description'] ?? ''));
+    $meta = bober_decode_json_map((string) ($row['meta_json'] ?? ''), []);
+    $title = $storedDescription !== '' ? $storedDescription : 'Событие аккаунта';
+    $description = '';
+    $icon = '✨';
+
+    switch ($actionType) {
+        case 'upgrade_tap_small_purchase':
+            $icon = '⚒️';
+            $title = 'Куплено улучшение +1 к тапу';
+            $description = 'Текущий плюс за клик: +' . bober_format_activity_number($meta['next_plus'] ?? 0) . '.';
+            break;
+        case 'upgrade_tap_big_purchase':
+            $icon = '⚙️';
+            $title = 'Куплено улучшение +5 к тапу';
+            $description = 'Текущий плюс за клик: +' . bober_format_activity_number($meta['next_plus'] ?? 0) . '.';
+            break;
+        case 'upgrade_energy_purchase':
+            $icon = '🔋';
+            $title = 'Увеличен запас энергии';
+            $description = 'Новый максимум энергии: ' . bober_format_activity_number($meta['next_energy_max'] ?? 0) . '.';
+            break;
+        case 'upgrade_tap_huge_purchase':
+            $icon = '💥';
+            $title = 'Куплено улучшение +100 к тапу';
+            $description = 'Текущий плюс за клик: +' . bober_format_activity_number($meta['next_plus'] ?? 0) . '.';
+            break;
+        case 'upgrade_regen_boost_purchase':
+            $icon = '♻️';
+            $title = 'Ускорено восстановление энергии';
+            $description = 'Скорость регена усилена, бонус за покупку: +' . bober_format_activity_number($meta['regen_bonus_per_second'] ?? 0) . ' в сек.';
+            break;
+        case 'upgrade_energy_huge_purchase':
+            $icon = '🪫';
+            $title = 'Куплено большое улучшение энергии';
+            $description = 'Новый максимум энергии: ' . bober_format_activity_number($meta['next_energy_max'] ?? 0) . '.';
+            break;
+        case 'equip_skin':
+            $icon = '🧥';
+            $title = 'Сменен активный скин';
+            $equippedSkinLabel = bober_describe_activity_skin_names($catalog, [$meta['next_skin_id'] ?? '']);
+            $description = $equippedSkinLabel !== ''
+                ? 'Теперь используется скин: ' . $equippedSkinLabel . '.'
+                : 'Игрок сменил активный скин.';
+            break;
+        case 'unlock_skin':
+            $icon = '🎁';
+            $title = 'Получен новый скин';
+            $unlockedSkinLabel = bober_describe_activity_skin_names($catalog, (array) ($meta['unlocked_skin_ids'] ?? []));
+            $description = $unlockedSkinLabel !== ''
+                ? 'Открыто: ' . $unlockedSkinLabel . '.'
+                : 'Игрок получил новый скин.';
+            break;
+        case 'achievement_unlock':
+            $icon = '🏅';
+            $title = 'Открыто достижение';
+            $description = trim((string) ($meta['title'] ?? ''));
+            if ($description !== '' && (int) ($meta['reward_coins'] ?? 0) > 0) {
+                $description .= ' • Награда: +' . bober_format_activity_number($meta['reward_coins']) . ' коинов.';
+            } elseif ((int) ($meta['reward_coins'] ?? 0) > 0) {
+                $description = 'Награда: +' . bober_format_activity_number($meta['reward_coins']) . ' коинов.';
+            }
+            break;
+        case 'quest_complete':
+            $icon = '📜';
+            $title = 'Выполнен квест';
+            $description = trim((string) ($meta['title'] ?? ''));
+            if ($description !== '' && (int) ($meta['reward_coins'] ?? 0) > 0) {
+                $description .= ' • Награда: +' . bober_format_activity_number($meta['reward_coins']) . ' коинов.';
+            } elseif ((int) ($meta['reward_coins'] ?? 0) > 0) {
+                $description = 'Награда: +' . bober_format_activity_number($meta['reward_coins']) . ' коинов.';
+            }
+            break;
+        case 'fly_run_saved':
+            $icon = '🪽';
+            $title = 'Сохранен забег fly-beaver';
+            $description = 'Счет забега: ' . bober_format_activity_number($meta['score'] ?? 0) . ', уровень: ' . bober_format_activity_number($meta['level'] ?? 0) . '.';
+            break;
+        case 'fly_reward_claim':
+            $icon = '💰';
+            $title = 'Выведена награда из fly-beaver';
+            $description = 'Переведено в кликер: +' . bober_format_activity_number($meta['awarded_coins'] ?? 0) . ' коинов.';
+            break;
+    }
+
+    if ($description === '' && $storedDescription !== '' && $storedDescription !== $title) {
+        $description = $storedDescription;
+    }
+
+    return [
+        'actionType' => $actionType,
+        'actionGroup' => $actionGroup !== '' ? $actionGroup : 'general',
+        'icon' => $icon,
+        'title' => $title,
+        'description' => $description,
+        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+        'scoreDelta' => (int) ($row['score_delta'] ?? 0),
+        'coinsDelta' => (int) ($row['coins_delta'] ?? 0),
+    ];
+}
+
+function bober_fetch_user_activity_feed($conn, $userId, array $options = [])
+{
+    if (!($conn instanceof mysqli)) {
+        return [];
+    }
+
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $limit = max(1, min(20, (int) ($options['limit'] ?? 10)));
+    $publicOnly = !empty($options['public_only']) || !empty($options['publicOnly']);
+    $allowedActionTypes = bober_get_profile_activity_action_types($publicOnly);
+    if (count($allowedActionTypes) < 1) {
+        return [];
+    }
+
+    try {
+        bober_ensure_security_schema($conn);
+    } catch (Throwable $error) {
+        return [];
+    }
+
+    $quotedTypes = array_map(static function ($value) use ($conn) {
+        return '\'' . $conn->real_escape_string((string) $value) . '\'';
+    }, $allowedActionTypes);
+
+    $sql = 'SELECT `id`, `action_group`, `action_type`, `description`, `score_delta`, `coins_delta`, `meta_json`, `created_at`
+        FROM `user_activity_log`
+        WHERE `user_id` = ?
+            AND `action_type` IN (' . implode(', ', $quotedTypes) . ')
+        ORDER BY `created_at` DESC, `id` DESC
+        LIMIT ' . $limit;
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return [];
+    }
+
+    $result = $stmt->get_result();
+    $catalog = bober_skin_catalog();
+    $items = [];
+
+    if ($result instanceof mysqli_result) {
+        while ($row = $result->fetch_assoc()) {
+            $item = bober_build_profile_activity_item((array) $row, $catalog);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+        $result->free();
+    }
+
+    $stmt->close();
+    return $items;
+}
+
 function bober_limit_text_value($value, $maxLength)
 {
     $value = trim((string) $value);
@@ -5499,6 +5738,10 @@ function bober_fetch_public_player_profile($conn, $userId)
         'clickerTop1' => $clickerTop1,
         'flyTop1' => $flyTop1,
     ]);
+    $recentActivity = bober_fetch_user_activity_feed($conn, $userId, [
+        'limit' => 8,
+        'public_only' => true,
+    ]);
 
     return [
         'userId' => max(0, (int) ($row['id'] ?? $userId)),
@@ -5526,6 +5769,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             'collection' => $collectionSkins,
         ],
         'achievements' => $achievementItems,
+        'recentActivity' => $recentActivity,
     ];
 }
 
@@ -6103,12 +6347,13 @@ function bober_refresh_user_quests($conn, $userId)
     ];
 }
 
-function bober_fetch_account_snapshot($conn, $userId)
+function bober_fetch_account_snapshot($conn, $userId, array $options = [])
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
         throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
+    $includeActivity = !empty($options['includeActivity']) || !empty($options['include_activity']);
 
     bober_reconcile_top_reward_skins($conn);
 
@@ -6203,6 +6448,46 @@ function bober_fetch_account_snapshot($conn, $userId)
     $questUnlocks = is_array($questRefresh['newlyCompleted'] ?? null) ? $questRefresh['newlyCompleted'] : [];
     $questRewardCoins = max(0, (int) ($questRefresh['rewardCoins'] ?? 0));
     $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins + $questRewardCoins;
+    foreach ($achievementUnlocks as $achievementItem) {
+        $achievementMeta = is_array($achievementItem['meta'] ?? null) ? $achievementItem['meta'] : [];
+        $achievementTitle = trim((string) ($achievementMeta['title'] ?? ($achievementItem['key'] ?? '')));
+        bober_log_user_activity($conn, $userId, 'achievement_unlock', [
+            'action_group' => 'achievements',
+            'source' => 'account_snapshot',
+            'login' => (string) ($row['login'] ?? ''),
+            'description' => $achievementTitle !== ''
+                ? 'Открыто достижение «' . $achievementTitle . '».'
+                : 'Открыто новое достижение.',
+            'coins_delta' => max(0, (int) ($achievementMeta['rewardCoins'] ?? $achievementMeta['reward_coins'] ?? 0)),
+            'meta' => [
+                'key' => (string) ($achievementItem['key'] ?? ''),
+                'title' => $achievementTitle,
+                'reward_coins' => max(0, (int) ($achievementMeta['rewardCoins'] ?? $achievementMeta['reward_coins'] ?? 0)),
+            ],
+        ]);
+    }
+    foreach ($questUnlocks as $questItem) {
+        $questTitle = trim((string) ($questItem['title'] ?? ($questItem['key'] ?? '')));
+        bober_log_user_activity($conn, $userId, 'quest_complete', [
+            'action_group' => 'quests',
+            'source' => 'account_snapshot',
+            'login' => (string) ($row['login'] ?? ''),
+            'description' => $questTitle !== ''
+                ? 'Выполнен квест «' . $questTitle . '».'
+                : 'Выполнен квест.',
+            'coins_delta' => max(0, (int) ($questItem['rewardCoins'] ?? 0)),
+            'meta' => [
+                'key' => (string) ($questItem['key'] ?? ''),
+                'scope' => (string) ($questItem['scope'] ?? ''),
+                'period_key' => (string) ($questItem['periodKey'] ?? ''),
+                'title' => $questTitle,
+                'description' => trim((string) ($questItem['description'] ?? '')),
+                'goal' => max(0, (int) ($questItem['goal'] ?? 0)),
+                'progress' => max(0, (int) ($questItem['progress'] ?? 0)),
+                'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? 0)),
+            ],
+        ]);
+    }
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
     $catalog = bober_skin_catalog();
     $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
@@ -6248,8 +6533,7 @@ function bober_fetch_account_snapshot($conn, $userId)
     ];
 
     $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
-
-    return [
+    $response = [
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
         'login' => (string) ($row['login'] ?? ''),
@@ -6279,6 +6563,14 @@ function bober_fetch_account_snapshot($conn, $userId)
         'questUnlocks' => $questUnlocks,
         'supportSummary' => $supportSummary,
     ];
+
+    if ($includeActivity) {
+        $response['recentActivity'] = bober_fetch_user_activity_feed($conn, $userId, [
+            'limit' => 12,
+        ]);
+    }
+
+    return $response;
 }
 
 function bober_apply_user_state_update($conn, $userId, $data)
