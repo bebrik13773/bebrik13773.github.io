@@ -4048,10 +4048,10 @@ Owner decisions:
         box-shadow: 0 14px 28px rgba(24, 14, 2, 0.18);
     }
 
-    .support-thread-response-banner::before {
-        content: 'support_agent';
-        font-family: 'Material Icons';
+    .support-thread-response-banner-icon {
+        flex-shrink: 0;
         font-size: 18px;
+        line-height: 1;
         color: #ffd46f;
     }
 
@@ -4154,9 +4154,7 @@ Owner decisions:
         width: fit-content;
     }
 
-    .support-ticket-message-callout::before {
-        content: 'support_agent';
-        font-family: 'Material Icons';
+    .support-ticket-message-callout-icon {
         font-size: 15px;
         line-height: 1;
         color: #87e7ff;
@@ -9950,6 +9948,7 @@ function renderSupportTicketThread() {
     const supportReplyBanner = hasLatestSupportReply
         ? `
             <div class="support-thread-response-banner ${ticket.unreadByUser > 0 ? 'unread' : 'seen'}">
+                <span class="support-thread-response-banner-icon" aria-hidden="true">🛟</span>
                 <div>
                     <strong>${ticket.unreadByUser > 0 ? 'Поддержка ответила на ваш тикет' : 'Последнее сообщение оставила поддержка'}</strong>
                     <span>${escapeHtmlText(formatSupportTicketDate(latestMessage.createdAt))}</span>
@@ -9966,7 +9965,7 @@ function renderSupportTicketThread() {
                     <span>${escapeHtmlText(message.authorType === 'system' ? 'Системное сообщение' : (message.authorType === 'admin' ? 'Поддержка' : 'Вы'))}</span>
                     ${message.authorType === 'system' ? '' : `<span>${escapeHtmlText(formatSupportTicketDate(message.createdAt))}</span>`}
                 </div>
-                ${message.authorType === 'admin' ? `<div class="support-ticket-message-callout">${Number(message.id) === Number(latestAdminMessageId) ? 'Последний ответ поддержки' : 'Ответ поддержки'}</div>` : ''}
+                ${message.authorType === 'admin' ? `<div class="support-ticket-message-callout"><span class="support-ticket-message-callout-icon" aria-hidden="true">🛟</span>${Number(message.id) === Number(latestAdminMessageId) ? 'Последний ответ поддержки' : 'Ответ поддержки'}</div>` : ''}
                 ${message.message ? `<div class="support-ticket-message-body">${escapeHtmlText(message.message || '')}</div>` : ''}
                 ${renderSupportMessageAttachments(message.attachments)}
             </div>
