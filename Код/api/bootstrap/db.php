@@ -2842,6 +2842,12 @@ SQL;
 
 function bober_ensure_user_quests_schema($conn)
 {
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
     $createQuestsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `user_quest_progress` (
     `user_id` INT NOT NULL PRIMARY KEY,
@@ -2876,10 +2882,18 @@ SQL;
             throw new RuntimeException('Не удалось обновить структуру прогресса квестов.');
         }
     }
+
+    $schemaEnsured = true;
 }
 
 function bober_ensure_support_schema($conn)
 {
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
     $createTicketsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `support_tickets` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -2985,6 +2999,8 @@ SQL;
     if (!bober_index_exists($conn, 'support_ticket_messages', 'idx_support_ticket_messages_ticket') && !$conn->query("CREATE INDEX `idx_support_ticket_messages_ticket` ON `support_ticket_messages` (`ticket_id`, `created_at`)")) {
         throw new RuntimeException('Не удалось создать индекс сообщений тикетов.');
     }
+
+    $schemaEnsured = true;
 }
 
 function bober_ensure_gameplay_schema($conn)
@@ -3591,7 +3607,6 @@ function bober_fetch_user_support_summary($conn, $userId)
     }
 
     bober_ensure_support_schema($conn);
-    bober_auto_archive_support_tickets($conn);
     $stmt = $conn->prepare('SELECT COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) AS open_tickets, COALESCE(SUM(unread_by_user), 0) AS unread_replies FROM support_tickets WHERE user_id = ? AND archived_at IS NULL');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сводку тикетов поддержки.');
@@ -6090,6 +6105,7 @@ function bober_fetch_account_snapshot($conn, $userId)
     $questRewardCoins = max(0, (int) ($questRefresh['rewardCoins'] ?? 0));
     $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins + $questRewardCoins;
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
+    $catalog = bober_skin_catalog();
     $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
     $dailyQuestItems = is_array($quests['daily']['items'] ?? null) ? $quests['daily']['items'] : [];
     $weeklyQuestItems = is_array($quests['weekly']['items'] ?? null) ? $quests['weekly']['items'] : [];
