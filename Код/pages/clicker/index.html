@@ -6289,7 +6289,11 @@ async function getLatestCommit() {
         if (commits && commits.length > 0) {
             const commitMessage = commits[0].commit.message.split('\n')[0];
             const author = commits[0].commit.author.name;
-            const date = new Date(commits[0].commit.author.date).toLocaleDateString('ru-RU');
+            const date = formatBoberDateTime(commits[0].commit.author.date, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }, '');
             
             commitElement.innerHTML = `
                 <strong>📌 Последнее изменение:</strong><br>
@@ -6302,7 +6306,11 @@ async function getLatestCommit() {
             
             retryCount = 0;
             
-            console.log(`✅ Информация обновлена: ${new Date().toLocaleTimeString()}`);
+            console.log(`✅ Информация обновлена: ${formatBoberDateTime(new Date(), {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }, '')}`);
         } else {
             throw new Error('Репозиторий пуст или информация не найдена');
         }
@@ -6814,6 +6822,59 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
     };
 }
 
+const BOBER_DISPLAY_LOCALE = 'ru-RU';
+const BOBER_DISPLAY_TIME_ZONE = 'Asia/Omsk';
+const BOBER_DISPLAY_TIME_ZONE_OFFSET = '+06:00';
+
+function parseBoberDateValue(value) {
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        const parsedDate = new Date(value);
+        return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+    }
+
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return null;
+    }
+
+    const hasExplicitTimeZone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(normalizedValue);
+    const normalizedIsoValue = normalizedValue.includes(' ')
+        ? normalizedValue.replace(' ', 'T')
+        : normalizedValue;
+
+    let candidateValue = normalizedIsoValue;
+    if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalizedIsoValue)) {
+        candidateValue = `${normalizedIsoValue}${BOBER_DISPLAY_TIME_ZONE_OFFSET}`;
+    } else if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}$/.test(normalizedIsoValue)) {
+        candidateValue = `${normalizedIsoValue}T00:00:00${BOBER_DISPLAY_TIME_ZONE_OFFSET}`;
+    }
+
+    const parsedDate = new Date(candidateValue);
+    return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function parseBoberDateTimestamp(value) {
+    const parsedDate = parseBoberDateValue(value);
+    return parsedDate ? parsedDate.getTime() : 0;
+}
+
+function formatBoberDateTime(value, options = {}, fallback = '') {
+    const parsedDate = parseBoberDateValue(value);
+    if (!parsedDate) {
+        return fallback || String(value || '').trim();
+    }
+
+    return parsedDate.toLocaleString(BOBER_DISPLAY_LOCALE, {
+        timeZone: BOBER_DISPLAY_TIME_ZONE,
+        hour12: false,
+        ...options
+    });
+}
+
 function normalizeAnnouncement(rawAnnouncement) {
     if (!rawAnnouncement || typeof rawAnnouncement !== 'object') {
         return null;
@@ -6855,7 +6916,7 @@ function getAnnouncementSortTimestamp(announcement) {
             continue;
         }
 
-        const parsedDate = Date.parse(normalizedValue.replace(' ', 'T'));
+        const parsedDate = parseBoberDateTimestamp(normalizedValue);
         if (Number.isFinite(parsedDate)) {
             return parsedDate;
         }
@@ -6953,17 +7014,13 @@ function formatAnnouncementPublishedAt(value) {
         return 'Опубликовано недавно';
     }
 
-    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-    if (Number.isNaN(parsedDate.getTime())) {
-        return normalizedValue;
-    }
-
-    return parsedDate.toLocaleString('ru-RU', {
+    return formatBoberDateTime(normalizedValue, {
         day: '2-digit',
         month: '2-digit',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-    });
+    }, normalizedValue);
 }
 
 function buildAnnouncementBodyHtml(value) {
@@ -8288,7 +8345,7 @@ function normalizeSettingsUpdatedAt(value) {
         return 0;
     }
 
-    const parsedMs = Date.parse(normalizedValue.replace(' ', 'T'));
+    const parsedMs = parseBoberDateTimestamp(normalizedValue);
     return Number.isFinite(parsedMs) ? Math.max(0, Math.floor(parsedMs)) : 0;
 }
 
@@ -10123,18 +10180,13 @@ function formatAchievementDate(value) {
         return 'Синхронизировано с облаком';
     }
 
-    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-    if (Number.isNaN(parsedDate.getTime())) {
-        return normalizedValue;
-    }
-
-    return parsedDate.toLocaleString('ru-RU', {
+    return formatBoberDateTime(normalizedValue, {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-    });
+    }, normalizedValue);
 }
 
 function formatRussianCount(value, forms) {
@@ -10162,8 +10214,8 @@ function formatPublicLastOnline(value) {
         return 'нет данных';
     }
 
-    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-    if (Number.isNaN(parsedDate.getTime())) {
+    const parsedDate = parseBoberDateValue(normalizedValue);
+    if (!parsedDate) {
         return normalizedValue;
     }
 
@@ -10697,8 +10749,8 @@ function renderLeaderboardPublicProfileModal() {
             <div class="profile-achievement-list">
                 ${unlockedAchievements
                     .sort((left, right) => {
-                        const leftTime = Date.parse(String(left?.unlockedAt || '').replace(' ', 'T')) || 0;
-                        const rightTime = Date.parse(String(right?.unlockedAt || '').replace(' ', 'T')) || 0;
+                        const leftTime = parseBoberDateTimestamp(String(left?.unlockedAt || '').trim()) || 0;
+                        const rightTime = parseBoberDateTimestamp(String(right?.unlockedAt || '').trim()) || 0;
                         return rightTime - leftTime;
                     })
                     .map((item) => {
@@ -13815,17 +13867,13 @@ function formatSupportTicketDate(value) {
         return 'только что';
     }
 
-    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-    if (Number.isNaN(parsedDate.getTime())) {
-        return normalizedValue;
-    }
-
-    return parsedDate.toLocaleString('ru-RU', {
+    return formatBoberDateTime(normalizedValue, {
         day: '2-digit',
         month: '2-digit',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-    });
+    }, normalizedValue);
 }
 
 function renderAchievementUnlockModal() {
@@ -14225,7 +14273,17 @@ function formatSessionDateTime(value) {
     }
 
     const normalizedValue = typeof value === 'string' ? value.trim() : '';
-    return normalizedValue || 'неизвестно';
+    if (!normalizedValue) {
+        return 'неизвестно';
+    }
+
+    return formatBoberDateTime(normalizedValue, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }, normalizedValue);
 }
 
 function normalizeGameSessionInfo(rawSession) {
@@ -15545,11 +15603,11 @@ function formatSaveTime(timestamp) {
         return '';
     }
 
-    return new Date(timestamp).toLocaleTimeString('ru-RU', {
+    return formatBoberDateTime(timestamp, {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
-    });
+    }, '');
 }
 
 function clearSaveStatusRefreshTimer() {
@@ -19509,7 +19567,14 @@ class AutoClickerDetector {
         const isRepeat = Boolean(normalizedBan.isRepeat);
         const isPermanent = Boolean(normalizedBan.isPermanent);
         const banUntil = normalizedBan.banUntil
-            ? new Date(String(normalizedBan.banUntil).replace(' ', 'T')).toLocaleString('ru-RU')
+            ? formatBoberDateTime(normalizedBan.banUntil, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }, String(normalizedBan.banUntil))
             : 'до отдельной проверки';
         const message = normalizedBan.message || (isPermanent ? 'Аккаунт заблокирован бессрочно.' : `Аккаунт временно заблокирован до ${banUntil}.`);
         const ipAddress = normalizedBan.ipAddress ? String(normalizedBan.ipAddress) : '';

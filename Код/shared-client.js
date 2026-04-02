@@ -4,6 +4,9 @@
     var DEVICE_BAN_STORAGE_KEY = 'bober_device_ban_info';
     var DEFAULT_FLY_COINS_PER_SCORE = 500;
     var USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
+    var BOBER_DISPLAY_LOCALE = 'ru-RU';
+    var BOBER_DISPLAY_TIME_ZONE = 'Asia/Omsk';
+    var BOBER_DISPLAY_TIME_ZONE_OFFSET = '+06:00';
     var DEFAULT_CLIENT_LOG_CONFIG = {
         dbName: 'bober_main_client_log',
         storeName: 'pending_events',
@@ -12,6 +15,55 @@
         summaryStorageKey: 'bober_client_log_summary',
         deviceIdStorageKey: 'bober_client_log_device_id'
     };
+
+    function parseSharedClientDateValue(value) {
+        if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+        }
+
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            var numericDate = new Date(value);
+            return Number.isNaN(numericDate.getTime()) ? null : numericDate;
+        }
+
+        var normalizedValue = typeof value === 'string' ? value.trim() : String(value || '').trim();
+        if (!normalizedValue) {
+            return null;
+        }
+
+        var hasExplicitTimeZone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(normalizedValue);
+        var normalizedIsoValue = normalizedValue.indexOf(' ') >= 0
+            ? normalizedValue.replace(' ', 'T')
+            : normalizedValue;
+        var candidateValue = normalizedIsoValue;
+
+        if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalizedIsoValue)) {
+            candidateValue = normalizedIsoValue + BOBER_DISPLAY_TIME_ZONE_OFFSET;
+        } else if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}$/.test(normalizedIsoValue)) {
+            candidateValue = normalizedIsoValue + 'T00:00:00' + BOBER_DISPLAY_TIME_ZONE_OFFSET;
+        }
+
+        var parsedDate = new Date(candidateValue);
+        return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+    }
+
+    function parseSharedClientDateTimestamp(value) {
+        var parsedDate = parseSharedClientDateValue(value);
+        return parsedDate ? parsedDate.getTime() : 0;
+    }
+
+    function formatSharedClientDateTime(value, options, fallback) {
+        var parsedDate = parseSharedClientDateValue(value);
+        if (!parsedDate) {
+            return fallback || (typeof value === 'string' ? value.trim() : String(value || '').trim());
+        }
+
+        return parsedDate.toLocaleString(BOBER_DISPLAY_LOCALE, Object.assign({
+            timeZone: BOBER_DISPLAY_TIME_ZONE,
+            hour12: false
+        }, options || {}));
+    }
+
     var ACHIEVEMENT_DEFINITIONS = Object.freeze({
         clicker_10k: Object.freeze({
             title: 'Разогрев',
@@ -568,7 +620,7 @@
         }
 
         if (normalizedBan.banUntil) {
-            var parsedBanUntil = Date.parse(String(normalizedBan.banUntil).replace(' ', 'T'));
+            var parsedBanUntil = parseSharedClientDateTimestamp(normalizedBan.banUntil);
             if (Number.isFinite(parsedBanUntil) && parsedBanUntil > 0) {
                 return parsedBanUntil;
             }
@@ -1017,17 +1069,13 @@
             return 'неизвестно';
         }
 
-        var parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-        if (Number.isNaN(parsedDate.getTime())) {
-            return normalizedValue;
-        }
-
-        return parsedDate.toLocaleString('ru-RU', {
+        return formatSharedClientDateTime(normalizedValue, {
             day: '2-digit',
             month: '2-digit',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
-        });
+        }, normalizedValue);
     }
 
     function normalizeGameSessionInfo(rawSession) {

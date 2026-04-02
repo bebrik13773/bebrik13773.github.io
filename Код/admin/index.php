@@ -7221,24 +7221,91 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             localStorage.setItem('queryCount', queryCount);
         }
 
+        const ADMIN_DISPLAY_LOCALE = 'ru-RU';
+        const ADMIN_DISPLAY_TIME_ZONE = 'Asia/Omsk';
+        const ADMIN_DISPLAY_TIME_ZONE_OFFSET = '+06:00';
+
+        function parseAdminDateValue(value) {
+            if (value instanceof Date) {
+                return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+            }
+
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                const parsedNumericDate = new Date(value);
+                return Number.isNaN(parsedNumericDate.getTime()) ? null : parsedNumericDate;
+            }
+
+            const normalizedValue = String(value || '').trim();
+            if (!normalizedValue) {
+                return null;
+            }
+
+            const hasExplicitTimeZone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(normalizedValue);
+            const normalizedIsoValue = normalizedValue.includes(' ')
+                ? normalizedValue.replace(' ', 'T')
+                : normalizedValue;
+            let candidateValue = normalizedIsoValue;
+
+            if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(normalizedIsoValue)) {
+                candidateValue = `${normalizedIsoValue}${ADMIN_DISPLAY_TIME_ZONE_OFFSET}`;
+            } else if (!hasExplicitTimeZone && /^\d{4}-\d{2}-\d{2}$/.test(normalizedIsoValue)) {
+                candidateValue = `${normalizedIsoValue}T00:00:00${ADMIN_DISPLAY_TIME_ZONE_OFFSET}`;
+            }
+
+            const parsedDate = new Date(candidateValue);
+            return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+        }
+
+        function formatAdminDateValue(value, options = {}, fallback = '—') {
+            const parsedDate = parseAdminDateValue(value);
+            if (!parsedDate) {
+                return fallback || String(value || '').trim();
+            }
+
+            return parsedDate.toLocaleString(ADMIN_DISPLAY_LOCALE, {
+                timeZone: ADMIN_DISPLAY_TIME_ZONE,
+                hour12: false,
+                ...options
+            });
+        }
+
+        function formatAdminDateTimeLocalInput(value) {
+            const parsedDate = parseAdminDateValue(value);
+            if (!parsedDate) {
+                return '';
+            }
+
+            const formatter = new Intl.DateTimeFormat('sv-SE', {
+                timeZone: ADMIN_DISPLAY_TIME_ZONE,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            const parts = formatter.formatToParts(parsedDate).reduce((acc, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+
+            return `${parts.year || '0000'}-${parts.month || '00'}-${parts.day || '00'}T${parts.hour || '00'}:${parts.minute || '00'}`;
+        }
+
         function formatStatsTimestamp(value) {
             const normalizedValue = typeof value === 'string' ? value.trim() : '';
             if (!normalizedValue) {
                 return 'только что';
             }
 
-            const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
-            if (Number.isNaN(parsedDate.getTime())) {
-                return normalizedValue;
-            }
-
-            return parsedDate.toLocaleString('ru-RU', {
+            return formatAdminDateValue(normalizedValue, {
                 day: '2-digit',
                 month: '2-digit',
+                year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
-            });
+            }, normalizedValue);
         }
 
         function loadDashboardStats(forceRefresh = false) {
@@ -11495,12 +11562,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 return '—';
             }
 
-            const date = new Date(String(value).replace(' ', 'T'));
-            if (Number.isNaN(date.getTime())) {
-                return String(value);
-            }
-
-            return date.toLocaleString('ru-RU');
+            return formatAdminDateValue(value, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }, String(value));
         }
 
         function formatAdminNumber(value) {
@@ -14008,13 +14077,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     } else if (column.type.includes('date')) {
                         html += `<input type="date" class="edit-input" data-column="${column.name}" value="${escapeHtml(value || '')}">`;
                     } else if (column.type.includes('datetime') || column.type.includes('timestamp')) {
-                        let dateValue = '';
-                        if (value) {
-                            const date = new Date(value);
-                            if (!isNaN(date)) {
-                                dateValue = date.toISOString().slice(0, 16);
-                            }
-                        }
+                        const dateValue = formatAdminDateTimeLocalInput(value);
                         html += `<input type="datetime-local" class="edit-input" data-column="${column.name}" value="${dateValue}">`;
                     } else if (column.type.includes('tinyint(1)')) {
                         html += `<select class="edit-input" data-column="${column.name}">`;

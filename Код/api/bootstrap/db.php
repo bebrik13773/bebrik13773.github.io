@@ -6,6 +6,16 @@ if (defined('BOBER_DB_BOOTSTRAP_LOADED')) {
 
 define('BOBER_DB_BOOTSTRAP_LOADED', true);
 
+if (!defined('BOBER_APP_TIMEZONE')) {
+    define('BOBER_APP_TIMEZONE', 'Asia/Omsk');
+}
+
+if (!defined('BOBER_APP_TIMEZONE_OFFSET')) {
+    define('BOBER_APP_TIMEZONE_OFFSET', '+06:00');
+}
+
+date_default_timezone_set(BOBER_APP_TIMEZONE);
+
 function bober_load_config()
 {
     static $config = null;
@@ -300,6 +310,10 @@ function bober_db_connect($withDatabase = true)
 
     if (!$conn->set_charset('utf8mb4')) {
         throw new RuntimeException('Не удалось установить кодировку базы данных.');
+    }
+
+    if (!$conn->query("SET time_zone = '" . $conn->real_escape_string(BOBER_APP_TIMEZONE_OFFSET) . "'")) {
+        throw new RuntimeException('Не удалось установить часовой пояс базы данных.');
     }
 
     return $conn;
