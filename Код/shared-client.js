@@ -701,8 +701,30 @@
                 } catch (error) {
                     challengeValue = '';
                 }
+                if (!challengeValue) {
+                    try {
+                        challengeValue = window.sessionStorage.getItem('bober_runtime_challenge') || '';
+                    } catch (error) {
+                        challengeValue = '';
+                    }
+                }
+                if (!challengeValue) {
+                    try {
+                        var currentHostname = currentOrigin ? new URL(currentOrigin).hostname : '';
+                        if (/^bober-api\.gt\.tc$/i.test(currentHostname)) {
+                            challengeValue = '1';
+                        }
+                    } catch (error) {
+                        challengeValue = '';
+                    }
+                }
                 if (challengeValue) {
                     parsedUrl.searchParams.set('i', challengeValue);
+                    try {
+                        window.sessionStorage.setItem('bober_runtime_challenge', challengeValue);
+                    } catch (error) {
+                        // ignore storage issues
+                    }
                 }
             }
 

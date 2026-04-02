@@ -5908,11 +5908,18 @@ const CONFIG = {
 let retryCount = 0;
 let updateTimer = null;
 
+function getCommitWidgetElement() {
+    return document.getElementById('comit');
+}
+
 // === ОСНОВНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ КОММИТА ===
 async function getLatestCommit() {
     const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits`;
-    const commitElement = document.getElementById('comit');
-    
+    const commitElement = getCommitWidgetElement();
+    if (!commitElement) {
+        return null;
+    }
+
     commitElement.classList.remove('error', 'success');
     commitElement.classList.add('loading');
     
@@ -5954,7 +5961,11 @@ async function getLatestCommit() {
 // === ОБРАБОТКА ОШИБОК ===
 function handleError(error, commitElement) {
     console.error('❌ Ошибка при получении коммита:', error);
-    
+
+    if (!commitElement) {
+        return;
+    }
+
     commitElement.classList.remove('loading');
     commitElement.classList.add('error');
     
@@ -6000,9 +6011,11 @@ function stopAutoUpdate() {
 
 // === ИНИЦИАЛИЗАЦИЯ ===
 document.addEventListener('DOMContentLoaded', function() {
-    getLatestCommit();
-    startAutoUpdate();
-    addManualRefreshButton();
+    if (getCommitWidgetElement()) {
+        getLatestCommit();
+        startAutoUpdate();
+        addManualRefreshButton();
+    }
     updateUpgradeShopUI();
     
     document.addEventListener('visibilitychange', function() {
@@ -6017,10 +6030,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // === ДОПОЛНИТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РУЧНОГО ОБНОВЛЕНИЯ ===
 function addManualRefreshButton() {
+    const commitElement = getCommitWidgetElement();
+    if (!commitElement || !commitElement.parentNode) {
+        return;
+    }
+
+    if (document.getElementById('commitManualRefreshButton')) {
+        return;
+    }
+
     const container = document.createElement('div');
     container.style.marginTop = '10px';
     
     const refreshButton = document.createElement('button');
+    refreshButton.id = 'commitManualRefreshButton';
     refreshButton.textContent = '🔄 Обновить';
     refreshButton.style.cssText = `
         background: linear-gradient(135deg, #8b5cf6, #a855f7);
@@ -6057,7 +6080,6 @@ function addManualRefreshButton() {
         }, 2000);
     });
     
-    const commitElement = document.getElementById('comit');
     container.appendChild(refreshButton);
     commitElement.parentNode.insertBefore(container, commitElement.nextSibling);
 }
