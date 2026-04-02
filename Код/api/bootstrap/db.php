@@ -3609,6 +3609,89 @@ SQL;
     if (!$conn->query($createAchievementsSql)) {
         throw new RuntimeException('Не удалось создать таблицу достижений.');
     }
+
+    $achievementColumnAlterMap = [
+        'revoked_at' => "ALTER TABLE `user_achievements` ADD COLUMN `revoked_at` TIMESTAMP NULL DEFAULT NULL AFTER `unlocked_at`",
+    ];
+
+    foreach ($achievementColumnAlterMap as $columnName => $alterSql) {
+        if (!bober_column_exists($conn, 'user_achievements', $columnName)) {
+            if (!$conn->query($alterSql)) {
+                throw new RuntimeException('Не удалось обновить таблицу достижений.');
+            }
+        }
+    }
+}
+
+function bober_ensure_achievement_catalog_schema($conn)
+{
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    if (bober_schema_guard_is_fresh('achievement_catalog')) {
+        $schemaEnsured = true;
+        return;
+    }
+
+    $createCatalogSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `achievement_catalog` (
+    `achievement_key` VARCHAR(120) NOT NULL PRIMARY KEY,
+    `title` VARCHAR(160) NULL,
+    `description` VARCHAR(255) NULL,
+    `icon` VARCHAR(32) NULL,
+    `locked_title` VARCHAR(160) NULL,
+    `locked_description` VARCHAR(255) NULL,
+    `locked_icon` VARCHAR(32) NULL,
+    `is_secret` TINYINT(1) NULL DEFAULT NULL,
+    `reward_coins` INT NULL DEFAULT NULL,
+    `is_active` TINYINT(1) NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createCatalogSql)) {
+        throw new RuntimeException('Не удалось создать таблицу каталога достижений.');
+    }
+
+    bober_schema_guard_touch('achievement_catalog');
+    $schemaEnsured = true;
+}
+
+function bober_ensure_user_achievement_overrides_schema($conn)
+{
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    if (bober_schema_guard_is_fresh('user_achievement_overrides')) {
+        $schemaEnsured = true;
+        return;
+    }
+
+    $createOverridesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_achievement_overrides` (
+    `user_id` INT NOT NULL,
+    `achievement_key` VARCHAR(120) NOT NULL,
+    `override_mode` VARCHAR(16) NOT NULL DEFAULT 'grant',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`user_id`, `achievement_key`),
+    KEY `idx_user_achievement_overrides_user` (`user_id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createOverridesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу ручных override достижений.');
+    }
+
+    bober_schema_guard_touch('user_achievement_overrides');
+    $schemaEnsured = true;
 }
 
 function bober_ensure_user_quests_schema($conn)
@@ -3861,6 +3944,8 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_fly_beaver_schema($conn);
     bober_ensure_user_settings_schema($conn);
     bober_ensure_user_achievements_schema($conn);
+    bober_ensure_achievement_catalog_schema($conn);
+    bober_ensure_user_achievement_overrides_schema($conn);
     bober_ensure_user_quests_schema($conn);
     bober_ensure_support_schema($conn);
 
@@ -5168,7 +5253,7 @@ function bober_update_support_ticket_status($conn, $ticketId, $status)
     return bober_fetch_admin_support_ticket($conn, $ticketId, false);
 }
 
-function bober_get_achievement_reward_map()
+function bober_get_default_achievement_reward_map()
 {
     return [
         'clicker_10k' => 2500,
@@ -5244,15 +5329,374 @@ function bober_get_achievement_reward_map()
     ];
 }
 
-function bober_get_achievement_reward_coins($achievementKey)
+function bober_get_default_achievement_definition_map()
 {
-    $map = bober_get_achievement_reward_map();
+    return [
+        'clicker_10k' => ['title' => 'Разогрев', 'description' => 'Наберите 10 000 коинов в основном кликере.', 'icon' => '🔥'],
+        'clicker_50k' => ['title' => 'Уверенный старт', 'description' => 'Наберите 50 000 коинов в основном кликере.', 'icon' => '🚀'],
+        'clicker_100k' => ['title' => 'Первая сотня тысяч', 'description' => 'Наберите 100 000 коинов в основном кликере.', 'icon' => '💯'],
+        'clicker_500k' => ['title' => 'Полмиллиона', 'description' => 'Наберите 500 000 коинов в основном кликере.', 'icon' => '💎'],
+        'clicker_1m' => ['title' => 'Миллионер', 'description' => 'Наберите 1 000 000 коинов в основном кликере.', 'icon' => '🏦'],
+        'clicker_5m' => ['title' => 'Пять миллионов', 'description' => 'Наберите 5 000 000 коинов в основном кликере.', 'icon' => '💼'],
+        'clicker_10m' => ['title' => 'Десятимиллионный клуб', 'description' => 'Наберите 10 000 000 коинов в основном кликере.', 'icon' => '🪙'],
+        'clicker_50m' => ['title' => 'Финансовый бобр', 'description' => 'Наберите 50 000 000 коинов в основном кликере.', 'icon' => '🏛️'],
+        'clicker_100m' => ['title' => 'Девятизначный бобр', 'description' => 'Наберите 100 000 000 коинов в основном кликере.', 'icon' => '📈'],
+        'clicker_250m' => ['title' => 'Империя клика', 'description' => 'Наберите 250 000 000 коинов в основном кликере.', 'icon' => '🌆'],
+        'clicker_500m' => ['title' => 'Полмиллиарда', 'description' => 'Наберите 500 000 000 коинов в основном кликере.', 'icon' => '🏙️'],
+        'clicker_1b' => ['title' => 'Бобровый миллиард', 'description' => 'Наберите 1 000 000 000 коинов в основном кликере.', 'icon' => '🌍'],
+        'collector_1' => ['title' => 'Первый скин', 'description' => 'Получите первый скин в коллекции.', 'icon' => '🧥'],
+        'collector_3' => ['title' => 'Коллекционер', 'description' => 'Соберите минимум 3 скина.', 'icon' => '🎨'],
+        'collector_5' => ['title' => 'Гардероб', 'description' => 'Соберите минимум 5 скинов.', 'icon' => '👕'],
+        'collector_10' => ['title' => 'Модный дом', 'description' => 'Соберите минимум 10 скинов.', 'icon' => '🛍️'],
+        'collector_20' => ['title' => 'Музей бобров', 'description' => 'Соберите минимум 20 скинов.', 'icon' => '🏛️'],
+        'collector_30' => ['title' => 'Легендарный гардероб', 'description' => 'Соберите минимум 30 скинов.', 'icon' => '🎭'],
+        'collector_40' => ['title' => 'Хранитель коллекции', 'description' => 'Соберите минимум 40 скинов.', 'icon' => '🗃️'],
+        'collector_50' => ['title' => 'Полная витрина', 'description' => 'Соберите минимум 50 скинов.', 'icon' => '🪞'],
+        'fly_best_10' => ['title' => 'Первые крылья', 'description' => 'Получите рекорд 10 в Летающем бобре.', 'icon' => '🪽'],
+        'fly_best_25' => ['title' => 'Низкий пролет', 'description' => 'Получите рекорд 25 в Летающем бобре.', 'icon' => '🌿'],
+        'fly_best_50' => ['title' => 'Повелитель болота', 'description' => 'Получите рекорд 50 в Летающем бобре.', 'icon' => '🌫️'],
+        'fly_best_75' => ['title' => 'Над камышами', 'description' => 'Получите рекорд 75 в Летающем бобре.', 'icon' => '🪶'],
+        'fly_best_100' => ['title' => 'Сотня в полете', 'description' => 'Получите рекорд 100 в Летающем бобре.', 'icon' => '🌤️'],
+        'fly_best_150' => ['title' => 'Небесный бобр', 'description' => 'Получите рекорд 150 в Летающем бобре.', 'icon' => '☁️'],
+        'fly_best_200' => ['title' => 'Стратосфера', 'description' => 'Получите рекорд 200 в Летающем бобре.', 'icon' => '🌌'],
+        'fly_best_300' => ['title' => 'За облаками', 'description' => 'Получите рекорд 300 в Летающем бобре.', 'icon' => '🌠'],
+        'fly_best_400' => ['title' => 'Над горизонтом', 'description' => 'Получите рекорд 400 в Летающем бобре.', 'icon' => '🛰️'],
+        'fly_best_500' => ['title' => 'Предел неба', 'description' => 'Получите рекорд 500 в Летающем бобре.', 'icon' => '🚀'],
+        'fly_games_10' => ['title' => 'Не сдаюсь', 'description' => 'Сыграйте 10 забегов в Летающем бобре.', 'icon' => '🎮'],
+        'fly_games_50' => ['title' => 'Ветеран полетов', 'description' => 'Сыграйте 50 забегов в Летающем бобре.', 'icon' => '🧭'],
+        'fly_games_100' => ['title' => 'Летная школа', 'description' => 'Сыграйте 100 забегов в Летающем бобре.', 'icon' => '🏅'],
+        'fly_games_250' => ['title' => 'Пилот-испытатель', 'description' => 'Сыграйте 250 забегов в Летающем бобре.', 'icon' => '🧪'],
+        'fly_games_500' => ['title' => 'Авиапарк бобров', 'description' => 'Сыграйте 500 забегов в Летающем бобре.', 'icon' => '🛫'],
+        'fly_games_750' => ['title' => 'Лётный марафон', 'description' => 'Сыграйте 750 забегов в Летающем бобре.', 'icon' => '🛩️'],
+        'fly_games_1000' => ['title' => 'Тысяча вылетов', 'description' => 'Сыграйте 1000 забегов в Летающем бобре.', 'icon' => '🪂'],
+        'upgrades_total_10' => ['title' => 'Механик', 'description' => 'Купите суммарно 10 улучшений.', 'icon' => '🛠️'],
+        'upgrades_total_25' => ['title' => 'Инженер клика', 'description' => 'Купите суммарно 25 улучшений.', 'icon' => '⚙️'],
+        'upgrades_total_50' => ['title' => 'Архитектор фермы', 'description' => 'Купите суммарно 50 улучшений.', 'icon' => '🏗️'],
+        'upgrades_total_100' => ['title' => 'Главный конструктор', 'description' => 'Купите суммарно 100 улучшений.', 'icon' => '🏭'],
+        'upgrades_total_200' => ['title' => 'Индустриальный рывок', 'description' => 'Купите суммарно 200 улучшений.', 'icon' => '🏗'],
+        'upgrades_total_300' => ['title' => 'Фабрика клика', 'description' => 'Купите суммарно 300 улучшений.', 'icon' => '🏭'],
+        'upgrades_total_500' => ['title' => 'Мегакомбинат', 'description' => 'Купите суммарно 500 улучшений.', 'icon' => '🌐'],
+        'plus_100' => ['title' => 'Рука тяжелеет', 'description' => 'Поднимите силу клика до +100.', 'icon' => '✋'],
+        'plus_500' => ['title' => 'Удар плотины', 'description' => 'Поднимите силу клика до +500.', 'icon' => '💥'],
+        'plus_1000' => ['title' => 'Сверхудар', 'description' => 'Поднимите силу клика до +1000.', 'icon' => '🧨'],
+        'energy_25k' => ['title' => 'Большой запас', 'description' => 'Доведите максимум энергии до 25 000.', 'icon' => '🔋'],
+        'energy_100k' => ['title' => 'Резервуар', 'description' => 'Доведите максимум энергии до 100 000.', 'icon' => '⚡'],
+        'energy_250k' => ['title' => 'Энергоблок', 'description' => 'Доведите максимум энергии до 250 000.', 'icon' => '🔌'],
+        'energy_500k' => ['title' => 'Энергостанция', 'description' => 'Доведите максимум энергии до 500 000.', 'icon' => '⚙️'],
+        'every_upgrade_once' => ['title' => 'Полный стенд', 'description' => 'Купите хотя бы по одному разу каждое улучшение.', 'icon' => '🧰'],
+        'tap_small_25' => ['title' => 'Точная лапа', 'description' => 'Прокачайте маленький тап до 25 уровня.', 'icon' => '🐾'],
+        'tap_big_25' => ['title' => 'Тяжёлый клик', 'description' => 'Прокачайте большой тап до 25 уровня.', 'icon' => '🔨'],
+        'energy_upgrade_25' => ['title' => 'Энергетик', 'description' => 'Прокачайте энергию до 25 уровня.', 'icon' => '🔋'],
+        'tap_huge_25' => ['title' => 'Сокрушитель', 'description' => 'Прокачайте огромный тап до 25 уровня.', 'icon' => '🪵'],
+        'regen_boost_25' => ['title' => 'Быстрая зарядка X25', 'description' => 'Прокачайте скорость восполнения энергии до 25 уровня.', 'icon' => '⚡'],
+        'energy_huge_10' => ['title' => 'Сверхзапас X10', 'description' => 'Купите 10 уровней огромного запаса энергии.', 'icon' => '🛢️'],
+        'top_clicker_1' => ['title' => 'Топ-1 кликера', 'description' => 'Удерживайте первое место в основном лидерборде.', 'icon' => '👑'],
+        'top_fly_1' => ['title' => 'Топ-1 fly-beaver', 'description' => 'Удерживайте первое место в Летающем бобре.', 'icon' => '🏆'],
+        'secret_double_top' => ['title' => 'Две короны', 'description' => 'Одновременно удерживайте топ-1 в кликере и в Летающем бобре.', 'icon' => '👑', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_all_rounder' => ['title' => 'Универсальный бобр', 'description' => 'Наберите 10 000 000 коинов, получите рекорд 100, соберите 10 скинов и купите 50 улучшений.', 'icon' => '🦫', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_grand_collector' => ['title' => 'Хранитель витрины', 'description' => 'Соберите 30 скинов и купите 100 улучшений.', 'icon' => '🗝️', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_marathon_runner' => ['title' => 'Живущий в небе', 'description' => 'Сыграйте 500 забегов и получите рекорд 200 в Летающем бобре.', 'icon' => '🌙', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_overclocked' => ['title' => 'Перегрузка', 'description' => 'Поднимите силу клика до +500 и максимум энергии до 100 000.', 'icon' => '⚙️', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_six_mastery' => ['title' => 'Шесть путей', 'description' => 'Прокачайте каждое из шести улучшений хотя бы до 10 уровня.', 'icon' => '🧠', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_clicker_legend' => ['title' => 'Легенда плотины', 'description' => 'Наберите 1 000 000 000 коинов и купите суммарно 500 улучшений.', 'icon' => '🏔️', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_fly_machine' => ['title' => 'Машина полёта', 'description' => 'Получите рекорд 400, сыграйте 1000 забегов и прокачайте каждое из шести улучшений хотя бы до 10 уровня.', 'icon' => '🛸', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_full_collection' => ['title' => 'Повелитель витрины', 'description' => 'Соберите 50 скинов и удерживайте топ-1 кликера.', 'icon' => '🫅', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+        'secret_balance_monster' => ['title' => 'Идеальный билд', 'description' => 'Поднимите силу клика до +1000, максимум энергии до 500 000 и соберите 40 скинов.', 'icon' => '🧬', 'secret' => true, 'lockedTitle' => 'Секретное достижение', 'lockedDescription' => 'Условие раскроется только после выполнения.', 'lockedIcon' => '❓'],
+    ];
+}
+
+function bober_fetch_achievement_catalog_map($conn, $forceRefresh = false)
+{
+    $defaultRewardMap = bober_get_default_achievement_reward_map();
+    $defaultDefinitionMap = bober_get_default_achievement_definition_map();
+    $cacheKey = 'achievement_catalog_map_v1';
+
+    if (!$forceRefresh) {
+        $cached = bober_runtime_cache_fetch($conn, $cacheKey);
+        if (is_array($cached['payload'] ?? null)) {
+            return $cached['payload'];
+        }
+    }
+
+    bober_ensure_achievement_catalog_schema($conn);
+
+    $catalogMap = [];
+    foreach ($defaultRewardMap as $achievementKey => $rewardCoins) {
+        $defaultDefinition = is_array($defaultDefinitionMap[$achievementKey] ?? null) ? $defaultDefinitionMap[$achievementKey] : [];
+        $catalogMap[(string) $achievementKey] = [
+            'key' => (string) $achievementKey,
+            'title' => trim((string) ($defaultDefinition['title'] ?? '')),
+            'description' => trim((string) ($defaultDefinition['description'] ?? '')),
+            'icon' => trim((string) ($defaultDefinition['icon'] ?? '')),
+            'lockedTitle' => trim((string) ($defaultDefinition['lockedTitle'] ?? '')),
+            'lockedDescription' => trim((string) ($defaultDefinition['lockedDescription'] ?? '')),
+            'lockedIcon' => trim((string) ($defaultDefinition['lockedIcon'] ?? '')),
+            'secret' => array_key_exists('secret', $defaultDefinition) ? !empty($defaultDefinition['secret']) : null,
+            'rewardCoins' => max(0, (int) $rewardCoins),
+            'isActive' => true,
+            'createdAt' => '',
+            'updatedAt' => '',
+        ];
+    }
+
+    $stmt = $conn->prepare('SELECT achievement_key, title, description, icon, locked_title, locked_description, locked_icon, is_secret, reward_coins, is_active, created_at, updated_at FROM achievement_catalog');
+    if ($stmt && $stmt->execute()) {
+        $result = $stmt->get_result();
+        while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+            $achievementKey = trim((string) ($row['achievement_key'] ?? ''));
+            if ($achievementKey === '' || !array_key_exists($achievementKey, $catalogMap)) {
+                continue;
+            }
+
+            $catalogMap[$achievementKey] = [
+                'key' => $achievementKey,
+                'title' => trim((string) ($row['title'] ?? '')),
+                'description' => trim((string) ($row['description'] ?? '')),
+                'icon' => trim((string) ($row['icon'] ?? '')),
+                'lockedTitle' => trim((string) ($row['locked_title'] ?? '')),
+                'lockedDescription' => trim((string) ($row['locked_description'] ?? '')),
+                'lockedIcon' => trim((string) ($row['locked_icon'] ?? '')),
+                'secret' => array_key_exists('is_secret', $row) && $row['is_secret'] !== null
+                    ? ((int) $row['is_secret'] === 1)
+                    : null,
+                'rewardCoins' => array_key_exists('reward_coins', $row) && $row['reward_coins'] !== null
+                    ? max(0, (int) $row['reward_coins'])
+                    : $catalogMap[$achievementKey]['rewardCoins'],
+                'isActive' => array_key_exists('is_active', $row) && $row['is_active'] !== null
+                    ? ((int) $row['is_active'] === 1)
+                    : true,
+                'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+                'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
+            ];
+        }
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+    } elseif ($stmt) {
+        $stmt->close();
+    }
+
+    bober_runtime_cache_store($conn, $cacheKey, $catalogMap, 180);
+    return $catalogMap;
+}
+
+function bober_fetch_achievement_catalog($conn, $forceRefresh = false)
+{
+    return array_values(bober_fetch_achievement_catalog_map($conn, $forceRefresh));
+}
+
+function bober_fetch_achievement_catalog_item($conn, $achievementKey)
+{
+    $achievementKey = trim((string) $achievementKey);
+    if ($achievementKey === '') {
+        return null;
+    }
+
+    $catalogMap = bober_fetch_achievement_catalog_map($conn);
+    return is_array($catalogMap[$achievementKey] ?? null) ? $catalogMap[$achievementKey] : null;
+}
+
+function bober_get_achievement_reward_map($conn = null)
+{
+    if (!($conn instanceof mysqli)) {
+        return bober_get_default_achievement_reward_map();
+    }
+
+    $catalogMap = bober_fetch_achievement_catalog_map($conn);
+    $rewardMap = [];
+    foreach ($catalogMap as $achievementKey => $item) {
+        $rewardMap[(string) $achievementKey] = max(0, (int) ($item['rewardCoins'] ?? 0));
+    }
+
+    return $rewardMap;
+}
+
+function bober_get_achievement_reward_coins($achievementKey, $conn = null)
+{
+    $map = bober_get_achievement_reward_map($conn);
     return max(0, (int) ($map[$achievementKey] ?? 0));
 }
 
 function bober_get_all_achievement_keys()
 {
-    return array_values(array_keys(bober_get_achievement_reward_map()));
+    return array_values(array_keys(bober_get_default_achievement_reward_map()));
+}
+
+function bober_is_achievement_active($achievementKey, $conn = null)
+{
+    $achievementKey = trim((string) $achievementKey);
+    if ($achievementKey === '') {
+        return false;
+    }
+
+    if (!($conn instanceof mysqli)) {
+        return array_key_exists($achievementKey, bober_get_default_achievement_reward_map());
+    }
+
+    $catalogItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+    if (!is_array($catalogItem)) {
+        return false;
+    }
+
+    return !empty($catalogItem['isActive']);
+}
+
+function bober_normalize_achievement_catalog_payload($achievementKey, array $data = [])
+{
+    $achievementKey = trim((string) $achievementKey);
+    if ($achievementKey === '' || !array_key_exists($achievementKey, bober_get_default_achievement_reward_map())) {
+        throw new InvalidArgumentException('Некорректный ключ достижения.');
+    }
+
+    $defaultDefinitionMap = bober_get_default_achievement_definition_map();
+    $defaultDefinition = is_array($defaultDefinitionMap[$achievementKey] ?? null) ? $defaultDefinitionMap[$achievementKey] : [];
+
+    $title = trim((string) ($data['title'] ?? $defaultDefinition['title'] ?? ''));
+    $description = trim((string) ($data['description'] ?? $defaultDefinition['description'] ?? ''));
+    $icon = trim((string) ($data['icon'] ?? $defaultDefinition['icon'] ?? ''));
+    $lockedTitle = trim((string) ($data['lockedTitle'] ?? $data['locked_title'] ?? $defaultDefinition['lockedTitle'] ?? ''));
+    $lockedDescription = trim((string) ($data['lockedDescription'] ?? $data['locked_description'] ?? $defaultDefinition['lockedDescription'] ?? ''));
+    $lockedIcon = trim((string) ($data['lockedIcon'] ?? $data['locked_icon'] ?? $defaultDefinition['lockedIcon'] ?? ''));
+    $rewardCoins = max(0, (int) ($data['rewardCoins'] ?? $data['reward_coins'] ?? bober_get_achievement_reward_coins($achievementKey)));
+    $isActive = !array_key_exists('isActive', $data)
+        ? (!isset($data['is_active']) || (int) $data['is_active'] === 1)
+        : !empty($data['isActive']);
+    $isSecret = !array_key_exists('isSecret', $data)
+        ? ((isset($data['is_secret']) && (int) $data['is_secret'] === 1) || !empty($defaultDefinition['secret']))
+        : !empty($data['isSecret']);
+
+    $textLength = static function ($value) {
+        $text = (string) $value;
+        if (function_exists('mb_strlen')) {
+            return (int) mb_strlen($text, 'UTF-8');
+        }
+
+        return strlen($text);
+    };
+
+    if ($title !== '' && $textLength($title) > 160) {
+        throw new InvalidArgumentException('Название достижения должно быть не длиннее 160 символов.');
+    }
+    if ($description !== '' && $textLength($description) > 255) {
+        throw new InvalidArgumentException('Описание достижения должно быть не длиннее 255 символов.');
+    }
+    if ($icon !== '' && $textLength($icon) > 32) {
+        throw new InvalidArgumentException('Иконка достижения должна быть не длиннее 32 символов.');
+    }
+    if ($lockedTitle !== '' && $textLength($lockedTitle) > 160) {
+        throw new InvalidArgumentException('Скрытое название достижения должно быть не длиннее 160 символов.');
+    }
+    if ($lockedDescription !== '' && $textLength($lockedDescription) > 255) {
+        throw new InvalidArgumentException('Скрытое описание достижения должно быть не длиннее 255 символов.');
+    }
+    if ($lockedIcon !== '' && $textLength($lockedIcon) > 32) {
+        throw new InvalidArgumentException('Скрытая иконка достижения должна быть не длиннее 32 символов.');
+    }
+
+    return [
+        'key' => $achievementKey,
+        'title' => $title,
+        'description' => $description,
+        'icon' => $icon,
+        'lockedTitle' => $lockedTitle,
+        'lockedDescription' => $lockedDescription,
+        'lockedIcon' => $lockedIcon,
+        'secret' => $isSecret,
+        'rewardCoins' => $rewardCoins,
+        'isActive' => $isActive,
+    ];
+}
+
+function bober_update_achievement_catalog_item($conn, $achievementKey, array $data)
+{
+    bober_ensure_achievement_catalog_schema($conn);
+    $item = bober_normalize_achievement_catalog_payload($achievementKey, $data);
+
+    $stmt = $conn->prepare(
+        'INSERT INTO achievement_catalog (
+            achievement_key,
+            title,
+            description,
+            icon,
+            locked_title,
+            locked_description,
+            locked_icon,
+            is_secret,
+            reward_coins,
+            is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            title = VALUES(title),
+            description = VALUES(description),
+            icon = VALUES(icon),
+            locked_title = VALUES(locked_title),
+            locked_description = VALUES(locked_description),
+            locked_icon = VALUES(locked_icon),
+            is_secret = VALUES(is_secret),
+            reward_coins = VALUES(reward_coins),
+            is_active = VALUES(is_active)'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение каталога достижений.');
+    }
+
+    $secretFlag = $item['secret'] ? 1 : 0;
+    $activeFlag = $item['isActive'] ? 1 : 0;
+    $stmt->bind_param(
+        'sssssssiii',
+        $item['key'],
+        $item['title'],
+        $item['description'],
+        $item['icon'],
+        $item['lockedTitle'],
+        $item['lockedDescription'],
+        $item['lockedIcon'],
+        $secretFlag,
+        $item['rewardCoins'],
+        $activeFlag
+    );
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить каталог достижений.');
+    }
+    $stmt->close();
+
+    bober_runtime_cache_delete($conn, 'achievement_catalog_map_v1');
+    return bober_fetch_achievement_catalog_item($conn, $achievementKey);
+}
+
+function bober_build_achievement_meta_payload($achievementKey, $rewardCoins, array $catalogItem = [], array $extra = [])
+{
+    $meta = [
+        'rewardCoins' => max(0, (int) $rewardCoins),
+    ];
+
+    $fieldMap = [
+        'title' => 'title',
+        'description' => 'description',
+        'icon' => 'icon',
+        'lockedTitle' => 'lockedTitle',
+        'lockedDescription' => 'lockedDescription',
+        'lockedIcon' => 'lockedIcon',
+    ];
+
+    foreach ($fieldMap as $targetKey => $sourceKey) {
+        $value = trim((string) ($catalogItem[$sourceKey] ?? ''));
+        if ($value !== '') {
+            $meta[$targetKey] = $value;
+        }
+    }
+
+    if (array_key_exists('secret', $catalogItem) && $catalogItem['secret'] !== null) {
+        $meta['secret'] = !empty($catalogItem['secret']);
+    }
+
+    foreach ($extra as $key => $value) {
+        $meta[$key] = $value;
+    }
+
+    return $meta;
 }
 
 function bober_fetch_achievement_stats($conn, $forceRefresh = false)
@@ -5300,6 +5744,7 @@ function bober_fetch_achievement_stats($conn, $forceRefresh = false)
         FROM user_achievements ua
         INNER JOIN users u ON u.id = ua.user_id
         WHERE u.login <> 'test'
+          AND ua.revoked_at IS NULL
         GROUP BY ua.achievement_key
     ");
     if ($statsStmt && $statsStmt->execute()) {
@@ -5339,7 +5784,7 @@ function bober_fetch_achievement_stats($conn, $forceRefresh = false)
     return $payload;
 }
 
-function bober_enrich_achievement_items(array $items, array $achievementStats, $totalPlayers = 0)
+function bober_enrich_achievement_items(array $items, array $achievementStats, $totalPlayers = 0, array $catalogMap = [])
 {
     $resolvedTotalPlayers = max(0, (int) $totalPlayers);
     $enrichedItems = [];
@@ -5356,10 +5801,27 @@ function bober_enrich_achievement_items(array $items, array $achievementStats, $
 
         $meta = is_array($item['meta'] ?? null) ? $item['meta'] : [];
         $stats = is_array($achievementStats[$achievementKey] ?? null) ? $achievementStats[$achievementKey] : [];
-        $meta['rewardCoins'] = max(0, (int) ($meta['rewardCoins'] ?? bober_get_achievement_reward_coins($achievementKey)));
+        $catalogItem = is_array($catalogMap[$achievementKey] ?? null) ? $catalogMap[$achievementKey] : [];
+        $meta['rewardCoins'] = max(0, (int) ($meta['rewardCoins'] ?? $catalogItem['rewardCoins'] ?? bober_get_achievement_reward_coins($achievementKey)));
         $meta['unlockCount'] = max(0, (int) ($stats['unlockCount'] ?? 0));
         $meta['playerBase'] = max(0, (int) ($stats['totalPlayers'] ?? $resolvedTotalPlayers));
         $meta['unlockPercent'] = max(0, (float) ($stats['unlockPercent'] ?? 0));
+        foreach ([
+            'title' => 'title',
+            'description' => 'description',
+            'icon' => 'icon',
+            'lockedTitle' => 'lockedTitle',
+            'lockedDescription' => 'lockedDescription',
+            'lockedIcon' => 'lockedIcon',
+        ] as $metaKey => $catalogKey) {
+            $catalogValue = trim((string) ($catalogItem[$catalogKey] ?? ''));
+            if ($catalogValue !== '') {
+                $meta[$metaKey] = $catalogValue;
+            }
+        }
+        if (array_key_exists('secret', $catalogItem) && $catalogItem['secret'] !== null) {
+            $meta['secret'] = !empty($catalogItem['secret']);
+        }
         $item['meta'] = $meta;
         $enrichedItems[] = $item;
     }
@@ -5607,7 +6069,82 @@ function bober_collect_expected_achievement_keys(array $snapshot)
     return array_values(array_unique($keys));
 }
 
-function bober_fetch_user_achievements($conn, $userId)
+function bober_fetch_user_achievement_override_map($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    bober_ensure_user_achievement_overrides_schema($conn);
+
+    $stmt = $conn->prepare('SELECT achievement_key, override_mode, updated_at FROM user_achievement_overrides WHERE user_id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение override достижений пользователя.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось прочитать override достижений пользователя.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $achievementKey = trim((string) ($row['achievement_key'] ?? ''));
+        $mode = trim((string) ($row['override_mode'] ?? ''));
+        if ($achievementKey === '' || !in_array($mode, ['grant', 'revoke'], true)) {
+            continue;
+        }
+
+        $items[$achievementKey] = [
+            'key' => $achievementKey,
+            'mode' => $mode,
+            'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_fetch_user_achievement_overrides($conn, $userId)
+{
+    return array_values(bober_fetch_user_achievement_override_map($conn, $userId));
+}
+
+function bober_apply_user_achievement_override_keys(array $expectedKeys, array $overrideMap)
+{
+    $resolvedMap = [];
+    foreach ($expectedKeys as $achievementKey) {
+        $achievementKey = trim((string) $achievementKey);
+        if ($achievementKey !== '') {
+            $resolvedMap[$achievementKey] = true;
+        }
+    }
+
+    foreach ($overrideMap as $achievementKey => $override) {
+        $mode = trim((string) ($override['mode'] ?? ''));
+        if ($achievementKey === '' || !in_array($mode, ['grant', 'revoke'], true)) {
+            continue;
+        }
+
+        if ($mode === 'grant') {
+            $resolvedMap[$achievementKey] = true;
+            continue;
+        }
+
+        unset($resolvedMap[$achievementKey]);
+    }
+
+    return array_values(array_keys($resolvedMap));
+}
+
+function bober_fetch_user_achievements($conn, $userId, array $options = [])
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -5616,7 +6153,14 @@ function bober_fetch_user_achievements($conn, $userId)
 
     bober_ensure_user_achievements_schema($conn);
 
-    $stmt = $conn->prepare('SELECT achievement_key, unlocked_at, meta_json FROM user_achievements WHERE user_id = ? ORDER BY unlocked_at ASC, id ASC');
+    $includeRevoked = !empty($options['includeRevoked']);
+    $sql = 'SELECT achievement_key, unlocked_at, meta_json, revoked_at FROM user_achievements WHERE user_id = ?';
+    if (!$includeRevoked) {
+        $sql .= ' AND revoked_at IS NULL';
+    }
+    $sql .= ' ORDER BY unlocked_at ASC, id ASC';
+
+    $stmt = $conn->prepare($sql);
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение достижений.');
     }
@@ -5638,6 +6182,7 @@ function bober_fetch_user_achievements($conn, $userId)
         $items[] = [
             'key' => (string) ($row['achievement_key'] ?? ''),
             'unlockedAt' => isset($row['unlocked_at']) ? (string) $row['unlocked_at'] : '',
+            'revokedAt' => isset($row['revoked_at']) ? (string) $row['revoked_at'] : '',
             'meta' => $decodedMeta,
         ];
     }
@@ -5661,7 +6206,18 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
     }
 
     bober_ensure_user_achievements_schema($conn);
-    $expectedKeys = bober_collect_expected_achievement_keys($snapshot);
+    bober_ensure_user_achievement_overrides_schema($conn);
+    bober_ensure_achievement_catalog_schema($conn);
+
+    $catalogMap = bober_fetch_achievement_catalog_map($conn);
+    $autoExpectedKeys = array_values(array_filter(
+        bober_collect_expected_achievement_keys($snapshot),
+        static function ($achievementKey) use ($catalogMap) {
+            return !empty($catalogMap[(string) $achievementKey]['isActive']);
+        }
+    ));
+    $overrideMap = bober_fetch_user_achievement_override_map($conn, $userId);
+    $expectedKeys = bober_apply_user_achievement_override_keys($autoExpectedKeys, $overrideMap);
     if (count($expectedKeys) < 1) {
         return [
             'items' => bober_fetch_user_achievements($conn, $userId),
@@ -5671,7 +6227,7 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
         ];
     }
 
-    $existingStmt = $conn->prepare('SELECT achievement_key FROM user_achievements WHERE user_id = ?');
+    $existingStmt = $conn->prepare('SELECT achievement_key, revoked_at FROM user_achievements WHERE user_id = ?');
     if (!$existingStmt) {
         throw new RuntimeException('Не удалось подготовить чтение достижений пользователя.');
     }
@@ -5683,29 +6239,50 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
     }
 
     $existingResult = $existingStmt->get_result();
-    $existingKeys = [];
+    $activeExistingKeys = [];
+    $revokedExistingKeys = [];
     while ($existingResult instanceof mysqli_result && ($row = $existingResult->fetch_assoc())) {
-        $existingKeys[] = (string) ($row['achievement_key'] ?? '');
+        $achievementKey = (string) ($row['achievement_key'] ?? '');
+        if ($achievementKey === '') {
+            continue;
+        }
+
+        if (!empty($row['revoked_at'])) {
+            $revokedExistingKeys[] = $achievementKey;
+            continue;
+        }
+
+        $activeExistingKeys[] = $achievementKey;
     }
     if ($existingResult instanceof mysqli_result) {
         $existingResult->free();
     }
     $existingStmt->close();
 
+    $existingKeys = array_values(array_unique(array_merge($activeExistingKeys, $revokedExistingKeys)));
     $missingKeys = array_values(array_diff($expectedKeys, $existingKeys));
+    $restoredKeys = array_values(array_intersect($expectedKeys, $revokedExistingKeys));
     $rewardCoinsTotal = 0;
+    $statsChanged = false;
+    $newlyUnlockedKeys = [];
     if (!empty($missingKeys)) {
-        $insertStmt = $conn->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_key, meta_json) VALUES (?, ?, ?)');
+        $insertStmt = $conn->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_key, meta_json, revoked_at) VALUES (?, ?, ?, NULL)');
         if (!$insertStmt) {
             throw new RuntimeException('Не удалось подготовить запись достижений пользователя.');
         }
 
         foreach ($missingKeys as $achievementKey) {
-            $rewardCoins = bober_get_achievement_reward_coins($achievementKey);
-            $rewardCoinsTotal += $rewardCoins;
-            $metaJson = json_encode([
-                'rewardCoins' => $rewardCoins,
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $overrideMode = (string) ($overrideMap[$achievementKey]['mode'] ?? '');
+            $catalogItem = is_array($catalogMap[$achievementKey] ?? null) ? $catalogMap[$achievementKey] : [];
+            $rewardCoins = $overrideMode === 'grant'
+                ? 0
+                : max(0, (int) ($catalogItem['rewardCoins'] ?? bober_get_achievement_reward_coins($achievementKey, $conn)));
+            $metaJson = json_encode(
+                bober_build_achievement_meta_payload($achievementKey, $rewardCoins, $catalogItem, [
+                    'manualOverride' => $overrideMode === 'grant',
+                ]),
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
             if ($metaJson === false) {
                 $metaJson = '{"rewardCoins":0}';
             }
@@ -5715,32 +6292,58 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
                 $insertStmt->close();
                 throw new RuntimeException('Не удалось сохранить новое достижение пользователя.');
             }
+
+            $statsChanged = true;
+            if ($overrideMode !== 'grant') {
+                $rewardCoinsTotal += $rewardCoins;
+                $newlyUnlockedKeys[] = $achievementKey;
+            }
         }
 
         $insertStmt->close();
+    }
 
-        if ($rewardCoinsTotal > 0) {
-            $rewardStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ? LIMIT 1');
-            if (!$rewardStmt) {
-                throw new RuntimeException('Не удалось подготовить начисление наград за достижения.');
-            }
-
-            $rewardStmt->bind_param('ii', $rewardCoinsTotal, $userId);
-            if (!$rewardStmt->execute()) {
-                $rewardStmt->close();
-                throw new RuntimeException('Не удалось начислить награды за достижения.');
-            }
-            $rewardStmt->close();
+    if (!empty($restoredKeys)) {
+        $restoreStmt = $conn->prepare('UPDATE user_achievements SET revoked_at = NULL WHERE user_id = ? AND achievement_key = ? LIMIT 1');
+        if (!$restoreStmt) {
+            throw new RuntimeException('Не удалось подготовить восстановление достижения пользователя.');
         }
 
+        foreach ($restoredKeys as $achievementKey) {
+            $restoreStmt->bind_param('is', $userId, $achievementKey);
+            if (!$restoreStmt->execute()) {
+                $restoreStmt->close();
+                throw new RuntimeException('Не удалось восстановить достижение пользователя.');
+            }
+            $statsChanged = true;
+        }
+
+        $restoreStmt->close();
+    }
+
+    if ($rewardCoinsTotal > 0) {
+        $rewardStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ? LIMIT 1');
+        if (!$rewardStmt) {
+            throw new RuntimeException('Не удалось подготовить начисление наград за достижения.');
+        }
+
+        $rewardStmt->bind_param('ii', $rewardCoinsTotal, $userId);
+        if (!$rewardStmt->execute()) {
+            $rewardStmt->close();
+            throw new RuntimeException('Не удалось начислить награды за достижения.');
+        }
+        $rewardStmt->close();
+    }
+
+    if ($statsChanged) {
         bober_runtime_cache_delete($conn, 'public_achievement_stats_v1');
     }
 
     $items = bober_fetch_user_achievements($conn, $userId);
     $newlyUnlocked = [];
-    if (!empty($missingKeys)) {
+    if (!empty($newlyUnlockedKeys)) {
         foreach ($items as $item) {
-            if (in_array((string) ($item['key'] ?? ''), $missingKeys, true)) {
+            if (in_array((string) ($item['key'] ?? ''), $newlyUnlockedKeys, true)) {
                 $newlyUnlocked[] = $item;
             }
         }
@@ -5750,8 +6353,243 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
         'items' => $items,
         'newlyUnlocked' => $newlyUnlocked,
         'rewardCoins' => $rewardCoinsTotal,
-        'statsChanged' => !empty($missingKeys),
+        'statsChanged' => $statsChanged,
     ];
+}
+
+function bober_collect_user_achievement_snapshot_from_database($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return null;
+    }
+
+    $stmt = $conn->prepare(
+        'SELECT
+            u.score,
+            u.skin,
+            u.upgrade_tap_small_count,
+            u.upgrade_tap_big_count,
+            u.upgrade_energy_count,
+            u.upgrade_tap_huge_count,
+            u.upgrade_regen_boost_count,
+            u.upgrade_energy_huge_count,
+            u.upgrade_click_rate_count,
+            COALESCE(f.best_score, 0) AS fly_best_score,
+            COALESCE(f.games_played, 0) AS fly_games_played
+         FROM users u
+         LEFT JOIN fly_beaver_progress f ON f.user_id = u.id
+         WHERE u.id = ?
+         LIMIT 1'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить снимок прогресса для достижений.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось загрузить снимок прогресса для достижений.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    $upgradeCounts = bober_normalize_upgrade_counts([
+        'tapSmall' => $row['upgrade_tap_small_count'] ?? 0,
+        'tapBig' => $row['upgrade_tap_big_count'] ?? 0,
+        'energy' => $row['upgrade_energy_count'] ?? 0,
+        'tapHuge' => $row['upgrade_tap_huge_count'] ?? 0,
+        'regenBoost' => $row['upgrade_regen_boost_count'] ?? 0,
+        'energyHuge' => $row['upgrade_energy_huge_count'] ?? 0,
+        'clickRate' => $row['upgrade_click_rate_count'] ?? 0,
+    ]);
+    $skinState = bober_decode_skin_state($row['skin'] ?? null);
+    $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
+
+    return [
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => bober_calculate_plus_from_upgrade_counts($upgradeCounts),
+        'energyMax' => bober_calculate_energy_max_from_upgrade_counts($upgradeCounts),
+        'ownedSkinCount' => count($ownedSkinIds),
+        'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
+        'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
+        'flyBeaver' => [
+            'bestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
+            'gamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
+        ],
+        'flyGamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
+        'totalUpgradePurchases' => array_sum($upgradeCounts),
+        'upgradeCounts' => $upgradeCounts,
+    ];
+}
+
+function bober_peek_user_achievement_state($conn, $userId)
+{
+    $achievementStatsBundle = bober_fetch_achievement_stats($conn);
+    $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
+    $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
+    $catalogMap = bober_fetch_achievement_catalog_map($conn);
+
+    return [
+        'items' => bober_enrich_achievement_items(
+            bober_fetch_user_achievements($conn, $userId),
+            $achievementStats,
+            $achievementPlayerBase,
+            $catalogMap
+        ),
+        'overrides' => bober_fetch_user_achievement_overrides($conn, $userId),
+        'stats' => $achievementStats,
+        'playerBase' => $achievementPlayerBase,
+    ];
+}
+
+function bober_set_user_achievement_state($conn, $userId, $achievementKey, $mode)
+{
+    $userId = max(0, (int) $userId);
+    $achievementKey = trim((string) $achievementKey);
+    $mode = trim((string) $mode);
+
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный пользователь для изменения достижения.');
+    }
+    if (!in_array($mode, ['grant', 'revoke', 'auto'], true)) {
+        throw new InvalidArgumentException('Некорректный режим изменения достижения.');
+    }
+    if ($achievementKey === '' || !array_key_exists($achievementKey, bober_get_default_achievement_reward_map())) {
+        throw new InvalidArgumentException('Некорректный ключ достижения.');
+    }
+
+    bober_ensure_user_achievement_overrides_schema($conn);
+    bober_ensure_user_achievements_schema($conn);
+    $catalogItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+
+    if ($mode === 'auto') {
+        $clearStmt = $conn->prepare('DELETE FROM user_achievement_overrides WHERE user_id = ? AND achievement_key = ? LIMIT 1');
+        if (!$clearStmt) {
+            throw new RuntimeException('Не удалось подготовить сброс override достижения.');
+        }
+        $clearStmt->bind_param('is', $userId, $achievementKey);
+        if (!$clearStmt->execute()) {
+            $clearStmt->close();
+            throw new RuntimeException('Не удалось сбросить override достижения.');
+        }
+        $clearStmt->close();
+
+        $snapshot = bober_collect_user_achievement_snapshot_from_database($conn, $userId);
+        if ($snapshot !== null) {
+            $catalogMap = bober_fetch_achievement_catalog_map($conn);
+            $autoExpectedKeys = array_values(array_filter(
+                bober_collect_expected_achievement_keys($snapshot),
+                static function ($expectedKey) use ($catalogMap) {
+                    return !empty($catalogMap[(string) $expectedKey]['isActive']);
+                }
+            ));
+
+            if (!in_array($achievementKey, $autoExpectedKeys, true)) {
+                $metaStmt = $conn->prepare('SELECT meta_json FROM user_achievements WHERE user_id = ? AND achievement_key = ? AND revoked_at IS NULL LIMIT 1');
+                if ($metaStmt) {
+                    $metaStmt->bind_param('is', $userId, $achievementKey);
+                    if ($metaStmt->execute()) {
+                        $result = $metaStmt->get_result();
+                        $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+                        if ($result instanceof mysqli_result) {
+                            $result->free();
+                        }
+
+                        $decodedMeta = [];
+                        if (is_array($row) && trim((string) ($row['meta_json'] ?? '')) !== '') {
+                            $decodedMeta = json_decode((string) ($row['meta_json'] ?? ''), true);
+                            if (!is_array($decodedMeta)) {
+                                $decodedMeta = [];
+                            }
+                        }
+
+                        if (!empty($decodedMeta['manualOverride']) || !empty($decodedMeta['manual_override'])) {
+                            $revokeManualStmt = $conn->prepare('UPDATE user_achievements SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND achievement_key = ? AND revoked_at IS NULL LIMIT 1');
+                            if ($revokeManualStmt) {
+                                $revokeManualStmt->bind_param('is', $userId, $achievementKey);
+                                $revokeManualStmt->execute();
+                                $revokeManualStmt->close();
+                            }
+                        }
+                    }
+                    $metaStmt->close();
+                }
+            }
+        }
+    } else {
+        $overrideStmt = $conn->prepare(
+            'INSERT INTO user_achievement_overrides (user_id, achievement_key, override_mode)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE override_mode = VALUES(override_mode)'
+        );
+        if (!$overrideStmt) {
+            throw new RuntimeException('Не удалось подготовить сохранение override достижения.');
+        }
+        $overrideStmt->bind_param('iss', $userId, $achievementKey, $mode);
+        if (!$overrideStmt->execute()) {
+            $overrideStmt->close();
+            throw new RuntimeException('Не удалось сохранить override достижения.');
+        }
+        $overrideStmt->close();
+    }
+
+    if ($mode === 'grant') {
+        $metaJson = json_encode(
+            bober_build_achievement_meta_payload($achievementKey, 0, is_array($catalogItem) ? $catalogItem : [], [
+                'manualOverride' => true,
+            ]),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        if ($metaJson === false) {
+            $metaJson = '{"rewardCoins":0}';
+        }
+
+        $grantStmt = $conn->prepare(
+            'INSERT INTO user_achievements (user_id, achievement_key, meta_json, revoked_at)
+             VALUES (?, ?, ?, NULL)
+             ON DUPLICATE KEY UPDATE
+                meta_json = VALUES(meta_json),
+                revoked_at = NULL'
+        );
+        if (!$grantStmt) {
+            throw new RuntimeException('Не удалось подготовить ручную выдачу достижения.');
+        }
+        $grantStmt->bind_param('iss', $userId, $achievementKey, $metaJson);
+        if (!$grantStmt->execute()) {
+            $grantStmt->close();
+            throw new RuntimeException('Не удалось вручную выдать достижение.');
+        }
+        $grantStmt->close();
+    } elseif ($mode === 'revoke') {
+        $revokeStmt = $conn->prepare('UPDATE user_achievements SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND achievement_key = ? LIMIT 1');
+        if (!$revokeStmt) {
+            throw new RuntimeException('Не удалось подготовить ручное снятие достижения.');
+        }
+        $revokeStmt->bind_param('is', $userId, $achievementKey);
+        if (!$revokeStmt->execute()) {
+            $revokeStmt->close();
+            throw new RuntimeException('Не удалось вручную снять достижение.');
+        }
+        $revokeStmt->close();
+    }
+
+    $snapshot = bober_collect_user_achievement_snapshot_from_database($conn, $userId);
+    if ($snapshot !== null) {
+        bober_refresh_user_achievements($conn, $userId, $snapshot);
+    }
+
+    bober_runtime_cache_delete($conn, 'public_achievement_stats_v1');
+    return bober_peek_user_achievement_state($conn, $userId);
 }
 
 function bober_fetch_public_leaderboard($conn, $limit = 3)
@@ -6274,10 +7112,12 @@ function bober_fetch_public_player_profile($conn, $userId)
     $achievementStatsBundle = bober_fetch_achievement_stats($conn);
     $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
     $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
+    $achievementCatalogMap = bober_fetch_achievement_catalog_map($conn);
     $achievementItems = bober_enrich_achievement_items(
         bober_fetch_user_achievements($conn, $userId),
         $achievementStats,
-        $achievementPlayerBase
+        $achievementPlayerBase,
+        $achievementCatalogMap
     );
     $clickerTop1 = in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true);
     $flyTop1 = in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true);
@@ -7838,15 +8678,18 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $achievementStatsBundle = bober_fetch_achievement_stats($conn, !empty($achievementRefresh['statsChanged']));
     $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
     $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
+    $achievementCatalogMap = bober_fetch_achievement_catalog_map($conn);
     $achievements = bober_enrich_achievement_items(
         is_array($achievementRefresh['items'] ?? null) ? $achievementRefresh['items'] : [],
         $achievementStats,
-        $achievementPlayerBase
+        $achievementPlayerBase,
+        $achievementCatalogMap
     );
     $achievementUnlocks = bober_enrich_achievement_items(
         is_array($achievementRefresh['newlyUnlocked'] ?? null) ? $achievementRefresh['newlyUnlocked'] : [],
         $achievementStats,
-        $achievementPlayerBase
+        $achievementPlayerBase,
+        $achievementCatalogMap
     );
     $achievementRewardCoins = max(0, (int) ($achievementRefresh['rewardCoins'] ?? 0));
     $questRefresh = bober_refresh_user_quests($conn, $userId);

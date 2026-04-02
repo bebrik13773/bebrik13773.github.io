@@ -976,6 +976,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_achievement_catalog') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $achievementItems = bober_fetch_achievement_catalog($conn);
+                $response['success'] = true;
+                $response['achievements'] = array_values($achievementItems);
+                $response['total'] = count($achievementItems);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_achievement_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $achievementKey = trim((string) ($_POST['achievement_key'] ?? ''));
+                if ($achievementKey === '') {
+                    $response['message'] = 'Не указан ключ достижения.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $achievementItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+                        if ($achievementItem === null) {
+                            $response['message'] = 'Достижение не найдено.';
+                        } else {
+                            $response['success'] = true;
+                            $response['achievement'] = $achievementItem;
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
+        if ($action === 'update_achievement_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $achievementKey = trim((string) ($_POST['achievement_key'] ?? ''));
+                if ($achievementKey === '') {
+                    $response['message'] = 'Не указан ключ достижения.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $currentAchievementItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+                        if ($currentAchievementItem === null) {
+                            $response['message'] = 'Достижение не найдено.';
+                        } else {
+                            $achievementItem = bober_update_achievement_catalog_item($conn, $achievementKey, [
+                                'title' => trim((string) ($_POST['achievement_title'] ?? '')),
+                                'description' => trim((string) ($_POST['achievement_description'] ?? '')),
+                                'icon' => trim((string) ($_POST['achievement_icon'] ?? '')),
+                                'lockedTitle' => trim((string) ($_POST['achievement_locked_title'] ?? '')),
+                                'lockedDescription' => trim((string) ($_POST['achievement_locked_description'] ?? '')),
+                                'lockedIcon' => trim((string) ($_POST['achievement_locked_icon'] ?? '')),
+                                'rewardCoins' => max(0, (int) ($_POST['achievement_reward_coins'] ?? 0)),
+                                'isActive' => !array_key_exists('achievement_active', $_POST) || postBooleanFlag($_POST['achievement_active']),
+                                'isSecret' => !empty($_POST['achievement_secret']) && postBooleanFlag($_POST['achievement_secret']),
+                            ]);
+
+                            $response['success'] = true;
+                            $response['message'] = 'Достижение обновлено.';
+                            $response['achievement'] = $achievementItem;
+                            invalidateAdminRuntimeCaches($conn);
+
+                            bober_admin_log_action($conn, 'update_achievement_catalog_item', [
+                                'target_table' => 'achievement_catalog',
+                                'query_text' => 'UPDATE ACHIEVEMENT ' . $achievementKey,
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'achievement_key' => $achievementKey,
+                                    'previous_title' => (string) ($currentAchievementItem['title'] ?? ''),
+                                    'title' => (string) ($achievementItem['title'] ?? ''),
+                                    'reward_coins' => max(0, (int) ($achievementItem['rewardCoins'] ?? 0)),
+                                    'is_active' => !empty($achievementItem['isActive']),
+                                    'is_secret' => !empty($achievementItem['secret']),
+                                ],
+                            ]);
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
         if ($action === 'get_quest_catalog_item') {
             if (requireAdminAuth($response)) {
                 $questId = max(0, (int) ($_POST['quest_id'] ?? 0));
@@ -1381,6 +1471,7 @@ SQL;
                         }
 
                         $questState = bober_peek_user_quests($conn, $userId);
+                        $achievementState = bober_peek_user_achievement_state($conn, $userId);
 
                         $response['success'] = true;
                         $activeSessions = bober_fetch_user_active_game_sessions($conn, $userId);
@@ -1428,6 +1519,8 @@ SQL;
                             'ipBans' => $ipBans,
                             'activeSessions' => $activeSessions,
                             'activityHistory' => $activityHistory,
+                            'achievements' => is_array($achievementState['items'] ?? null) ? $achievementState['items'] : [],
+                            'achievementOverrides' => is_array($achievementState['overrides'] ?? null) ? $achievementState['overrides'] : [],
                             'quests' => is_array($questState['items'] ?? null) ? $questState['items'] : [
                                 'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
                                 'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
@@ -1775,6 +1868,92 @@ SQL;
                                 ],
                             ]);
                         }
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'set_user_achievement_state') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $achievementKey = trim((string) ($_POST['achievement_key'] ?? ''));
+                $mode = strtolower(trim((string) ($_POST['mode'] ?? '')));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } elseif ($achievementKey === '') {
+                    $response['message'] = 'Не указан ключ достижения.';
+                } elseif (!in_array($mode, ['grant', 'revoke', 'auto'], true)) {
+                    $response['message'] = 'Некорректный режим изменения достижения.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT `id`, `login` FROM `users` WHERE `id` = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось проверить пользователя для изменения достижения.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось проверить пользователя для изменения достижения.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult instanceof mysqli_result ? $userResult->fetch_assoc() : null;
+                    if ($userResult instanceof mysqli_result) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $conn->begin_transaction();
+                        $achievementState = bober_set_user_achievement_state($conn, $userId, $achievementKey, $mode);
+                        $conn->commit();
+
+                        $catalogItem = bober_fetch_achievement_catalog_item($conn, $achievementKey);
+                        $achievementTitle = trim((string) (($catalogItem['title'] ?? '') !== '' ? $catalogItem['title'] : $achievementKey));
+
+                        $response['success'] = true;
+                        $response['message'] = $mode === 'grant'
+                            ? ('Достижение "' . $achievementTitle . '" выдано пользователю.')
+                            : ($mode === 'revoke'
+                                ? ('Достижение "' . $achievementTitle . '" скрыто у пользователя.')
+                                : ('Достижение "' . $achievementTitle . '" возвращено в автоматическое состояние.'));
+                        $response['achievementState'] = $achievementState;
+
+                        bober_admin_log_action($conn, 'set_user_achievement_state', [
+                            'target_table' => 'user_achievements',
+                            'query_text' => 'SET USER ACHIEVEMENT ' . $achievementKey . ' [' . $mode . ']',
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => (string) ($userRow['login'] ?? ''),
+                                'achievement_key' => $achievementKey,
+                                'achievement_title' => $achievementTitle,
+                                'mode' => $mode,
+                            ],
+                        ]);
+                        bober_log_user_activity($conn, $userId, 'admin_set_achievement_state', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'login' => (string) ($userRow['login'] ?? ''),
+                            'description' => $mode === 'grant'
+                                ? 'Администратор вручную выдал достижение.'
+                                : ($mode === 'revoke'
+                                    ? 'Администратор вручную снял достижение.'
+                                    : 'Администратор вернул достижение в автоматическое состояние.'),
+                            'meta' => [
+                                'achievement_key' => $achievementKey,
+                                'achievement_title' => $achievementTitle,
+                                'mode' => $mode,
+                            ],
+                        ]);
                     }
 
                     $conn->close();
@@ -5432,6 +5611,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">task_alt</span>
             <span>Квесты</span>
         </div>
+
+        <div class="sidebar-item" id="achievementsBtn">
+            <span class="material-icons">military_tech</span>
+            <span>Достижения</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -5670,6 +5854,44 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <div class="skin-catalog-meta" id="questCatalogMeta">Загрузка каталога квестов...</div>
                     <div class="skin-catalog-grid" id="questCatalogGrid"></div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="achievementsView" style="display: none;">
+                <div class="card skins-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">military_tech</span>
+                                Каталог достижений
+                            </h2>
+                            <div class="card-subtitle">Встроенные достижения можно переопределять в админке: менять текст, иконку, секретность, награду и участие в авто-выдаче. Новые ключи здесь не создаются.</div>
+                        </div>
+                        <button class="btn btn-outline" id="refreshAchievementCatalogBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="achievementCatalogSearchInput" class="search-input" placeholder="Найти достижение по названию, описанию или ключу">
+                        </div>
+                        <select class="form-control account-sort-select" id="achievementCatalogStatusSelect" aria-label="Фильтр по активности достижения">
+                            <option value="all">Все статусы</option>
+                            <option value="active">Только активные</option>
+                            <option value="inactive">Только выключенные</option>
+                        </select>
+                        <select class="form-control account-sort-select" id="achievementCatalogSecretSelect" aria-label="Фильтр по секретности достижения">
+                            <option value="all">Все достижения</option>
+                            <option value="public">Только обычные</option>
+                            <option value="secret">Только секретные</option>
+                        </select>
+                    </div>
+
+                    <div class="skin-catalog-meta" id="achievementCatalogMeta">Загрузка каталога достижений...</div>
+                    <div class="skin-catalog-grid" id="achievementCatalogGrid"></div>
                 </div>
             </div>
 
@@ -6423,6 +6645,78 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         </div>
     </div>
 
+    <div class="modal-overlay" id="editAchievementModal">
+        <div class="modal-content">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">military_tech</span>
+                        <span id="editAchievementModalTitle">Редактировать достижение</span>
+                    </h3>
+                    <div class="card-subtitle" id="editAchievementModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Можно поменять отображение, награду и участие этого встроенного достижения в авто-выдаче.
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeEditAchievementModal" type="button">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="editAchievementForm">
+                    <div class="form-group">
+                        <label class="form-label" for="editAchievementKeyInput">Ключ</label>
+                        <input class="form-control" id="editAchievementKeyInput" type="text" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editAchievementTitleInput">Название</label>
+                        <input class="form-control" id="editAchievementTitleInput" type="text" maxlength="160" placeholder="Название достижения">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editAchievementDescriptionInput">Описание</label>
+                        <textarea class="form-control" id="editAchievementDescriptionInput" rows="4" maxlength="255" placeholder="Что должен сделать игрок"></textarea>
+                    </div>
+                    <div class="maintenance-form-row">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="editAchievementIconInput">Иконка</label>
+                            <input class="form-control" id="editAchievementIconInput" type="text" maxlength="32" placeholder="Например: 🏆">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label" for="editAchievementRewardInput">Награда, коинов</label>
+                            <input class="form-control" id="editAchievementRewardInput" type="number" min="0" step="1" value="0">
+                        </div>
+                    </div>
+                    <label class="form-label" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 12px;">
+                        <input id="editAchievementSecretInput" type="checkbox">
+                        <span>Секретное достижение</span>
+                    </label>
+                    <label class="form-label" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input id="editAchievementActiveInput" type="checkbox" checked>
+                        <span>Участвует в автоматической выдаче</span>
+                    </label>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label" for="editAchievementLockedTitleInput">Скрытое название</label>
+                        <input class="form-control" id="editAchievementLockedTitleInput" type="text" maxlength="160" placeholder="Например: Секретное достижение">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editAchievementLockedDescriptionInput">Скрытое описание</label>
+                        <textarea class="form-control" id="editAchievementLockedDescriptionInput" rows="3" maxlength="255" placeholder="Что увидит игрок до открытия"></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="editAchievementLockedIconInput">Скрытая иконка</label>
+                        <input class="form-control" id="editAchievementLockedIconInput" type="text" maxlength="32" placeholder="Например: ❓">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelEditAchievementModal" type="button">Отмена</button>
+                <button class="btn btn-primary" id="saveEditAchievementBtn" type="button">
+                    <span class="btn-text">Сохранить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="deleteSkinModal">
         <div class="modal-content modal-content-danger">
             <div class="card-header">
@@ -6573,6 +6867,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let questCatalogSearch = '';
         let questCatalogScopeFilter = 'all';
         let questCatalogStatusFilter = 'all';
+        let achievementCatalogItems = [];
+        let achievementCatalogLoadPromise = null;
+        let achievementCatalogSearch = '';
+        let achievementCatalogStatusFilter = 'all';
+        let achievementCatalogSecretFilter = 'all';
         let pendingDeleteSkinId = '';
         let skinEditorState = {
             mode: 'create',
@@ -6583,6 +6882,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             mode: 'create',
             templateId: 0,
             questKey: ''
+        };
+        let achievementEditorState = {
+            key: ''
         };
         let pendingBanDurationSelection = {
             isPermanent: false,
@@ -7500,6 +7802,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 showQuestsView();
                 closeSidebarForCompactViewport();
             });
+
+            document.getElementById('achievementsBtn').addEventListener('click', function() {
+                showAchievementsView();
+                closeSidebarForCompactViewport();
+            });
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
                 showStatistics();
@@ -7554,6 +7861,75 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshQuestCatalogBtn) {
                 refreshQuestCatalogBtn.addEventListener('click', function() {
                     loadQuestCatalogAdmin();
+                });
+            }
+
+            const achievementCatalogSearchInput = document.getElementById('achievementCatalogSearchInput');
+            if (achievementCatalogSearchInput) {
+                achievementCatalogSearchInput.addEventListener('input', function() {
+                    achievementCatalogSearch = this.value.trim();
+                    renderAchievementCatalogList();
+                });
+            }
+
+            const achievementCatalogStatusSelect = document.getElementById('achievementCatalogStatusSelect');
+            if (achievementCatalogStatusSelect) {
+                achievementCatalogStatusSelect.addEventListener('change', function() {
+                    achievementCatalogStatusFilter = this.value || 'all';
+                    renderAchievementCatalogList();
+                });
+            }
+
+            const achievementCatalogSecretSelect = document.getElementById('achievementCatalogSecretSelect');
+            if (achievementCatalogSecretSelect) {
+                achievementCatalogSecretSelect.addEventListener('change', function() {
+                    achievementCatalogSecretFilter = this.value || 'all';
+                    renderAchievementCatalogList();
+                });
+            }
+
+            const refreshAchievementCatalogBtn = document.getElementById('refreshAchievementCatalogBtn');
+            if (refreshAchievementCatalogBtn) {
+                refreshAchievementCatalogBtn.addEventListener('click', function() {
+                    loadAchievementCatalogAdmin();
+                });
+            }
+
+            const editAchievementModal = document.getElementById('editAchievementModal');
+            if (editAchievementModal) {
+                editAchievementModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideEditAchievementModal();
+                    }
+                });
+            }
+
+            const closeEditAchievementModalBtn = document.getElementById('closeEditAchievementModal');
+            if (closeEditAchievementModalBtn) {
+                closeEditAchievementModalBtn.addEventListener('click', function() {
+                    hideEditAchievementModal();
+                });
+            }
+
+            const cancelEditAchievementModalBtn = document.getElementById('cancelEditAchievementModal');
+            if (cancelEditAchievementModalBtn) {
+                cancelEditAchievementModalBtn.addEventListener('click', function() {
+                    hideEditAchievementModal();
+                });
+            }
+
+            const saveEditAchievementBtn = document.getElementById('saveEditAchievementBtn');
+            if (saveEditAchievementBtn) {
+                saveEditAchievementBtn.addEventListener('click', function() {
+                    submitEditAchievementModal();
+                });
+            }
+
+            const editAchievementForm = document.getElementById('editAchievementForm');
+            if (editAchievementForm) {
+                editAchievementForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    submitEditAchievementModal();
                 });
             }
 
@@ -8824,6 +9200,324 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function normalizeAdminAchievementTemplate(rawAchievement) {
+            if (!rawAchievement || typeof rawAchievement !== 'object') {
+                return null;
+            }
+
+            return {
+                key: String(rawAchievement.key || rawAchievement.achievement_key || '').trim(),
+                title: String(rawAchievement.title || '').trim(),
+                description: String(rawAchievement.description || '').trim(),
+                icon: String(rawAchievement.icon || '').trim(),
+                lockedTitle: String(rawAchievement.lockedTitle || rawAchievement.locked_title || '').trim(),
+                lockedDescription: String(rawAchievement.lockedDescription || rawAchievement.locked_description || '').trim(),
+                lockedIcon: String(rawAchievement.lockedIcon || rawAchievement.locked_icon || '').trim(),
+                secret: Boolean(rawAchievement.secret ?? rawAchievement.isSecret ?? rawAchievement.is_secret),
+                rewardCoins: Math.max(0, Number(rawAchievement.rewardCoins ?? rawAchievement.reward_coins) || 0),
+                isActive: Boolean(rawAchievement.isActive ?? rawAchievement.is_active ?? true),
+                createdAt: String(rawAchievement.createdAt || rawAchievement.created_at || '').trim(),
+                updatedAt: String(rawAchievement.updatedAt || rawAchievement.updated_at || '').trim()
+            };
+        }
+
+        function fetchAchievementCatalogItems(options = {}) {
+            const forceRefresh = Boolean(options && options.forceRefresh);
+            if (!forceRefresh && achievementCatalogItems.length > 0) {
+                return Promise.resolve(achievementCatalogItems);
+            }
+
+            if (!forceRefresh && achievementCatalogLoadPromise) {
+                return achievementCatalogLoadPromise;
+            }
+
+            achievementCatalogLoadPromise = postAction({
+                action: 'get_achievement_catalog'
+            })
+                .then(data => {
+                    if (!data.success || !Array.isArray(data.achievements)) {
+                        throw new Error(data.message || 'Не удалось загрузить каталог достижений');
+                    }
+
+                    achievementCatalogItems = data.achievements
+                        .map(item => normalizeAdminAchievementTemplate(item))
+                        .filter(Boolean)
+                        .sort((left, right) => String(left.title || left.key || '').localeCompare(String(right.title || right.key || ''), 'ru'));
+                    return achievementCatalogItems;
+                })
+                .finally(() => {
+                    achievementCatalogLoadPromise = null;
+                });
+
+            return achievementCatalogLoadPromise;
+        }
+
+        function ensureAchievementCatalogLoaded() {
+            return fetchAchievementCatalogItems();
+        }
+
+        function getFilteredAchievementCatalogItems() {
+            const query = achievementCatalogSearch.toLowerCase();
+
+            return achievementCatalogItems.filter(item => {
+                if (!item) {
+                    return false;
+                }
+
+                if (achievementCatalogStatusFilter === 'active' && !item.isActive) {
+                    return false;
+                }
+
+                if (achievementCatalogStatusFilter === 'inactive' && item.isActive) {
+                    return false;
+                }
+
+                if (achievementCatalogSecretFilter === 'secret' && !item.secret) {
+                    return false;
+                }
+
+                if (achievementCatalogSecretFilter === 'public' && item.secret) {
+                    return false;
+                }
+
+                if (!query) {
+                    return true;
+                }
+
+                return [
+                    String(item.key || ''),
+                    String(item.title || ''),
+                    String(item.description || ''),
+                    String(item.lockedTitle || ''),
+                    String(item.lockedDescription || '')
+                ].some(value => value.toLowerCase().includes(query));
+            });
+        }
+
+        function renderAchievementCatalogList() {
+            const grid = document.getElementById('achievementCatalogGrid');
+            const meta = document.getElementById('achievementCatalogMeta');
+
+            if (!grid || !meta) {
+                return;
+            }
+
+            const filteredItems = getFilteredAchievementCatalogItems();
+            const secretLabel = achievementCatalogSecretFilter === 'all'
+                ? 'все достижения'
+                : (achievementCatalogSecretFilter === 'secret' ? 'только секретные' : 'только обычные');
+            meta.textContent = achievementCatalogSearch
+                ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(achievementCatalogItems.length)} достижений по запросу "${achievementCatalogSearch}".`
+                : `Всего достижений: ${formatAdminNumber(achievementCatalogItems.length)}. Фильтр: ${secretLabel}.`;
+
+            if (filteredItems.length < 1) {
+                grid.innerHTML = '<div class="empty-list">По этому запросу достижения не найдены.</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => `
+                <article class="skin-catalog-card" data-achievement-key="${escapeHtml(item.key)}">
+                    <div class="skin-catalog-card-body">
+                        <div class="skin-catalog-card-head">
+                            <div>
+                                <div class="skin-catalog-card-title">${escapeHtml(item.icon || '🏅')} ${escapeHtml(item.title || item.key)}</div>
+                                <div class="skin-catalog-card-id">${escapeHtml(item.key)}</div>
+                            </div>
+                            <span class="status-pill ${item.isActive ? 'active' : 'banned'}">${item.isActive ? 'Авто' : 'Выключено'}</span>
+                        </div>
+                        <div class="stack-item-meta">
+                            ${escapeHtml(item.description || 'Описание не задано.')}<br>
+                            Награда: ${formatAdminNumber(item.rewardCoins)} коинов<br>
+                            Тип: ${item.secret ? 'секретное' : 'обычное'}
+                            ${item.secret ? `<br>Locked: ${escapeHtml(item.lockedTitle || 'Секретное достижение')}` : ''}
+                        </div>
+                        <div class="skin-catalog-card-actions">
+                            <button class="btn btn-outline btn-small edit-achievement-btn" type="button" data-achievement-key="${escapeHtml(item.key)}">
+                                <span class="material-icons">edit</span>
+                                Редактировать
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            `).join('');
+
+            grid.querySelectorAll('.edit-achievement-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    openAchievementCatalogItemEditor(String(this.dataset.achievementKey || ''));
+                });
+            });
+        }
+
+        function loadAchievementCatalogAdmin() {
+            const grid = document.getElementById('achievementCatalogGrid');
+            const meta = document.getElementById('achievementCatalogMeta');
+
+            if (grid) {
+                grid.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю каталог достижений...</div>';
+            }
+            if (meta) {
+                meta.textContent = 'Загрузка каталога достижений...';
+            }
+
+            fetchAchievementCatalogItems({
+                forceRefresh: true
+            })
+                .then(() => {
+                    renderAchievementCatalogList();
+                    if (currentAdminView === 'accounts' && selectedAccountProfile && !selectedAccountDirty) {
+                        renderUserProfile(selectedAccountProfile);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (grid) {
+                        grid.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки каталога')}</div>`;
+                    }
+                    if (meta) {
+                        meta.textContent = 'Не удалось загрузить каталог достижений';
+                    }
+                    showNotification(error.message || 'Ошибка загрузки каталога достижений', 'error');
+                });
+        }
+
+        function showEditAchievementModal(achievementItem) {
+            const item = normalizeAdminAchievementTemplate(achievementItem);
+            if (!item || !item.key) {
+                showNotification('Не удалось открыть достижение для редактирования.', 'error');
+                return;
+            }
+
+            achievementEditorState = {
+                key: item.key
+            };
+
+            document.getElementById('editAchievementKeyInput').value = item.key;
+            document.getElementById('editAchievementTitleInput').value = item.title || '';
+            document.getElementById('editAchievementDescriptionInput').value = item.description || '';
+            document.getElementById('editAchievementIconInput').value = item.icon || '';
+            document.getElementById('editAchievementRewardInput').value = String(Math.max(0, Number(item.rewardCoins) || 0));
+            document.getElementById('editAchievementSecretInput').checked = Boolean(item.secret);
+            document.getElementById('editAchievementActiveInput').checked = Boolean(item.isActive);
+            document.getElementById('editAchievementLockedTitleInput').value = item.lockedTitle || '';
+            document.getElementById('editAchievementLockedDescriptionInput').value = item.lockedDescription || '';
+            document.getElementById('editAchievementLockedIconInput').value = item.lockedIcon || '';
+            document.getElementById('editAchievementModalTitle').textContent = `Редактировать: ${item.title || item.key}`;
+            document.getElementById('editAchievementModalSubtitle').textContent = `Ключ: ${item.key}. Изменения затронут отображение и правила авто-выдачи этого встроенного достижения.`;
+            document.getElementById('editAchievementModal').classList.add('active');
+        }
+
+        async function openAchievementCatalogItemEditor(achievementKey) {
+            const normalizedAchievementKey = String(achievementKey || '').trim();
+            if (!normalizedAchievementKey) {
+                showNotification('Не удалось определить достижение для редактирования.', 'error');
+                return;
+            }
+
+            try {
+                const data = await postAction({
+                    action: 'get_achievement_catalog_item',
+                    achievement_key: normalizedAchievementKey
+                });
+
+                if (!data.success || !data.achievement) {
+                    throw new Error(data.message || 'Не удалось загрузить достижение для редактирования');
+                }
+
+                const normalizedAchievement = normalizeAdminAchievementTemplate(data.achievement);
+                if (!normalizedAchievement) {
+                    throw new Error('Сервер вернул некорректные данные достижения');
+                }
+
+                showEditAchievementModal(normalizedAchievement);
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка загрузки достижения', 'error');
+            }
+        }
+
+        function hideEditAchievementModal() {
+            document.getElementById('editAchievementModal').classList.remove('active');
+        }
+
+        function submitEditAchievementModal() {
+            const achievementKey = String(achievementEditorState.key || '').trim();
+            if (!achievementKey) {
+                showNotification('Не удалось определить достижение для сохранения.', 'error');
+                return;
+            }
+
+            const saveButton = document.getElementById('saveEditAchievementBtn');
+            const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
+            const loader = saveButton ? saveButton.querySelector('.loader') : null;
+
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: 'update_achievement_catalog_item',
+                achievement_key: achievementKey,
+                achievement_title: String(document.getElementById('editAchievementTitleInput').value || '').trim(),
+                achievement_description: String(document.getElementById('editAchievementDescriptionInput').value || '').trim(),
+                achievement_icon: String(document.getElementById('editAchievementIconInput').value || '').trim(),
+                achievement_reward_coins: String(Math.max(0, Math.floor(Number(document.getElementById('editAchievementRewardInput').value || 0) || 0))),
+                achievement_secret: document.getElementById('editAchievementSecretInput').checked ? '1' : '0',
+                achievement_active: document.getElementById('editAchievementActiveInput').checked ? '1' : '0',
+                achievement_locked_title: String(document.getElementById('editAchievementLockedTitleInput').value || '').trim(),
+                achievement_locked_description: String(document.getElementById('editAchievementLockedDescriptionInput').value || '').trim(),
+                achievement_locked_icon: String(document.getElementById('editAchievementLockedIconInput').value || '').trim()
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось сохранить достижение');
+                    }
+
+                    hideEditAchievementModal();
+                    loadAchievementCatalogAdmin();
+                    showNotification(data.message || 'Достижение сохранено', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка сохранения достижения', 'error');
+                })
+                .finally(() => {
+                    if (saveButton) {
+                        saveButton.disabled = false;
+                    }
+                    if (btnText) {
+                        btnText.style.display = 'inline';
+                    }
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                });
+        }
+
+        function showAchievementsView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'achievements';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'block';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('achievementsBtn');
+            loadDashboardStats();
+            loadAchievementCatalogAdmin();
+        }
+
         function showQuestsView() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'quests';
@@ -8831,6 +9525,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'block';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -8848,6 +9543,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'block';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -9705,6 +10401,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10084,6 +10781,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'block';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10111,6 +10809,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10130,6 +10829,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10148,6 +10848,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10541,6 +11242,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 ensureQuestCatalogLoaded().catch(error => {
                     console.warn('Не удалось заранее загрузить каталог квестов для карточки пользователя.', error);
                     return null;
+                }),
+                ensureAchievementCatalogLoaded().catch(error => {
+                    console.warn('Не удалось заранее загрузить каталог достижений для карточки пользователя.', error);
+                    return null;
                 })
             ])
             .then(([data]) => {
@@ -10639,6 +11344,159 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 const extra = skinItem ? ` • ${getSkinRarityLabel(skinItem.rarity)}` : '';
                 return `<span class="mini-chip">${escapeHtml(label)}${equippedSkinId === skinId ? ' • надет' : ''}${extra}</span>`;
             }).join('')}</div>`;
+        }
+
+        function normalizeAdminAchievementRuntimeItem(rawItem) {
+            if (!rawItem || typeof rawItem !== 'object') {
+                return null;
+            }
+
+            const meta = rawItem.meta && typeof rawItem.meta === 'object' ? rawItem.meta : {};
+            const key = String(rawItem.key || '').trim();
+            const catalogItem = achievementCatalogItems.find(item => String(item.key) === key) || null;
+
+            return {
+                key,
+                unlockedAt: String(rawItem.unlockedAt || rawItem.unlocked_at || '').trim(),
+                revokedAt: String(rawItem.revokedAt || rawItem.revoked_at || '').trim(),
+                title: String(meta.title || (catalogItem && catalogItem.title) || key).trim(),
+                description: String(meta.description || (catalogItem && catalogItem.description) || '').trim(),
+                icon: String(meta.icon || (catalogItem && catalogItem.icon) || '').trim(),
+                rewardCoins: Math.max(0, Number(meta.rewardCoins ?? meta.reward_coins ?? (catalogItem ? catalogItem.rewardCoins : 0) ?? 0) || 0),
+                secret: Boolean(meta.secret ?? (catalogItem && catalogItem.secret)),
+                manualOverride: Boolean(meta.manualOverride || meta.manual_override),
+                unlockPercent: Math.max(0, Number(meta.unlockPercent ?? meta.unlock_percent) || 0)
+            };
+        }
+
+        function normalizeAdminAchievementOverrideItem(rawItem) {
+            if (!rawItem || typeof rawItem !== 'object') {
+                return null;
+            }
+
+            const key = String(rawItem.key || '').trim();
+            const mode = String(rawItem.mode || '').trim().toLowerCase();
+            if (!key || !mode) {
+                return null;
+            }
+
+            const catalogItem = achievementCatalogItems.find(item => String(item.key) === key) || null;
+            return {
+                key,
+                mode,
+                updatedAt: String(rawItem.updatedAt || rawItem.updated_at || '').trim(),
+                title: String((catalogItem && catalogItem.title) || key).trim()
+            };
+        }
+
+        function buildUserAchievementSelectOptions(selectedKey = '') {
+            if (!Array.isArray(achievementCatalogItems) || achievementCatalogItems.length < 1) {
+                return '<option value="">Каталог достижений еще загружается...</option>';
+            }
+
+            const normalizedSelectedKey = String(selectedKey || '').trim();
+            return achievementCatalogItems.map(item => {
+                const label = `${item.icon || '🏅'} ${item.title || item.key} · ${formatAdminNumber(item.rewardCoins)} коинов`;
+                return `<option value="${escapeHtml(item.key)}"${item.key === normalizedSelectedKey ? ' selected' : ''}>${escapeHtml(label)}${item.isActive ? '' : ' [выключено]'}</option>`;
+            }).join('');
+        }
+
+        function buildAdminAchievementOverridesHtml(overrides) {
+            const normalizedOverrides = Array.isArray(overrides)
+                ? overrides.map(item => normalizeAdminAchievementOverrideItem(item)).filter(Boolean)
+                : [];
+            if (normalizedOverrides.length < 1) {
+                return '<div class="empty-list">Ручных override для достижений пока нет.</div>';
+            }
+
+            return `<div class="stack-list">${normalizedOverrides.map(item => `
+                <div class="stack-item">
+                    <div class="stack-item-title">
+                        <span>${escapeHtml(item.title || item.key)}</span>
+                        <span class="status-pill ${item.mode === 'revoke' ? 'banned' : 'warning'}">${item.mode === 'revoke' ? 'Скрыто вручную' : 'Выдано вручную'}</span>
+                    </div>
+                    <div class="stack-item-meta">
+                        Ключ: ${escapeHtml(item.key)}<br>
+                        Обновлено: ${escapeHtml(formatAdminDateTime(item.updatedAt))}
+                    </div>
+                </div>
+            `).join('')}</div>`;
+        }
+
+        function buildAdminUserAchievementSectionHtml(achievements, overrides) {
+            const normalizedAchievements = Array.isArray(achievements)
+                ? achievements.map(item => normalizeAdminAchievementRuntimeItem(item)).filter(Boolean)
+                : [];
+            const normalizedOverrides = Array.isArray(overrides)
+                ? overrides.map(item => normalizeAdminAchievementOverrideItem(item)).filter(Boolean)
+                : [];
+
+            return `
+                <div class="form-group">
+                    <label class="form-label" for="userAchievementSelect">Ручное изменение достижения</label>
+                    <div class="inline-actions" style="margin-top: 0;">
+                        <select class="form-control" id="userAchievementSelect" style="flex: 1; min-width: 260px;">
+                            ${buildUserAchievementSelectOptions()}
+                        </select>
+                        <button class="btn btn-outline btn-small set-user-achievement-state-btn" type="button" data-mode="grant">
+                            <span class="material-icons">workspace_premium</span>
+                            Выдать
+                        </button>
+                        <button class="btn btn-outline btn-small set-user-achievement-state-btn" type="button" data-mode="revoke">
+                            <span class="material-icons">visibility_off</span>
+                            Скрыть
+                        </button>
+                        <button class="btn btn-primary btn-small set-user-achievement-state-btn" type="button" data-mode="auto">
+                            <span class="material-icons">autorenew</span>
+                            Авто
+                        </button>
+                    </div>
+                    <div class="card-subtitle" style="margin-top: 10px;">
+                        <code>Выдать</code> открывает достижение без повторной награды, <code>Скрыть</code> убирает его у игрока, <code>Авто</code> снимает ручной override и возвращает системную логику.
+                    </div>
+                </div>
+                <div class="detail-form-grid">
+                    <div class="form-group wide" style="margin-bottom: 0;">
+                        <div class="stack-item">
+                            <div class="stack-item-title">
+                                <span>Активные достижения</span>
+                                <span class="status-pill active">${formatAdminNumber(normalizedAchievements.length)}</span>
+                            </div>
+                            <div class="stack-item-meta">
+                                ${normalizedAchievements.length > 0
+                                    ? normalizedAchievements.map(item => `
+                                        <div class="stack-item" style="margin-top: 12px;">
+                                            <div class="stack-item-title">
+                                                <span>${escapeHtml(item.icon || '🏅')} ${escapeHtml(item.title || item.key)}</span>
+                                                <span class="status-pill ${item.manualOverride ? 'warning' : 'active'}">${item.manualOverride ? 'Ручная выдача' : 'Авто / обычное'}</span>
+                                            </div>
+                                            <div class="stack-item-meta">
+                                                ${escapeHtml(item.description || 'Описание не задано.')}<br>
+                                                Ключ: ${escapeHtml(item.key)}<br>
+                                                Награда: ${formatAdminNumber(item.rewardCoins)} коинов<br>
+                                                Редкость: ${item.secret ? 'секретное' : 'обычное'}<br>
+                                                Открыл: ${escapeHtml(formatAdminDateTime(item.unlockedAt))}
+                                                ${item.unlockPercent > 0 ? `<br>Открыли: ${escapeHtml(String(item.unlockPercent.toFixed ? item.unlockPercent.toFixed(2) : item.unlockPercent))}% игроков` : ''}
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                    : 'У игрока пока нет открытых достижений.'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group wide" style="margin-bottom: 0;">
+                        <div class="stack-item">
+                            <div class="stack-item-title">
+                                <span>Ручные override</span>
+                                <span class="status-pill active">${formatAdminNumber(normalizedOverrides.length)}</span>
+                            </div>
+                            <div class="stack-item-meta">
+                                ${buildAdminAchievementOverridesHtml(normalizedOverrides)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function buildActivityHistoryHtml(activityHistory) {
@@ -11100,6 +11958,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const fly = user.flyBeaver || {};
             const activeSessions = Array.isArray(user.activeSessions) ? user.activeSessions : [];
             const skinState = parseAdminSkinState(user.skin || '');
+            const achievementItems = Array.isArray(user.achievements) ? user.achievements : [];
+            const achievementOverrides = Array.isArray(user.achievementOverrides) ? user.achievementOverrides : [];
             const questState = normalizeAdminQuestRuntimeState(user.quests || {});
             const detailContainer = document.getElementById('accountDetailContainer');
 
@@ -11296,6 +12156,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="readonly-value">${escapeHtml(formatAdminDateTime(fly.lastPlayedAt))}</span>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">military_tech</span>
+                            Достижения игрока
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom: 14px;">
+                            Ручная выдача и скрытие работают поверх автоматической системы достижений и не начисляют награду повторно.
+                        </div>
+                        ${buildAdminUserAchievementSectionHtml(achievementItems, achievementOverrides)}
                     </section>
 
                     <section class="detail-section">
@@ -11612,6 +12483,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         Number(this.dataset.slotIndex || 0),
                         this
                     );
+                });
+            });
+            detailContainer.querySelectorAll('.set-user-achievement-state-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    setSelectedAccountAchievementState(String(this.dataset.mode || ''), this);
                 });
             });
             const activityFilterSelect = document.getElementById('accountActivityFilterSelect');
@@ -12141,6 +13017,65 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function setSelectedAccountAchievementState(mode, triggerButton = null) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            if (selectedAccountDirty) {
+                showNotification('Сначала сохраните или отмените несохраненные изменения в карточке пользователя.', 'warning');
+                return;
+            }
+
+            const normalizedMode = ['grant', 'revoke', 'auto'].includes(String(mode || '').trim())
+                ? String(mode || '').trim()
+                : 'grant';
+            const selectNode = document.getElementById('userAchievementSelect');
+            const achievementKey = String(selectNode && selectNode.value ? selectNode.value : '').trim();
+
+            if (!achievementKey) {
+                showNotification('Выберите достижение для изменения.', 'error');
+                return;
+            }
+
+            const actionButtons = Array.from(document.querySelectorAll('.set-user-achievement-state-btn'));
+            const originalContent = triggerButton ? triggerButton.innerHTML : '';
+
+            actionButtons.forEach(button => {
+                button.disabled = true;
+            });
+            if (triggerButton) {
+                triggerButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'set_user_achievement_state',
+                user_id: String(selectedAccountId),
+                achievement_key: achievementKey,
+                mode: normalizedMode
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось изменить состояние достижения');
+                    }
+
+                    showNotification(data.message || 'Состояние достижения обновлено', 'success');
+                    loadUserProfile(selectedAccountId);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка изменения состояния достижения', 'error');
+                })
+                .finally(() => {
+                    actionButtons.forEach(button => {
+                        button.disabled = false;
+                    });
+                    if (triggerButton) {
+                        triggerButton.innerHTML = originalContent;
+                    }
+                });
+        }
+
         function terminateSelectedUserSession(sessionId) {
             if (!selectedAccountId) {
                 return;
@@ -12316,6 +13251,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('accountsView').style.display = 'none';
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
