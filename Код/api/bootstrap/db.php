@@ -3631,10 +3631,12 @@ CREATE TABLE IF NOT EXISTS `user_quest_progress` (
     `daily_roll_token` INT NOT NULL DEFAULT 0,
     `daily_counters_json` LONGTEXT NULL,
     `daily_claimed_json` LONGTEXT NULL,
+    `daily_manual_keys_json` LONGTEXT NULL,
     `weekly_period_key` VARCHAR(32) NOT NULL,
     `weekly_roll_token` INT NOT NULL DEFAULT 0,
     `weekly_counters_json` LONGTEXT NULL,
     `weekly_claimed_json` LONGTEXT NULL,
+    `weekly_manual_keys_json` LONGTEXT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -3649,11 +3651,13 @@ SQL;
         'daily_roll_token' => "ALTER TABLE `user_quest_progress` ADD COLUMN `daily_roll_token` INT NOT NULL DEFAULT 0 AFTER `daily_period_key`",
         'daily_counters_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `daily_counters_json` LONGTEXT NULL AFTER `daily_roll_token`",
         'daily_claimed_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `daily_claimed_json` LONGTEXT NULL AFTER `daily_counters_json`",
-        'weekly_period_key' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_period_key` VARCHAR(32) NOT NULL DEFAULT '' AFTER `daily_claimed_json`",
+        'daily_manual_keys_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `daily_manual_keys_json` LONGTEXT NULL AFTER `daily_claimed_json`",
+        'weekly_period_key' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_period_key` VARCHAR(32) NOT NULL DEFAULT '' AFTER `daily_manual_keys_json`",
         'weekly_roll_token' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_roll_token` INT NOT NULL DEFAULT 0 AFTER `weekly_period_key`",
         'weekly_counters_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_counters_json` LONGTEXT NULL AFTER `weekly_roll_token`",
         'weekly_claimed_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_claimed_json` LONGTEXT NULL AFTER `weekly_counters_json`",
-        'created_at' => "ALTER TABLE `user_quest_progress` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `weekly_claimed_json`",
+        'weekly_manual_keys_json' => "ALTER TABLE `user_quest_progress` ADD COLUMN `weekly_manual_keys_json` LONGTEXT NULL AFTER `weekly_claimed_json`",
+        'created_at' => "ALTER TABLE `user_quest_progress` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `weekly_manual_keys_json`",
         'updated_at' => "ALTER TABLE `user_quest_progress` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
     ];
 
@@ -6522,6 +6526,41 @@ function bober_encode_json_map(array $payload)
     return $encoded === false ? '{}' : $encoded;
 }
 
+function bober_decode_json_list($rawValue, array $fallback = [])
+{
+    if (!is_string($rawValue) || trim($rawValue) === '') {
+        return $fallback;
+    }
+
+    $decoded = json_decode($rawValue, true);
+    return is_array($decoded) ? array_values($decoded) : $fallback;
+}
+
+function bober_encode_json_list(array $payload)
+{
+    $encoded = json_encode(array_values($payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return $encoded === false ? '[]' : $encoded;
+}
+
+function bober_default_quest_manual_keys($count = 2)
+{
+    return array_fill(0, max(0, (int) $count), '');
+}
+
+function bober_normalize_quest_manual_keys($rawKeys, $count = 2)
+{
+    $normalized = bober_default_quest_manual_keys($count);
+    if (!is_array($rawKeys)) {
+        return $normalized;
+    }
+
+    for ($index = 0; $index < $count; $index++) {
+        $normalized[$index] = trim((string) ($rawKeys[$index] ?? ''));
+    }
+
+    return $normalized;
+}
+
 function bober_get_daily_quest_definitions()
 {
     return [
@@ -6953,6 +6992,58 @@ function bober_fetch_quest_template_by_id($conn, $templateId)
     return bober_normalize_quest_template_row($row);
 }
 
+function bober_fetch_quest_template_by_key($conn, $questKey)
+{
+    $questKey = trim((string) $questKey);
+    if ($questKey === '') {
+        return null;
+    }
+
+    bober_ensure_user_quests_schema($conn);
+    $stmt = $conn->prepare(
+        'SELECT `id`, `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `reward_coins`, `is_active`, `created_at`, `updated_at`
+         FROM `quest_templates`
+         WHERE `quest_key` = ?
+         LIMIT 1'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение шаблона квеста по ключу.');
+    }
+
+    $stmt->bind_param('s', $questKey);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось прочитать шаблон квеста по ключу.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return bober_normalize_quest_template_row($row);
+}
+
+function bober_build_quest_definition_from_template(array $item)
+{
+    $questKey = trim((string) ($item['key'] ?? $item['quest_key'] ?? ''));
+    if ($questKey === '') {
+        return null;
+    }
+
+    return [
+        'id' => max(0, (int) ($item['id'] ?? 0)),
+        'title' => (string) ($item['title'] ?? $questKey),
+        'description' => (string) ($item['description'] ?? ''),
+        'metric' => (string) ($item['metric'] ?? 'scoreGain'),
+        'goal' => max(1, (int) ($item['goal'] ?? 1)),
+        'rewardCoins' => max(0, (int) ($item['rewardCoins'] ?? $item['reward_coins'] ?? 0)),
+        'isActive' => !array_key_exists('isActive', $item) || !empty($item['isActive']) || !empty($item['is_active']),
+    ];
+}
+
 function bober_fetch_active_quest_definitions($conn, $scope)
 {
     $normalizedScope = bober_normalize_quest_scope($scope);
@@ -6969,13 +7060,10 @@ function bober_fetch_active_quest_definitions($conn, $scope)
             continue;
         }
 
-        $definitions[$questKey] = [
-            'title' => (string) ($item['title'] ?? $questKey),
-            'description' => (string) ($item['description'] ?? ''),
-            'metric' => (string) ($item['metric'] ?? 'scoreGain'),
-            'goal' => max(1, (int) ($item['goal'] ?? 1)),
-            'rewardCoins' => max(0, (int) ($item['rewardCoins'] ?? 0)),
-        ];
+        $definition = bober_build_quest_definition_from_template($item);
+        if ($definition !== null) {
+            $definitions[$questKey] = $definition;
+        }
     }
 
     bober_file_cache_store($cacheKey, $definitions);
@@ -7154,17 +7242,19 @@ function bober_select_rotating_quest_keys(array $definitions, $userId, $periodKe
 function bober_store_user_quest_progress_state($conn, $userId, array $state)
 {
     $stmt = $conn->prepare(
-        'INSERT INTO user_quest_progress (user_id, daily_period_key, daily_roll_token, daily_counters_json, daily_claimed_json, weekly_period_key, weekly_roll_token, weekly_counters_json, weekly_claimed_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        'INSERT INTO user_quest_progress (user_id, daily_period_key, daily_roll_token, daily_counters_json, daily_claimed_json, daily_manual_keys_json, weekly_period_key, weekly_roll_token, weekly_counters_json, weekly_claimed_json, weekly_manual_keys_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
             daily_period_key = VALUES(daily_period_key),
             daily_roll_token = VALUES(daily_roll_token),
             daily_counters_json = VALUES(daily_counters_json),
             daily_claimed_json = VALUES(daily_claimed_json),
+            daily_manual_keys_json = VALUES(daily_manual_keys_json),
             weekly_period_key = VALUES(weekly_period_key),
             weekly_roll_token = VALUES(weekly_roll_token),
             weekly_counters_json = VALUES(weekly_counters_json),
-            weekly_claimed_json = VALUES(weekly_claimed_json)'
+            weekly_claimed_json = VALUES(weekly_claimed_json),
+            weekly_manual_keys_json = VALUES(weekly_manual_keys_json)'
     );
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сохранение прогресса квестов.');
@@ -7176,20 +7266,24 @@ function bober_store_user_quest_progress_state($conn, $userId, array $state)
     $weeklyRollToken = max(0, (int) ($state['weeklyRollToken'] ?? 0));
     $dailyCountersJson = bober_encode_json_map((array) ($state['dailyCounters'] ?? []));
     $dailyClaimedJson = bober_encode_json_map((array) ($state['dailyClaimed'] ?? []));
+    $dailyManualKeysJson = bober_encode_json_list(bober_normalize_quest_manual_keys((array) ($state['dailyManualKeys'] ?? [])));
     $weeklyCountersJson = bober_encode_json_map((array) ($state['weeklyCounters'] ?? []));
     $weeklyClaimedJson = bober_encode_json_map((array) ($state['weeklyClaimed'] ?? []));
+    $weeklyManualKeysJson = bober_encode_json_list(bober_normalize_quest_manual_keys((array) ($state['weeklyManualKeys'] ?? [])));
 
     $stmt->bind_param(
-        'isisssiss',
+        'isissssisss',
         $userId,
         $dailyPeriodKey,
         $dailyRollToken,
         $dailyCountersJson,
         $dailyClaimedJson,
+        $dailyManualKeysJson,
         $weeklyPeriodKey,
         $weeklyRollToken,
         $weeklyCountersJson,
-        $weeklyClaimedJson
+        $weeklyClaimedJson,
+        $weeklyManualKeysJson
     );
     if (!$stmt->execute()) {
         $stmt->close();
@@ -7207,16 +7301,18 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
             'dailyRollToken' => 0,
             'dailyCounters' => bober_default_quest_counters(),
             'dailyClaimed' => [],
+            'dailyManualKeys' => bober_default_quest_manual_keys(),
             'weeklyPeriodKey' => '',
             'weeklyRollToken' => 0,
             'weeklyCounters' => bober_default_quest_counters(),
             'weeklyClaimed' => [],
+            'weeklyManualKeys' => bober_default_quest_manual_keys(),
         ];
     }
 
     bober_ensure_user_quests_schema($conn);
     $periods = bober_get_quest_period_keys();
-    $query = 'SELECT user_id, daily_period_key, daily_roll_token, daily_counters_json, daily_claimed_json, weekly_period_key, weekly_roll_token, weekly_counters_json, weekly_claimed_json FROM user_quest_progress WHERE user_id = ? LIMIT 1';
+    $query = 'SELECT user_id, daily_period_key, daily_roll_token, daily_counters_json, daily_claimed_json, daily_manual_keys_json, weekly_period_key, weekly_roll_token, weekly_counters_json, weekly_claimed_json, weekly_manual_keys_json FROM user_quest_progress WHERE user_id = ? LIMIT 1';
     if ($forUpdate) {
         $query .= ' FOR UPDATE';
     }
@@ -7245,10 +7341,12 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
             'dailyRollToken' => 0,
             'dailyCounters' => bober_default_quest_counters(),
             'dailyClaimed' => [],
+            'dailyManualKeys' => bober_default_quest_manual_keys(),
             'weeklyPeriodKey' => $periods['weekly'],
             'weeklyRollToken' => 0,
             'weeklyCounters' => bober_default_quest_counters(),
             'weeklyClaimed' => [],
+            'weeklyManualKeys' => bober_default_quest_manual_keys(),
         ];
         bober_store_user_quest_progress_state($conn, $userId, $state);
         return $state;
@@ -7264,6 +7362,7 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
         'dailyClaimed' => array_filter(bober_decode_json_map((string) ($row['daily_claimed_json'] ?? ''), []), static function ($value) {
             return is_string($value) && trim($value) !== '';
         }),
+        'dailyManualKeys' => bober_normalize_quest_manual_keys(bober_decode_json_list((string) ($row['daily_manual_keys_json'] ?? ''), [])),
         'weeklyPeriodKey' => (string) ($row['weekly_period_key'] ?? ''),
         'weeklyRollToken' => max(0, (int) ($row['weekly_roll_token'] ?? 0)),
         'weeklyCounters' => array_merge(
@@ -7273,6 +7372,7 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
         'weeklyClaimed' => array_filter(bober_decode_json_map((string) ($row['weekly_claimed_json'] ?? ''), []), static function ($value) {
             return is_string($value) && trim($value) !== '';
         }),
+        'weeklyManualKeys' => bober_normalize_quest_manual_keys(bober_decode_json_list((string) ($row['weekly_manual_keys_json'] ?? ''), [])),
     ];
 
     $changed = false;
@@ -7281,6 +7381,7 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
         $state['dailyRollToken'] = 0;
         $state['dailyCounters'] = bober_default_quest_counters();
         $state['dailyClaimed'] = [];
+        $state['dailyManualKeys'] = bober_default_quest_manual_keys();
         $changed = true;
     }
     if ($state['weeklyPeriodKey'] !== $periods['weekly']) {
@@ -7288,6 +7389,7 @@ function bober_prepare_user_quest_progress_state($conn, $userId, $forUpdate = fa
         $state['weeklyRollToken'] = 0;
         $state['weeklyCounters'] = bober_default_quest_counters();
         $state['weeklyClaimed'] = [];
+        $state['weeklyManualKeys'] = bober_default_quest_manual_keys();
         $changed = true;
     }
 
@@ -7329,14 +7431,97 @@ function bober_increment_user_quest_counters($conn, $userId, array $deltas)
     bober_store_user_quest_progress_state($conn, $userId, $state);
 }
 
+function bober_attach_manual_quest_definitions($conn, array $definitions, $scope, array $manualKeys)
+{
+    $normalizedScope = bober_normalize_quest_scope($scope);
+    foreach (bober_normalize_quest_manual_keys($manualKeys) as $questKey) {
+        if ($questKey === '' || isset($definitions[$questKey])) {
+            continue;
+        }
+
+        $template = bober_fetch_quest_template_by_key($conn, $questKey);
+        if ($template === null || bober_normalize_quest_scope($template['scope'] ?? 'daily') !== $normalizedScope) {
+            continue;
+        }
+
+        $definition = bober_build_quest_definition_from_template($template);
+        if ($definition !== null) {
+            $definitions[$questKey] = $definition;
+        }
+    }
+
+    return $definitions;
+}
+
+function bober_resolve_user_quest_slots(array $definitions, array $rotatingKeys, array $manualKeys, $count = 2)
+{
+    $slotCount = max(1, (int) $count);
+    $slots = array_fill(0, $slotCount, [
+        'key' => '',
+        'manual' => false,
+    ]);
+    $usedKeys = [];
+    $normalizedManualKeys = bober_normalize_quest_manual_keys($manualKeys, $slotCount);
+
+    for ($index = 0; $index < $slotCount; $index++) {
+        $questKey = trim((string) ($normalizedManualKeys[$index] ?? ''));
+        if ($questKey === '' || !isset($definitions[$questKey]) || in_array($questKey, $usedKeys, true)) {
+            continue;
+        }
+
+        $slots[$index] = [
+            'key' => $questKey,
+            'manual' => true,
+        ];
+        $usedKeys[] = $questKey;
+    }
+
+    foreach ($rotatingKeys as $questKey) {
+        $questKey = trim((string) $questKey);
+        if ($questKey === '' || !isset($definitions[$questKey]) || in_array($questKey, $usedKeys, true)) {
+            continue;
+        }
+
+        foreach ($slots as $index => $slot) {
+            if (($slot['key'] ?? '') !== '') {
+                continue;
+            }
+
+            $slots[$index] = [
+                'key' => $questKey,
+                'manual' => false,
+            ];
+            $usedKeys[] = $questKey;
+            break;
+        }
+    }
+
+    return $slots;
+}
+
+function bober_extract_user_quest_manual_keys_from_slots(array $slots, $count = 2)
+{
+    $slotCount = max(1, (int) $count);
+    $manualKeys = bober_default_quest_manual_keys($slotCount);
+
+    for ($index = 0; $index < $slotCount; $index++) {
+        $slot = is_array($slots[$index] ?? null) ? $slots[$index] : [];
+        if (!empty($slot['manual'])) {
+            $manualKeys[$index] = trim((string) ($slot['key'] ?? ''));
+        }
+    }
+
+    return $manualKeys;
+}
+
 function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
         return [
             'items' => [
-                'daily' => ['periodKey' => '', 'items' => []],
-                'weekly' => ['periodKey' => '', 'items' => []],
+                'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+                'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
             ],
             'newlyCompleted' => [],
             'rewardCoins' => 0,
@@ -7344,17 +7529,33 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
     }
 
     $state = bober_prepare_user_quest_progress_state($conn, $userId, $applyRewards);
-    $dailyDefinitions = bober_fetch_active_quest_definitions($conn, 'daily');
-    $weeklyDefinitions = bober_fetch_active_quest_definitions($conn, 'weekly');
-    $dailyKeys = bober_select_rotating_quest_keys($dailyDefinitions, $userId, $state['dailyPeriodKey'], 2, $state['dailyRollToken'] ?? 0);
-    $weeklyKeys = bober_select_rotating_quest_keys($weeklyDefinitions, $userId, $state['weeklyPeriodKey'], 2, $state['weeklyRollToken'] ?? 0);
+    $dailyActiveDefinitions = bober_fetch_active_quest_definitions($conn, 'daily');
+    $weeklyActiveDefinitions = bober_fetch_active_quest_definitions($conn, 'weekly');
+    $dailyKeys = bober_select_rotating_quest_keys($dailyActiveDefinitions, $userId, $state['dailyPeriodKey'], 2, $state['dailyRollToken'] ?? 0);
+    $weeklyKeys = bober_select_rotating_quest_keys($weeklyActiveDefinitions, $userId, $state['weeklyPeriodKey'], 2, $state['weeklyRollToken'] ?? 0);
+    $dailyDefinitions = bober_attach_manual_quest_definitions($conn, $dailyActiveDefinitions, 'daily', (array) ($state['dailyManualKeys'] ?? []));
+    $weeklyDefinitions = bober_attach_manual_quest_definitions($conn, $weeklyActiveDefinitions, 'weekly', (array) ($state['weeklyManualKeys'] ?? []));
+    $dailySlots = bober_resolve_user_quest_slots($dailyDefinitions, $dailyKeys, (array) ($state['dailyManualKeys'] ?? []), 2);
+    $weeklySlots = bober_resolve_user_quest_slots($weeklyDefinitions, $weeklyKeys, (array) ($state['weeklyManualKeys'] ?? []), 2);
     $rewardCoinsTotal = 0;
     $newlyCompleted = [];
     $stateChanged = false;
 
-    $buildQuestItems = static function ($scope, array $definitions, array $questKeys, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards) {
+    $normalizedDailyManualKeys = bober_extract_user_quest_manual_keys_from_slots($dailySlots, 2);
+    $normalizedWeeklyManualKeys = bober_extract_user_quest_manual_keys_from_slots($weeklySlots, 2);
+    if ($normalizedDailyManualKeys !== bober_normalize_quest_manual_keys((array) ($state['dailyManualKeys'] ?? []), 2)) {
+        $state['dailyManualKeys'] = $normalizedDailyManualKeys;
+        $stateChanged = true;
+    }
+    if ($normalizedWeeklyManualKeys !== bober_normalize_quest_manual_keys((array) ($state['weeklyManualKeys'] ?? []), 2)) {
+        $state['weeklyManualKeys'] = $normalizedWeeklyManualKeys;
+        $stateChanged = true;
+    }
+
+    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards) {
         $items = [];
-        foreach ($questKeys as $questKey) {
+        foreach ($questSlots as $slotIndex => $slot) {
+            $questKey = trim((string) ($slot['key'] ?? ''));
             if (!isset($definitions[$questKey])) {
                 continue;
             }
@@ -7389,11 +7590,14 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
                 'scope' => $scope,
                 'periodKey' => $periodKey,
                 'key' => $questKey,
+                'templateId' => max(0, (int) ($definition['id'] ?? 0)),
                 'title' => (string) ($definition['title'] ?? $questKey),
                 'description' => (string) ($definition['description'] ?? ''),
                 'metric' => $metric,
                 'goal' => $goal,
                 'progress' => $progress,
+                'slotIndex' => $slotIndex,
+                'manual' => !empty($slot['manual']),
                 'completed' => $completed,
                 'claimed' => $claimedAt !== '',
                 'claimedAt' => $claimedAt,
@@ -7404,10 +7608,10 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
         return $items;
     };
 
-    $dailyItems = $buildQuestItems('daily', $dailyDefinitions, $dailyKeys, $state['dailyPeriodKey'], (array) $state['dailyCounters'], $state['dailyClaimed']);
-    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, $weeklyKeys, $state['weeklyPeriodKey'], (array) $state['weeklyCounters'], $state['weeklyClaimed']);
+    $dailyItems = $buildQuestItems('daily', $dailyDefinitions, $dailySlots, $state['dailyPeriodKey'], (array) $state['dailyCounters'], $state['dailyClaimed']);
+    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, $weeklySlots, $state['weeklyPeriodKey'], (array) $state['weeklyCounters'], $state['weeklyClaimed']);
 
-    if ($stateChanged && $applyRewards) {
+    if ($stateChanged) {
         bober_store_user_quest_progress_state($conn, $userId, $state);
     }
 
@@ -7429,10 +7633,12 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
         'items' => [
             'daily' => [
                 'periodKey' => $state['dailyPeriodKey'],
+                'manualKeys' => bober_normalize_quest_manual_keys((array) ($state['dailyManualKeys'] ?? []), 2),
                 'items' => $dailyItems,
             ],
             'weekly' => [
                 'periodKey' => $state['weeklyPeriodKey'],
+                'manualKeys' => bober_normalize_quest_manual_keys((array) ($state['weeklyManualKeys'] ?? []), 2),
                 'items' => $weeklyItems,
             ],
         ],
@@ -7469,18 +7675,66 @@ function bober_reroll_user_quests($conn, $userId, $scope = 'all')
     if ($normalizedScope === 'daily' || $normalizedScope === 'all') {
         $state['dailyRollToken'] = max(0, (int) ($state['dailyRollToken'] ?? 0)) + 1;
         $state['dailyClaimed'] = [];
+        $state['dailyManualKeys'] = bober_default_quest_manual_keys();
         $changed = true;
     }
 
     if ($normalizedScope === 'weekly' || $normalizedScope === 'all') {
         $state['weeklyRollToken'] = max(0, (int) ($state['weeklyRollToken'] ?? 0)) + 1;
         $state['weeklyClaimed'] = [];
+        $state['weeklyManualKeys'] = bober_default_quest_manual_keys();
         $changed = true;
     }
 
     if ($changed) {
         bober_store_user_quest_progress_state($conn, $userId, $state);
     }
+
+    return bober_peek_user_quests($conn, $userId);
+}
+
+function bober_assign_user_quest($conn, $userId, $scope, $slotIndex, $questKey = '')
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $normalizedScope = bober_normalize_quest_scope($scope);
+    $normalizedSlotIndex = max(0, min(1, (int) $slotIndex));
+    $normalizedQuestKey = trim((string) $questKey);
+
+    if ($normalizedQuestKey !== '') {
+        $template = bober_fetch_quest_template_by_key($conn, $normalizedQuestKey);
+        if ($template === null) {
+            throw new RuntimeException('Шаблон квеста не найден.');
+        }
+
+        if (bober_normalize_quest_scope($template['scope'] ?? 'daily') !== $normalizedScope) {
+            throw new RuntimeException('Нельзя выдать квест другого типа ротации.');
+        }
+    }
+
+    $state = bober_prepare_user_quest_progress_state($conn, $userId, true);
+    $manualKeysField = $normalizedScope === 'weekly' ? 'weeklyManualKeys' : 'dailyManualKeys';
+    $claimedField = $normalizedScope === 'weekly' ? 'weeklyClaimed' : 'dailyClaimed';
+    $manualKeys = bober_normalize_quest_manual_keys((array) ($state[$manualKeysField] ?? []), 2);
+
+    $manualKeys[$normalizedSlotIndex] = $normalizedQuestKey;
+    if ($normalizedQuestKey !== '') {
+        foreach ($manualKeys as $index => $manualKey) {
+            if ($index === $normalizedSlotIndex) {
+                continue;
+            }
+            if (trim((string) $manualKey) === $normalizedQuestKey) {
+                $manualKeys[$index] = '';
+            }
+        }
+        unset($state[$claimedField][$normalizedQuestKey]);
+    }
+
+    $state[$manualKeysField] = $manualKeys;
+    bober_store_user_quest_progress_state($conn, $userId, $state);
 
     return bober_peek_user_quests($conn, $userId);
 }
@@ -7587,8 +7841,8 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $achievementRewardCoins = max(0, (int) ($achievementRefresh['rewardCoins'] ?? 0));
     $questRefresh = bober_refresh_user_quests($conn, $userId);
     $quests = is_array($questRefresh['items'] ?? null) ? $questRefresh['items'] : [
-        'daily' => ['periodKey' => '', 'items' => []],
-        'weekly' => ['periodKey' => '', 'items' => []],
+        'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+        'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
     ];
     $questUnlocks = is_array($questRefresh['newlyCompleted'] ?? null) ? $questRefresh['newlyCompleted'] : [];
     $questRewardCoins = max(0, (int) ($questRefresh['rewardCoins'] ?? 0));

@@ -1429,8 +1429,8 @@ SQL;
                             'activeSessions' => $activeSessions,
                             'activityHistory' => $activityHistory,
                             'quests' => is_array($questState['items'] ?? null) ? $questState['items'] : [
-                                'daily' => ['periodKey' => '', 'items' => []],
-                                'weekly' => ['periodKey' => '', 'items' => []],
+                                'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+                                'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
                             ],
                         ];
                     }
@@ -1483,8 +1483,8 @@ SQL;
                             : ('Персональная ротация ' . ($normalizedScope === 'weekly' ? 'недельных' : 'ежедневных') . ' квестов обновлена.');
                         $response['scope'] = $normalizedScope;
                         $response['quests'] = is_array($questState['items'] ?? null) ? $questState['items'] : [
-                            'daily' => ['periodKey' => '', 'items' => []],
-                            'weekly' => ['periodKey' => '', 'items' => []],
+                            'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+                            'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
                         ];
 
                         bober_admin_log_action($conn, 'reroll_user_quests', [
@@ -1677,6 +1677,105 @@ SQL;
                             'status' => $ticket['status'] ?? '',
                         ],
                     ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'assign_user_quest') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $scope = strtolower(trim((string) ($_POST['scope'] ?? 'daily')));
+                $slotIndex = max(0, min(1, (int) ($_POST['slot_index'] ?? 0)));
+                $questId = max(0, (int) ($_POST['quest_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT `id`, `login` FROM `users` WHERE `id` = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось проверить пользователя для выдачи квеста.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось проверить пользователя для выдачи квеста.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult instanceof mysqli_result ? $userResult->fetch_assoc() : null;
+                    if ($userResult instanceof mysqli_result) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $normalizedScope = in_array($scope, ['daily', 'weekly'], true) ? $scope : 'daily';
+                        $questItem = $questId > 0 ? bober_fetch_quest_template_by_id($conn, $questId) : null;
+                        if ($questId > 0 && $questItem === null) {
+                            $response['message'] = 'Шаблон квеста не найден.';
+                        } elseif ($questItem !== null && bober_normalize_quest_scope($questItem['scope'] ?? 'daily') !== $normalizedScope) {
+                            $response['message'] = 'Нельзя выдать квест другого типа ротации.';
+                        } else {
+                            $conn->begin_transaction();
+                            $questState = bober_assign_user_quest(
+                                $conn,
+                                $userId,
+                                $normalizedScope,
+                                $slotIndex,
+                                $questItem['key'] ?? ''
+                            );
+                            $conn->commit();
+
+                            $response['success'] = true;
+                            $response['message'] = $questItem === null
+                                ? 'Слот квеста возвращен в авто-ротацию.'
+                                : ('Квест "' . (string) ($questItem['title'] ?? $questItem['key'] ?? 'без названия') . '" назначен пользователю вручную.');
+                            $response['scope'] = $normalizedScope;
+                            $response['slotIndex'] = $slotIndex;
+                            $response['quests'] = is_array($questState['items'] ?? null) ? $questState['items'] : [
+                                'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+                                'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
+                            ];
+
+                            bober_admin_log_action($conn, 'assign_user_quest', [
+                                'target_table' => 'user_quest_progress',
+                                'query_text' => 'ASSIGN USER QUEST #' . $userId . ' [' . $normalizedScope . ':' . $slotIndex . ']',
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'user_id' => $userId,
+                                    'login' => (string) ($userRow['login'] ?? ''),
+                                    'scope' => $normalizedScope,
+                                    'slot_index' => $slotIndex,
+                                    'quest_id' => $questItem['id'] ?? 0,
+                                    'quest_key' => $questItem['key'] ?? '',
+                                    'quest_title' => $questItem['title'] ?? '',
+                                ],
+                            ]);
+                            bober_log_user_activity($conn, $userId, 'admin_assign_quest', [
+                                'action_group' => 'admin',
+                                'source' => 'admin_panel',
+                                'login' => (string) ($userRow['login'] ?? ''),
+                                'description' => $questItem === null
+                                    ? 'Администратор вернул слот квеста в авто-ротацию.'
+                                    : 'Администратор вручную назначил персональный квест игроку.',
+                                'meta' => [
+                                    'scope' => $normalizedScope,
+                                    'slot_index' => $slotIndex,
+                                    'quest_id' => $questItem['id'] ?? 0,
+                                    'quest_key' => $questItem['key'] ?? '',
+                                    'quest_title' => $questItem['title'] ?? '',
+                                ],
+                            ]);
+                        }
+                    }
 
                     $conn->close();
                 }
@@ -6470,6 +6569,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let skinCatalogCategoryFilter = localStorage.getItem('admin_skin_category_filter') || 'all';
         let skinCatalogSort = localStorage.getItem('admin_skin_sort') || 'manual';
         let questCatalogItems = [];
+        let questCatalogLoadPromise = null;
         let questCatalogSearch = '';
         let questCatalogScopeFilter = 'all';
         let questCatalogStatusFilter = 'all';
@@ -8145,11 +8245,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 key: String(rawItem.key || '').trim(),
                 scope: String(rawItem.scope || fallbackScope).trim().toLowerCase() === 'weekly' ? 'weekly' : 'daily',
                 periodKey: String(rawItem.periodKey || fallbackPeriodKey || '').trim(),
+                templateId: Math.max(0, Number(rawItem.templateId || rawItem.template_id) || 0),
                 title: String(rawItem.title || '').trim(),
                 description: String(rawItem.description || '').trim(),
                 metric: String(rawItem.metric || 'scoreGain').trim(),
                 goal,
                 progress,
+                slotIndex: Math.max(0, Number(rawItem.slotIndex ?? rawItem.slot_index) || 0),
+                manual: Boolean(rawItem.manual),
                 completed: Boolean(rawItem.completed),
                 claimed: Boolean(rawItem.claimed),
                 rewardCoins: Math.max(0, Number(rawItem.rewardCoins) || 0),
@@ -8164,10 +8267,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const items = Array.isArray(rawSection && rawSection.items)
                 ? rawSection.items.map(item => normalizeAdminQuestRuntimeItem(item, fallbackScope, periodKey)).filter(Boolean)
                 : [];
+            const manualKeys = Array.isArray(rawSection && rawSection.manualKeys)
+                ? rawSection.manualKeys.slice(0, 2).map(value => String(value || '').trim())
+                : ['', ''];
 
             return {
                 periodKey,
-                items
+                items,
+                manualKeys: [manualKeys[0] || '', manualKeys[1] || '']
             };
         }
 
@@ -8176,6 +8283,68 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 daily: normalizeAdminQuestRuntimeSection(rawState && rawState.daily, 'daily'),
                 weekly: normalizeAdminQuestRuntimeSection(rawState && rawState.weekly, 'weekly')
             };
+        }
+
+        function getQuestCatalogItemsForScope(scope) {
+            const normalizedScope = String(scope || 'daily').trim().toLowerCase() === 'weekly' ? 'weekly' : 'daily';
+            return questCatalogItems
+                .filter(item => item && String(item.scope) === normalizedScope)
+                .slice()
+                .sort((left, right) => {
+                    if (Boolean(left.isActive) !== Boolean(right.isActive)) {
+                        return left.isActive ? -1 : 1;
+                    }
+                    return String(left.title || left.key || '').localeCompare(String(right.title || right.key || ''), 'ru');
+                });
+        }
+
+        function buildUserQuestAssignmentOptions(scope, selectedTemplateId) {
+            const items = getQuestCatalogItemsForScope(scope);
+            const normalizedSelectedTemplateId = Math.max(0, Number(selectedTemplateId) || 0);
+            const options = [
+                `<option value="">Авто-ротация</option>`
+            ];
+
+            items.forEach(item => {
+                const label = `${item.title || item.key} · ${getQuestMetricLabel(item.metric)} · цель ${formatAdminNumber(item.goal)} · награда ${formatAdminNumber(item.rewardCoins)}`;
+                options.push(
+                    `<option value="${Number(item.id)}"${Number(item.id) === normalizedSelectedTemplateId ? ' selected' : ''}>${escapeHtml(label)}${item.isActive ? '' : ' [выключен]'}</option>`
+                );
+            });
+
+            return options.join('');
+        }
+
+        function buildUserQuestAssignmentRow(scope, slotIndex, currentItem) {
+            const normalizedScope = String(scope || 'daily').trim().toLowerCase() === 'weekly' ? 'weekly' : 'daily';
+            const item = normalizeAdminQuestRuntimeItem(currentItem, normalizedScope);
+            const slotLabel = `Слот ${slotIndex + 1}`;
+            const statusLabel = item
+                ? (item.manual ? 'Вручную' : 'Авто')
+                : 'Пусто';
+            const selectedTemplateId = item ? Number(item.templateId || 0) : 0;
+            const description = item
+                ? `${item.title || item.key || 'Квест'} · ${getQuestMetricLabel(item.metric)} · ${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)}`
+                : 'Слот сейчас пустой. Можно вручную выдать шаблон или вернуть авто-ротацию.';
+
+            return `
+                <div class="stack-item" style="margin-top: 12px;">
+                    <div class="stack-item-title">
+                        <span>${escapeHtml(slotLabel)}</span>
+                        <span class="status-pill ${item && item.manual ? 'warning' : 'active'}">${escapeHtml(statusLabel)}</span>
+                    </div>
+                    <div class="stack-item-meta">${escapeHtml(description)}</div>
+                    <div class="inline-actions" style="margin-top: 10px;">
+                        <select class="form-control user-quest-assign-select" id="userQuestAssign-${escapeHtml(normalizedScope)}-${slotIndex}" style="flex: 1; min-width: 260px;">
+                            ${buildUserQuestAssignmentOptions(normalizedScope, selectedTemplateId)}
+                        </select>
+                        <button class="btn btn-outline btn-small assign-user-quest-btn" type="button" data-scope="${escapeHtml(normalizedScope)}" data-slot-index="${slotIndex}">
+                            <span class="material-icons">task_alt</span>
+                            Назначить
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
         function buildAdminQuestRuntimeGroupHtml(groupLabel, scope, section) {
@@ -8212,12 +8381,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                                 ${escapeHtml(item.description || 'Описание не задано.')}<br>
                                                 Метрика: ${escapeHtml(getQuestMetricLabel(item.metric))}<br>
                                                 Прогресс: ${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)} (${progressPercent.toFixed(0)}%)<br>
-                                                Награда: ${formatAdminNumber(item.rewardCoins)} коинов
+                                                Награда: ${formatAdminNumber(item.rewardCoins)} коинов<br>
+                                                Слот: ${formatAdminNumber((Number(item.slotIndex) || 0) + 1)} · Источник: ${item.manual ? 'выдан вручную' : 'авто-ротация'}
                                             </div>
                                         </div>
                                     `;
                                 }).join('')
                                 : 'Сейчас для этого типа нет активных квестов.'}
+                            ${buildUserQuestAssignmentRow(scope, 0, items[0] || null)}
+                            ${buildUserQuestAssignmentRow(scope, 1, items[1] || null)}
                         </div>
                     </div>
                 </div>
@@ -8349,6 +8521,40 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function fetchQuestCatalogItems(options = {}) {
+            const forceRefresh = Boolean(options.forceRefresh);
+            if (!forceRefresh && questCatalogLoadPromise) {
+                return questCatalogLoadPromise;
+            }
+
+            questCatalogLoadPromise = postAction({
+                action: 'get_quest_catalog'
+            })
+            .then(data => {
+                if (!data.success || !Array.isArray(data.quests)) {
+                    throw new Error(data.message || 'Не удалось загрузить каталог квестов');
+                }
+
+                questCatalogItems = data.quests
+                    .map(item => normalizeAdminQuestTemplate(item))
+                    .filter(Boolean);
+                return questCatalogItems;
+            })
+            .finally(() => {
+                questCatalogLoadPromise = null;
+            });
+
+            return questCatalogLoadPromise;
+        }
+
+        function ensureQuestCatalogLoaded(options = {}) {
+            if (!Boolean(options.forceRefresh) && Array.isArray(questCatalogItems) && questCatalogItems.length > 0) {
+                return Promise.resolve(questCatalogItems);
+            }
+
+            return fetchQuestCatalogItems(options);
+        }
+
         function loadQuestCatalogAdmin() {
             const grid = document.getElementById('questCatalogGrid');
             const meta = document.getElementById('questCatalogMeta');
@@ -8360,17 +8566,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 meta.textContent = 'Загрузка каталога квестов...';
             }
 
-            postAction({
-                action: 'get_quest_catalog'
+            fetchQuestCatalogItems({
+                forceRefresh: true
             })
-            .then(data => {
-                if (!data.success || !Array.isArray(data.quests)) {
-                    throw new Error(data.message || 'Не удалось загрузить каталог квестов');
-                }
-
-                questCatalogItems = data.quests
-                    .map(item => normalizeAdminQuestTemplate(item))
-                    .filter(Boolean);
+            .then(() => {
                 renderQuestCatalogList();
             })
             .catch(error => {
@@ -10334,11 +10533,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 </div>
             `;
 
-            postAction({
-                action: 'get_user_profile',
-                user_id: String(selectedAccountId)
-            })
-            .then(data => {
+            Promise.all([
+                postAction({
+                    action: 'get_user_profile',
+                    user_id: String(selectedAccountId)
+                }),
+                ensureQuestCatalogLoaded().catch(error => {
+                    console.warn('Не удалось заранее загрузить каталог квестов для карточки пользователя.', error);
+                    return null;
+                })
+            ])
+            .then(([data]) => {
                 if (!data.success || !data.user) {
                     throw new Error(data.message || 'Не удалось загрузить карточку пользователя');
                 }
@@ -10808,7 +11013,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     tapSmall: Number((payload.upgradePurchases || {}).tapSmall || 0),
                     tapBig: Number((payload.upgradePurchases || {}).tapBig || 0),
                     energy: Number((payload.upgradePurchases || {}).energy || 0),
-                    tapHuge: Number((payload.upgradePurchases || {}).tapHuge || 0)
+                    tapHuge: Number((payload.upgradePurchases || {}).tapHuge || 0),
+                    regenBoost: Number((payload.upgradePurchases || {}).regenBoost || 0),
+                    energyHuge: Number((payload.upgradePurchases || {}).energyHuge || 0),
+                    clickRate: Number((payload.upgradePurchases || {}).clickRate || 0)
                 },
                 newPassword: String(payload.newPassword || ''),
                 confirmPassword: String(payload.confirmPassword || ''),
@@ -11397,6 +11605,15 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     rerollSelectedAccountQuests(String(this.dataset.scope || 'all'), this);
                 });
             });
+            detailContainer.querySelectorAll('.assign-user-quest-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    assignSelectedAccountQuest(
+                        String(this.dataset.scope || 'daily'),
+                        Number(this.dataset.slotIndex || 0),
+                        this
+                    );
+                });
+            });
             const activityFilterSelect = document.getElementById('accountActivityFilterSelect');
             if (activityFilterSelect) {
                 activityFilterSelect.addEventListener('change', function() {
@@ -11853,6 +12070,66 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .catch(error => {
                 console.error('Error:', error);
                 showNotification(error.message || 'Ошибка обновления персональной ротации квестов', 'error');
+            })
+            .finally(() => {
+                actionButtons.forEach(button => {
+                    button.disabled = false;
+                });
+                if (triggerButton) {
+                    triggerButton.innerHTML = originalContent;
+                }
+            });
+        }
+
+        function assignSelectedAccountQuest(scope, slotIndex, triggerButton = null) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            if (selectedAccountDirty) {
+                showNotification('Сначала сохраните или отмените несохраненные изменения в карточке пользователя.', 'warning');
+                return;
+            }
+
+            const normalizedScope = ['daily', 'weekly'].includes(String(scope || '').trim())
+                ? String(scope || '').trim()
+                : 'daily';
+            const normalizedSlotIndex = Math.max(0, Math.min(1, Number(slotIndex) || 0));
+            const selectNode = document.getElementById(`userQuestAssign-${normalizedScope}-${normalizedSlotIndex}`);
+            if (!selectNode) {
+                showNotification('Не удалось найти селектор ручной выдачи квеста.', 'error');
+                return;
+            }
+
+            const questId = Math.max(0, Number(selectNode.value || 0));
+            const originalContent = triggerButton ? triggerButton.innerHTML : '';
+            const actionButtons = Array.from(document.querySelectorAll('.assign-user-quest-btn, .reroll-user-quests-btn'));
+
+            actionButtons.forEach(button => {
+                button.disabled = true;
+            });
+            if (triggerButton) {
+                triggerButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'assign_user_quest',
+                user_id: String(selectedAccountId),
+                scope: normalizedScope,
+                slot_index: String(normalizedSlotIndex),
+                quest_id: String(questId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось вручную назначить квест игроку');
+                }
+
+                showNotification(data.message || 'Квест вручную назначен игроку', 'success');
+                loadUserProfile(selectedAccountId);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка ручной выдачи квеста', 'error');
             })
             .finally(() => {
                 actionButtons.forEach(button => {
