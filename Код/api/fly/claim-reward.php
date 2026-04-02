@@ -136,6 +136,11 @@ try {
             'hourly_remaining_after' => $hourlyRemainingCoins,
         ],
     ]);
+    if ($awardedCoins > 0) {
+        bober_increment_user_quest_counters($conn, $userId, [
+            'flyRewardCoins' => $awardedCoins,
+        ]);
+    }
 
     $conn->commit();
     $conn->close();

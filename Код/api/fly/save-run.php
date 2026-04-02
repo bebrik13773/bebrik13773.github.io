@@ -80,6 +80,12 @@ try {
             'pending_transfer_reset' => $pendingTransferReset,
         ],
     ]);
+    if (!$isDuplicate) {
+        bober_increment_user_quest_counters($conn, $userId, [
+            'flyRuns' => 1,
+            'flyScoreGain' => max(0, $score),
+        ]);
+    }
     $conn->commit();
     $conn->close();
 

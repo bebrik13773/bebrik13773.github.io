@@ -1205,6 +1205,9 @@ SELECT
     `u`.`upgrade_tap_big_count`,
     `u`.`upgrade_energy_count`,
     `u`.`upgrade_tap_huge_count`,
+    `u`.`upgrade_regen_boost_count`,
+    `u`.`upgrade_energy_huge_count`,
+    `u`.`upgrade_click_rate_count`,
     `u`.`created_at`,
     `u`.`updated_at`,
     GREATEST(
@@ -1377,6 +1380,8 @@ SQL;
                             $activityStmt->close();
                         }
 
+                        $questState = bober_peek_user_quests($conn, $userId);
+
                         $response['success'] = true;
                         $activeSessions = bober_fetch_user_active_game_sessions($conn, $userId);
                         $response['user'] = [
@@ -1396,6 +1401,9 @@ SQL;
                                 'tapBig' => max(0, (int) ($row['upgrade_tap_big_count'] ?? 0)),
                                 'energy' => max(0, (int) ($row['upgrade_energy_count'] ?? 0)),
                                 'tapHuge' => max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0)),
+                                'regenBoost' => max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0)),
+                                'energyHuge' => max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0)),
+                                'clickRate' => max(0, (int) ($row['upgrade_click_rate_count'] ?? 0)),
                             ],
                             'activeBan' => !empty($row['active_ban_id']) ? [
                                 'id' => (int) $row['active_ban_id'],
@@ -1420,7 +1428,86 @@ SQL;
                             'ipBans' => $ipBans,
                             'activeSessions' => $activeSessions,
                             'activityHistory' => $activityHistory,
+                            'quests' => is_array($questState['items'] ?? null) ? $questState['items'] : [
+                                'daily' => ['periodKey' => '', 'items' => []],
+                                'weekly' => ['periodKey' => '', 'items' => []],
+                            ],
                         ];
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'reroll_user_quests') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $scope = strtolower(trim((string) ($_POST['scope'] ?? 'all')));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT `id`, `login` FROM `users` WHERE `id` = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось проверить пользователя для ротации квестов.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось проверить пользователя для ротации квестов.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult instanceof mysqli_result ? $userResult->fetch_assoc() : null;
+                    if ($userResult instanceof mysqli_result) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } else {
+                        $normalizedScope = in_array($scope, ['daily', 'weekly', 'all'], true) ? $scope : 'all';
+                        $conn->begin_transaction();
+                        $questState = bober_reroll_user_quests($conn, $userId, $normalizedScope);
+                        $conn->commit();
+
+                        $response['success'] = true;
+                        $response['message'] = $normalizedScope === 'all'
+                            ? 'Персональная ротация всех квестов обновлена.'
+                            : ('Персональная ротация ' . ($normalizedScope === 'weekly' ? 'недельных' : 'ежедневных') . ' квестов обновлена.');
+                        $response['scope'] = $normalizedScope;
+                        $response['quests'] = is_array($questState['items'] ?? null) ? $questState['items'] : [
+                            'daily' => ['periodKey' => '', 'items' => []],
+                            'weekly' => ['periodKey' => '', 'items' => []],
+                        ];
+
+                        bober_admin_log_action($conn, 'reroll_user_quests', [
+                            'target_table' => 'user_quest_progress',
+                            'query_text' => 'REROLL USER QUESTS #' . $userId . ' [' . $normalizedScope . ']',
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => (string) ($userRow['login'] ?? ''),
+                                'scope' => $normalizedScope,
+                            ],
+                        ]);
+                        bober_log_user_activity($conn, $userId, 'admin_reroll_quests', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'login' => (string) ($userRow['login'] ?? ''),
+                            'description' => $normalizedScope === 'all'
+                                ? 'Администратор обновил персональную ротацию всех квестов.'
+                                : ('Администратор обновил персональную ротацию ' . ($normalizedScope === 'weekly' ? 'недельных' : 'ежедневных') . ' квестов.'),
+                            'meta' => [
+                                'scope' => $normalizedScope,
+                            ],
+                        ]);
                     }
 
                     $conn->close();
@@ -1640,6 +1727,9 @@ SQL;
                         $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
                         $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
                         $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
+                        $upgradeRegenBoostCount = max(0, (int) ($upgradePurchases['regenBoost'] ?? 0));
+                        $upgradeEnergyHugeCount = max(0, (int) ($upgradePurchases['energyHuge'] ?? 0));
+                        $upgradeClickRateCount = max(0, (int) ($upgradePurchases['clickRate'] ?? 0));
                         $newPassword = (string) ($data['newPassword'] ?? '');
                         $confirmPassword = (string) ($data['confirmPassword'] ?? '');
                         $fly = is_array($data['flyBeaver'] ?? null) ? $data['flyBeaver'] : [];
@@ -1695,6 +1785,9 @@ SQL;
                                 "`upgrade_tap_big_count` = " . sqlValueForQuery($conn, $upgradeTapBigCount),
                                 "`upgrade_energy_count` = " . sqlValueForQuery($conn, $upgradeEnergyCount),
                                 "`upgrade_tap_huge_count` = " . sqlValueForQuery($conn, $upgradeTapHugeCount),
+                                "`upgrade_regen_boost_count` = " . sqlValueForQuery($conn, $upgradeRegenBoostCount),
+                                "`upgrade_energy_huge_count` = " . sqlValueForQuery($conn, $upgradeEnergyHugeCount),
+                                "`upgrade_click_rate_count` = " . sqlValueForQuery($conn, $upgradeClickRateCount),
                             ];
 
                             $passwordChanged = false;
@@ -1745,6 +1838,9 @@ SQL;
                                         'tapBig' => $upgradeTapBigCount,
                                         'energy' => $upgradeEnergyCount,
                                         'tapHuge' => $upgradeTapHugeCount,
+                                        'regenBoost' => $upgradeRegenBoostCount,
+                                        'energyHuge' => $upgradeEnergyHugeCount,
+                                        'clickRate' => $upgradeClickRateCount,
                                     ],
                                 ],
                             ]);
@@ -1760,6 +1856,9 @@ SQL;
                                         'tapBig' => $upgradeTapBigCount,
                                         'energy' => $upgradeEnergyCount,
                                         'tapHuge' => $upgradeTapHugeCount,
+                                        'regenBoost' => $upgradeRegenBoostCount,
+                                        'energyHuge' => $upgradeEnergyHugeCount,
+                                        'clickRate' => $upgradeClickRateCount,
                                     ],
                                 ],
                             ]);
@@ -6191,6 +6290,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <option value="scoreGain">Заработанные коины</option>
                                 <option value="upgradeBuys">Покупки улучшений</option>
                                 <option value="plusGain">Рост силы клика</option>
+                                <option value="energyMaxGain">Рост запаса энергии</option>
+                                <option value="skinPurchases">Покупки скинов</option>
+                                <option value="flyRuns">Забеги в fly-beaver</option>
+                                <option value="flyScoreGain">Очки в fly-beaver</option>
+                                <option value="flyRewardCoins">Вывод коинов из fly-beaver</option>
                             </select>
                         </div>
                     </div>
@@ -8015,14 +8119,126 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
         function getQuestMetricLabel(metric) {
             const normalizedMetric = String(metric || '').trim();
-            if (normalizedMetric === 'upgradeBuys') {
-                return 'Покупки улучшений';
-            }
-            if (normalizedMetric === 'plusGain') {
-                return 'Рост силы клика';
+            const labels = {
+                scoreGain: 'Заработанные коины',
+                upgradeBuys: 'Покупки улучшений',
+                plusGain: 'Рост силы клика',
+                energyMaxGain: 'Рост запаса энергии',
+                skinPurchases: 'Покупки скинов',
+                flyRuns: 'Забеги в fly-beaver',
+                flyScoreGain: 'Очки в fly-beaver',
+                flyRewardCoins: 'Вывод коинов из fly-beaver'
+            };
+
+            return labels[normalizedMetric] || labels.scoreGain;
+        }
+
+        function normalizeAdminQuestRuntimeItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey = '') {
+            if (!rawItem || typeof rawItem !== 'object') {
+                return null;
             }
 
-            return 'Заработанные коины';
+            const goal = Math.max(1, Number(rawItem.goal) || 1);
+            const progress = Math.max(0, Number(rawItem.progress) || 0);
+
+            return {
+                key: String(rawItem.key || '').trim(),
+                scope: String(rawItem.scope || fallbackScope).trim().toLowerCase() === 'weekly' ? 'weekly' : 'daily',
+                periodKey: String(rawItem.periodKey || fallbackPeriodKey || '').trim(),
+                title: String(rawItem.title || '').trim(),
+                description: String(rawItem.description || '').trim(),
+                metric: String(rawItem.metric || 'scoreGain').trim(),
+                goal,
+                progress,
+                completed: Boolean(rawItem.completed),
+                claimed: Boolean(rawItem.claimed),
+                rewardCoins: Math.max(0, Number(rawItem.rewardCoins) || 0),
+                claimedAt: String(rawItem.claimedAt || '').trim()
+            };
+        }
+
+        function normalizeAdminQuestRuntimeSection(rawSection, fallbackScope = 'daily') {
+            const periodKey = rawSection && typeof rawSection === 'object'
+                ? String(rawSection.periodKey || '').trim()
+                : '';
+            const items = Array.isArray(rawSection && rawSection.items)
+                ? rawSection.items.map(item => normalizeAdminQuestRuntimeItem(item, fallbackScope, periodKey)).filter(Boolean)
+                : [];
+
+            return {
+                periodKey,
+                items
+            };
+        }
+
+        function normalizeAdminQuestRuntimeState(rawState) {
+            return {
+                daily: normalizeAdminQuestRuntimeSection(rawState && rawState.daily, 'daily'),
+                weekly: normalizeAdminQuestRuntimeSection(rawState && rawState.weekly, 'weekly')
+            };
+        }
+
+        function buildAdminQuestRuntimeGroupHtml(groupLabel, scope, section) {
+            const normalizedSection = normalizeAdminQuestRuntimeSection(section, scope);
+            const items = Array.isArray(normalizedSection.items) ? normalizedSection.items : [];
+
+            return `
+                <div class="form-group wide" style="margin-bottom: 0;">
+                    <div class="stack-item">
+                        <div class="stack-item-title">
+                            <span>${escapeHtml(groupLabel)}</span>
+                            <span class="status-pill active">${escapeHtml(normalizedSection.periodKey || 'без ротации')}</span>
+                        </div>
+                        <div class="stack-item-actions">
+                            <button class="btn btn-outline btn-small reroll-user-quests-btn" type="button" data-scope="${escapeHtml(scope)}">
+                                <span class="material-icons">shuffle</span>
+                                Заменить ${scope === 'weekly' ? 'недельные' : 'ежедневные'}
+                            </button>
+                        </div>
+                        <div class="stack-item-meta">
+                            ${items.length > 0
+                                ? items.map(item => {
+                                    const progressPercent = Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
+                                    const statusLabel = item.claimed
+                                        ? 'Получен'
+                                        : (item.completed ? 'Готов' : 'В процессе');
+                                    return `
+                                        <div class="stack-item" style="margin-top: 12px;">
+                                            <div class="stack-item-title">
+                                                <span>${escapeHtml(item.title || item.key || 'Квест')}</span>
+                                                <span class="status-pill ${item.claimed ? 'active' : (item.completed ? 'warning' : '')}">${escapeHtml(statusLabel)}</span>
+                                            </div>
+                                            <div class="stack-item-meta">
+                                                ${escapeHtml(item.description || 'Описание не задано.')}<br>
+                                                Метрика: ${escapeHtml(getQuestMetricLabel(item.metric))}<br>
+                                                Прогресс: ${formatAdminNumber(item.progress)}/${formatAdminNumber(item.goal)} (${progressPercent.toFixed(0)}%)<br>
+                                                Награда: ${formatAdminNumber(item.rewardCoins)} коинов
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')
+                                : 'Сейчас для этого типа нет активных квестов.'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function buildAdminQuestRuntimeSectionHtml(rawQuestState) {
+            const questState = normalizeAdminQuestRuntimeState(rawQuestState);
+
+            return `
+                <div class="detail-form-grid">
+                    ${buildAdminQuestRuntimeGroupHtml('Ежедневная ротация', 'daily', questState.daily)}
+                    ${buildAdminQuestRuntimeGroupHtml('Недельная ротация', 'weekly', questState.weekly)}
+                </div>
+                <div class="inline-actions" style="margin-top: 12px;">
+                    <button class="btn btn-primary btn-small reroll-user-quests-btn" type="button" data-scope="all">
+                        <span class="material-icons">autorenew</span>
+                        Заменить все квесты
+                    </button>
+                </div>
+            `;
         }
 
         function getFilteredQuestCatalogItems() {
@@ -10646,6 +10862,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 'adminUpgradeTapBig',
                 'adminUpgradeEnergy',
                 'adminUpgradeTapHuge',
+                'adminUpgradeRegenBoost',
+                'adminUpgradeEnergyHuge',
+                'adminUpgradeClickRate',
                 'adminUserNewPassword',
                 'adminUserConfirmPassword',
                 'flyBestScore',
@@ -10673,6 +10892,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const fly = user.flyBeaver || {};
             const activeSessions = Array.isArray(user.activeSessions) ? user.activeSessions : [];
             const skinState = parseAdminSkinState(user.skin || '');
+            const questState = normalizeAdminQuestRuntimeState(user.quests || {});
             const detailContainer = document.getElementById('accountDetailContainer');
 
             detailContainer.innerHTML = `
@@ -10807,6 +11027,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <input class="form-control" id="adminUpgradeTapHuge" type="number" min="0" value="${Number((user.upgradePurchases || {}).tapHuge || 0)}">
                             </div>
                             <div class="form-group">
+                                <label class="form-label" for="adminUpgradeRegenBoost">Покупки регена</label>
+                                <input class="form-control" id="adminUpgradeRegenBoost" type="number" min="0" value="${Number((user.upgradePurchases || {}).regenBoost || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeEnergyHuge">Покупки +10000 энергии</label>
+                                <input class="form-control" id="adminUpgradeEnergyHuge" type="number" min="0" value="${Number((user.upgradePurchases || {}).energyHuge || 0)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="adminUpgradeClickRate">Покупки лимита CPS</label>
+                                <input class="form-control" id="adminUpgradeClickRate" type="number" min="0" value="${Number((user.upgradePurchases || {}).clickRate || 0)}">
+                            </div>
+                            <div class="form-group">
                                 <label class="form-label" for="adminUserNewPassword">Новый пароль</label>
                                 <input class="form-control" id="adminUserNewPassword" type="password" minlength="6" placeholder="Оставьте пустым, чтобы не менять">
                             </div>
@@ -10856,6 +11088,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <span class="readonly-value">${escapeHtml(formatAdminDateTime(fly.lastPlayedAt))}</span>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
+                            <span class="material-icons">task_alt</span>
+                            Персональные квесты игрока
+                        </div>
+                        <div class="card-subtitle" style="margin-bottom: 14px;">
+                            Здесь видно текущую персональную ротацию. Кнопка замены обновляет выдачу только для выбранного игрока и не трогает общий каталог.
+                        </div>
+                        ${buildAdminQuestRuntimeSectionHtml(questState)}
                     </section>
 
                     <section class="detail-section">
@@ -11149,6 +11392,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     terminateSelectedUserSession(Number(this.dataset.sessionId || 0));
                 });
             });
+            detailContainer.querySelectorAll('.reroll-user-quests-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    rerollSelectedAccountQuests(String(this.dataset.scope || 'all'), this);
+                });
+            });
             const activityFilterSelect = document.getElementById('accountActivityFilterSelect');
             if (activityFilterSelect) {
                 activityFilterSelect.addEventListener('change', function() {
@@ -11372,7 +11620,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     tapSmall: Number(document.getElementById('adminUpgradeTapSmall').value || 0),
                     tapBig: Number(document.getElementById('adminUpgradeTapBig').value || 0),
                     energy: Number(document.getElementById('adminUpgradeEnergy').value || 0),
-                    tapHuge: Number(document.getElementById('adminUpgradeTapHuge').value || 0)
+                    tapHuge: Number(document.getElementById('adminUpgradeTapHuge').value || 0),
+                    regenBoost: Number(document.getElementById('adminUpgradeRegenBoost').value || 0),
+                    energyHuge: Number(document.getElementById('adminUpgradeEnergyHuge').value || 0),
+                    clickRate: Number(document.getElementById('adminUpgradeClickRate').value || 0)
                 },
                 newPassword: document.getElementById('adminUserNewPassword').value,
                 confirmPassword: document.getElementById('adminUserConfirmPassword').value,
@@ -11559,6 +11810,56 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (actionButton) {
                     actionButton.disabled = false;
                     actionButton.innerHTML = originalContent;
+                }
+            });
+        }
+
+        function rerollSelectedAccountQuests(scope, triggerButton = null) {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            if (selectedAccountDirty) {
+                showNotification('Сначала сохраните или отмените несохраненные изменения в карточке пользователя.', 'warning');
+                return;
+            }
+
+            const normalizedScope = ['daily', 'weekly', 'all'].includes(String(scope || '').trim())
+                ? String(scope || '').trim()
+                : 'all';
+            const actionButtons = Array.from(document.querySelectorAll('.reroll-user-quests-btn'));
+            const originalContent = triggerButton ? triggerButton.innerHTML : '';
+
+            actionButtons.forEach(button => {
+                button.disabled = true;
+            });
+            if (triggerButton) {
+                triggerButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'reroll_user_quests',
+                user_id: String(selectedAccountId),
+                scope: normalizedScope
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось обновить персональную ротацию квестов');
+                }
+
+                showNotification(data.message || 'Персональная ротация квестов обновлена', 'success');
+                loadUserProfile(selectedAccountId);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка обновления персональной ротации квестов', 'error');
+            })
+            .finally(() => {
+                actionButtons.forEach(button => {
+                    button.disabled = false;
+                });
+                if (triggerButton) {
+                    triggerButton.innerHTML = originalContent;
                 }
             });
         }
