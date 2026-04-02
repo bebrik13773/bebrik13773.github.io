@@ -76,6 +76,10 @@ function bober_json_response($payload, $statusCode = 200)
 
 function bober_exception_message($error, $fallback = 'Ошибка сервера.')
 {
+    if (bober_is_database_quota_exceeded_error($error)) {
+        return bober_database_quota_exceeded_message();
+    }
+
     if ($error instanceof InvalidArgumentException || $error instanceof RuntimeException) {
         $message = trim((string) $error->getMessage());
         if ($message !== '') {
@@ -84,6 +88,35 @@ function bober_exception_message($error, $fallback = 'Ошибка сервер�
     }
 
     return $fallback;
+}
+
+function bober_is_database_quota_exceeded_message_text($message)
+{
+    $message = strtolower(trim((string) $message));
+    if ($message === '') {
+        return false;
+    }
+
+    return strpos($message, 'max_queries_per_hour') !== false
+        || (strpos($message, 'queries_per_hour') !== false && strpos($message, 'exceeded') !== false)
+        || (strpos($message, 'resource') !== false && strpos($message, 'queries') !== false && strpos($message, 'exceeded') !== false)
+        || strpos($message, 'почасовой лимит запросов') !== false
+        || strpos($message, 'лимит запросов к базе данных') !== false
+        || strpos($message, 'лимит запросов к бд') !== false;
+}
+
+function bober_is_database_quota_exceeded_error($error)
+{
+    if ($error instanceof Throwable) {
+        return bober_is_database_quota_exceeded_message_text($error->getMessage());
+    }
+
+    return bober_is_database_quota_exceeded_message_text($error);
+}
+
+function bober_database_quota_exceeded_message()
+{
+    return 'База данных на бесплатном хостинге временно уперлась в почасовой лимит запросов.';
 }
 
 function bober_read_json_request()
@@ -357,6 +390,68 @@ function bober_schema_guard_touch($scope)
 
     @file_put_contents($path, (string) time(), LOCK_EX);
     @touch($path);
+}
+
+function bober_file_cache_path($cacheKey)
+{
+    $cacheKey = preg_replace('/[^a-z0-9_-]+/i', '_', strtolower(trim((string) $cacheKey))) ?? '';
+    if ($cacheKey === '') {
+        return '';
+    }
+
+    $directory = bober_schema_guard_directory();
+    if ($directory === '') {
+        return '';
+    }
+
+    return $directory . '/bober-cache-' . $cacheKey . '-' . bober_schema_guard_version() . '.json';
+}
+
+function bober_file_cache_fetch($cacheKey, $ttlSeconds = 60)
+{
+    $path = bober_file_cache_path($cacheKey);
+    if ($path === '' || !is_file($path)) {
+        return null;
+    }
+
+    $modifiedAt = @filemtime($path);
+    if (!is_int($modifiedAt) || $modifiedAt < 1) {
+        return null;
+    }
+
+    if (($modifiedAt + max(1, (int) $ttlSeconds)) <= time()) {
+        return null;
+    }
+
+    $payloadJson = @file_get_contents($path);
+    if (!is_string($payloadJson) || trim($payloadJson) === '') {
+        return null;
+    }
+
+    $decoded = json_decode($payloadJson, true);
+    if (!is_array($decoded) || !array_key_exists('payload', $decoded)) {
+        return null;
+    }
+
+    return $decoded['payload'];
+}
+
+function bober_file_cache_store($cacheKey, $payload)
+{
+    $path = bober_file_cache_path($cacheKey);
+    if ($path === '') {
+        return false;
+    }
+
+    $encoded = json_encode([
+        'storedAt' => time(),
+        'payload' => $payload,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($encoded === false) {
+        return false;
+    }
+
+    return @file_put_contents($path, $encoded, LOCK_EX) !== false;
 }
 
 function bober_identifier_is_valid($identifier)
@@ -1091,6 +1186,17 @@ function bober_admin_is_default_password_hash($hash)
 
 function bober_ensure_admin_schema($conn)
 {
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    if (bober_schema_guard_is_fresh('admin')) {
+        $schemaEnsured = true;
+        return;
+    }
+
     $createPassSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `pass` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -1145,6 +1251,8 @@ SQL;
 
     if (!$row) {
         if ($configuredHash === null) {
+            bober_schema_guard_touch('admin');
+            $schemaEnsured = true;
             return;
         }
 
@@ -1160,6 +1268,8 @@ SQL;
         }
 
         $stmt->close();
+        bober_schema_guard_touch('admin');
+        $schemaEnsured = true;
         return;
     }
 
@@ -1178,6 +1288,9 @@ SQL;
 
         $stmt->close();
     }
+
+    bober_schema_guard_touch('admin');
+    $schemaEnsured = true;
 }
 
 function bober_fetch_admin_password_hash($conn)
@@ -2716,6 +2829,17 @@ function bober_export_forensic_log_dump($conn, $options = [])
 
 function bober_ensure_security_schema($conn)
 {
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    if (bober_schema_guard_is_fresh('security')) {
+        $schemaEnsured = true;
+        return;
+    }
+
     $createUserBansSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `user_bans` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -2984,6 +3108,9 @@ SQL;
     if (!bober_index_exists($conn, 'user_client_event_log_archive', 'idx_user_client_event_archive_archived_at') && !$conn->query("CREATE INDEX `idx_user_client_event_archive_archived_at` ON `user_client_event_log_archive` (`archived_at`)")) {
         throw new RuntimeException('Не удалось создать индекс архива клиентского лога по дате архивации.');
     }
+
+    bober_schema_guard_touch('security');
+    $schemaEnsured = true;
 }
 
 function bober_ensure_fly_beaver_schema($conn)
@@ -3431,8 +3558,6 @@ function bober_fetch_fly_beaver_progress($conn, $userId)
     if ($userId < 1) {
         return bober_default_fly_beaver_progress();
     }
-
-    bober_ensure_fly_progress_row($conn, $userId);
 
     $stmt = $conn->prepare('SELECT best_score, last_score, last_level, games_played, total_score, pending_transfer_score, transferred_total_score, last_played_at FROM fly_beaver_progress WHERE user_id = ? LIMIT 1');
     if (!$stmt) {
@@ -5245,6 +5370,12 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
 function bober_fetch_public_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
+    $cacheKey = 'leaderboard_main_' . $limit;
+    $cachedLeaders = bober_file_cache_fetch($cacheKey, 20);
+    if (is_array($cachedLeaders)) {
+        return $cachedLeaders;
+    }
+
     $sql = <<<SQL
 SELECT u.id, u.login, u.score
 FROM users u
@@ -5275,6 +5406,7 @@ SQL;
     }
     $result->free();
 
+    bober_file_cache_store($cacheKey, $leaders);
     return $leaders;
 }
 
@@ -5437,6 +5569,12 @@ SQL;
 function bober_fetch_public_fly_beaver_leaderboard($conn, $limit = 3)
 {
     $limit = max(1, min(25, (int) $limit));
+    $cacheKey = 'leaderboard_fly_' . $limit;
+    $cachedLeaders = bober_file_cache_fetch($cacheKey, 20);
+    if (is_array($cachedLeaders)) {
+        return $cachedLeaders;
+    }
+
     $sql = <<<SQL
 SELECT u.id, u.login, MAX(f.best_score) AS score
 FROM users u
@@ -5470,6 +5608,7 @@ SQL;
     }
     $result->free();
 
+    bober_file_cache_store($cacheKey, $leaders);
     return $leaders;
 }
 
@@ -5909,8 +6048,21 @@ function bober_reconcile_fly_beaver_top_reward_skin($conn)
 
 function bober_reconcile_top_reward_skins($conn)
 {
+    static $reconciledThisRequest = false;
+
+    if ($reconciledThisRequest) {
+        return;
+    }
+
+    if (bober_schema_guard_is_fresh('top_reward_skins', 90)) {
+        $reconciledThisRequest = true;
+        return;
+    }
+
     bober_reconcile_clicker_top_reward_skin($conn);
     bober_reconcile_fly_beaver_top_reward_skin($conn);
+    bober_schema_guard_touch('top_reward_skins');
+    $reconciledThisRequest = true;
 }
 
 function bober_app_timezone()
@@ -6910,6 +7062,17 @@ function bober_record_user_ip($conn, $userId, $ipAddress = null, $userAgent = nu
         $userAgent = null;
     }
 
+    $sessionFingerprint = hash('sha256', $userId . '|' . $ipAddress . '|' . (string) $userAgent);
+    $now = time();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $lastRecord = is_array($_SESSION['bober_user_ip_record'] ?? null) ? $_SESSION['bober_user_ip_record'] : [];
+        $lastFingerprint = trim((string) ($lastRecord['fingerprint'] ?? ''));
+        $lastRecordedAt = max(0, (int) ($lastRecord['recordedAt'] ?? 0));
+        if ($lastFingerprint === $sessionFingerprint && ($now - $lastRecordedAt) < 1800) {
+            return false;
+        }
+    }
+
     $stmt = $conn->prepare('INSERT INTO user_ip_history (user_id, ip_address, login_count, first_seen_at, last_seen_at, last_user_agent) VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?) ON DUPLICATE KEY UPDATE login_count = login_count + 1, last_seen_at = CURRENT_TIMESTAMP, last_user_agent = VALUES(last_user_agent)');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сохранение IP пользователя.');
@@ -6921,6 +7084,13 @@ function bober_record_user_ip($conn, $userId, $ipAddress = null, $userAgent = nu
 
     if (!$success) {
         throw new RuntimeException('Не удалось сохранить IP пользователя.');
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['bober_user_ip_record'] = [
+            'fingerprint' => $sessionFingerprint,
+            'recordedAt' => $now,
+        ];
     }
 
     return true;

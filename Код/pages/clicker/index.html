@@ -14082,7 +14082,10 @@ function isDatabaseQuotaExceededError(error) {
     return (
         message.includes('max_queries_per_hour') ||
         (message.includes('queries_per_hour') && message.includes('exceeded')) ||
-        (message.includes('resource') && message.includes('queries') && message.includes('exceeded'))
+        (message.includes('resource') && message.includes('queries') && message.includes('exceeded')) ||
+        message.includes('почасовой лимит запросов') ||
+        message.includes('лимит запросов к базе данных') ||
+        message.includes('лимит запросов к бд')
     );
 }
 
@@ -14094,20 +14097,41 @@ function getDatabaseQuotaCooldownRemainingMs() {
     return Math.max(0, Number(liveSyncState.dbQuotaCooldownUntil || 0) - Date.now());
 }
 
+function formatDatabaseQuotaWaitTime(remainingMs = getDatabaseQuotaCooldownRemainingMs()) {
+    const totalMinutes = Math.max(1, Math.ceil(Math.max(0, Number(remainingMs) || 0) / 60000));
+    if (totalMinutes < 60) {
+        return `${totalMinutes} мин.`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${hours} ч. ${minutes} мин.` : `${hours} ч.`;
+}
+
+function buildDatabaseQuotaCooldownMessage(error = null, remainingMs = getDatabaseQuotaCooldownRemainingMs()) {
+    const baseMessage = String(
+        (error && error.message) || liveSyncState.dbQuotaMessage || 'База данных на бесплатном хостинге временно уперлась в лимит запросов.'
+    ).trim();
+
+    return `${baseMessage} Подождите примерно ${formatDatabaseQuotaWaitTime(remainingMs)}. Мы повторим запрос автоматически.`;
+}
+
+function getDatabaseQuotaStatusMessage(remainingMs = getDatabaseQuotaCooldownRemainingMs()) {
+    return `Пауза из-за лимита БД. Подождите около ${formatDatabaseQuotaWaitTime(remainingMs)}.`;
+}
+
 function activateDatabaseQuotaCooldown(error) {
     const nextCooldownUntil = Date.now() + LIVE_SYNC_CONFIG.dbQuotaCooldownMs;
     liveSyncState.dbQuotaCooldownUntil = Math.max(
         Number(liveSyncState.dbQuotaCooldownUntil || 0),
         nextCooldownUntil
     );
-    liveSyncState.dbQuotaMessage = String(
-        (error && error.message) || 'Сервер временно исчерпал лимит запросов к базе данных.'
-    );
+    liveSyncState.dbQuotaMessage = buildDatabaseQuotaCooldownMessage(error, getDatabaseQuotaCooldownRemainingMs());
 
     const now = Date.now();
     if ((now - Number(liveSyncState.dbQuotaNotifiedAt || 0)) >= LIVE_SYNC_CONFIG.dbQuotaNoticeCooldownMs) {
         liveSyncState.dbQuotaNotifiedAt = now;
-        showNotification('Сервер временно уперся в лимит базы данных. Повторим позже автоматически.', 'warning', 6000);
+        showNotification(liveSyncState.dbQuotaMessage, 'warning', 8500);
     }
 }
 
@@ -14396,6 +14420,14 @@ async function saveStateToServer(reason = 'auto') {
 
         throw new Error(data && data.message ? data.message : 'Не удалось сохранить прогресс.');
     } catch (error) {
+        if (isDatabaseQuotaExceededError(error)) {
+            activateDatabaseQuotaCooldown(error);
+            console.error('Ошибка автосохранения:', error);
+            return {
+                success: false,
+                message: liveSyncState.dbQuotaMessage || buildDatabaseQuotaCooldownMessage(error)
+            };
+        }
         if (tryHandleSessionEndedError(error)) {
             return {
                 success: false,
@@ -14487,7 +14519,9 @@ async function flushAutosave(options = {}) {
     }
 
     scheduleAutosave(AUTOSAVE_CONFIG.retryDelayMs);
-    setSaveStatus('error', 'Сбой сети, локальный черновик сохранен');
+    setSaveStatus('error', isDatabaseQuotaCooldownActive()
+        ? getDatabaseQuotaStatusMessage()
+        : 'Сбой сети, локальный черновик сохранен');
     logClientEvent('save', 'save_failed', {
         reason: reason,
         revision: revisionAtStart,
@@ -14864,7 +14898,7 @@ async function synchronizeMainState(options = {}) {
     } catch (error) {
         if (isDatabaseQuotaExceededError(error)) {
             activateDatabaseQuotaCooldown(error);
-            setSaveStatus('error', 'Сервер временно уперся в лимит БД. Повторим позже.');
+            setSaveStatus('error', getDatabaseQuotaStatusMessage());
             return false;
         }
         if (tryHandleSessionConflictError(error)) {
@@ -15459,9 +15493,9 @@ document.getElementById('submitLogin').onclick = async function() {
 
     if (isDatabaseQuotaCooldownActive()) {
         showNotification(
-            liveSyncState.dbQuotaMessage || 'Сервер временно уперся в лимит базы данных. Попробуйте позже.',
+            liveSyncState.dbQuotaMessage || buildDatabaseQuotaCooldownMessage(),
             'warning',
-            6000
+            8500
         );
         return;
     }
