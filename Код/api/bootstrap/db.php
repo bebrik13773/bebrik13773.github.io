@@ -4959,6 +4959,10 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
 
     $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
     $ticket = bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+    $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
+    if ($previousStatus === 'closed') {
+        throw new RuntimeException('Тикет уже закрыт. Создайте новый, чтобы продолжить диалог.');
+    }
 
     $authorType = 'user';
     $storedAttachmentPaths = [];
@@ -4990,7 +4994,6 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
         throw $error;
     }
 
-    $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
     $status = 'waiting_support';
     $updateStmt = $conn->prepare("UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP, archived_at = NULL, archive_reason = '' WHERE id = ? AND user_id = ? LIMIT 1");
     if (!$updateStmt) {

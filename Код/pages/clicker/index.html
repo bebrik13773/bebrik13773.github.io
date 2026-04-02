@@ -1556,6 +1556,18 @@ Owner decisions:
         box-shadow: 0 9px 0 rgba(34, 42, 73, 0.9), 0 14px 20px rgba(0, 0, 0, 0.24);
     }
 
+    .settings-action-button:disabled,
+    .settings-action-button:disabled:hover,
+    .settings-action-button:disabled:active {
+        cursor: not-allowed;
+        transform: none;
+        color: rgba(226, 232, 242, 0.68);
+        border-color: rgba(167, 176, 194, 0.18);
+        background: linear-gradient(180deg, rgba(91, 99, 119, 0.68), rgba(58, 64, 79, 0.76));
+        box-shadow: 0 8px 0 rgba(40, 45, 56, 0.72), 0 10px 16px rgba(0, 0, 0, 0.16);
+        opacity: 0.88;
+    }
+
     .settings-action-button.muted {
         background: linear-gradient(180deg, rgba(18, 24, 48, 0.84), rgba(10, 13, 28, 0.9));
         color: rgba(235, 248, 255, 0.9);
@@ -4435,6 +4447,12 @@ Owner decisions:
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: 0 10px 24px rgba(4, 8, 22, 0.14);
+    }
+
+    .support-ticket-reply-box.is-closed {
+        background: rgba(136, 146, 168, 0.08);
+        border-color: rgba(168, 176, 198, 0.14);
+        box-shadow: none;
     }
 
     .support-field {
@@ -11144,8 +11162,11 @@ function renderSupportTicketThread() {
     const messagesNode = document.getElementById('supportTicketMessages');
     const replyNode = document.getElementById('supportReplyMessage');
     const replyButton = document.getElementById('supportReplyButton');
+    const replyImagesButton = document.getElementById('supportReplyImagesButton');
+    const replyImagesInput = document.getElementById('supportReplyImages');
+    const replyBox = contentNode ? contentNode.querySelector('.support-ticket-reply-box') : null;
 
-    if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !messagesNode || !replyNode || !replyButton) {
+    if (!emptyNode || !contentNode || !titleNode || !metaNode || !statusNode || !messagesNode || !replyNode || !replyButton || !replyImagesButton || !replyImagesInput || !replyBox) {
         return;
     }
 
@@ -11216,6 +11237,9 @@ function renderSupportTicketThread() {
     const isClosed = ticket.status === 'closed';
     replyNode.disabled = isClosed;
     replyButton.disabled = isClosed;
+    replyImagesButton.disabled = isClosed;
+    replyImagesInput.disabled = isClosed;
+    replyBox.classList.toggle('is-closed', isClosed);
     replyNode.placeholder = isClosed
         ? 'Этот тикет закрыт. Чтобы продолжить диалог, создайте новый.'
         : 'Напишите ответ в тикет...';
@@ -11547,9 +11571,17 @@ async function submitSupportReply() {
     const replyNode = document.getElementById('supportReplyMessage');
     const button = document.getElementById('supportReplyButton');
     const ticketId = Number(supportState.selectedTicketId) || 0;
+    const selectedTicket = supportState.selectedTicket && Number(supportState.selectedTicket.id || 0) === ticketId
+        ? supportState.selectedTicket
+        : null;
     const restrictedAccess = getRestrictedSupportAccessPayload();
     const hasRestrictedAccess = Number(restrictedAccess.appealUserId) > 0 && Boolean(restrictedAccess.appealLogin);
     if (!replyNode || !button || ticketId < 1 || (!userId && !hasRestrictedAccess)) {
+        return;
+    }
+
+    if (selectedTicket && String(selectedTicket.status || '') === 'closed') {
+        showNotification('Тикет уже закрыт. Создайте новый, чтобы продолжить диалог.', 'warning');
         return;
     }
 
