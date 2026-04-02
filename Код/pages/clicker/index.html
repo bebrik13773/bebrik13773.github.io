@@ -5213,6 +5213,23 @@ function removeNotificationNode(node) {
     }, 240);
 }
 
+function removeNotification(notificationOrId) {
+    if (notificationOrId instanceof HTMLElement) {
+        removeNotificationNode(notificationOrId);
+        return;
+    }
+
+    const notificationId = String(notificationOrId || '').trim();
+    if (!notificationId) {
+        return;
+    }
+
+    const notificationNode = document.getElementById(notificationId);
+    if (notificationNode) {
+        removeNotificationNode(notificationNode);
+    }
+}
+
 function showNotification(message, type = 'success', duration = 3000) {
     const settings = window.__boberUserSettings && typeof window.__boberUserSettings === 'object'
         ? window.__boberUserSettings
@@ -16150,12 +16167,13 @@ class AutoClickerDetector {
             ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) === 1).length / recentClicks.length
             : 0;
         const keyboardDominant = !this.isMobile && keyboardSourceRatio >= 0.6;
+        const keyboardWeighted = !this.isMobile && keyboardSourceRatio >= 0.25;
         const keyboardSustainedPattern = keyboardDominant &&
             recentClicks.length >= 24 &&
             (recentClicks[recentClicks.length - 1].time - recentClicks[0].time) >= this.config.keyboardSuspicionMinDurationMs &&
             cps >= this.config.keyboardSuspicionMinCps;
         const desktopShortExactWindow = !this.isMobile &&
-            !keyboardDominant &&
+            !keyboardWeighted &&
             lowTouchAutomationRisk &&
             singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
             ? this.findDesktopPatternWindow(intervals, {
@@ -16176,7 +16194,7 @@ class AutoClickerDetector {
             })
             : null;
         const desktopNearHundredWindow = !this.isMobile &&
-            !keyboardDominant &&
+            !keyboardWeighted &&
             lowTouchAutomationRisk &&
             singlePointerRatio >= this.config.desktopNearHundredMinSinglePointerRatio
             ? this.findDesktopPatternWindow(intervals, {
@@ -16199,20 +16217,20 @@ class AutoClickerDetector {
         const desktopShortExactPattern = Boolean(desktopShortExactWindow);
         const desktopNearHundredMsPattern = Boolean(desktopNearHundredWindow) && !desktopShortExactPattern;
 
-        const suspiciousCadence = !keyboardDominant &&
+        const suspiciousCadence = !keyboardWeighted &&
             effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.lowCvThreshold &&
             stableRatio >= this.config.stableRatioThreshold &&
             longestStableStreak >= this.config.minStableStreak;
 
-        const hardCadence = !keyboardDominant &&
+        const hardCadence = !keyboardWeighted &&
             effectiveCps >= this.config.suspiciousCPS &&
             coefficientOfVariation <= this.config.hardCvThreshold &&
             stableRatio >= this.config.hardStableRatioThreshold &&
             dominantRatio >= this.config.hardStableRatioThreshold &&
             longestStableStreak >= this.config.hardStableStreak;
 
-        const exactHundredMsPattern = !keyboardDominant &&
+        const exactHundredMsPattern = !keyboardWeighted &&
             recentClicks.length >= this.config.exactPatternMinSamples &&
             lowTouchAutomationRisk &&
             effectiveCps >= this.config.exactPatternMinEffectiveCps &&
@@ -16352,6 +16370,7 @@ class AutoClickerDetector {
             touchSourceRatio: touchSourceRatio,
             keyboardSourceRatio: keyboardSourceRatio,
             keyboardDominant: keyboardDominant,
+            keyboardWeighted: keyboardWeighted,
             keyboardSustainedPattern: keyboardSustainedPattern,
             singlePointerRatio: singlePointerRatio,
             desktopShortExactPattern: desktopShortExactPattern,
@@ -16370,13 +16389,13 @@ class AutoClickerDetector {
 
         const shouldBanFromHeat = this.isMobile
             ? (!multiTouchGuard && this.warningCount >= 2 && this.heat >= this.config.banHeatThreshold)
-            : (!keyboardDominant && this.heat >= this.config.banHeatThreshold);
+            : (!keyboardWeighted && this.heat >= this.config.banHeatThreshold);
         const keyboardRepeatBan = keyboardSustainedPattern &&
             this.pruneKeyboardWarningHistory(Date.now()) >= 1 &&
             this.heat >= this.config.warningHeatThreshold;
         const shouldBanImmediately = this.isMobile
             ? strongHundredMsPattern || shouldBanFromHeat
-            : ((!keyboardDominant && (extremeSpeed || hardCadence || exactHundredMsPattern || desktopShortExactPattern || (desktopNearHundredMsPattern && this.warningCount >= 1))) || keyboardRepeatBan || shouldBanFromHeat);
+            : ((!keyboardWeighted && (extremeSpeed || hardCadence || exactHundredMsPattern || desktopShortExactPattern || (desktopNearHundredMsPattern && this.warningCount >= 1))) || keyboardRepeatBan || shouldBanFromHeat);
 
         if (shouldBanImmediately) {
             return {

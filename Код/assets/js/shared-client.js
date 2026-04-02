@@ -691,7 +691,7 @@
             }
 
             if (/\.php$/i.test(parsedUrl.pathname) && !parsedUrl.searchParams.has('i')) {
-                var challengeValue = '1';
+                var challengeValue = '';
                 try {
                     var currentUrl = new URL(window.location.href);
                     var currentChallengeValue = currentUrl.searchParams.get('i');
@@ -699,9 +699,11 @@
                         challengeValue = currentChallengeValue;
                     }
                 } catch (error) {
-                    challengeValue = '1';
+                    challengeValue = '';
                 }
-                parsedUrl.searchParams.set('i', challengeValue);
+                if (challengeValue) {
+                    parsedUrl.searchParams.set('i', challengeValue);
+                }
             }
 
             if (currentOrigin && parsedUrl.origin === currentOrigin) {

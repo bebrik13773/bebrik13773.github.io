@@ -54,7 +54,23 @@ function bober_json_response($payload, $statusCode = 200)
 {
     http_response_code($statusCode);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $encodedPayload = json_encode(
+        $payload,
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    if ($encodedPayload === false) {
+        $encodedPayload = json_encode(
+            [
+                'success' => false,
+                'message' => 'Не удалось сформировать ответ сервера.',
+            ],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+    }
+    if ($encodedPayload === false) {
+        $encodedPayload = '{"success":false,"message":"Не удалось сформировать ответ сервера."}';
+    }
+    echo $encodedPayload;
     exit;
 }
 
@@ -2877,10 +2893,13 @@ CREATE TABLE IF NOT EXISTS `support_tickets` (
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `last_user_message_at` TIMESTAMP NULL DEFAULT NULL,
     `last_admin_message_at` TIMESTAMP NULL DEFAULT NULL,
+    `archived_at` TIMESTAMP NULL DEFAULT NULL,
+    `archive_reason` VARCHAR(64) NOT NULL DEFAULT '',
     KEY `idx_support_tickets_user` (`user_id`, `updated_at`),
     KEY `idx_support_tickets_status` (`status`, `updated_at`),
     KEY `idx_support_tickets_admin_unread` (`unread_by_admin`, `updated_at`),
-    KEY `idx_support_tickets_user_unread` (`unread_by_user`, `updated_at`)
+    KEY `idx_support_tickets_user_unread` (`unread_by_user`, `updated_at`),
+    KEY `idx_support_tickets_archived` (`archived_at`, `updated_at`)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 SQL;
 
@@ -2899,6 +2918,8 @@ SQL;
         'updated_at' => "ALTER TABLE `support_tickets` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
         'last_user_message_at' => "ALTER TABLE `support_tickets` ADD COLUMN `last_user_message_at` TIMESTAMP NULL DEFAULT NULL AFTER `updated_at`",
         'last_admin_message_at' => "ALTER TABLE `support_tickets` ADD COLUMN `last_admin_message_at` TIMESTAMP NULL DEFAULT NULL AFTER `last_user_message_at`",
+        'archived_at' => "ALTER TABLE `support_tickets` ADD COLUMN `archived_at` TIMESTAMP NULL DEFAULT NULL AFTER `last_admin_message_at`",
+        'archive_reason' => "ALTER TABLE `support_tickets` ADD COLUMN `archive_reason` VARCHAR(64) NOT NULL DEFAULT '' AFTER `archived_at`",
     ];
 
     foreach ($supportTicketAlterStatements as $column => $sql) {
@@ -2921,6 +2942,10 @@ SQL;
 
     if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_user_unread') && !$conn->query("CREATE INDEX `idx_support_tickets_user_unread` ON `support_tickets` (`unread_by_user`, `updated_at`)")) {
         throw new RuntimeException('Не удалось создать индекс непрочитанных тикетов для игрока.');
+    }
+
+    if (!bober_index_exists($conn, 'support_tickets', 'idx_support_tickets_archived') && !$conn->query("CREATE INDEX `idx_support_tickets_archived` ON `support_tickets` (`archived_at`, `updated_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс архива тикетов поддержки.');
     }
 
     $createMessagesSql = <<<SQL
@@ -3566,7 +3591,8 @@ function bober_fetch_user_support_summary($conn, $userId)
     }
 
     bober_ensure_support_schema($conn);
-    $stmt = $conn->prepare('SELECT COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) AS open_tickets, COALESCE(SUM(unread_by_user), 0) AS unread_replies FROM support_tickets WHERE user_id = ?');
+    bober_auto_archive_support_tickets($conn);
+    $stmt = $conn->prepare('SELECT COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) AS open_tickets, COALESCE(SUM(unread_by_user), 0) AS unread_replies FROM support_tickets WHERE user_id = ? AND archived_at IS NULL');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сводку тикетов поддержки.');
     }
@@ -3606,8 +3632,45 @@ function bober_normalize_support_ticket_row(array $row)
         'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
         'lastUserMessageAt' => isset($row['last_user_message_at']) ? (string) $row['last_user_message_at'] : null,
         'lastAdminMessageAt' => isset($row['last_admin_message_at']) ? (string) $row['last_admin_message_at'] : null,
+        'archivedAt' => isset($row['archived_at']) && $row['archived_at'] !== null ? (string) $row['archived_at'] : null,
         'lastMessagePreview' => isset($row['last_message_preview']) ? (string) $row['last_message_preview'] : '',
     ];
+}
+
+function bober_auto_archive_support_tickets($conn, array $options = [])
+{
+    bober_ensure_support_schema($conn);
+
+    $archiveDays = max(1, min(365, (int) ($options['days'] ?? 14)));
+    $archiveReason = trim((string) ($options['reason'] ?? 'closed_inactive'));
+    if ($archiveReason === '') {
+        $archiveReason = 'closed_inactive';
+    }
+
+    $sql = 'UPDATE support_tickets
+        SET archived_at = CURRENT_TIMESTAMP,
+            archive_reason = ?,
+            unread_by_user = 0,
+            unread_by_admin = 0
+        WHERE archived_at IS NULL
+            AND status = ?
+            AND updated_at <= DATE_SUB(NOW(), INTERVAL ? DAY)';
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить автоархивацию тикетов.');
+    }
+
+    $closedStatus = 'closed';
+    $stmt->bind_param('ssi', $archiveReason, $closedStatus, $archiveDays);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось выполнить автоархивацию тикетов.');
+    }
+
+    $archivedCount = max(0, (int) $stmt->affected_rows);
+    $stmt->close();
+
+    return $archivedCount;
 }
 
 function bober_fetch_support_ticket_messages($conn, $ticketId)
@@ -3657,7 +3720,9 @@ function bober_fetch_user_support_tickets($conn, $userId, array $options = [])
     }
 
     bober_ensure_support_schema($conn);
+    bober_auto_archive_support_tickets($conn);
     $limit = max(1, min(100, (int) ($options['limit'] ?? 50)));
+    $includeArchived = !empty($options['includeArchived']);
     $stmt = $conn->prepare("
         SELECT
             t.id,
@@ -3684,6 +3749,7 @@ function bober_fetch_user_support_tickets($conn, $userId, array $options = [])
             ) AS last_message_preview
         FROM support_tickets t
         WHERE t.user_id = ?
+          AND (" . ($includeArchived ? '1=1' : 't.archived_at IS NULL') . ")
         ORDER BY t.unread_by_user DESC, t.updated_at DESC, t.id DESC
         LIMIT {$limit}
     ");
@@ -3742,7 +3808,8 @@ function bober_fetch_user_support_ticket($conn, $userId, $ticketId, $markRead = 
         throw new InvalidArgumentException('Некорректный тикет поддержки.');
     }
 
-    $stmt = $conn->prepare('SELECT id, user_id, category, subject, status, unread_by_user, unread_by_admin, created_at, updated_at, last_user_message_at, last_admin_message_at FROM support_tickets WHERE id = ? AND user_id = ? LIMIT 1');
+    bober_auto_archive_support_tickets($conn);
+    $stmt = $conn->prepare('SELECT id, user_id, category, subject, status, unread_by_user, unread_by_admin, created_at, updated_at, last_user_message_at, last_admin_message_at, archived_at FROM support_tickets WHERE id = ? AND user_id = ? AND archived_at IS NULL LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение тикета поддержки.');
     }
@@ -3973,7 +4040,7 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
 
     $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
     $status = 'waiting_support';
-    $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? LIMIT 1');
+    $updateStmt = $conn->prepare("UPDATE support_tickets SET status = ?, unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP, last_user_message_at = CURRENT_TIMESTAMP, archived_at = NULL, archive_reason = '' WHERE id = ? AND user_id = ? LIMIT 1");
     if (!$updateStmt) {
         throw new RuntimeException('Не удалось обновить статус тикета.');
     }
@@ -4018,13 +4085,21 @@ function bober_mark_admin_support_ticket_read($conn, $ticketId)
 function bober_fetch_admin_support_tickets($conn, array $options = [])
 {
     bober_ensure_support_schema($conn);
+    bober_auto_archive_support_tickets($conn);
     $limit = max(1, min(200, (int) ($options['limit'] ?? 80)));
     $status = bober_normalize_support_ticket_status($options['status'] ?? '');
     $category = bober_normalize_support_ticket_category($options['category'] ?? '');
     $unreadFilter = trim((string) ($options['unread'] ?? 'all'));
     $search = trim((string) ($options['search'] ?? ''));
+    $includeArchived = !empty($options['includeArchived']);
+    $archivedOnly = !empty($options['archivedOnly']);
 
     $where = ['1=1'];
+    if ($archivedOnly) {
+        $where[] = 't.archived_at IS NOT NULL';
+    } elseif (!$includeArchived) {
+        $where[] = 't.archived_at IS NULL';
+    }
     if (!empty($options['status']) && $status !== '') {
         $where[] = "t.status = '" . $conn->real_escape_string($status) . "'";
     }
@@ -4055,6 +4130,7 @@ function bober_fetch_admin_support_tickets($conn, array $options = [])
             t.updated_at,
             t.last_user_message_at,
             t.last_admin_message_at,
+            t.archived_at,
             (
                 SELECT CASE
                     WHEN CHAR_LENGTH(TRIM(COALESCE(m.message_text, ''))) > 0 THEN LEFT(m.message_text, 220)
@@ -4095,7 +4171,8 @@ function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true)
         throw new InvalidArgumentException('Некорректный тикет поддержки.');
     }
 
-    $stmt = $conn->prepare('SELECT t.id, t.user_id, u.login, t.category, t.subject, t.status, t.unread_by_user, t.unread_by_admin, t.created_at, t.updated_at, t.last_user_message_at, t.last_admin_message_at FROM support_tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? LIMIT 1');
+    bober_auto_archive_support_tickets($conn);
+    $stmt = $conn->prepare('SELECT t.id, t.user_id, u.login, t.category, t.subject, t.status, t.unread_by_user, t.unread_by_admin, t.created_at, t.updated_at, t.last_user_message_at, t.last_admin_message_at, t.archived_at FROM support_tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? AND t.archived_at IS NULL LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение тикета поддержки для админа.');
     }
@@ -4169,7 +4246,7 @@ function bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attach
 
     $previousStatus = bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support');
     $status = 'waiting_user';
-    $updateStmt = $conn->prepare('UPDATE support_tickets SET status = ?, unread_by_user = unread_by_user + 1, unread_by_admin = 0, updated_at = CURRENT_TIMESTAMP, last_admin_message_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+    $updateStmt = $conn->prepare("UPDATE support_tickets SET status = ?, unread_by_user = unread_by_user + 1, unread_by_admin = 0, updated_at = CURRENT_TIMESTAMP, last_admin_message_at = CURRENT_TIMESTAMP, archived_at = NULL, archive_reason = '' WHERE id = ? LIMIT 1");
     if (!$updateStmt) {
         throw new RuntimeException('Не удалось обновить тикет после ответа поддержки.');
     }
@@ -4199,12 +4276,12 @@ function bober_update_support_ticket_status($conn, $ticketId, $status)
     $existingTicket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
     $previousStatus = bober_normalize_support_ticket_status($existingTicket['status'] ?? 'waiting_support');
 
-    $stmt = $conn->prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare("UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP, archived_at = CASE WHEN ? <> 'closed' THEN NULL ELSE archived_at END, archive_reason = CASE WHEN ? <> 'closed' THEN '' ELSE archive_reason END WHERE id = ? LIMIT 1");
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить смену статуса тикета.');
     }
 
-    $stmt->bind_param('si', $status, $ticketId);
+    $stmt->bind_param('sssi', $status, $status, $status, $ticketId);
     if (!$stmt->execute()) {
         $stmt->close();
         throw new RuntimeException('Не удалось сменить статус тикета.');
