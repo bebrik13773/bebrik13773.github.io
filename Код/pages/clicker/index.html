@@ -3096,13 +3096,31 @@ Owner decisions:
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-        margin: 0 0 16px;
+        align-items: flex-start;
+        margin: 0 0 26px;
+        padding-bottom: 8px;
     }
 
     .profile-modal-top-actions .settings-action-button {
         flex: 0 0 auto;
         width: auto;
         max-width: none;
+        position: relative;
+        z-index: 0;
+    }
+
+    .profile-modal-top-actions .settings-action-button.primary {
+        box-shadow: 0 10px 18px rgba(5, 10, 28, 0.2);
+    }
+
+    .profile-modal-top-actions .settings-action-button.primary:hover {
+        box-shadow: 0 12px 20px rgba(5, 10, 28, 0.22);
+    }
+
+    .profile-modal-top-actions .settings-action-button.primary:focus-visible {
+        box-shadow:
+            0 0 0 2px rgba(126, 241, 255, 0.28),
+            0 12px 20px rgba(5, 10, 28, 0.22);
     }
 
     .profile-modal-hero[data-frame="rare"] {
@@ -5409,7 +5427,8 @@ Owner decisions:
         .profile-modal-top-actions {
             display: grid;
             grid-template-columns: 1fr;
-            margin-bottom: 14px;
+            margin-bottom: 20px;
+            padding-bottom: 6px;
         }
 
         .profile-modal-top-actions .settings-action-button {
