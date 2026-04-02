@@ -721,17 +721,39 @@
             credentials: 'include'
         }, options || {})).then(async function(response) {
             var data = null;
+            var responseText = '';
 
             try {
-                data = await response.json();
+                responseText = await response.text();
             } catch (error) {
-                throw new Error('Сервер вернул некорректный ответ.');
+                var readError = new Error('Не удалось прочитать ответ сервера.');
+                readError.status = response.status;
+                readError.contentType = response.headers.get('content-type') || '';
+                throw readError;
+            }
+
+            if (responseText !== '') {
+                try {
+                    data = JSON.parse(responseText);
+                } catch (error) {
+                    var parseError = new Error(
+                        response.ok
+                            ? 'Сервер вернул некорректный ответ.'
+                            : ('Сервер вернул некорректный ответ (HTTP ' + response.status + ').')
+                    );
+                    parseError.status = response.status;
+                    parseError.contentType = response.headers.get('content-type') || '';
+                    parseError.rawBodyPreview = responseText.slice(0, 300);
+                    throw parseError;
+                }
             }
 
             if (!response.ok) {
                 var requestError = new Error(data && data.message ? data.message : 'HTTP ' + response.status);
                 requestError.status = response.status;
                 requestError.payload = data;
+                requestError.contentType = response.headers.get('content-type') || '';
+                requestError.rawBodyPreview = responseText.slice(0, 300);
                 throw requestError;
             }
 
