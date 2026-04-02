@@ -2723,7 +2723,19 @@ Owner decisions:
 
     .shop-action-btn {
         min-width: min(100%, 320px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
         background: linear-gradient(180deg, rgba(56, 189, 248, 0.94), rgba(37, 99, 235, 0.96));
+    }
+
+    .game-mode-action-stack {
+        width: min(100%, 360px);
+        margin: 12px auto 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
     }
 
     #shopButton {
@@ -5498,10 +5510,16 @@ function showNotification(message, type = 'success', duration = 3000) {
 	</div>
 <br>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
-<br>
-<button class="shop-action-btn" id="questsOpenButton" type="button" title="Квесты (Q)">Квесты</button>
-<br>
-<button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">Летающий бобер</button>
+<div class="game-mode-action-stack">
+    <button class="shop-action-btn" id="questsOpenButton" type="button" title="Квесты (Q)">
+        <span aria-hidden="true">📜</span>
+        <span>Квесты</span>
+    </button>
+    <button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">
+        <span aria-hidden="true">🪽</span>
+        <span>Летающий бобер</span>
+    </button>
+</div>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
     <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
