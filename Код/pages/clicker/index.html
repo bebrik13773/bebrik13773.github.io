@@ -5447,6 +5447,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
                     </div>
                     <button id="profileDetailsButton" type="button">Мой профиль</button>
+                    <button id="profileAchievementsButton" type="button">Достижения</button>
                     <button id="viewPlayerProfileButton" type="button">Посмотреть профиль игрока</button>
                     <button id="supportAppealButton" type="button">
                         <span>Поддержка и входящие</span>
@@ -8933,6 +8934,35 @@ function renderProfileModal() {
     `;
 }
 
+function scrollProfileModalToSection(section = '') {
+    const normalizedSection = String(section || '').trim().toLowerCase();
+    if (normalizedSection === '') {
+        return;
+    }
+
+    const modal = document.getElementById('profileModal');
+    if (!modal) {
+        return;
+    }
+
+    const targetMap = {
+        achievements: document.getElementById('profileModalAchievements'),
+        activity: document.getElementById('profileModalActivity'),
+        top: document.getElementById('profileModalHero')
+    };
+    const target = targetMap[normalizedSection];
+    if (!target) {
+        return;
+    }
+
+    window.requestAnimationFrame(() => {
+        target.scrollIntoView({
+            block: 'start',
+            behavior: 'smooth'
+        });
+    });
+}
+
 function buildQuestGroupsHtml(normalizedQuests) {
     const questGroups = [
         {
@@ -8996,17 +9026,21 @@ function renderQuestsModal() {
     questsNode.innerHTML = buildQuestGroupsHtml(normalizeQuestState(questState));
 }
 
-function openProfileModal() {
+function openProfileModal(options = {}) {
     const modal = document.getElementById('profileModal');
     if (!modal || !userId) {
         return;
     }
 
+    const scrollTo = String(options.scrollTo || '').trim().toLowerCase();
     closeProfileMenu();
     renderProfileModal();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
+    if (scrollTo) {
+        scrollProfileModalToSection(scrollTo);
+    }
     requestImmediateLiveRefresh('profile_open', {
         includeDirtyState: true,
         silent: true
@@ -13251,6 +13285,21 @@ if (profileDetailsButton) {
         }
 
         openProfileModal();
+    });
+}
+
+const profileAchievementsButton = document.getElementById('profileAchievementsButton');
+if (profileAchievementsButton) {
+    profileAchievementsButton.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы открыть достижения и облачную статистику.'
+        })) {
+            return;
+        }
+
+        openProfileModal({
+            scrollTo: 'achievements'
+        });
     });
 }
 
