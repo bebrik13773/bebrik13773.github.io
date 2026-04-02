@@ -272,6 +272,93 @@ function bober_db_connect($withDatabase = true)
     return $conn;
 }
 
+function bober_schema_guard_version()
+{
+    static $version = null;
+
+    if ($version !== null) {
+        return $version;
+    }
+
+    $version = substr(hash('sha256', __FILE__ . '|' . (string) @filemtime(__FILE__)), 0, 16);
+    return $version;
+}
+
+function bober_schema_guard_directory()
+{
+    static $directory = null;
+
+    if ($directory !== null) {
+        return $directory;
+    }
+
+    $candidates = [
+        dirname(__DIR__, 2) . '/cache/runtime',
+        dirname(__DIR__, 2) . '/cache',
+        sys_get_temp_dir(),
+    ];
+
+    foreach ($candidates as $candidate) {
+        $candidate = rtrim((string) $candidate, '/\\');
+        if ($candidate === '') {
+            continue;
+        }
+
+        if (!is_dir($candidate)) {
+            @mkdir($candidate, 0775, true);
+        }
+
+        if (is_dir($candidate) && is_writable($candidate)) {
+            $directory = $candidate;
+            return $directory;
+        }
+    }
+
+    $directory = '';
+    return $directory;
+}
+
+function bober_schema_guard_path($scope)
+{
+    $scope = preg_replace('/[^a-z0-9_-]+/i', '_', strtolower(trim((string) $scope))) ?? '';
+    if ($scope === '') {
+        $scope = 'default';
+    }
+
+    $directory = bober_schema_guard_directory();
+    if ($directory === '') {
+        return '';
+    }
+
+    return $directory . '/bober-schema-' . $scope . '-' . bober_schema_guard_version() . '.lock';
+}
+
+function bober_schema_guard_is_fresh($scope, $ttlSeconds = 600)
+{
+    $path = bober_schema_guard_path($scope);
+    if ($path === '' || !is_file($path)) {
+        return false;
+    }
+
+    $modifiedAt = @filemtime($path);
+    if (!is_int($modifiedAt) || $modifiedAt < 1) {
+        return false;
+    }
+
+    return ($modifiedAt + max(30, (int) $ttlSeconds)) > time();
+}
+
+function bober_schema_guard_touch($scope)
+{
+    $path = bober_schema_guard_path($scope);
+    if ($path === '') {
+        return;
+    }
+
+    @file_put_contents($path, (string) time(), LOCK_EX);
+    @touch($path);
+}
+
 function bober_identifier_is_valid($identifier)
 {
     return is_string($identifier) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) === 1;
@@ -3011,6 +3098,11 @@ function bober_ensure_gameplay_schema($conn)
         return;
     }
 
+    if (bober_schema_guard_is_fresh('gameplay')) {
+        $schemaEnsured = true;
+        return;
+    }
+
     bober_ensure_game_schema($conn);
     bober_ensure_security_schema($conn);
     bober_ensure_fly_beaver_schema($conn);
@@ -3019,6 +3111,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_user_quests_schema($conn);
     bober_ensure_support_schema($conn);
 
+    bober_schema_guard_touch('gameplay');
     $schemaEnsured = true;
 }
 
@@ -3030,9 +3123,15 @@ function bober_ensure_project_schema($conn)
         return;
     }
 
+    if (bober_schema_guard_is_fresh('project')) {
+        $projectSchemaEnsured = true;
+        return;
+    }
+
     bober_ensure_gameplay_schema($conn);
     bober_ensure_admin_schema($conn);
 
+    bober_schema_guard_touch('project');
     $projectSchemaEnsured = true;
 }
 

@@ -31,7 +31,17 @@ function initializeAdmin()
         bober_ensure_project_schema($conn);
         $conn->close();
     } catch (Throwable $error) {
-        $bootstrapError = 'Панель не настроена. Создайте `Код/config/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
+        $message = trim((string) bober_exception_message($error, 'Ошибка инициализации панели.'));
+        if ($message === '') {
+            $message = 'Ошибка инициализации панели.';
+        }
+
+        if (strpos($message, 'Параметры базы данных не настроены') !== false) {
+            $bootstrapError = 'Панель не настроена. Создайте `Код/config/db_config.php` или задайте переменные окружения `BOBER_DB_*`.';
+            return;
+        }
+
+        $bootstrapError = 'Панель временно недоступна: ' . $message;
     }
 }
 
