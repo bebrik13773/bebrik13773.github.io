@@ -1462,11 +1462,20 @@ SQL;
 
 function bober_normalize_announcement_row(array $row)
 {
+    $seenAt = null;
+    if (array_key_exists('seen_at', $row) && $row['seen_at'] !== null) {
+        $seenAt = (string) $row['seen_at'];
+    } elseif (array_key_exists('seenAt', $row) && $row['seenAt'] !== null) {
+        $seenAt = (string) $row['seenAt'];
+    }
+
     return [
         'id' => max(0, (int) ($row['id'] ?? 0)),
         'title' => trim((string) ($row['title'] ?? '')),
         'body' => trim((string) ($row['body'] ?? '')),
         'isPublished' => !empty($row['is_published']) || !empty($row['isPublished']),
+        'isRead' => !empty($row['is_read']) || !empty($row['isRead']) || $seenAt !== null,
+        'seenAt' => $seenAt,
         'publishedAt' => isset($row['published_at']) && $row['published_at'] !== null ? (string) $row['published_at'] : null,
         'archivedAt' => isset($row['archived_at']) && $row['archived_at'] !== null ? (string) $row['archived_at'] : null,
         'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
@@ -1744,6 +1753,80 @@ function bober_fetch_latest_published_announcement($conn)
     }
 
     return is_array($row) ? bober_normalize_announcement_row($row) : null;
+}
+
+function bober_fetch_user_announcement_feed($conn, $userId, array $options = [])
+{
+    bober_ensure_announcement_schema($conn);
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $limit = max(1, min(100, (int) ($options['limit'] ?? 30)));
+    $stmt = $conn->prepare("
+        SELECT
+            a.id,
+            a.title,
+            a.body,
+            a.is_published,
+            a.published_at,
+            a.archived_at,
+            a.created_at,
+            a.updated_at,
+            CASE WHEN v.id IS NULL THEN 0 ELSE 1 END AS is_read,
+            v.seen_at
+        FROM announcements a
+        LEFT JOIN user_announcement_views v
+            ON v.announcement_id = a.id
+            AND v.user_id = ?
+        WHERE a.is_published = 1
+            AND a.archived_at IS NULL
+        ORDER BY COALESCE(a.published_at, a.updated_at, a.created_at) DESC, a.id DESC
+        LIMIT {$limit}
+    ");
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить загрузку ленты новостей.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить ленту новостей.');
+    }
+
+    $result = $stmt->get_result();
+    $items = [];
+    while ($result instanceof mysqli_result && ($row = $result->fetch_assoc())) {
+        $items[] = bober_normalize_announcement_row($row);
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
+}
+
+function bober_mark_announcements_seen($conn, $userId, array $announcementIds)
+{
+    $normalizedIds = [];
+    foreach ($announcementIds as $announcementId) {
+        $normalizedId = max(0, (int) $announcementId);
+        if ($normalizedId > 0) {
+            $normalizedIds[$normalizedId] = $normalizedId;
+        }
+    }
+
+    if (count($normalizedIds) < 1) {
+        throw new InvalidArgumentException('Некорректные новости для отметки просмотра.');
+    }
+
+    foreach (array_values($normalizedIds) as $announcementId) {
+        bober_mark_announcement_seen($conn, $userId, $announcementId);
+    }
+
+    return array_values($normalizedIds);
 }
 
 function bober_mark_announcement_seen($conn, $userId, $announcementId)
@@ -9125,8 +9208,23 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     ];
 
     $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
-    $announcement = bober_fetch_latest_unread_announcement($conn, $userId);
-    $latestAnnouncement = bober_fetch_latest_published_announcement($conn);
+    $announcementFeed = bober_fetch_user_announcement_feed($conn, $userId, [
+        'limit' => 30,
+    ]);
+    $announcement = null;
+    foreach ($announcementFeed as $announcementItem) {
+        if (empty($announcementItem['isRead'])) {
+            $announcement = $announcementItem;
+            break;
+        }
+    }
+    $latestAnnouncement = $announcementFeed[0] ?? bober_fetch_latest_published_announcement($conn);
+    $announcementUnreadCount = 0;
+    foreach ($announcementFeed as $announcementItem) {
+        if (empty($announcementItem['isRead'])) {
+            $announcementUnreadCount += 1;
+        }
+    }
     $response = [
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
@@ -9159,6 +9257,8 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'supportSummary' => $supportSummary,
         'announcement' => $announcement,
         'latestAnnouncement' => $latestAnnouncement,
+        'announcementFeed' => $announcementFeed,
+        'announcementUnreadCount' => $announcementUnreadCount,
     ];
 
     if ($includeActivity) {

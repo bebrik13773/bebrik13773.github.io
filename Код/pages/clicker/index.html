@@ -6121,13 +6121,13 @@ function showNotification(message, type = 'success', duration = 3000) {
 </div>
 <div class="modal-backdrop" id="announcementModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="announcementModalTitle">
-        <div class="skin-action-modal-title" id="announcementModalTitle">Последняя новость</div>
-        <div class="skin-action-modal-text" id="announcementModalPublishedAt">Только что опубликовано</div>
+        <div class="skin-action-modal-title" id="announcementModalTitle">Новости</div>
+        <div class="skin-action-modal-text" id="announcementModalPublishedAt">Лента опубликованных новостей</div>
         <div id="announcementModalContent">
-            <div class="public-profile-loading">Загружаю новость...</div>
+            <div class="public-profile-loading">Загружаю новости...</div>
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions">
-            <button type="button" class="settings-action-button primary" id="announcementModalAcknowledge">Понятно</button>
+            <button type="button" class="settings-action-button primary" id="announcementModalAcknowledge">Отметить прочитанными</button>
             <button type="button" class="settings-action-button secondary" id="announcementModalClose">Закрыть</button>
         </div>
     </div>
@@ -6543,7 +6543,7 @@ const economyProfileModalState = {
     economy: getDefaultEconomyProfile()
 };
 const announcementState = {
-    current: null,
+    feed: [],
     latestPublished: null,
     ackInFlight: false,
     shownKey: ''
@@ -6820,14 +6820,121 @@ function normalizeAnnouncement(rawAnnouncement) {
         id: announcementId,
         title,
         body,
-        publishedAt: String(rawAnnouncement.publishedAt || rawAnnouncement.published_at || '').trim()
+        publishedAt: String(rawAnnouncement.publishedAt || rawAnnouncement.published_at || '').trim(),
+        seenAt: String(rawAnnouncement.seenAt || rawAnnouncement.seen_at || '').trim(),
+        createdAt: String(rawAnnouncement.createdAt || rawAnnouncement.created_at || '').trim(),
+        updatedAt: String(rawAnnouncement.updatedAt || rawAnnouncement.updated_at || '').trim(),
+        isRead: Boolean(rawAnnouncement.isRead || rawAnnouncement.is_read || rawAnnouncement.seenAt || rawAnnouncement.seen_at)
     };
 }
 
-function setLatestPublishedAnnouncement(rawAnnouncement) {
-    const normalizedAnnouncement = normalizeAnnouncement(rawAnnouncement);
-    announcementState.latestPublished = normalizedAnnouncement;
-    return normalizedAnnouncement;
+function getAnnouncementSortTimestamp(announcement) {
+    const normalizedAnnouncement = normalizeAnnouncement(announcement);
+    if (!normalizedAnnouncement) {
+        return 0;
+    }
+
+    const candidates = [
+        normalizedAnnouncement.publishedAt,
+        normalizedAnnouncement.updatedAt,
+        normalizedAnnouncement.createdAt
+    ];
+    for (const candidate of candidates) {
+        const normalizedValue = String(candidate || '').trim();
+        if (!normalizedValue) {
+            continue;
+        }
+
+        const parsedDate = Date.parse(normalizedValue.replace(' ', 'T'));
+        if (Number.isFinite(parsedDate)) {
+            return parsedDate;
+        }
+    }
+
+    return 0;
+}
+
+function normalizeAnnouncementFeed(rawFeed) {
+    if (!Array.isArray(rawFeed)) {
+        return [];
+    }
+
+    const uniqueById = new Map();
+    rawFeed
+        .map((item) => normalizeAnnouncement(item))
+        .filter(Boolean)
+        .forEach((item) => {
+            const existing = uniqueById.get(item.id);
+            if (!existing || (!existing.isRead && item.isRead)) {
+                uniqueById.set(item.id, item);
+                return;
+            }
+
+            if (!existing) {
+                uniqueById.set(item.id, item);
+            }
+        });
+
+    return Array.from(uniqueById.values()).sort((left, right) => {
+        const byTime = getAnnouncementSortTimestamp(right) - getAnnouncementSortTimestamp(left);
+        if (byTime !== 0) {
+            return byTime;
+        }
+
+        return right.id - left.id;
+    });
+}
+
+function buildAnnouncementFeed(rawFeed, options = {}) {
+    const feed = normalizeAnnouncementFeed(rawFeed);
+    const fallbackItems = [
+        normalizeAnnouncement(options.latestAnnouncement),
+        normalizeAnnouncement(options.unreadAnnouncement)
+    ].filter(Boolean);
+
+    fallbackItems.forEach((item) => {
+        if (!feed.some((existing) => existing.id === item.id)) {
+            feed.push(item);
+        }
+    });
+
+    return normalizeAnnouncementFeed(feed);
+}
+
+function setAnnouncementSnapshot(rawFeed, options = {}) {
+    const normalizedFeed = buildAnnouncementFeed(rawFeed, options);
+    announcementState.feed = normalizedFeed;
+    announcementState.latestPublished = normalizedFeed[0]
+        || normalizeAnnouncement(options.latestAnnouncement)
+        || normalizeAnnouncement(options.unreadAnnouncement);
+    return normalizedFeed;
+}
+
+function getAnnouncementFeedItems() {
+    const normalizedFeed = normalizeAnnouncementFeed(announcementState.feed);
+    if (normalizedFeed.length > 0) {
+        return normalizedFeed;
+    }
+
+    const fallbackLatest = normalizeAnnouncement(announcementState.latestPublished);
+    return fallbackLatest ? [fallbackLatest] : [];
+}
+
+function getUnreadAnnouncementItems(feed = getAnnouncementFeedItems()) {
+    return feed.filter((item) => !item.isRead);
+}
+
+function getAnnouncementUnreadCount(feed = getAnnouncementFeedItems()) {
+    return getUnreadAnnouncementItems(feed).length;
+}
+
+function summarizeAnnouncementBody(value, maxLength = 160) {
+    const normalizedText = String(value || '').replace(/\s+/g, ' ').trim();
+    if (normalizedText.length <= maxLength) {
+        return normalizedText;
+    }
+
+    return `${normalizedText.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function formatAnnouncementPublishedAt(value) {
@@ -6857,35 +6964,82 @@ function renderAnnouncementModal() {
     const contentNode = document.getElementById('announcementModalContent');
     const titleNode = document.getElementById('announcementModalTitle');
     const publishedAtNode = document.getElementById('announcementModalPublishedAt');
-    if (!contentNode || !titleNode || !publishedAtNode) {
+    const acknowledgeButtonNode = document.getElementById('announcementModalAcknowledge');
+    if (!contentNode || !titleNode || !publishedAtNode || !acknowledgeButtonNode) {
         return;
     }
 
-    const announcement = normalizeAnnouncement(announcementState.current);
-    if (!announcement) {
-        titleNode.textContent = 'Последняя новость';
-        publishedAtNode.textContent = 'Нет доступных объявлений';
-        contentNode.innerHTML = '<div class="public-profile-empty">Свежих опубликованных новостей пока нет.</div>';
+    const feed = getAnnouncementFeedItems();
+    const unreadItems = getUnreadAnnouncementItems(feed);
+    if (feed.length < 1) {
+        titleNode.textContent = 'Новости';
+        publishedAtNode.textContent = 'Нет доступных публикаций';
+        acknowledgeButtonNode.textContent = 'Отметить прочитанными';
+        acknowledgeButtonNode.disabled = true;
+        contentNode.innerHTML = '<div class="public-profile-empty">Опубликованных новостей пока нет.</div>';
         return;
     }
 
-    titleNode.textContent = announcement.title;
-    publishedAtNode.textContent = `Опубликовано: ${formatAnnouncementPublishedAt(announcement.publishedAt)}`;
-    publishedAtNode.title = announcement.publishedAt ? formatAchievementDate(announcement.publishedAt) : 'Дата публикации недоступна';
+    const renderItems = [...feed].sort((left, right) => {
+        if (left.isRead !== right.isRead) {
+            return left.isRead ? 1 : -1;
+        }
+
+        const byTime = getAnnouncementSortTimestamp(right) - getAnnouncementSortTimestamp(left);
+        if (byTime !== 0) {
+            return byTime;
+        }
+
+        return right.id - left.id;
+    });
+
+    titleNode.textContent = 'Новости';
+    publishedAtNode.textContent = unreadItems.length > 0
+        ? `${formatCompactNumber(unreadItems.length)} непрочитанн. • ${formatCompactNumber(feed.length)} публикац.`
+        : `${formatCompactNumber(feed.length)} публикац. • все прочитаны`;
+    publishedAtNode.title = unreadItems.length > 0
+        ? 'Откройте полную ленту новостей и отметьте непрочитанные публикации.'
+        : 'Все опубликованные новости уже прочитаны.';
+    acknowledgeButtonNode.textContent = unreadItems.length > 0
+        ? `Отметить прочитанными (${formatCompactNumber(unreadItems.length)})`
+        : 'Все прочитано';
+    acknowledgeButtonNode.disabled = unreadItems.length < 1 || announcementState.ackInFlight;
     contentNode.innerHTML = `
-        <div class="public-profile-skin-section">
-            <div class="profile-achievements-title">${escapeHtmlText(announcement.title)}</div>
-            <div class="profile-achievement-empty" style="text-align:left;line-height:1.7;">
-                <div style="margin:0;">${buildAnnouncementBodyHtml(announcement.body)}</div>
-            </div>
+        <div style="display:grid;gap:14px;">
+            ${renderItems.map((announcement) => {
+                const statusLabel = announcement.isRead ? 'Прочитано' : 'Непрочитано';
+                const statusClass = announcement.isRead ? 'secondary' : 'top';
+                const statusTitle = announcement.isRead
+                    ? (announcement.seenAt ? `Прочитано: ${formatAchievementDate(announcement.seenAt)}` : 'Новость уже отмечена как прочитанная.')
+                    : 'Новость еще не отмечена как прочитанная.';
+
+                return `
+                    <article class="public-profile-skin-section" data-announcement-id="${announcement.id}" style="${announcement.isRead ? '' : 'box-shadow:0 0 0 1px rgba(111, 240, 255, 0.28), 0 14px 32px rgba(21, 16, 63, 0.34);'}">
+                        <div class="profile-achievements-title" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <span>${escapeHtmlText(announcement.title)}</span>
+                            <span class="profile-badge ${statusClass}" title="${escapeHtmlText(statusTitle)}">${escapeHtmlText(statusLabel)}</span>
+                        </div>
+                        <div class="skin-action-modal-text" style="margin-bottom:12px;" title="${escapeHtmlText(announcement.publishedAt ? formatAchievementDate(announcement.publishedAt) : 'Дата публикации недоступна')}">
+                            Опубликовано: ${escapeHtmlText(formatAnnouncementPublishedAt(announcement.publishedAt))}
+                        </div>
+                        <div class="profile-achievement-empty" style="text-align:left;line-height:1.75;">
+                            <div style="margin:0;">${buildAnnouncementBodyHtml(announcement.body)}</div>
+                        </div>
+                    </article>
+                `;
+            }).join('')}
         </div>
     `;
 }
 
-async function acknowledgeAnnouncement(announcementId) {
-    const normalizedAnnouncementId = Math.max(0, Number(announcementId) || 0);
-    if (!userId || normalizedAnnouncementId < 1 || announcementState.ackInFlight) {
-        return;
+async function acknowledgeAnnouncements(announcementIds) {
+    const normalizedAnnouncementIds = Array.from(new Set(
+        (Array.isArray(announcementIds) ? announcementIds : [announcementIds])
+            .map((item) => Math.max(0, Number(item) || 0))
+            .filter((item) => item > 0)
+    ));
+    if (!userId || normalizedAnnouncementIds.length < 1 || announcementState.ackInFlight) {
+        return [];
     }
 
     announcementState.ackInFlight = true;
@@ -6896,30 +7050,58 @@ async function acknowledgeAnnouncement(announcementId) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                announcementId: normalizedAnnouncementId
+                announcementIds: normalizedAnnouncementIds
             })
         });
+        const seenAt = new Date().toISOString();
+        announcementState.feed = getAnnouncementFeedItems().map((item) => {
+            if (!normalizedAnnouncementIds.includes(item.id)) {
+                return item;
+            }
+
+            return {
+                ...item,
+                isRead: true,
+                seenAt
+            };
+        });
+        renderAnnouncementModal();
+        if (document.getElementById('profileModal')?.classList.contains('show')) {
+            renderProfileModal();
+        }
+        return normalizedAnnouncementIds;
     } catch (error) {
         console.warn('Не удалось отметить новость как прочитанную.', error);
+        return [];
     } finally {
         announcementState.ackInFlight = false;
+        renderAnnouncementModal();
     }
 }
 
-function openAnnouncementModal(announcement) {
-    const normalizedAnnouncement = normalizeAnnouncement(announcement);
-    const modal = document.getElementById('announcementModal');
-    if (!modal || !normalizedAnnouncement) {
+async function acknowledgeCurrentAnnouncementFeedAndClose() {
+    const unreadItems = getUnreadAnnouncementItems();
+    if (unreadItems.length < 1) {
+        closeAnnouncementModal();
         return;
     }
 
-    announcementState.current = normalizedAnnouncement;
-    announcementState.latestPublished = normalizedAnnouncement;
+    const acknowledgedIds = await acknowledgeAnnouncements(unreadItems.map((item) => item.id));
+    if (acknowledgedIds.length > 0) {
+        closeAnnouncementModal();
+    }
+}
+
+function openAnnouncementModal() {
+    const modal = document.getElementById('announcementModal');
+    if (!modal || getAnnouncementFeedItems().length < 1) {
+        return;
+    }
+
     renderAnnouncementModal();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
-    acknowledgeAnnouncement(normalizedAnnouncement.id).catch(() => {});
 }
 
 function closeAnnouncementModal() {
@@ -6930,32 +7112,44 @@ function closeAnnouncementModal() {
 
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
-    announcementState.current = null;
     syncGlobalOverlayState();
 }
 
-function maybeShowAnnouncement(rawAnnouncement) {
-    const announcement = normalizeAnnouncement(rawAnnouncement);
-    if (!userId || !announcement) {
+function maybeShowAnnouncements(rawFeed = null, options = {}) {
+    const feed = rawFeed === null
+        ? getAnnouncementFeedItems()
+        : buildAnnouncementFeed(rawFeed, {
+            latestAnnouncement: options.latestAnnouncement,
+            unreadAnnouncement: options.unreadAnnouncement
+        });
+    const unreadItems = getUnreadAnnouncementItems(feed);
+    if (!userId || unreadItems.length < 1) {
         return;
     }
 
-    announcementState.latestPublished = announcement;
-    const announcementKey = `${userId}:${announcement.id}`;
+    const announcementKey = `${userId}:${unreadItems.map((item) => item.id).join(',')}`;
     if (announcementState.shownKey === announcementKey) {
         return;
     }
 
     announcementState.shownKey = announcementKey;
+    const title = unreadItems.length > 1
+        ? 'Новые новости'
+        : `Новая новость: ${unreadItems[0].title}`;
+    const body = unreadItems.length > 1
+        ? `${formatCompactNumber(unreadItems.length)} непрочитанных публикац. Откройте ленту новостей.`
+        : summarizeAnnouncementBody(unreadItems[0].body);
     const browserShown = showBrowserNotification(
-        `Новая новость: ${announcement.title}`,
-        announcement.body,
+        title,
+        body,
         {
-            tag: `bober-announcement-${announcement.id}`,
+            tag: unreadItems.length > 1
+                ? `bober-announcement-feed-${userId}`
+                : `bober-announcement-${unreadItems[0].id}`,
             renotify: true,
             durationMs: 14000,
             onClick: () => {
-                openAnnouncementModal(announcement);
+                openAnnouncementModal();
             }
         }
     );
@@ -6963,7 +7157,7 @@ function maybeShowAnnouncement(rawAnnouncement) {
         return;
     }
 
-    openAnnouncementModal(announcement);
+    openAnnouncementModal();
 }
 
 function findCachedLeaderboardProfileByLogin(login) {
@@ -10201,11 +10395,15 @@ function renderProfileModal() {
     }
 
     if (newsButtonNode) {
-        const latestAnnouncement = normalizeAnnouncement(announcementState.latestPublished);
+        const feed = getAnnouncementFeedItems();
+        const latestAnnouncement = feed[0] || normalizeAnnouncement(announcementState.latestPublished);
+        const unreadCount = getAnnouncementUnreadCount(feed);
         newsButtonNode.disabled = !latestAnnouncement;
         newsButtonNode.title = latestAnnouncement
-            ? `Открыть новость: ${latestAnnouncement.title}`
-            : 'Последняя опубликованная новость пока недоступна';
+            ? unreadCount > 0
+                ? `Открыть ленту новостей (${formatCompactNumber(unreadCount)} непрочит.).`
+                : `Открыть ленту новостей. Последняя публикация: ${latestAnnouncement.title}`
+            : 'Лента новостей пока недоступна';
     }
 
     if (economyProfileModalState.source === 'private') {
@@ -14673,13 +14871,12 @@ if (profileModalCopyLinkButton) {
 const profileModalNewsButton = document.getElementById('profileModalNewsButton');
 if (profileModalNewsButton) {
     profileModalNewsButton.addEventListener('click', () => {
-        const latestAnnouncement = normalizeAnnouncement(announcementState.latestPublished);
-        if (!latestAnnouncement) {
-            showNotification('Последняя опубликованная новость пока недоступна.', 'warning');
+        if (getAnnouncementFeedItems().length < 1) {
+            showNotification('Лента новостей пока недоступна.', 'warning');
             return;
         }
 
-        openAnnouncementModal(latestAnnouncement);
+        openAnnouncementModal();
     });
 }
 
@@ -15170,7 +15367,9 @@ if (announcementModalCloseButton) {
 const announcementModalAcknowledgeButton = document.getElementById('announcementModalAcknowledge');
 if (announcementModalAcknowledgeButton) {
     announcementModalAcknowledgeButton.addEventListener('click', () => {
-        closeAnnouncementModal();
+        acknowledgeCurrentAnnouncementFeedAndClose().catch((error) => {
+            console.warn('Не удалось отметить ленту новостей как прочитанную.', error);
+        });
     });
 }
 
@@ -15620,6 +15819,7 @@ function resetUserState() {
     supportNoticeState.initialized = false;
     supportNoticeState.lastUnreadReplies = 0;
     supportNoticeState.lastFullscreenUnread = 0;
+    announcementState.feed = [];
     announcementState.latestPublished = null;
     announcementState.shownKey = '';
     announcementState.ackInFlight = false;
@@ -15733,8 +15933,17 @@ function applyAuthenticatedState(data) {
     renderProfileModal();
     renderQuestsModal();
     renderEconomyProfileModal();
-    setLatestPublishedAnnouncement(data.latestAnnouncement || data.account?.latestAnnouncement || data.announcement || data.account?.announcement);
-    maybeShowAnnouncement(data.announcement || data.account?.announcement);
+    const announcementFeed = setAnnouncementSnapshot(
+        data.announcementFeed || data.account?.announcementFeed,
+        {
+            latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
+            unreadAnnouncement: data.announcement || data.account?.announcement
+        }
+    );
+    maybeShowAnnouncements(announcementFeed, {
+        latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
+        unreadAnnouncement: data.announcement || data.account?.announcement
+    });
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
