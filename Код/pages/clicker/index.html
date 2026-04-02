@@ -10939,10 +10939,71 @@ function updateSkinShopControls() {
     }
 }
 
-function getSkinShortageMessage(price) {
+function buildCoinShortageForecast(price, options = {}) {
     const safePrice = Math.max(0, Number(price) || 0);
-    const shortage = Math.max(0, safePrice - score);
-    return `Недостаточно средств: сейчас ${formatCompactNumber(score)}, нужно ${formatCompactNumber(safePrice)}. Не хватает ${formatCompactNumber(shortage)}.`;
+    const safeBalance = Math.max(0, Number(options.balance ?? score) || 0);
+    const shortage = Math.max(0, safePrice - safeBalance);
+    const safeCoinsPerClick = Math.max(1, Math.floor(Number(options.coinsPerClick ?? plus) || 1));
+    const clicksNeeded = shortage > 0 ? Math.ceil(shortage / safeCoinsPerClick) : 0;
+
+    return {
+        price: safePrice,
+        balance: safeBalance,
+        shortage,
+        coinsPerClick: safeCoinsPerClick,
+        clicksNeeded
+    };
+}
+
+function formatCoinShortageCompact(price, options = {}) {
+    const forecast = buildCoinShortageForecast(price, options);
+    if (forecast.shortage <= 0) {
+        return 'Хватает коинов';
+    }
+
+    return `Не хватает ${formatCompactNumber(forecast.shortage)} • ~${formatCompactNumber(forecast.clicksNeeded)} кликов`;
+}
+
+function formatCoinShortageDetails(price, options = {}) {
+    const forecast = buildCoinShortageForecast(price, options);
+    if (forecast.shortage <= 0) {
+        return `Сейчас ${formatCompactNumber(forecast.balance)} из ${formatCompactNumber(forecast.price)}. Хватает на покупку.`;
+    }
+
+    return `Сейчас ${formatCompactNumber(forecast.balance)} из ${formatCompactNumber(forecast.price)}. Не хватает ${formatCompactNumber(forecast.shortage)}. При текущем +${formatCompactNumber(forecast.coinsPerClick)} за клик это около ${formatCompactNumber(forecast.clicksNeeded)} кликов.`;
+}
+
+function getUpgradePriceFormulaHint() {
+    return 'Формула цены: до 3 покупок базовая стоимость, после 4 — x1.25, после 9 — x1.4, после 16 — x1.6 за уровень.';
+}
+
+function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
+    if (!descriptor) {
+        return '';
+    }
+
+    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+    const safeTotalPrice = Math.max(0, Number(totalPrice) || 0);
+
+    if (type === 'tapSmall' || type === 'tapBig' || type === 'tapHuge') {
+        const addedCoinsPerClick = Math.max(1, Number(descriptor.effectStep || 0) * safeQuantity);
+        const paybackClicks = Math.max(1, Math.ceil(safeTotalPrice / addedCoinsPerClick));
+        return `Окупаемость: около ${formatCompactNumber(paybackClicks)} кликов после покупки.`;
+    }
+
+    if (type === 'regenBoost') {
+        return `Эффект набора: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} энергии/сек. Доход напрямую не растет, но играть можно дольше без пауз.`;
+    }
+
+    if (type === 'energy' || type === 'energyHuge') {
+        return `Эффект набора: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} к максимуму энергии. Это апгрейд на длительность сессии, а не на прямой доход.`;
+    }
+
+    return '';
+}
+
+function getSkinShortageMessage(price) {
+    return `Недостаточно средств. ${formatCoinShortageDetails(price)}`;
 }
 
 function getSkinBlockedReasonForViewer(skinConfig, options = {}) {
@@ -11068,7 +11129,7 @@ function updateSkinShopFeature() {
         featureTipNode.textContent = 'Можно купить.';
     } else {
         featureStatusNode.textContent = `${formatCompactNumber(focusedSkin.price)} коинов`;
-        featureTipNode.textContent = `Не хватает ${formatCompactNumber(Math.max(0, Number(focusedSkin.price || 0) - score))}.`;
+        featureTipNode.textContent = formatCoinShortageDetails(focusedSkin.price);
     }
 }
 
@@ -11096,12 +11157,14 @@ function updateSkinShopUI() {
         const isHiddenForViewer = isSkinHiddenForViewer(skinConfig, isOwned);
         const isUniqueHiddenOwned = isUniqueHiddenSkin(skinConfig, isOwned);
         const blockedReason = getSkinBlockedReasonForViewer(skinConfig, { owned: isOwned });
+        const shortageForecast = buildCoinShortageForecast(skinConfig.price);
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
         skinCard.classList.toggle('locked', !isOwned && !isHiddenForViewer && !requiresSpecialIssue);
         skinCard.classList.toggle('blocked', Boolean(blockedReason));
         skinCard.classList.toggle('coming-soon', isHiddenForViewer);
+        skinCard.title = '';
 
         if (priceNode) {
             if (isHiddenForViewer || isOwned || skinConfig.issueMode !== 'shop') {
@@ -11132,8 +11195,26 @@ function updateSkinShopUI() {
             } else if (score >= skinConfig.price) {
                 statusNode.textContent = 'Купить';
             } else {
-                statusNode.textContent = `-${formatCompactNumber(Math.max(0, skinConfig.price - score))}`;
+                statusNode.textContent = `-${formatCompactNumber(shortageForecast.shortage)}`;
             }
+        }
+
+        if (isHiddenForViewer) {
+            skinCard.title = 'Скин пока скрыт из магазина.';
+        } else if (skinConfig.issueMode === 'grant_only' && !isOwned) {
+            skinCard.title = 'Этот скин выдается только вручную.';
+        } else if (skinConfig.issueMode === 'starter' && !isOwned) {
+            skinCard.title = 'Это стартовый скин для новых аккаунтов.';
+        } else if (!userId) {
+            skinCard.title = 'Войдите в аккаунт, чтобы покупать и устанавливать скины.';
+        } else if (!isOwned && score < Number(skinConfig.price || 0)) {
+            skinCard.title = formatCoinShortageDetails(skinConfig.price);
+        } else if (!isOwned) {
+            skinCard.title = `Цена: ${formatCompactNumber(skinConfig.price)} коинов. Купить можно прямо сейчас.`;
+        } else if (isEquipped) {
+            skinCard.title = 'Этот скин уже надет.';
+        } else {
+            skinCard.title = 'Скин уже куплен и готов к установке.';
         }
 
         if (badgeNode) {
@@ -11252,6 +11333,7 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     }
 
     const disabledReason = String(options.disabledReason || '').trim();
+    const shortageForecast = buildCoinShortageForecast(skinConfig.price);
     skinActionState.skinId = skinConfig.id;
     skinActionState.mode = mode;
     skinActionState.disabledReason = disabledReason;
@@ -11273,9 +11355,17 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     }
 
     if (textNode) {
-        textNode.textContent = mode === 'install'
-            ? `Установить скин "${skinConfig.name}" как активный?`
-            : `Купить скин "${skinConfig.name}" за ${formatCompactNumber(skinConfig.price)} коинов и сразу установить его?`;
+        if (mode === 'install') {
+            textNode.textContent = `Установить скин "${skinConfig.name}" как активный?`;
+        } else if (disabledReason === 'Не хватает коинов') {
+            textNode.textContent = `Купить скин "${skinConfig.name}" пока нельзя. ${formatCoinShortageDetails(skinConfig.price)}`;
+        } else if (disabledReason === 'Войдите, чтобы купить') {
+            textNode.textContent = `Для покупки скина "${skinConfig.name}" нужен вход в аккаунт.`;
+        } else if (disabledReason) {
+            textNode.textContent = `Скин "${skinConfig.name}" сейчас недоступен. Причина: ${disabledReason.toLowerCase()}.`;
+        } else {
+            textNode.textContent = `Купить скин "${skinConfig.name}" за ${formatCompactNumber(skinConfig.price)} коинов и сразу установить его? После покупки останется ${formatCompactNumber(Math.max(0, score - Number(skinConfig.price || 0)))}.`;
+        }
     }
 
     if (previewNode && previewImageNode) {
@@ -11304,7 +11394,9 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     const defaultConfirmText = mode === 'install'
         ? 'Установить'
         : (skinConfig.price > 0 ? `Купить за ${formatCompactNumber(skinConfig.price)}` : 'Получить');
-    confirmNode.textContent = disabledReason || defaultConfirmText;
+    confirmNode.textContent = disabledReason === 'Не хватает коинов'
+        ? `Не хватает ${formatCompactNumber(shortageForecast.shortage)}`
+        : (disabledReason || defaultConfirmText);
     confirmNode.classList.toggle('install', mode === 'install');
     confirmNode.classList.toggle('disabled-reason', disabledReason !== '');
     confirmNode.classList.toggle('is-blocked', disabledReason !== '');
@@ -11441,9 +11533,7 @@ function calculateMaxAffordableUpgradeQuantity(baseCost, purchaseCount, balance)
 }
 
 function getUpgradeShortageMessage(price) {
-    const safePrice = Math.max(0, Number(price) || 0);
-    const shortage = Math.max(0, safePrice - score);
-    return `Недостаточно средств: сейчас ${formatCompactNumber(score)}, нужно ${formatCompactNumber(safePrice)}. Не хватает ${formatCompactNumber(shortage)}.`;
+    return `Недостаточно средств. ${formatCoinShortageDetails(price)}`;
 }
 
 function normalizeUpgradeModalQuantity(type, quantity) {
@@ -11495,7 +11585,7 @@ function updateUpgradeActionModalView() {
 
     if (textNode) {
         textNode.textContent = maxAffordableQuantity > 0
-            ? 'Можно купить сразу несколько уровней. Стоимость пересчитается автоматически.'
+            ? `${getUpgradePaybackHint(upgradeActionState.type, quantity, totalPrice, descriptor)} ${getUpgradePriceFormulaHint()}`
             : getUpgradeShortageMessage(descriptor.price);
     }
 
@@ -11527,7 +11617,7 @@ function updateUpgradeActionModalView() {
 
     if (quantityNoteNode) {
         quantityNoteNode.textContent = maxAffordableQuantity > 0
-            ? `Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. Цены в пачке: ${bundlePricingPreview}. Следующая цена после покупки: ${formatCompactNumber(nextSinglePrice)}.`
+            ? `Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. Цены в пачке: ${bundlePricingPreview}. Следующая цена после покупки: ${formatCompactNumber(nextSinglePrice)}. ${getUpgradePaybackHint(upgradeActionState.type, quantity, totalPrice, descriptor)}`
             : getUpgradeShortageMessage(descriptor.price);
     }
 
@@ -11537,7 +11627,7 @@ function updateUpgradeActionModalView() {
         if (!userId) {
             disabledReason = 'Сначала войдите';
         } else if (maxAffordableQuantity < 1 || score < totalPrice) {
-            disabledReason = 'Не хватает коинов';
+            disabledReason = `Не хватает ${formatCompactNumber(Math.max(0, totalPrice - score))}`;
         }
 
         confirmNode.textContent = isDisabled
@@ -12392,6 +12482,7 @@ function updateUpgradeShopUI() {
     const upgradeEnergyHugeButton = document.getElementById('upgradeEnergyHugeButton');
     const cards = [
         {
+            type: 'tapSmall',
             button: upgradeTap1Button,
             baseCost: UPGRADE_BASE_COSTS.tapSmall,
             purchaseCount: upgradePurchaseCounts.tapSmall,
@@ -12399,6 +12490,7 @@ function updateUpgradeShopUI() {
             lockedText: 'Не хватает коинов для покупки'
         },
         {
+            type: 'tapBig',
             button: upgradeTap5Button,
             baseCost: UPGRADE_BASE_COSTS.tapBig,
             purchaseCount: upgradePurchaseCounts.tapBig,
@@ -12406,6 +12498,7 @@ function updateUpgradeShopUI() {
             lockedText: 'Пока не хватает на сильный тап'
         },
         {
+            type: 'energy',
             button: upgradeEnergyButton,
             baseCost: UPGRADE_BASE_COSTS.energy,
             purchaseCount: upgradePurchaseCounts.energy,
@@ -12413,6 +12506,7 @@ function updateUpgradeShopUI() {
             lockedText: 'Нужно больше коинов для энергии'
         },
         {
+            type: 'tapHuge',
             button: upgradeTap100Button,
             baseCost: UPGRADE_BASE_COSTS.tapHuge,
             purchaseCount: upgradePurchaseCounts.tapHuge,
@@ -12420,6 +12514,7 @@ function updateUpgradeShopUI() {
             lockedText: 'Нужно накопить на мега-тап'
         },
         {
+            type: 'regenBoost',
             button: upgradeRegenBoostButton,
             baseCost: UPGRADE_BASE_COSTS.regenBoost,
             purchaseCount: upgradePurchaseCounts.regenBoost,
@@ -12427,6 +12522,7 @@ function updateUpgradeShopUI() {
             lockedText: 'Нужно накопить на быструю зарядку'
         },
         {
+            type: 'energyHuge',
             button: upgradeEnergyHugeButton,
             baseCost: UPGRADE_BASE_COSTS.energyHuge,
             purchaseCount: upgradePurchaseCounts.energyHuge,
@@ -12452,7 +12548,11 @@ function updateUpgradeShopUI() {
         button.classList.toggle('locked', !isAffordable);
         button.classList.toggle('blocked', Boolean(blockedReason));
         button.title = userId
-            ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}. Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт.`
+            ? (
+                isAffordable
+                    ? `Цена: ${formatCompactNumber(currentCost)} коинов. Куплено: ${formatCompactNumber(cardConfig.purchaseCount)}. Доступно сейчас: до ${formatCompactNumber(maxAffordableQuantity)} шт. ${getUpgradePaybackHint(cardConfig.type, 1, currentCost, getUpgradeDescriptor(cardConfig.type))}`
+                    : `Цена: ${formatCompactNumber(currentCost)} коинов. ${formatCoinShortageDetails(currentCost)}`
+            )
             : 'Войдите в аккаунт, чтобы покупать улучшения.';
 
         if (priceNode) {
@@ -12466,7 +12566,7 @@ function updateUpgradeShopUI() {
             } else if (isAffordable) {
                 statusNode.textContent = `${cardConfig.affordableText} • До ${formatCompactNumber(maxAffordableQuantity)} шт.`;
             } else {
-                statusNode.textContent = `${cardConfig.lockedText} • ${formatCompactNumber(currentCost)} нужно`;
+                statusNode.textContent = `${cardConfig.lockedText} • ${formatCoinShortageCompact(currentCost)}`;
             }
         }
     });
