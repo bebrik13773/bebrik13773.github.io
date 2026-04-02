@@ -968,6 +968,259 @@ function bober_encode_skin_state(array $skinState)
     return bober_normalize_skin_json($skinState);
 }
 
+function bober_default_upgrade_counts()
+{
+    return [
+        'tapSmall' => 0,
+        'tapBig' => 0,
+        'energy' => 0,
+        'tapHuge' => 0,
+        'regenBoost' => 0,
+        'energyHuge' => 0,
+        'clickRate' => 0,
+    ];
+}
+
+function bober_normalize_upgrade_counts($rawCounts)
+{
+    $defaults = bober_default_upgrade_counts();
+    $normalized = $defaults;
+
+    if (!is_array($rawCounts)) {
+        return $normalized;
+    }
+
+    foreach ($defaults as $key => $defaultValue) {
+        $normalized[$key] = max(0, (int) ($rawCounts[$key] ?? $defaultValue));
+    }
+
+    return $normalized;
+}
+
+function bober_upgrade_base_costs()
+{
+    return [
+        'tapSmall' => 5000,
+        'tapBig' => 20000,
+        'energy' => 10000,
+        'tapHuge' => 2500000,
+        'regenBoost' => 35000,
+        'energyHuge' => 90000,
+        'clickRate' => 1800000,
+    ];
+}
+
+function bober_upgrade_shop_catalog()
+{
+    return [
+        'tapSmall' => [
+            'baseCost' => 5000,
+            'actionType' => 'upgrade_tap_small_purchase',
+            'description' => 'Куплено улучшение +1 к тапу.',
+        ],
+        'tapBig' => [
+            'baseCost' => 20000,
+            'actionType' => 'upgrade_tap_big_purchase',
+            'description' => 'Куплено улучшение +5 к тапу.',
+        ],
+        'energy' => [
+            'baseCost' => 10000,
+            'actionType' => 'upgrade_energy_purchase',
+            'description' => 'Куплено улучшение запаса энергии.',
+        ],
+        'tapHuge' => [
+            'baseCost' => 2500000,
+            'actionType' => 'upgrade_tap_huge_purchase',
+            'description' => 'Куплено улучшение +100 к тапу.',
+        ],
+        'regenBoost' => [
+            'baseCost' => 35000,
+            'actionType' => 'upgrade_regen_boost_purchase',
+            'description' => 'Куплено улучшение скорости восполнения энергии.',
+        ],
+        'energyHuge' => [
+            'baseCost' => 90000,
+            'actionType' => 'upgrade_energy_huge_purchase',
+            'description' => 'Куплено улучшение +10000 к запасу энергии.',
+        ],
+        'clickRate' => [
+            'baseCost' => 1800000,
+            'actionType' => 'upgrade_click_rate_purchase',
+            'description' => 'Куплено улучшение лимита засчитываемых кликов.',
+        ],
+    ];
+}
+
+function bober_calculate_plus_from_upgrade_counts(array $upgradeCounts)
+{
+    $normalized = bober_normalize_upgrade_counts($upgradeCounts);
+    return 1
+        + $normalized['tapSmall']
+        + ($normalized['tapBig'] * 5)
+        + ($normalized['tapHuge'] * 100);
+}
+
+function bober_calculate_energy_max_from_upgrade_counts(array $upgradeCounts)
+{
+    $normalized = bober_normalize_upgrade_counts($upgradeCounts);
+    return 5000
+        + ($normalized['energy'] * 1000)
+        + ($normalized['energyHuge'] * 10000);
+}
+
+function bober_calculate_click_rate_limit_from_upgrade_counts(array $upgradeCounts)
+{
+    $normalized = bober_normalize_upgrade_counts($upgradeCounts);
+    return 15 + ($normalized['clickRate'] * 3);
+}
+
+function bober_clamp_float($value, $min, $max)
+{
+    $resolvedValue = (float) $value;
+    $resolvedMin = (float) $min;
+    $resolvedMax = (float) $max;
+    if ($resolvedValue < $resolvedMin) {
+        return $resolvedMin;
+    }
+    if ($resolvedValue > $resolvedMax) {
+        return $resolvedMax;
+    }
+
+    return $resolvedValue;
+}
+
+function bober_count_purchased_shop_skins(array $catalog, array $ownedSkinIds)
+{
+    $count = 0;
+    foreach ($ownedSkinIds as $skinId) {
+        $resolvedSkinId = trim((string) $skinId);
+        if ($resolvedSkinId === '') {
+            continue;
+        }
+
+        $skinConfig = is_array($catalog[$resolvedSkinId] ?? null) ? $catalog[$resolvedSkinId] : null;
+        if (!$skinConfig) {
+            continue;
+        }
+
+        $issueMode = bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig);
+        if ($issueMode === 'shop') {
+            $count += 1;
+        }
+    }
+
+    return $count;
+}
+
+function bober_build_user_economy_profile(array $state)
+{
+    $score = max(0, (int) ($state['score'] ?? 0));
+    $plus = max(1, (int) ($state['plus'] ?? 1));
+    $energyMax = max(5000, (int) ($state['energyMax'] ?? 5000));
+    $flyBest = max(0, (int) ($state['flyBest'] ?? 0));
+    $ownedSkinIds = array_values(array_unique(array_map('strval', (array) ($state['ownedSkinIds'] ?? []))));
+    $catalog = is_array($state['catalog'] ?? null) ? $state['catalog'] : bober_skin_catalog();
+    $upgradeCounts = bober_normalize_upgrade_counts($state['upgradeCounts'] ?? []);
+    $totalUpgradePurchases = array_sum($upgradeCounts);
+    $purchasedShopSkinCount = bober_count_purchased_shop_skins($catalog, $ownedSkinIds);
+
+    $scoreFactor = bober_clamp_float((log10(max($score, 1)) - 6) / 4, 0, 1);
+    $plusFactor = bober_clamp_float((log10(max($plus, 1)) - 2) / 3, 0, 1);
+    $upgradeFactor = bober_clamp_float($totalUpgradePurchases / 140, 0, 1);
+    $shopSkinFactor = bober_clamp_float($purchasedShopSkinCount / 28, 0, 1);
+    $energyFactor = bober_clamp_float(($energyMax - 5000) / 45000, 0, 1);
+    $flyFactor = bober_clamp_float((log10(max($flyBest, 1)) - 3) / 3, 0, 1);
+
+    $factors = [
+        [
+            'key' => 'scoreFactor',
+            'label' => 'Счет',
+            'value' => $score,
+            'valueLabel' => number_format($score, 0, '.', ' '),
+            'normalized' => round($scoreFactor, 4),
+            'contribution' => round($scoreFactor * 0.30 * 100, 2),
+        ],
+        [
+            'key' => 'plusFactor',
+            'label' => 'Плюс за клик',
+            'value' => $plus,
+            'valueLabel' => '+' . number_format($plus, 0, '.', ' '),
+            'normalized' => round($plusFactor, 4),
+            'contribution' => round($plusFactor * 0.22 * 100, 2),
+        ],
+        [
+            'key' => 'upgradeFactor',
+            'label' => 'Всего покупок улучшений',
+            'value' => $totalUpgradePurchases,
+            'valueLabel' => number_format($totalUpgradePurchases, 0, '.', ' '),
+            'normalized' => round($upgradeFactor, 4),
+            'contribution' => round($upgradeFactor * 0.22 * 100, 2),
+        ],
+        [
+            'key' => 'shopSkinFactor',
+            'label' => 'Купленных магазинных скинов',
+            'value' => $purchasedShopSkinCount,
+            'valueLabel' => number_format($purchasedShopSkinCount, 0, '.', ' '),
+            'normalized' => round($shopSkinFactor, 4),
+            'contribution' => round($shopSkinFactor * 0.16 * 100, 2),
+        ],
+        [
+            'key' => 'energyFactor',
+            'label' => 'Макс. энергия',
+            'value' => $energyMax,
+            'valueLabel' => number_format($energyMax, 0, '.', ' '),
+            'normalized' => round($energyFactor, 4),
+            'contribution' => round($energyFactor * 0.06 * 100, 2),
+        ],
+        [
+            'key' => 'flyFactor',
+            'label' => 'Рекорд fly-beaver',
+            'value' => $flyBest,
+            'valueLabel' => number_format($flyBest, 0, '.', ' '),
+            'normalized' => round($flyFactor, 4),
+            'contribution' => round($flyFactor * 0.04 * 100, 2),
+        ],
+    ];
+
+    usort($factors, static function (array $left, array $right) {
+        return ($right['contribution'] <=> $left['contribution']) ?: strcmp((string) $left['label'], (string) $right['label']);
+    });
+
+    $weightedSum = ($scoreFactor * 0.30)
+        + ($plusFactor * 0.22)
+        + ($upgradeFactor * 0.22)
+        + ($shopSkinFactor * 0.16)
+        + ($energyFactor * 0.06)
+        + ($flyFactor * 0.04);
+    $index = max(0, min(100, (int) round($weightedSum * 100)));
+
+    if ($index <= 35) {
+        $multiplier = 1.0;
+    } elseif ($index <= 70) {
+        $multiplier = 1 + (($index - 35) * 0.005);
+    } else {
+        $multiplier = 1.175 + (($index - 70) * 0.0035);
+    }
+
+    return [
+        'index' => $index,
+        'multiplier' => round(min(1.30, max(1.0, $multiplier)), 4),
+        'factors' => $factors,
+    ];
+}
+
+function bober_calculate_effective_purchase_price($basePrice, array $economyProfile, $issueMode = 'shop')
+{
+    $resolvedBasePrice = max(0, (int) $basePrice);
+    $resolvedIssueMode = bober_normalize_skin_issue_mode($issueMode);
+    if ($resolvedBasePrice < 1 || $resolvedIssueMode !== 'shop') {
+        return $resolvedBasePrice;
+    }
+
+    $multiplier = max(1.0, (float) ($economyProfile['multiplier'] ?? 1.0));
+    return max($resolvedBasePrice, (int) round($resolvedBasePrice * $multiplier));
+}
+
 function bober_grant_skin_to_user($conn, $userId, $skinId, $equip = false)
 {
     $userId = max(0, (int) $userId);
@@ -1120,6 +1373,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `upgrade_tap_huge_count` INT NOT NULL DEFAULT 0,
     `upgrade_regen_boost_count` INT NOT NULL DEFAULT 0,
     `upgrade_energy_huge_count` INT NOT NULL DEFAULT 0,
+    `upgrade_click_rate_count` INT NOT NULL DEFAULT 0,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -1144,7 +1398,8 @@ SQL;
         'upgrade_tap_huge_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_tap_huge_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_energy_count`",
         'upgrade_regen_boost_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_regen_boost_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_huge_count`",
         'upgrade_energy_huge_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_energy_huge_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_regen_boost_count`",
-        'created_at' => "ALTER TABLE `users` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `upgrade_energy_huge_count`",
+        'upgrade_click_rate_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_click_rate_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_energy_huge_count`",
+        'created_at' => "ALTER TABLE `users` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `upgrade_click_rate_count`",
         'updated_at' => "ALTER TABLE `users` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
     ];
 
@@ -1174,6 +1429,7 @@ SQL;
         "UPDATE `users` SET `upgrade_tap_huge_count` = 0 WHERE `upgrade_tap_huge_count` IS NULL OR `upgrade_tap_huge_count` < 0",
         "UPDATE `users` SET `upgrade_regen_boost_count` = 0 WHERE `upgrade_regen_boost_count` IS NULL OR `upgrade_regen_boost_count` < 0",
         "UPDATE `users` SET `upgrade_energy_huge_count` = 0 WHERE `upgrade_energy_huge_count` IS NULL OR `upgrade_energy_huge_count` < 0",
+        "UPDATE `users` SET `upgrade_click_rate_count` = 0 WHERE `upgrade_click_rate_count` IS NULL OR `upgrade_click_rate_count` < 0",
     ];
 
     foreach ($normalizationQueries as $sql) {
@@ -1935,6 +2191,7 @@ function bober_get_profile_activity_action_types($publicOnly = false)
         'upgrade_tap_huge_purchase',
         'upgrade_regen_boost_purchase',
         'upgrade_energy_huge_purchase',
+        'upgrade_click_rate_purchase',
         'equip_skin',
         'unlock_skin',
         'achievement_unlock',
@@ -2036,6 +2293,11 @@ function bober_build_profile_activity_item(array $row, array $catalog)
             $icon = '🪫';
             $title = 'Куплено большое улучшение энергии';
             $description = 'Новый максимум энергии: ' . bober_format_activity_number($meta['next_energy_max'] ?? 0) . '.';
+            break;
+        case 'upgrade_click_rate_purchase':
+            $icon = '🖱️';
+            $title = 'Увеличен лимит засчитываемых кликов';
+            $description = 'Новый лимит: ' . bober_format_activity_number($meta['next_click_rate_limit'] ?? 0) . ' CPS.';
             break;
         case 'equip_skin':
             $icon = '🧥';
@@ -5914,6 +6176,9 @@ function bober_fetch_public_player_profile($conn, $userId)
 
     $stmt = $conn->prepare(
         'SELECT u.id, u.login, u.plus, u.skin, u.ENERGY_MAX, u.score,
+                u.upgrade_tap_small_count, u.upgrade_tap_big_count, u.upgrade_energy_count,
+                u.upgrade_tap_huge_count, u.upgrade_regen_boost_count, u.upgrade_energy_huge_count,
+                u.upgrade_click_rate_count,
                 COALESCE(f.best_score, 0) AS fly_best,
                 COALESCE(f.games_played, 0) AS fly_games_played
          FROM users u
@@ -5954,6 +6219,17 @@ function bober_fetch_public_player_profile($conn, $userId)
         throw new RuntimeException('Игрок скрыл свой профиль.');
     }
 
+    $upgradeCounts = bober_normalize_upgrade_counts([
+        'tapSmall' => $row['upgrade_tap_small_count'] ?? 0,
+        'tapBig' => $row['upgrade_tap_big_count'] ?? 0,
+        'energy' => $row['upgrade_energy_count'] ?? 0,
+        'tapHuge' => $row['upgrade_tap_huge_count'] ?? 0,
+        'regenBoost' => $row['upgrade_regen_boost_count'] ?? 0,
+        'energyHuge' => $row['upgrade_energy_huge_count'] ?? 0,
+        'clickRate' => $row['upgrade_click_rate_count'] ?? 0,
+    ]);
+    $resolvedPlus = bober_calculate_plus_from_upgrade_counts($upgradeCounts);
+    $resolvedEnergyMax = bober_calculate_energy_max_from_upgrade_counts($upgradeCounts);
     $skinState = bober_decode_skin_state($row['skin'] ?? null);
     $catalog = bober_skin_catalog();
     $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
@@ -5987,6 +6263,15 @@ function bober_fetch_public_player_profile($conn, $userId)
     );
     $clickerTop1 = in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true);
     $flyTop1 = in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true);
+    $economyProfile = bober_build_user_economy_profile([
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => $resolvedPlus,
+        'energyMax' => $resolvedEnergyMax,
+        'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
+        'ownedSkinIds' => $ownedSkinIds,
+        'upgradeCounts' => $upgradeCounts,
+        'catalog' => $catalog,
+    ]);
     $honors = bober_build_profile_honors([
         'score' => max(0, (int) ($row['score'] ?? 0)),
         'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
@@ -6007,8 +6292,8 @@ function bober_fetch_public_player_profile($conn, $userId)
         'login' => (string) ($row['login'] ?? ''),
         'profile' => [
             'score' => max(0, (int) ($row['score'] ?? 0)),
-            'plus' => max(1, (int) ($row['plus'] ?? 1)),
-            'energyMax' => max(1, (int) ($row['ENERGY_MAX'] ?? 5000)),
+            'plus' => $resolvedPlus,
+            'energyMax' => $resolvedEnergyMax,
             'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
             'flyGamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
             'ownedSkins' => count($ownedSkinIds),
@@ -6021,6 +6306,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             'topRewardSkins' => $skinSummary['topRewardSkins'],
             'clickerTop1' => $clickerTop1,
             'flyTop1' => $flyTop1,
+            'economy' => $economyProfile,
             'honors' => $honors,
         ],
         'skins' => [
@@ -7011,7 +7297,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
 
     bober_reconcile_top_reward_skins($conn);
 
-    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
@@ -7043,26 +7329,32 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         }
     }
 
-    $energyMax = max(1, (int) ($row['ENERGY_MAX'] ?? 5000));
+    $upgradeCounts = bober_normalize_upgrade_counts([
+        'tapSmall' => $row['upgrade_tap_small_count'] ?? 0,
+        'tapBig' => $row['upgrade_tap_big_count'] ?? 0,
+        'energy' => $row['upgrade_energy_count'] ?? 0,
+        'tapHuge' => $row['upgrade_tap_huge_count'] ?? 0,
+        'regenBoost' => $row['upgrade_regen_boost_count'] ?? 0,
+        'energyHuge' => $row['upgrade_energy_huge_count'] ?? 0,
+        'clickRate' => $row['upgrade_click_rate_count'] ?? 0,
+    ]);
+    $resolvedPlus = bober_calculate_plus_from_upgrade_counts($upgradeCounts);
+    $energyMax = bober_calculate_energy_max_from_upgrade_counts($upgradeCounts);
     $energy = max(0, min($energyMax, (int) ($row['energy'] ?? 0)));
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
     $skinState = bober_decode_skin_state($normalizedSkin);
     $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
-    $upgradeTapSmallCount = max(0, (int) ($row['upgrade_tap_small_count'] ?? 0));
-    $upgradeTapBigCount = max(0, (int) ($row['upgrade_tap_big_count'] ?? 0));
-    $upgradeEnergyCount = max(0, (int) ($row['upgrade_energy_count'] ?? 0));
-    $upgradeTapHugeCount = max(0, (int) ($row['upgrade_tap_huge_count'] ?? 0));
-    $upgradeRegenBoostCount = max(0, (int) ($row['upgrade_regen_boost_count'] ?? 0));
-    $upgradeEnergyHugeCount = max(0, (int) ($row['upgrade_energy_huge_count'] ?? 0));
-    $totalUpgradePurchases = $upgradeTapSmallCount
-        + $upgradeTapBigCount
-        + $upgradeEnergyCount
-        + $upgradeTapHugeCount
-        + $upgradeRegenBoostCount
-        + $upgradeEnergyHugeCount;
+    $upgradeTapSmallCount = $upgradeCounts['tapSmall'];
+    $upgradeTapBigCount = $upgradeCounts['tapBig'];
+    $upgradeEnergyCount = $upgradeCounts['energy'];
+    $upgradeTapHugeCount = $upgradeCounts['tapHuge'];
+    $upgradeRegenBoostCount = $upgradeCounts['regenBoost'];
+    $upgradeEnergyHugeCount = $upgradeCounts['energyHuge'];
+    $upgradeClickRateCount = $upgradeCounts['clickRate'];
+    $totalUpgradePurchases = array_sum($upgradeCounts);
     $achievementSnapshot = [
         'score' => max(0, (int) ($row['score'] ?? 0)),
-        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'plus' => $resolvedPlus,
         'energyMax' => $energyMax,
         'ownedSkinCount' => count($ownedSkinIds),
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
@@ -7077,6 +7369,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
             'tapHuge' => $upgradeTapHugeCount,
             'regenBoost' => $upgradeRegenBoostCount,
             'energyHuge' => $upgradeEnergyHugeCount,
+            'clickRate' => $upgradeClickRateCount,
         ],
     ];
     $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
@@ -7145,6 +7438,15 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
     $catalog = bober_skin_catalog();
     $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
+    $economyProfile = bober_build_user_economy_profile([
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => $resolvedPlus,
+        'energyMax' => $energyMax,
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
+        'ownedSkinIds' => $ownedSkinIds,
+        'upgradeCounts' => $upgradeCounts,
+        'catalog' => $catalog,
+    ]);
     $dailyQuestItems = is_array($quests['daily']['items'] ?? null) ? $quests['daily']['items'] : [];
     $weeklyQuestItems = is_array($quests['weekly']['items'] ?? null) ? $quests['weekly']['items'] : [];
     $dailyCompletedCount = count(array_filter($dailyQuestItems, static function ($item) {
@@ -7174,7 +7476,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'grantOnlySkins' => $skinSummary['grantOnlySkins'],
         'topRewardSkins' => $skinSummary['topRewardSkins'],
         'score' => $resolvedScore,
-        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'plus' => $resolvedPlus,
         'energyMax' => $energyMax,
         'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
         'flyPending' => max(0, (int) ($flyBeaver['pendingTransferScore'] ?? 0)),
@@ -7183,6 +7485,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'dailyQuestTotal' => count($dailyQuestItems),
         'weeklyQuestCompleted' => $weeklyCompletedCount,
         'weeklyQuestTotal' => count($weeklyQuestItems),
+        'economy' => $economyProfile,
         'honors' => $honors,
     ];
 
@@ -7191,7 +7494,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
         'login' => (string) ($row['login'] ?? ''),
-        'plus' => max(1, (int) ($row['plus'] ?? 1)),
+        'plus' => $resolvedPlus,
         'skin' => $normalizedSkin,
         'energy' => $energy,
         'lastEnergyUpdate' => max(0, (int) ($row['last_energy_update'] ?? 0)),
@@ -7204,6 +7507,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
             'tapHuge' => $upgradeTapHugeCount,
             'regenBoost' => $upgradeRegenBoostCount,
             'energyHuge' => $upgradeEnergyHugeCount,
+            'clickRate' => $upgradeClickRateCount,
         ],
         'flyBeaver' => $flyBeaver,
         'settings' => is_array($settingsRecord['settings'] ?? null) ? $settingsRecord['settings'] : bober_default_user_settings(),
@@ -7235,21 +7539,12 @@ function bober_apply_user_state_update($conn, $userId, $data)
     }
 
     $score = max(0, (int) ($data['score'] ?? 0));
-    $plus = max(1, (int) ($data['plus'] ?? 1));
-    $skin = bober_normalize_skin_json($data['skin'] ?? null);
-    $energyMax = max(1, (int) ($data['ENERGY_MAX'] ?? 5000));
-    $energy = min($energyMax, max(0, (int) ($data['energy'] ?? 0)));
+    $requestedSkinState = bober_decode_skin_state($data['skin'] ?? null);
+    $energy = max(0, (int) ($data['energy'] ?? 0));
     $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
-    $upgradePurchases = is_array($data['upgradePurchases'] ?? null) ? $data['upgradePurchases'] : [];
     $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
-    $upgradeTapSmallCount = max(0, (int) ($upgradePurchases['tapSmall'] ?? 0));
-    $upgradeTapBigCount = max(0, (int) ($upgradePurchases['tapBig'] ?? 0));
-    $upgradeEnergyCount = max(0, (int) ($upgradePurchases['energy'] ?? 0));
-    $upgradeTapHugeCount = max(0, (int) ($upgradePurchases['tapHuge'] ?? 0));
-    $upgradeRegenBoostCount = max(0, (int) ($upgradePurchases['regenBoost'] ?? 0));
-    $upgradeEnergyHugeCount = max(0, (int) ($upgradePurchases['energyHuge'] ?? 0));
 
-    $currentStmt = $conn->prepare('SELECT score, plus, skin, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count FROM users WHERE id = ? LIMIT 1');
+    $currentStmt = $conn->prepare('SELECT score, plus, skin, energy, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1');
     if (!$currentStmt) {
         throw new RuntimeException('Ошибка подготовки чтения текущего состояния.');
     }
@@ -7267,12 +7562,43 @@ function bober_apply_user_state_update($conn, $userId, $data)
     }
     $currentStmt->close();
 
-    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ? WHERE id = ?');
+    if (!is_array($currentRow)) {
+        throw new RuntimeException('Пользователь не найден.');
+    }
+
+    $currentUpgradeCounts = bober_normalize_upgrade_counts([
+        'tapSmall' => $currentRow['upgrade_tap_small_count'] ?? 0,
+        'tapBig' => $currentRow['upgrade_tap_big_count'] ?? 0,
+        'energy' => $currentRow['upgrade_energy_count'] ?? 0,
+        'tapHuge' => $currentRow['upgrade_tap_huge_count'] ?? 0,
+        'regenBoost' => $currentRow['upgrade_regen_boost_count'] ?? 0,
+        'energyHuge' => $currentRow['upgrade_energy_huge_count'] ?? 0,
+        'clickRate' => $currentRow['upgrade_click_rate_count'] ?? 0,
+    ]);
+    $upgradeTapSmallCount = $currentUpgradeCounts['tapSmall'];
+    $upgradeTapBigCount = $currentUpgradeCounts['tapBig'];
+    $upgradeEnergyCount = $currentUpgradeCounts['energy'];
+    $upgradeTapHugeCount = $currentUpgradeCounts['tapHuge'];
+    $upgradeRegenBoostCount = $currentUpgradeCounts['regenBoost'];
+    $upgradeEnergyHugeCount = $currentUpgradeCounts['energyHuge'];
+    $upgradeClickRateCount = $currentUpgradeCounts['clickRate'];
+    $plus = bober_calculate_plus_from_upgrade_counts($currentUpgradeCounts);
+    $energyMax = bober_calculate_energy_max_from_upgrade_counts($currentUpgradeCounts);
+    $energy = min($energyMax, $energy);
+    $currentSkinState = bober_decode_skin_state((string) ($currentRow['skin'] ?? ''));
+    $nextSkinState = $currentSkinState;
+    $requestedEquippedSkinId = trim((string) ($requestedSkinState['equippedSkinId'] ?? ''));
+    if ($requestedEquippedSkinId !== '' && in_array($requestedEquippedSkinId, (array) ($currentSkinState['ownedSkinIds'] ?? []), true)) {
+        $nextSkinState['equippedSkinId'] = $requestedEquippedSkinId;
+    }
+    $skin = bober_encode_skin_state($nextSkinState);
+
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('iisisiiiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount, $userId);
+    $stmt->bind_param('iisisiiiiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount, $upgradeClickRateCount, $userId);
     if (!$stmt->execute()) {
         $stmt->close();
         throw new RuntimeException('Ошибка выполнения запроса.');
@@ -7283,16 +7609,17 @@ function bober_apply_user_state_update($conn, $userId, $data)
 
     if (is_array($currentRow)) {
         $previousScore = max(0, (int) ($currentRow['score'] ?? 0));
-        $previousPlus = max(1, (int) ($currentRow['plus'] ?? 1));
-        $previousEnergyMax = max(1, (int) ($currentRow['ENERGY_MAX'] ?? 5000));
+        $previousUpgradeCounts = $currentUpgradeCounts;
+        $previousPlus = bober_calculate_plus_from_upgrade_counts($previousUpgradeCounts);
+        $previousEnergyMax = bober_calculate_energy_max_from_upgrade_counts($previousUpgradeCounts);
         $previousTapSmall = max(0, (int) ($currentRow['upgrade_tap_small_count'] ?? 0));
         $previousTapBig = max(0, (int) ($currentRow['upgrade_tap_big_count'] ?? 0));
         $previousEnergyPurchases = max(0, (int) ($currentRow['upgrade_energy_count'] ?? 0));
         $previousTapHuge = max(0, (int) ($currentRow['upgrade_tap_huge_count'] ?? 0));
         $previousRegenBoost = max(0, (int) ($currentRow['upgrade_regen_boost_count'] ?? 0));
         $previousEnergyHuge = max(0, (int) ($currentRow['upgrade_energy_huge_count'] ?? 0));
-        $previousSkinState = bober_decode_skin_state((string) ($currentRow['skin'] ?? ''));
-        $nextSkinState = bober_decode_skin_state($skin);
+        $previousClickRate = max(0, (int) ($currentRow['upgrade_click_rate_count'] ?? 0));
+        $previousSkinState = $currentSkinState;
 
         if ($upgradeTapSmallCount > $previousTapSmall) {
             bober_log_user_activity($conn, $userId, 'upgrade_tap_small_purchase', [
@@ -7395,6 +7722,22 @@ function bober_apply_user_state_update($conn, $userId, $data)
             ]);
         }
 
+        if ($upgradeClickRateCount > $previousClickRate) {
+            bober_log_user_activity($conn, $userId, 'upgrade_click_rate_purchase', [
+                'action_group' => 'progress',
+                'source' => 'save_state',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Куплено улучшение лимита засчитываемых кликов.',
+                'score_delta' => $score - $previousScore,
+                'coins_delta' => $score - $previousScore,
+                'meta' => [
+                    'previous_count' => $previousClickRate,
+                    'next_count' => $upgradeClickRateCount,
+                    'next_click_rate_limit' => bober_calculate_click_rate_limit_from_upgrade_counts($currentUpgradeCounts),
+                ],
+            ]);
+        }
+
         if (($previousSkinState['equippedSkinId'] ?? '') !== ($nextSkinState['equippedSkinId'] ?? '')) {
             bober_log_user_activity($conn, $userId, 'equip_skin', [
                 'action_group' => 'skins',
@@ -7432,7 +7775,8 @@ function bober_apply_user_state_update($conn, $userId, $data)
                 + max(0, $upgradeEnergyCount - $previousEnergyPurchases)
                 + max(0, $upgradeTapHugeCount - $previousTapHuge)
                 + max(0, $upgradeRegenBoostCount - $previousRegenBoost)
-                + max(0, $upgradeEnergyHugeCount - $previousEnergyHuge),
+                + max(0, $upgradeEnergyHugeCount - $previousEnergyHuge)
+                + max(0, $upgradeClickRateCount - $previousClickRate),
             'plusGain' => max(0, $plus - $previousPlus),
         ];
         bober_increment_user_quest_counters($conn, $userId, $questDeltas);
@@ -7457,6 +7801,292 @@ function bober_apply_user_state_update($conn, $userId, $data)
 
     return [
         'clientLog' => $clientLogResult,
+    ];
+}
+
+function bober_fetch_user_purchase_runtime_state($conn, $userId, $lockRow = false)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $sql = 'SELECT id, login, score, plus, skin, energy, last_energy_update, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1';
+    if ($lockRow) {
+        $sql .= ' FOR UPDATE';
+    }
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить загрузку состояния игрока.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось загрузить состояние игрока.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Пользователь не найден.');
+    }
+
+    $catalog = bober_skin_catalog();
+    $skinState = bober_decode_skin_state($row['skin'] ?? null);
+    $upgradeCounts = bober_normalize_upgrade_counts([
+        'tapSmall' => $row['upgrade_tap_small_count'] ?? 0,
+        'tapBig' => $row['upgrade_tap_big_count'] ?? 0,
+        'energy' => $row['upgrade_energy_count'] ?? 0,
+        'tapHuge' => $row['upgrade_tap_huge_count'] ?? 0,
+        'regenBoost' => $row['upgrade_regen_boost_count'] ?? 0,
+        'energyHuge' => $row['upgrade_energy_huge_count'] ?? 0,
+        'clickRate' => $row['upgrade_click_rate_count'] ?? 0,
+    ]);
+    $resolvedPlus = bober_calculate_plus_from_upgrade_counts($upgradeCounts);
+    $resolvedEnergyMax = bober_calculate_energy_max_from_upgrade_counts($upgradeCounts);
+    $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    $economyProfile = bober_build_user_economy_profile([
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => $resolvedPlus,
+        'energyMax' => $resolvedEnergyMax,
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
+        'ownedSkinIds' => array_values(array_unique(array_map('strval', (array) ($skinState['ownedSkinIds'] ?? [])))),
+        'upgradeCounts' => $upgradeCounts,
+        'catalog' => $catalog,
+    ]);
+
+    return [
+        'row' => $row,
+        'catalog' => $catalog,
+        'skinState' => $skinState,
+        'upgradeCounts' => $upgradeCounts,
+        'plus' => $resolvedPlus,
+        'energyMax' => $resolvedEnergyMax,
+        'flyBeaver' => $flyBeaver,
+        'economy' => $economyProfile,
+    ];
+}
+
+function bober_apply_authoritative_shop_purchase($conn, $userId, array $payload)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $kind = strtolower(trim((string) ($payload['kind'] ?? '')));
+    if ($kind !== 'upgrade' && $kind !== 'skin') {
+        throw new InvalidArgumentException('Некорректный тип покупки.');
+    }
+
+    $conn->begin_transaction();
+
+    try {
+        $runtimeState = bober_fetch_user_purchase_runtime_state($conn, $userId, true);
+        $row = $runtimeState['row'];
+        $catalog = $runtimeState['catalog'];
+        $skinState = $runtimeState['skinState'];
+        $upgradeCounts = $runtimeState['upgradeCounts'];
+        $currentScore = max(0, (int) ($row['score'] ?? 0));
+        $currentEnergy = max(0, (int) ($row['energy'] ?? 0));
+        $currentLastEnergyUpdate = (string) max(0, (int) ($row['last_energy_update'] ?? 0));
+        $currentPlus = max(1, (int) ($runtimeState['plus'] ?? 1));
+        $currentEnergyMax = max(5000, (int) ($runtimeState['energyMax'] ?? 5000));
+        $economyProfile = is_array($runtimeState['economy'] ?? null) ? $runtimeState['economy'] : ['index' => 0, 'multiplier' => 1.0, 'factors' => []];
+
+        $purchase = [
+            'kind' => $kind,
+            'itemId' => '',
+            'quantity' => 1,
+            'unitPrice' => 0,
+            'totalPrice' => 0,
+        ];
+
+        $nextUpgradeCounts = $upgradeCounts;
+        $nextSkinState = $skinState;
+        $nextScore = $currentScore;
+        $nextEnergy = min($currentEnergy, $currentEnergyMax);
+        $nextLastEnergyUpdate = $currentLastEnergyUpdate;
+
+        if ($kind === 'upgrade') {
+            $upgradeType = trim((string) ($payload['upgradeType'] ?? ''));
+            $quantity = max(1, min(250, (int) ($payload['quantity'] ?? 1)));
+            $upgradeCatalog = bober_upgrade_shop_catalog();
+            $upgradeMeta = is_array($upgradeCatalog[$upgradeType] ?? null) ? $upgradeCatalog[$upgradeType] : null;
+            if (!$upgradeMeta) {
+                throw new InvalidArgumentException('Неизвестный тип улучшения.');
+            }
+
+            $unitPrice = bober_calculate_effective_purchase_price((int) ($upgradeMeta['baseCost'] ?? 0), $economyProfile);
+            $totalPrice = $unitPrice * $quantity;
+            if ($currentScore < $totalPrice) {
+                throw new RuntimeException('Не хватает коинов для покупки.');
+            }
+
+            $nextUpgradeCounts[$upgradeType] = max(0, (int) ($nextUpgradeCounts[$upgradeType] ?? 0)) + $quantity;
+            $nextScore -= $totalPrice;
+
+            $purchase = [
+                'kind' => 'upgrade',
+                'itemId' => $upgradeType,
+                'quantity' => $quantity,
+                'unitPrice' => $unitPrice,
+                'totalPrice' => $totalPrice,
+            ];
+        } else {
+            $skinId = trim((string) ($payload['skinId'] ?? ''));
+            if ($skinId === '') {
+                throw new InvalidArgumentException('Некорректный идентификатор скина.');
+            }
+
+            $skinConfig = is_array($catalog[$skinId] ?? null) ? $catalog[$skinId] : null;
+            if (!$skinConfig) {
+                throw new RuntimeException('Скин не найден.');
+            }
+
+            $issueMode = bober_normalize_skin_issue_mode($skinConfig['issue_mode'] ?? ($skinConfig['issueMode'] ?? ''), $skinConfig);
+            if ($issueMode !== 'shop' || empty($skinConfig['available'])) {
+                throw new RuntimeException('Этот скин нельзя купить в магазине.');
+            }
+
+            $ownedSkinIds = array_values(array_unique(array_map('strval', (array) ($skinState['ownedSkinIds'] ?? []))));
+            if (in_array($skinId, $ownedSkinIds, true)) {
+                throw new RuntimeException('Этот скин уже куплен.');
+            }
+
+            $unitPrice = bober_calculate_effective_purchase_price((int) ($skinConfig['price'] ?? 0), $economyProfile, $issueMode);
+            if ($currentScore < $unitPrice) {
+                throw new RuntimeException('Не хватает коинов для покупки.');
+            }
+
+            $nextScore -= $unitPrice;
+            $nextSkinState['ownedSkinIds'][] = $skinId;
+            $nextSkinState['ownedSkinIds'] = array_values(array_unique(array_map('strval', $nextSkinState['ownedSkinIds'])));
+            if (!empty($payload['equip'])) {
+                $nextSkinState['equippedSkinId'] = $skinId;
+            }
+
+            $purchase = [
+                'kind' => 'skin',
+                'itemId' => $skinId,
+                'quantity' => 1,
+                'unitPrice' => $unitPrice,
+                'totalPrice' => $unitPrice,
+            ];
+        }
+
+        $nextPlus = bober_calculate_plus_from_upgrade_counts($nextUpgradeCounts);
+        $nextEnergyMax = bober_calculate_energy_max_from_upgrade_counts($nextUpgradeCounts);
+        $nextEnergy = min($nextEnergy, $nextEnergyMax);
+        $nextSkinJson = bober_encode_skin_state($nextSkinState);
+
+        $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить сохранение покупки.');
+        }
+
+        $tapSmallCount = max(0, (int) ($nextUpgradeCounts['tapSmall'] ?? 0));
+        $tapBigCount = max(0, (int) ($nextUpgradeCounts['tapBig'] ?? 0));
+        $energyCount = max(0, (int) ($nextUpgradeCounts['energy'] ?? 0));
+        $tapHugeCount = max(0, (int) ($nextUpgradeCounts['tapHuge'] ?? 0));
+        $regenBoostCount = max(0, (int) ($nextUpgradeCounts['regenBoost'] ?? 0));
+        $energyHugeCount = max(0, (int) ($nextUpgradeCounts['energyHuge'] ?? 0));
+        $clickRateCount = max(0, (int) ($nextUpgradeCounts['clickRate'] ?? 0));
+
+        $stmt->bind_param('iisisiiiiiiiii', $nextScore, $nextPlus, $nextSkinJson, $nextEnergy, $nextLastEnergyUpdate, $nextEnergyMax, $tapSmallCount, $tapBigCount, $energyCount, $tapHugeCount, $regenBoostCount, $energyHugeCount, $clickRateCount, $userId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось сохранить покупку.');
+        }
+        $stmt->close();
+
+        if ($kind === 'upgrade') {
+            $upgradeType = $purchase['itemId'];
+            $upgradeCatalog = bober_upgrade_shop_catalog();
+            $upgradeMeta = is_array($upgradeCatalog[$upgradeType] ?? null) ? $upgradeCatalog[$upgradeType] : [];
+            $meta = [
+                'previous_count' => max(0, (int) ($upgradeCounts[$upgradeType] ?? 0)),
+                'next_count' => max(0, (int) ($nextUpgradeCounts[$upgradeType] ?? 0)),
+                'quantity' => max(1, (int) ($purchase['quantity'] ?? 1)),
+                'unit_price' => max(0, (int) ($purchase['unitPrice'] ?? 0)),
+                'total_price' => max(0, (int) ($purchase['totalPrice'] ?? 0)),
+            ];
+
+            if ($upgradeType === 'tapSmall' || $upgradeType === 'tapBig' || $upgradeType === 'tapHuge') {
+                $meta['previous_plus'] = $currentPlus;
+                $meta['next_plus'] = $nextPlus;
+            } elseif ($upgradeType === 'energy' || $upgradeType === 'energyHuge') {
+                $meta['previous_energy_max'] = $currentEnergyMax;
+                $meta['next_energy_max'] = $nextEnergyMax;
+            } elseif ($upgradeType === 'regenBoost') {
+                $meta['regen_bonus_per_second'] = max(0, (int) ($purchase['quantity'] ?? 1) * 2);
+            } elseif ($upgradeType === 'clickRate') {
+                $meta['next_click_rate_limit'] = bober_calculate_click_rate_limit_from_upgrade_counts($nextUpgradeCounts);
+            }
+
+            bober_log_user_activity($conn, $userId, (string) ($upgradeMeta['actionType'] ?? 'upgrade_tap_small_purchase'), [
+                'action_group' => 'progress',
+                'source' => 'shop_purchase',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => (string) ($upgradeMeta['description'] ?? 'Куплено улучшение.'),
+                'score_delta' => -max(0, (int) ($purchase['totalPrice'] ?? 0)),
+                'coins_delta' => -max(0, (int) ($purchase['totalPrice'] ?? 0)),
+                'meta' => $meta,
+            ]);
+
+            bober_increment_user_quest_counters($conn, $userId, [
+                'scoreGain' => 0,
+                'upgradeBuys' => max(1, (int) ($purchase['quantity'] ?? 1)),
+                'plusGain' => max(0, $nextPlus - $currentPlus),
+            ]);
+        } else {
+            bober_log_user_activity($conn, $userId, 'unlock_skin', [
+                'action_group' => 'skins',
+                'source' => 'shop_purchase',
+                'login' => $_SESSION['game_login'] ?? '',
+                'description' => 'Игрок купил новый скин.',
+                'score_delta' => -max(0, (int) ($purchase['totalPrice'] ?? 0)),
+                'coins_delta' => -max(0, (int) ($purchase['totalPrice'] ?? 0)),
+                'meta' => [
+                    'unlocked_skin_ids' => [$purchase['itemId']],
+                    'unit_price' => max(0, (int) ($purchase['unitPrice'] ?? 0)),
+                    'total_price' => max(0, (int) ($purchase['totalPrice'] ?? 0)),
+                    'equipped_after_purchase' => !empty($payload['equip']),
+                ],
+            ]);
+
+            if (!empty($payload['equip']) && (($skinState['equippedSkinId'] ?? '') !== ($nextSkinState['equippedSkinId'] ?? ''))) {
+                bober_log_user_activity($conn, $userId, 'equip_skin', [
+                    'action_group' => 'skins',
+                    'source' => 'shop_purchase',
+                    'login' => $_SESSION['game_login'] ?? '',
+                    'description' => 'Игрок сменил активный скин.',
+                    'meta' => [
+                        'previous_skin_id' => $skinState['equippedSkinId'] ?? '',
+                        'next_skin_id' => $nextSkinState['equippedSkinId'] ?? '',
+                    ],
+                ]);
+            }
+        }
+
+        $conn->commit();
+    } catch (Throwable $error) {
+        $conn->rollback();
+        throw $error;
+    }
+
+    $account = bober_fetch_account_snapshot($conn, $userId);
+
+    return [
+        'account' => $account,
+        'purchase' => $purchase,
     ];
 }
 

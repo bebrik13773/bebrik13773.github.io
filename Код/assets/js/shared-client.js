@@ -686,7 +686,167 @@
         return null;
     }
 
-    function resolveRuntimeUrl(url) {
+    var challengeRuntimeState = {
+        currentValue: '',
+        aesPromise: null,
+    };
+
+    function getStoredRuntimeChallenge() {
+        try {
+            return window.sessionStorage.getItem('bober_runtime_challenge') || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function setStoredRuntimeChallenge(value) {
+        var normalizedValue = String(value || '').trim();
+        challengeRuntimeState.currentValue = normalizedValue;
+        try {
+            if (normalizedValue) {
+                window.sessionStorage.setItem('bober_runtime_challenge', normalizedValue);
+            } else {
+                window.sessionStorage.removeItem('bober_runtime_challenge');
+            }
+        } catch (error) {
+            // ignore storage issues
+        }
+    }
+
+    function getRuntimeChallengeValue() {
+        if (challengeRuntimeState.currentValue) {
+            return challengeRuntimeState.currentValue;
+        }
+
+        var storedValue = getStoredRuntimeChallenge();
+        if (storedValue) {
+            challengeRuntimeState.currentValue = storedValue;
+            return storedValue;
+        }
+
+        try {
+            var currentUrl = new URL(window.location.href);
+            var currentChallengeValue = currentUrl.searchParams.get('i');
+            if (currentChallengeValue) {
+                return currentChallengeValue;
+            }
+        } catch (error) {
+            // ignore parse issues
+        }
+
+        try {
+            var currentOrigin = window.location && window.location.origin ? window.location.origin : '';
+            var currentHostname = currentOrigin ? new URL(currentOrigin).hostname : '';
+            if (/^bober-api\.gt\.tc$/i.test(currentHostname)) {
+                return '1';
+            }
+        } catch (error) {
+            // ignore parse issues
+        }
+
+        return '';
+    }
+
+    function challengeToNumbers(hex) {
+        var values = [];
+        String(hex || '').replace(/(..)/g, function(chunk) {
+            values.push(parseInt(chunk, 16));
+            return chunk;
+        });
+        return values;
+    }
+
+    function challengeToHex(values) {
+        var source = Array.isArray(values) ? values : [];
+        var output = '';
+        for (var index = 0; index < source.length; index += 1) {
+            var value = Math.max(0, Math.min(255, Number(source[index]) || 0));
+            output += (value < 16 ? '0' : '') + value.toString(16);
+        }
+        return output.toLowerCase();
+    }
+
+    function isChallengeHtmlResponse(responseText) {
+        var source = String(responseText || '');
+        return source.indexOf('document.cookie="__test="+toHex(slowAES.decrypt(') !== -1
+            && source.indexOf('location.href=') !== -1;
+    }
+
+    function extractChallengeDescriptor(responseText) {
+        var source = String(responseText || '');
+        if (!isChallengeHtmlResponse(source)) {
+            return null;
+        }
+
+        var aMatch = source.match(/a=toNumbers\("([0-9a-f]+)"\)/i);
+        var bMatch = source.match(/b=toNumbers\("([0-9a-f]+)"\)/i);
+        var cMatch = source.match(/c=toNumbers\("([0-9a-f]+)"\)/i);
+        var redirectMatch = source.match(/location\.href="([^"]+)"/i);
+        if (!aMatch || !bMatch || !cMatch) {
+            return null;
+        }
+
+        return {
+            a: aMatch[1],
+            b: bMatch[1],
+            c: cMatch[1],
+            redirectUrl: redirectMatch ? redirectMatch[1] : '',
+        };
+    }
+
+    function ensureSlowAes() {
+        if (window.slowAES && typeof window.slowAES.decrypt === 'function') {
+            return Promise.resolve(window.slowAES);
+        }
+
+        if (challengeRuntimeState.aesPromise) {
+            return challengeRuntimeState.aesPromise;
+        }
+
+        challengeRuntimeState.aesPromise = new Promise(function(resolve, reject) {
+            var script = document.createElement('script');
+            script.src = '/aes.js';
+            script.async = true;
+            script.onload = function() {
+                if (window.slowAES && typeof window.slowAES.decrypt === 'function') {
+                    resolve(window.slowAES);
+                    return;
+                }
+                challengeRuntimeState.aesPromise = null;
+                reject(new Error('Не удалось загрузить AES-решатель challenge.'));
+            };
+            script.onerror = function() {
+                challengeRuntimeState.aesPromise = null;
+                reject(new Error('Не удалось загрузить /aes.js для anti-bot challenge.'));
+            };
+            document.head.appendChild(script);
+        });
+
+        return challengeRuntimeState.aesPromise;
+    }
+
+    async function solveChallengeAndPersistCookie(responseText) {
+        var descriptor = extractChallengeDescriptor(responseText);
+        if (!descriptor) {
+            return null;
+        }
+
+        var slowAes = await ensureSlowAes();
+        var cookieValue = challengeToHex(
+            slowAes.decrypt(
+                challengeToNumbers(descriptor.c),
+                2,
+                challengeToNumbers(descriptor.a),
+                challengeToNumbers(descriptor.b)
+            )
+        );
+        document.cookie = '__test=' + cookieValue + '; max-age=21600; expires=Thu, 31-Dec-37 23:55:55 GMT; path=/';
+        setStoredRuntimeChallenge('2');
+
+        return descriptor;
+    }
+
+    function resolveRuntimeUrl(url, forcedChallengeValue) {
         if (typeof url !== 'string') {
             return url;
         }
@@ -709,41 +869,11 @@
                 return normalizedUrl;
             }
 
-            if (/\.php$/i.test(parsedUrl.pathname) && !parsedUrl.searchParams.has('i')) {
-                var challengeValue = '';
-                try {
-                    var currentUrl = new URL(window.location.href);
-                    var currentChallengeValue = currentUrl.searchParams.get('i');
-                    if (currentChallengeValue) {
-                        challengeValue = currentChallengeValue;
-                    }
-                } catch (error) {
-                    challengeValue = '';
-                }
-                if (!challengeValue) {
-                    try {
-                        challengeValue = window.sessionStorage.getItem('bober_runtime_challenge') || '';
-                    } catch (error) {
-                        challengeValue = '';
-                    }
-                }
-                if (!challengeValue) {
-                    try {
-                        var currentHostname = currentOrigin ? new URL(currentOrigin).hostname : '';
-                        if (/^bober-api\.gt\.tc$/i.test(currentHostname)) {
-                            challengeValue = '1';
-                        }
-                    } catch (error) {
-                        challengeValue = '';
-                    }
-                }
+            var challengeValue = String(forcedChallengeValue || '').trim() || getRuntimeChallengeValue();
+            if (/\.php$/i.test(parsedUrl.pathname) && (challengeValue || parsedUrl.searchParams.has('i'))) {
                 if (challengeValue) {
                     parsedUrl.searchParams.set('i', challengeValue);
-                    try {
-                        window.sessionStorage.setItem('bober_runtime_challenge', challengeValue);
-                    } catch (error) {
-                        // ignore storage issues
-                    }
+                    setStoredRuntimeChallenge(challengeValue);
                 }
             }
 
@@ -757,10 +887,14 @@
         }
     }
 
-    function requestJson(url, options) {
-        return fetch(resolveRuntimeUrl(url), Object.assign({
+    async function requestJson(url, options) {
+        var requestOptions = Object.assign({
             credentials: 'include'
-        }, options || {})).then(async function(response) {
+        }, options || {});
+        var resolvedUrl = resolveRuntimeUrl(url);
+
+        for (var attempt = 0; attempt < 2; attempt += 1) {
+            var response = await fetch(resolvedUrl, requestOptions);
             var data = null;
             var responseText = '';
 
@@ -771,6 +905,24 @@
                 readError.status = response.status;
                 readError.contentType = response.headers.get('content-type') || '';
                 throw readError;
+            }
+
+            if (isChallengeHtmlResponse(responseText)) {
+                if (attempt > 0) {
+                    var repeatedChallengeError = new Error('Хостинг снова вернул anti-bot challenge вместо JSON.');
+                    repeatedChallengeError.status = response.status;
+                    repeatedChallengeError.contentType = response.headers.get('content-type') || '';
+                    repeatedChallengeError.rawBodyPreview = responseText.slice(0, 300);
+                    throw repeatedChallengeError;
+                }
+
+                var challengeDescriptor = await solveChallengeAndPersistCookie(responseText);
+                if (!challengeDescriptor) {
+                    break;
+                }
+
+                resolvedUrl = resolveRuntimeUrl(challengeDescriptor.redirectUrl || url, '2');
+                continue;
             }
 
             if (responseText !== '') {
@@ -789,6 +941,15 @@
                 }
             }
 
+            try {
+                var finalUrl = response.url ? new URL(response.url) : null;
+                if (finalUrl && /\.php$/i.test(finalUrl.pathname) && finalUrl.searchParams.get('i') === '2') {
+                    setStoredRuntimeChallenge('2');
+                }
+            } catch (error) {
+                // ignore parse issues
+            }
+
             if (!response.ok) {
                 var requestError = new Error(data && data.message ? data.message : 'HTTP ' + response.status);
                 requestError.status = response.status;
@@ -799,7 +960,11 @@
             }
 
             return data;
-        });
+        }
+
+        var unresolvedChallengeError = new Error('Не удалось автоматически пройти anti-bot challenge хостинга.');
+        unresolvedChallengeError.status = 503;
+        throw unresolvedChallengeError;
     }
 
     function calculateFlyRewardCoins(scoreValue, coinsPerScore) {

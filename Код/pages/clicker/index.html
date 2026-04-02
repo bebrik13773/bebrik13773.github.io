@@ -550,6 +550,11 @@ Owner decisions:
 				radial-gradient(circle at top right, rgba(120, 214, 255, 0.32), transparent 42%),
 				linear-gradient(145deg, rgba(24, 60, 110, 0.97), rgba(8, 20, 47, 0.99));
 		}
+		.upgrade-card.click-rate {
+			background:
+				radial-gradient(circle at top right, rgba(255, 182, 120, 0.32), transparent 42%),
+				linear-gradient(145deg, rgba(103, 54, 18, 0.97), rgba(41, 21, 8, 0.99));
+		}
 		.upgrade-card.locked {
 			filter: saturate(0.88);
 			border-color: rgba(255, 255, 255, 0.12);
@@ -3204,6 +3209,17 @@ Owner decisions:
         box-shadow: 0 12px 24px rgba(4, 8, 22, 0.2);
     }
 
+    .profile-stat-card.interactive {
+        cursor: pointer;
+        transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .profile-stat-card.interactive:hover {
+        transform: translateY(-1px);
+        border-color: rgba(126, 241, 255, 0.34);
+        background: linear-gradient(180deg, rgba(17, 24, 51, 0.82), rgba(9, 12, 31, 0.92));
+    }
+
     .profile-stat-label {
         font-size: 12px;
         color: rgba(255, 255, 255, 0.64);
@@ -3757,6 +3773,93 @@ Owner decisions:
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.01em;
+    }
+
+    .economy-profile-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .economy-profile-chip {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(10, 14, 32, 0.58);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .economy-profile-chip strong {
+        font-size: 22px;
+        color: #f4ffff;
+    }
+
+    .economy-profile-chip span {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .economy-profile-note {
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 227, 145, 0.12);
+        border: 1px solid rgba(255, 214, 122, 0.16);
+        color: rgba(255, 248, 229, 0.92);
+        line-height: 1.55;
+        font-size: 14px;
+    }
+
+    .economy-factor-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .economy-factor-card {
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(10, 14, 32, 0.58);
+    }
+
+    .economy-factor-head,
+    .economy-factor-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .economy-factor-head {
+        margin-bottom: 10px;
+    }
+
+    .economy-factor-label {
+        font-weight: 700;
+        color: #f4ffff;
+    }
+
+    .economy-factor-value,
+    .economy-factor-meta {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.76);
+    }
+
+    .economy-factor-progress {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+        margin-bottom: 10px;
+    }
+
+    .economy-factor-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(255, 225, 118, 0.96), rgba(126, 241, 255, 0.96));
     }
 
     .support-modal {
@@ -5619,6 +5722,17 @@ function showNotification(message, type = 'success', duration = 3000) {
         <span class="upgrade-card-status"></span>
     </span>
 </button>
+<button class="upgrade-card click-rate" id="upgradeClickRateButton" data-palette="upgrade-click-rate" onclick="buyClickRateUpgrade()">
+    <span class="upgrade-card-top">
+        <span class="upgrade-card-badge">+3 CPS</span>
+        <span class="upgrade-card-title">Разогнать ритм</span>
+        <span class="upgrade-card-meta">Поднимает лимит засчитываемых кликов на 3 CPS. Полезно, если уже упираетесь в потолок скорости.</span>
+    </span>
+    <span class="upgrade-card-footer">
+        <span class="upgrade-card-price"></span>
+        <span class="upgrade-card-status"></span>
+    </span>
+</button>
 <button class="upgrade-card energy-huge" id="upgradeEnergyHugeButton" data-palette="upgrade-energy-huge" onclick="buyEnergyHugeUpgrade()">
     <span class="upgrade-card-top">
         <span class="upgrade-card-badge">+10K</span>
@@ -5965,6 +6079,18 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button secondary" id="leaderboardProfileLookupModalClose">Отмена</button>
             <button type="button" class="settings-action-button primary" id="leaderboardProfileLookupSubmit">Открыть профиль</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="economyProfileModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="economyProfileModalTitle">
+        <div class="skin-action-modal-title" id="economyProfileModalTitle">Экономический индекс</div>
+        <div class="skin-action-modal-text" id="economyProfileModalSubtitle">Разбор факторов, которые сейчас влияют на мягкое повышение цен у этого игрока.</div>
+        <div id="economyProfileContent">
+            <div class="public-profile-loading">Загружаю факторы экономики...</div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="economyProfileModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -6324,7 +6450,8 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     energy: 10000,
     tapHuge: 2500000,
     regenBoost: 35000,
-    energyHuge: 90000
+    energyHuge: 90000,
+    clickRate: 1800000
 });
 const SKIN_RARITY_ORDER = Object.freeze({
     common: 0,
@@ -6371,6 +6498,11 @@ const leaderboardProfileState = {
     requestToken: 0,
     cache: new Map()
 };
+const economyProfileModalState = {
+    source: 'private',
+    login: 'Игрок',
+    economy: getDefaultEconomyProfile()
+};
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
 
@@ -6400,6 +6532,7 @@ function getDefaultProfileSummary() {
         flyBest: 0,
         flyPending: 0,
         flyGamesPlayed: 0,
+        economy: getDefaultEconomyProfile(),
         honors: getDefaultProfileHonors()
     };
 }
@@ -6424,6 +6557,7 @@ function getDefaultLeaderboardPublicProfile() {
             energyMax: 5000,
             flyBest: 0,
             flyGamesPlayed: 0,
+            economy: getDefaultEconomyProfile(),
             honors: getDefaultProfileHonors()
         },
         skins: {
@@ -6433,6 +6567,67 @@ function getDefaultLeaderboardPublicProfile() {
         achievements: [],
         recentActivity: []
     };
+}
+
+function getDefaultEconomyProfile() {
+    return {
+        index: 0,
+        multiplier: 1,
+        factors: []
+    };
+}
+
+function normalizeEconomyFactor(rawFactor) {
+    if (!rawFactor || typeof rawFactor !== 'object') {
+        return null;
+    }
+
+    const key = String(rawFactor.key || '').trim();
+    const label = String(rawFactor.label || '').trim();
+    if (!key || !label) {
+        return null;
+    }
+
+    const numericValue = Number(rawFactor.value);
+    return {
+        key,
+        label,
+        value: Number.isFinite(numericValue) ? numericValue : 0,
+        valueLabel: String(rawFactor.valueLabel || '').trim() || '0',
+        normalized: Math.max(0, Math.min(1, Number(rawFactor.normalized) || 0)),
+        contribution: Math.max(0, Number(rawFactor.contribution) || 0)
+    };
+}
+
+function normalizeEconomyProfile(rawEconomy) {
+    const defaults = getDefaultEconomyProfile();
+    if (!rawEconomy || typeof rawEconomy !== 'object') {
+        return defaults;
+    }
+
+    const factors = Array.isArray(rawEconomy.factors)
+        ? rawEconomy.factors.map((item) => normalizeEconomyFactor(item)).filter(Boolean)
+        : [];
+
+    return {
+        index: Math.max(0, Math.min(100, Math.round(Number(rawEconomy.index) || 0))),
+        multiplier: Math.max(1, Math.min(1.3, Number(rawEconomy.multiplier) || 1)),
+        factors
+    };
+}
+
+function formatEconomyMultiplier(multiplier) {
+    const safeMultiplier = Math.max(1, Number(multiplier) || 1);
+    return `x${safeMultiplier.toFixed(2)}`;
+}
+
+function getCurrentEconomyProfile() {
+    return normalizeEconomyProfile(profileSummary?.economy);
+}
+
+function getCurrentClickRateLimit() {
+    return CLICK_RATE_LIMIT_CONFIG.baseMaxCreditedClicksPerWindow
+        + (Math.max(0, Math.floor(Number(upgradePurchaseCounts.clickRate) || 0)) * CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade);
 }
 
 function getDefaultSupportSummary() {
@@ -6551,6 +6746,7 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
             energyMax: Math.max(1, Number(rawProfile.energyMax) || 5000),
             flyBest: Math.max(0, Number(rawProfile.flyBest) || 0),
             flyGamesPlayed: Math.max(0, Number(rawProfile.flyGamesPlayed) || 0),
+            economy: normalizeEconomyProfile(rawProfile.economy),
             honors: normalizeProfileHonors(rawProfile.honors)
         },
         skins: {
@@ -6801,9 +6997,20 @@ const ENERGY_SHORTAGE_NOTICE_CONFIG = {
     cooldownMs: 2200,
     durationMs: 1800
 };
+const CLICK_RATE_LIMIT_CONFIG = {
+    windowMs: 1000,
+    baseMaxCreditedClicksPerWindow: 15,
+    bonusPerUpgrade: 3
+};
 const energyShortageNoticeState = {
     lastShownAt: 0,
     lastNotificationId: ''
+};
+const clickRateLimitState = {
+    creditedClickTimestamps: []
+};
+const shopPurchaseState = {
+    inFlight: false
 };
 const skinCatalogLiveRefreshState = {
     inFlight: false,
@@ -7007,6 +7214,17 @@ const INTERACTION_PALETTES = {
         rippleRing: '120, 179, 255',
         rippleShadow: '79, 118, 220',
         clickerGlow: '172, 235, 255'
+    },
+    'upgrade-click-rate': {
+        pageA: '255, 212, 120',
+        pageB: '255, 164, 96',
+        pageC: '192, 105, 44',
+        sheen: '255, 246, 227',
+        shadow: '62, 27, 9',
+        rippleCore: '255, 224, 152',
+        rippleRing: '255, 174, 101',
+        rippleShadow: '221, 122, 58',
+        clickerGlow: '255, 216, 146'
     },
     'skin-common': {
         pageA: '158, 145, 255',
@@ -7691,6 +7909,97 @@ function buildSaveStateBeaconTransportPayload(reason = 'beacon') {
     };
 }
 
+async function performAuthoritativePurchase(requestBody, options = {}) {
+    if (!userId) {
+        requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы покупать улучшения и скины в облаке.'
+        });
+        return null;
+    }
+
+    if (shopPurchaseState.inFlight) {
+        showNotification('Покупка уже обрабатывается.', 'warning');
+        return null;
+    }
+
+    if (options.event && typeof options.event === 'object') {
+        logClientEvent(
+            options.event.channel || 'shop',
+            options.event.action || 'purchase_request',
+            options.event.payload || {},
+            options.event.meta || {}
+        );
+    }
+
+    if (hasPendingAutosave()) {
+        const flushed = await flushAutosave({ reason: 'shop_pre_purchase', silent: true });
+        if (!flushed && hasPendingAutosave()) {
+            showNotification('Перед покупкой не удалось досохранить текущий прогресс. Дождитесь синхронизации и повторите попытку.', 'warning', 5200);
+            return null;
+        }
+    }
+
+    shopPurchaseState.inFlight = true;
+    refreshSaveStatusFromState();
+
+    try {
+        const response = await requestJson('/api/shop/purchase.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId,
+                ...requestBody
+            })
+        });
+
+        if (response && response.account) {
+            applySynchronizedAccountState(response.account);
+            leaderboardProfileState.cache.delete(Number(response.account.userId) || 0);
+        }
+
+        if (response && response.supportSummary) {
+            applySupportSummary(response.supportSummary);
+        }
+        if (response && response.achievementUnlocks) {
+            enqueueAchievementUnlocks(response.achievementUnlocks);
+        }
+        if (response && response.quests) {
+            questState = normalizeQuestState(response.quests);
+            renderQuestsModal();
+        }
+        if (response && response.questUnlocks) {
+            notifyAboutQuestUnlocks(response.questUnlocks);
+        }
+        if (response && (response.achievementStats || response.achievementPlayerBase)) {
+            applyAchievementStats(response.achievementStats, response.achievementPlayerBase);
+        }
+        if (response && response.flyBeaver) {
+            flyBeaverState = normalizeFlyBeaverState(response.flyBeaver);
+            updateFlyRewardUI();
+        }
+
+        refreshSaveStatusFromState();
+        return response;
+    } catch (error) {
+        if (isDatabaseQuotaExceededError(error)) {
+            activateDatabaseQuotaCooldown(error);
+        } else if (tryHandleSessionConflictError(error) || tryHandleSessionEndedError(error)) {
+            return null;
+        } else if (tryHandleBanError(error)) {
+            resetUserState();
+            return null;
+        }
+
+        showNotification(error.message || 'Не удалось выполнить покупку.', 'error');
+        return null;
+    } finally {
+        shopPurchaseState.inFlight = false;
+        refreshSaveStatusFromState();
+    }
+}
+
 ensureClientLogReady().catch((error) => {
     console.warn('Не удалось инициализировать клиентский лог.', error);
 });
@@ -7704,6 +8013,7 @@ function syncGlobalOverlayState() {
         document.getElementById('settingsModal'),
         document.getElementById('profileModal'),
         document.getElementById('questsModal'),
+        document.getElementById('economyProfileModal'),
         document.getElementById('leaderboardProfileModal'),
         document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
@@ -9309,6 +9619,7 @@ function renderProfileModal() {
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
         { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
+        { label: 'Экономический индекс', value: `${formatLeaderboardScore(summary.economy.index)} • ${formatEconomyMultiplier(summary.economy.multiplier)}`, action: 'economy' },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'В очереди fly-beaver', value: formatLeaderboardScore(summary.flyPending) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
@@ -9329,7 +9640,7 @@ function renderProfileModal() {
     badgesNode.innerHTML = badgeItems.join('');
     trophiesNode.innerHTML = buildProfileTrophyHtml(honors.trophies);
     statsNode.innerHTML = stats.map((item) => `
-        <div class="profile-stat-card">
+        <div class="profile-stat-card ${item.action ? 'interactive' : ''}" ${item.action ? `data-stat-action="${escapeHtmlText(item.action)}" role="button" tabindex="0" title="Показать детали"` : ''}>
             <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
             <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
         </div>
@@ -9413,6 +9724,10 @@ function renderProfileModal() {
                 : '<div class="profile-achievement-empty">Все достижения уже открыты.</div>'}
         </section>
     `;
+
+    if (economyProfileModalState.source === 'private') {
+        renderEconomyProfileModal();
+    }
 }
 
 function scrollProfileModalToSection(section = '') {
@@ -9619,6 +9934,7 @@ function renderLeaderboardPublicProfileModal() {
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
         { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
+        { label: 'Экономический индекс', value: `${formatLeaderboardScore(summary.economy.index)} • ${formatEconomyMultiplier(summary.economy.multiplier)}`, action: 'economy' },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
         { label: 'Редких скинов', value: formatLeaderboardScore(summary.rareSkins) },
@@ -9703,7 +10019,7 @@ function renderLeaderboardPublicProfileModal() {
         <div class="profile-trophy-row">${buildProfileTrophyHtml(honors.trophies)}</div>
         <div class="profile-stats-grid">
             ${stats.map((item) => `
-                <div class="profile-stat-card">
+                <div class="profile-stat-card ${item.action ? 'interactive' : ''}" ${item.action ? `data-stat-action="${escapeHtmlText(item.action)}" role="button" tabindex="0" title="Показать детали"` : ''}>
                     <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
                     <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
                 </div>
@@ -9729,6 +10045,91 @@ function renderLeaderboardPublicProfileModal() {
             ${collectionHtml}
         </div>
     `;
+
+    if (economyProfileModalState.source === 'public') {
+        renderEconomyProfileModal();
+    }
+}
+
+function buildEconomyProfileHtml(login, economy) {
+    const resolvedLogin = String(login || 'Игрок').trim() || 'Игрок';
+    const normalizedEconomy = normalizeEconomyProfile(economy);
+    const sortedFactors = [...normalizedEconomy.factors].sort((left, right) => right.contribution - left.contribution);
+
+    return `
+        <div class="economy-profile-summary">
+            <div class="economy-profile-chip">Игрок: ${escapeHtmlText(resolvedLogin)}</div>
+            <div class="economy-profile-chip">Индекс: ${escapeHtmlText(formatCompactNumber(normalizedEconomy.index))}</div>
+            <div class="economy-profile-chip">Множитель: ${escapeHtmlText(formatEconomyMultiplier(normalizedEconomy.multiplier))}</div>
+        </div>
+        <div class="economy-profile-note">
+            Множитель влияет только на цены магазинных скинов и улучшений. Он растет мягко и только после заметного прогресса аккаунта.
+        </div>
+        <div class="economy-factor-list">
+            ${sortedFactors.length > 0 ? sortedFactors.map((factor) => `
+                <article class="economy-factor-card">
+                    <div class="economy-factor-head">
+                        <div>
+                            <div class="economy-factor-label">${escapeHtmlText(factor.label)}</div>
+                            <div class="economy-factor-value">${escapeHtmlText(factor.valueLabel)}</div>
+                        </div>
+                        <div class="economy-factor-impact">+${escapeHtmlText((Number(factor.contribution) || 0).toFixed(2))} к индексу</div>
+                    </div>
+                    <div class="economy-factor-progress">
+                        <div class="economy-factor-progress-fill" style="width:${escapeHtmlText(String((factor.normalized * 100).toFixed(2)))}%"></div>
+                    </div>
+                </article>
+            `).join('') : '<div class="public-profile-empty">Пока нет факторов, которые заметно поднимают экономический индекс.</div>'}
+        </div>
+    `;
+}
+
+function renderEconomyProfileModal() {
+    const contentNode = document.getElementById('economyProfileContent');
+    const subtitleNode = document.getElementById('economyProfileModalSubtitle');
+    if (!contentNode || !subtitleNode) {
+        return;
+    }
+
+    const login = String(economyProfileModalState.login || 'Игрок').trim() || 'Игрок';
+    const economy = normalizeEconomyProfile(economyProfileModalState.economy);
+    subtitleNode.textContent = `Разбор факторов, которые сейчас влияют на мягкое повышение цен у игрока ${login}.`;
+    contentNode.innerHTML = buildEconomyProfileHtml(login, economy);
+}
+
+function openEconomyProfileModal(source = 'private') {
+    const modal = document.getElementById('economyProfileModal');
+    if (!modal) {
+        return;
+    }
+
+    if (source === 'public') {
+        const publicData = normalizeLeaderboardPublicProfile(leaderboardProfileState.data, leaderboardProfileState.fallbackLogin);
+        economyProfileModalState.source = 'public';
+        economyProfileModalState.login = publicData.login;
+        economyProfileModalState.economy = publicData.profile.economy;
+    } else {
+        const summary = normalizeProfileSummary(profileSummary);
+        economyProfileModalState.source = 'private';
+        economyProfileModalState.login = currentLogin || 'Игрок';
+        economyProfileModalState.economy = summary.economy;
+    }
+
+    renderEconomyProfileModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
+function closeEconomyProfileModal() {
+    const modal = document.getElementById('economyProfileModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
 }
 
 async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок', options = {}) {
@@ -11104,7 +11505,8 @@ function getDefaultUpgradePurchaseCounts() {
         energy: 0,
         tapHuge: 0,
         regenBoost: 0,
-        energyHuge: 0
+        energyHuge: 0,
+        clickRate: 0
     };
 }
 
@@ -11243,6 +11645,27 @@ function updateSkinShopControls() {
     }
 }
 
+function getEffectiveSkinPrice(skinConfig, options = {}) {
+    if (!skinConfig || typeof skinConfig !== 'object') {
+        return 0;
+    }
+
+    const basePrice = Math.max(0, Number(skinConfig.price) || 0);
+    const issueMode = normalizeSkinIssueMode(skinConfig.issueMode || skinConfig.issue_mode, skinConfig);
+    if (issueMode !== 'shop' || basePrice < 1) {
+        return basePrice;
+    }
+
+    const economy = normalizeEconomyProfile(options.economy || getCurrentEconomyProfile());
+    return Math.max(basePrice, Math.round(basePrice * Math.max(1, Number(economy.multiplier) || 1)));
+}
+
+function getEffectiveUpgradePrice(type, options = {}) {
+    const baseCost = Math.max(1, Number(getUpgradeBaseCost(type)) || 1);
+    const economy = normalizeEconomyProfile(options.economy || getCurrentEconomyProfile());
+    return Math.max(baseCost, Math.round(baseCost * Math.max(1, Number(economy.multiplier) || 1)));
+}
+
 function buildCoinShortageForecast(price, options = {}) {
     const safePrice = Math.max(0, Number(price) || 0);
     const safeBalance = Math.max(0, Number(options.balance ?? score) || 0);
@@ -11278,7 +11701,8 @@ function formatCoinShortageDetails(price, options = {}) {
 }
 
 function getUpgradePriceFormulaHint() {
-    return 'Формула цены: до 3 покупок базовая стоимость, после 4 — x1.25, после 9 — x1.4, после 16 — x1.6 за уровень.';
+    const economy = getCurrentEconomyProfile();
+    return `Все покупки используют общий мягкий множитель экономики ${formatEconomyMultiplier(economy.multiplier)}. Он растет только у заметно прокачанных аккаунтов и одинаково влияет на улучшения и магазинные скины.`;
 }
 
 function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
@@ -11303,6 +11727,12 @@ function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
         return `Эффект набора: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} к максимуму энергии. Это апгрейд на длительность сессии, а не на прямой доход.`;
     }
 
+    if (type === 'clickRate') {
+        const currentLimit = getCurrentClickRateLimit();
+        const nextLimit = currentLimit + (CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade * safeQuantity);
+        return `Эффект набора: лимит засчитываемых кликов вырастет с ${formatCompactNumber(currentLimit)} до ${formatCompactNumber(nextLimit)} CPS. Доход напрямую не растет, но лишние быстрые клики перестанут теряться.`;
+    }
+
     return '';
 }
 
@@ -11316,6 +11746,7 @@ function getSkinBlockedReasonForViewer(skinConfig, options = {}) {
     }
 
     const owned = options.owned === true || isSkinOwned(skinConfig.id);
+    const effectivePrice = getEffectiveSkinPrice(skinConfig, options);
     if (owned) {
         return '';
     }
@@ -11336,7 +11767,7 @@ function getSkinBlockedReasonForViewer(skinConfig, options = {}) {
         return 'Войдите, чтобы купить';
     }
 
-    if (score < Number(skinConfig.price || 0)) {
+    if (score < effectivePrice) {
         return 'Не хватает коинов';
     }
 
@@ -11420,7 +11851,8 @@ function updateSkinShopFeature() {
         featureStatusNode.textContent = 'Стартовый';
         featureTipNode.textContent = '';
     } else if (!userId) {
-        featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
+        const effectivePrice = getEffectiveSkinPrice(focusedSkin);
+        featureStatusNode.textContent = effectivePrice > 0 ? `${formatCompactNumber(effectivePrice)} коинов` : 'Бесплатно';
         featureTipNode.textContent = 'Войдите, чтобы купить.';
     } else if (equipped) {
         featureStatusNode.textContent = 'Надет';
@@ -11428,12 +11860,14 @@ function updateSkinShopFeature() {
     } else if (owned) {
         featureStatusNode.textContent = 'Куплен';
         featureTipNode.textContent = '';
-    } else if (score >= focusedSkin.price) {
-        featureStatusNode.textContent = focusedSkin.price > 0 ? `${formatCompactNumber(focusedSkin.price)} коинов` : 'Бесплатно';
+    } else if (score >= getEffectiveSkinPrice(focusedSkin)) {
+        const effectivePrice = getEffectiveSkinPrice(focusedSkin);
+        featureStatusNode.textContent = effectivePrice > 0 ? `${formatCompactNumber(effectivePrice)} коинов` : 'Бесплатно';
         featureTipNode.textContent = 'Можно купить.';
     } else {
-        featureStatusNode.textContent = `${formatCompactNumber(focusedSkin.price)} коинов`;
-        featureTipNode.textContent = formatCoinShortageDetails(focusedSkin.price);
+        const effectivePrice = getEffectiveSkinPrice(focusedSkin);
+        featureStatusNode.textContent = `${formatCompactNumber(effectivePrice)} коинов`;
+        featureTipNode.textContent = formatCoinShortageDetails(effectivePrice);
     }
 }
 
@@ -11461,7 +11895,8 @@ function updateSkinShopUI() {
         const isHiddenForViewer = isSkinHiddenForViewer(skinConfig, isOwned);
         const isUniqueHiddenOwned = isUniqueHiddenSkin(skinConfig, isOwned);
         const blockedReason = getSkinBlockedReasonForViewer(skinConfig, { owned: isOwned });
-        const shortageForecast = buildCoinShortageForecast(skinConfig.price);
+        const effectivePrice = getEffectiveSkinPrice(skinConfig);
+        const shortageForecast = buildCoinShortageForecast(effectivePrice);
 
         skinCard.classList.toggle('owned', isOwned);
         skinCard.classList.toggle('equipped', isEquipped);
@@ -11475,7 +11910,7 @@ function updateSkinShopUI() {
                 priceNode.textContent = '';
                 priceNode.style.display = 'none';
             } else {
-                priceNode.textContent = skinConfig.price > 0 ? `${formatCompactNumber(skinConfig.price)} коинов` : 'Бесплатно';
+                priceNode.textContent = effectivePrice > 0 ? `${formatCompactNumber(effectivePrice)} коинов` : 'Бесплатно';
                 priceNode.style.display = 'inline-flex';
             }
         }
@@ -11496,7 +11931,7 @@ function updateSkinShopUI() {
                 statusNode.textContent = 'Надет';
             } else if (isOwned) {
                 statusNode.textContent = 'Установить';
-            } else if (score >= skinConfig.price) {
+            } else if (score >= effectivePrice) {
                 statusNode.textContent = 'Купить';
             } else {
                 statusNode.textContent = `-${formatCompactNumber(shortageForecast.shortage)}`;
@@ -11511,10 +11946,10 @@ function updateSkinShopUI() {
             skinCard.title = 'Это стартовый скин для новых аккаунтов.';
         } else if (!userId) {
             skinCard.title = 'Войдите в аккаунт, чтобы покупать и устанавливать скины.';
-        } else if (!isOwned && score < Number(skinConfig.price || 0)) {
-            skinCard.title = formatCoinShortageDetails(skinConfig.price);
+        } else if (!isOwned && score < effectivePrice) {
+            skinCard.title = formatCoinShortageDetails(effectivePrice);
         } else if (!isOwned) {
-            skinCard.title = `Цена: ${formatCompactNumber(skinConfig.price)} коинов. Купить можно прямо сейчас.`;
+            skinCard.title = `Цена: ${formatCompactNumber(effectivePrice)} коинов. Купить можно прямо сейчас.`;
         } else if (isEquipped) {
             skinCard.title = 'Этот скин уже надет.';
         } else {
@@ -11542,7 +11977,7 @@ function updateSkinShopUI() {
                 badgeNode.classList.add('owned');
                 badgeNode.textContent = '◆ Куплен';
             } else {
-                badgeNode.textContent = skinConfig.price > 0 ? `${formatCompactNumber(skinConfig.price)}` : 'Free';
+                badgeNode.textContent = effectivePrice > 0 ? `${formatCompactNumber(effectivePrice)}` : 'Free';
             }
         }
     });
@@ -11636,15 +12071,17 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
         return;
     }
 
+    const effectivePrice = getEffectiveSkinPrice(skinConfig, options);
     const disabledReason = String(options.disabledReason || '').trim();
-    const shortageForecast = buildCoinShortageForecast(skinConfig.price);
+    const shortageForecast = buildCoinShortageForecast(effectivePrice);
     skinActionState.skinId = skinConfig.id;
     skinActionState.mode = mode;
     skinActionState.disabledReason = disabledReason;
     logClientEvent('skins', mode === 'install' ? 'skin_install_modal_open' : 'skin_purchase_modal_open', {
         skinId: skinConfig.id,
         skinName: skinConfig.name,
-        price: Number(skinConfig.price || 0),
+        price: effectivePrice,
+        basePrice: Number(skinConfig.price || 0),
         mode: mode,
         disabledReason: disabledReason
     }, {
@@ -11662,13 +12099,13 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
         if (mode === 'install') {
             textNode.textContent = `Установить скин "${skinConfig.name}" как активный?`;
         } else if (disabledReason === 'Не хватает коинов') {
-            textNode.textContent = `Купить скин "${skinConfig.name}" пока нельзя. ${formatCoinShortageDetails(skinConfig.price)}`;
+            textNode.textContent = `Купить скин "${skinConfig.name}" пока нельзя. ${formatCoinShortageDetails(effectivePrice)}`;
         } else if (disabledReason === 'Войдите, чтобы купить') {
             textNode.textContent = `Для покупки скина "${skinConfig.name}" нужен вход в аккаунт.`;
         } else if (disabledReason) {
             textNode.textContent = `Скин "${skinConfig.name}" сейчас недоступен. Причина: ${disabledReason.toLowerCase()}.`;
         } else {
-            textNode.textContent = `Купить скин "${skinConfig.name}" за ${formatCompactNumber(skinConfig.price)} коинов и сразу установить его? После покупки останется ${formatCompactNumber(Math.max(0, score - Number(skinConfig.price || 0)))}.`;
+            textNode.textContent = `Купить скин "${skinConfig.name}" за ${formatCompactNumber(effectivePrice)} коинов и сразу установить его? После покупки останется ${formatCompactNumber(Math.max(0, score - effectivePrice))}.`;
         }
     }
 
@@ -11680,8 +12117,8 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
     }
 
     if (priceNode) {
-        priceNode.textContent = skinConfig.price > 0
-            ? `Цена: ${formatCompactNumber(skinConfig.price)} коинов`
+        priceNode.textContent = effectivePrice > 0
+            ? `Цена: ${formatCompactNumber(effectivePrice)} коинов`
             : 'Цена: бесплатно';
         priceNode.style.display = mode === 'install' ? 'none' : 'inline-flex';
     }
@@ -11697,7 +12134,7 @@ function showSkinActionModal(skinConfig, mode, options = {}) {
 
     const defaultConfirmText = mode === 'install'
         ? 'Установить'
-        : (skinConfig.price > 0 ? `Купить за ${formatCompactNumber(skinConfig.price)}` : 'Получить');
+        : (effectivePrice > 0 ? `Купить за ${formatCompactNumber(effectivePrice)}` : 'Получить');
     confirmNode.textContent = disabledReason === 'Не хватает коинов'
         ? `Не хватает ${formatCompactNumber(shortageForecast.shortage)}`
         : (disabledReason || defaultConfirmText);
@@ -11731,76 +12168,70 @@ function getUpgradeDescriptor(type) {
             effect: '+1 коин за нажатие',
             effectStep: 1,
             purchaseCount: upgradePurchaseCounts.tapSmall,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapSmall, upgradePurchaseCounts.tapSmall, 'tapSmall')
         },
         tapBig: {
             title: 'Сильный тап',
             effect: '+5 коинов за нажатие',
             effectStep: 5,
             purchaseCount: upgradePurchaseCounts.tapBig,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapBig, upgradePurchaseCounts.tapBig, 'tapBig')
         },
         energy: {
             title: 'Запас энергии',
             effect: '+1000 к максимуму энергии',
             effectStep: 1000,
             purchaseCount: upgradePurchaseCounts.energy,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energy, upgradePurchaseCounts.energy, 'energy')
         },
         tapHuge: {
             title: 'Мега-тап',
             effect: '+100 коинов за нажатие',
             effectStep: 100,
             purchaseCount: upgradePurchaseCounts.tapHuge,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapHuge, upgradePurchaseCounts.tapHuge)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.tapHuge, upgradePurchaseCounts.tapHuge, 'tapHuge')
         },
         regenBoost: {
             title: 'Быстрая зарядка',
             effect: '+2 энергии в секунду',
             effectStep: 2,
             purchaseCount: upgradePurchaseCounts.regenBoost,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.regenBoost, upgradePurchaseCounts.regenBoost)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.regenBoost, upgradePurchaseCounts.regenBoost, 'regenBoost')
         },
         energyHuge: {
             title: 'Сверхзапас',
             effect: '+10000 к максимуму энергии',
             effectStep: 10000,
             purchaseCount: upgradePurchaseCounts.energyHuge,
-            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energyHuge, upgradePurchaseCounts.energyHuge)
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.energyHuge, upgradePurchaseCounts.energyHuge, 'energyHuge')
+        },
+        clickRate: {
+            title: 'Разогнать ритм',
+            effect: '+3 CPS к лимиту засчитываемых кликов',
+            effectStep: CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade,
+            purchaseCount: upgradePurchaseCounts.clickRate,
+            price: calculateUpgradeCost(UPGRADE_BASE_COSTS.clickRate, upgradePurchaseCounts.clickRate, 'clickRate')
         }
     };
 
     return descriptors[type] || null;
 }
 
-function calculateUpgradeBundleCost(baseCost, purchaseCount, quantity) {
+function calculateUpgradeBundleCost(baseCost, purchaseCount, quantity, type = '') {
     const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
-    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
-    let total = 0;
-
-    for (let index = 0; index < safeQuantity; index += 1) {
-        total += calculateUpgradeCost(baseCost, safePurchaseCount + index);
-    }
-
-    return total;
+    const unitPrice = calculateUpgradeCost(baseCost, purchaseCount, type);
+    return unitPrice * safeQuantity;
 }
 
-function buildUpgradeBundlePricing(baseCost, purchaseCount, quantity) {
+function buildUpgradeBundlePricing(baseCost, purchaseCount, quantity, type = '') {
     const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
-    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
-    const prices = [];
-    let total = 0;
-
-    for (let index = 0; index < safeQuantity; index += 1) {
-        const price = calculateUpgradeCost(baseCost, safePurchaseCount + index);
-        prices.push(price);
-        total += price;
-    }
+    const unitPrice = calculateUpgradeCost(baseCost, purchaseCount, type);
+    const prices = Array.from({ length: safeQuantity }, () => unitPrice);
 
     return {
         prices,
-        total,
-        nextSinglePrice: calculateUpgradeCost(baseCost, safePurchaseCount + safeQuantity)
+        total: unitPrice * safeQuantity,
+        nextSinglePrice: unitPrice
     };
 }
 
@@ -11818,22 +12249,10 @@ function formatUpgradeBundlePricingPreview(prices) {
     return `${formatted.slice(0, 4).join(' + ')} + ... + ${formatted[formatted.length - 1]}`;
 }
 
-function calculateMaxAffordableUpgradeQuantity(baseCost, purchaseCount, balance) {
-    let total = 0;
-    let quantity = 0;
-    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
+function calculateMaxAffordableUpgradeQuantity(baseCost, purchaseCount, balance, type = '') {
     const safeBalance = Math.max(0, Math.floor(Number(balance) || 0));
-
-    while (quantity < 250) {
-        const nextCost = calculateUpgradeCost(baseCost, safePurchaseCount + quantity);
-        if (total + nextCost > safeBalance) {
-            break;
-        }
-        total += nextCost;
-        quantity += 1;
-    }
-
-    return quantity;
+    const unitPrice = Math.max(1, calculateUpgradeCost(baseCost, purchaseCount, type));
+    return Math.max(0, Math.min(250, Math.floor(safeBalance / unitPrice)));
 }
 
 function getUpgradeShortageMessage(price) {
@@ -11849,7 +12268,8 @@ function normalizeUpgradeModalQuantity(type, quantity) {
     const maxAffordable = Math.max(1, calculateMaxAffordableUpgradeQuantity(
         getUpgradeBaseCost(type),
         descriptor.purchaseCount,
-        score
+        score,
+        type
     ));
 
     return Math.max(1, Math.min(maxAffordable, Math.floor(Number(quantity) || 1)));
@@ -11863,9 +12283,9 @@ function updateUpgradeActionModalView() {
     }
 
     const baseCost = getUpgradeBaseCost(upgradeActionState.type);
-    const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score);
+    const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score, upgradeActionState.type);
     const quantity = normalizeUpgradeModalQuantity(upgradeActionState.type, upgradeActionState.quantity);
-    const bundlePricing = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, quantity);
+    const bundlePricing = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, quantity, upgradeActionState.type);
     const totalPrice = bundlePricing.total;
     const nextBalance = Math.max(0, score - totalPrice);
     const nextSinglePrice = bundlePricing.nextSinglePrice;
@@ -11915,6 +12335,8 @@ function updateUpgradeActionModalView() {
             effectLabel = 'к энергии';
         } else if (upgradeActionState.type === 'regenBoost') {
             effectLabel = 'энергии/сек';
+        } else if (upgradeActionState.type === 'clickRate') {
+            effectLabel = 'к лимиту CPS';
         }
         effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${effectLabel}`;
     }
@@ -11979,60 +12401,58 @@ function showUpgradeActionModal(type) {
     syncGlobalOverlayState();
 }
 
-function performUpgradePurchase(type, quantity = 1) {
+async function performUpgradePurchase(type, quantity = 1) {
     const descriptor = getUpgradeDescriptor(type);
     if (!descriptor) {
-        return;
+        return false;
     }
 
     const safeQuantity = normalizeUpgradeModalQuantity(type, quantity);
     const baseCost = getUpgradeBaseCost(type);
-    const currentCost = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, safeQuantity).total;
+    const pricing = buildUpgradeBundlePricing(baseCost, descriptor.purchaseCount, safeQuantity, type);
+    const currentCost = pricing.total;
     if (score < currentCost) {
         showUpgradeActionModal(type);
-        return;
+        return false;
     }
 
-    if (type === 'tapSmall') {
-        plus += safeQuantity;
-        upgradePurchaseCounts.tapSmall += safeQuantity;
-    } else if (type === 'tapBig') {
-        plus += 5 * safeQuantity;
-        upgradePurchaseCounts.tapBig += safeQuantity;
-    } else if (type === 'energy') {
-        energy_max += 1000 * safeQuantity;
-        upgradePurchaseCounts.energy += safeQuantity;
-        updateRegenRate();
-    } else if (type === 'tapHuge') {
-        plus += 100 * safeQuantity;
-        upgradePurchaseCounts.tapHuge += safeQuantity;
-    } else if (type === 'regenBoost') {
-        upgradePurchaseCounts.regenBoost += safeQuantity;
-        updateRegenRate();
-    } else if (type === 'energyHuge') {
-        energy_max += 10000 * safeQuantity;
-        upgradePurchaseCounts.energyHuge += safeQuantity;
-        updateRegenRate();
+    const purchaseResult = await performAuthoritativePurchase({
+        kind: 'upgrade',
+        upgradeType: type,
+        quantity: safeQuantity
+    }, {
+        event: {
+            channel: 'progress',
+            action: 'upgrade_purchase_request',
+            payload: {
+                upgradeType: type,
+                quantity: safeQuantity,
+                totalCost: currentCost,
+                unitPrice: pricing.prices[0] || currentCost
+            },
+            meta: {
+                source: 'upgrade_shop',
+                description: 'Отправлена серверная покупка улучшения.'
+            }
+        }
+    });
+
+    if (!purchaseResult) {
+        return false;
     }
 
-    score -= currentCost;
-    updateScoreUI();
-    updateEnergyUI();
-    updateUpgradeShopUI();
     logClientEvent('progress', 'upgrade_purchase_client', {
         upgradeType: type,
         quantity: safeQuantity,
-        totalCost: currentCost,
+        totalCost: Number(purchaseResult.purchase?.totalPrice || currentCost),
+        unitPrice: Number(purchaseResult.purchase?.unitPrice || (pricing.prices[0] || currentCost)),
         nextPlus: plus,
-        nextEnergyMax: energy_max
+        nextEnergyMax: energy_max,
+        nextClickRateLimit: getCurrentClickRateLimit()
     }, {
         source: 'upgrade_shop',
         description: 'Клиент зафиксировал покупку улучшения.'
     });
-    markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
-    if (type === 'tapSmall' || type === 'tapBig' || type === 'tapHuge') {
-        saveplus();
-    }
 
     hideUpgradeActionModal();
     showNotification(
@@ -12040,12 +12460,15 @@ function performUpgradePurchase(type, quantity = 1) {
             ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый максимум: ${formatCompactNumber(energy_max)}`
             : type === 'regenBoost'
                 ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Реген: +${formatCompactNumber(upgradePurchaseCounts.regenBoost * 2)} энергии/сек`
-            : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
+                : type === 'clickRate'
+                    ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый лимит: ${formatCompactNumber(getCurrentClickRateLimit())} CPS`
+                : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
         'success'
     );
+    return true;
 }
 
-function applySkinPurchaseOrEquip(skinConfig, mode) {
+async function applySkinPurchaseOrEquip(skinConfig, mode) {
     if (mode === 'install') {
         skin.equippedSkinId = skinConfig.id;
         skinLoad();
@@ -12062,11 +12485,13 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
         return true;
     }
 
-    if (score < skinConfig.price) {
+    const effectivePrice = getEffectiveSkinPrice(skinConfig);
+    if (score < effectivePrice) {
         logClientEvent('skins', 'skin_purchase_shortage', {
             skinId: skinConfig.id,
             skinName: skinConfig.name,
-            price: Number(skinConfig.price || 0),
+            price: effectivePrice,
+            basePrice: Number(skinConfig.price || 0),
             balance: score
         }, {
             source: 'skin_shop',
@@ -12078,26 +12503,44 @@ function applySkinPurchaseOrEquip(skinConfig, mode) {
         return false;
     }
 
-    skin.ownedSkinIds = Array.from(new Set([...(skin.ownedSkinIds || []), skinConfig.id]));
-    skin.equippedSkinId = skinConfig.id;
-    score -= skinConfig.price;
-    skinLoad();
-    updateScoreUI();
-    updateSkinShopUI();
+    const purchaseResult = await performAuthoritativePurchase({
+        kind: 'skin',
+        skinId: skinConfig.id,
+        equip: true
+    }, {
+        event: {
+            channel: 'skins',
+            action: 'skin_purchase_request',
+            payload: {
+                skinId: skinConfig.id,
+                skinName: skinConfig.name,
+                price: effectivePrice,
+                basePrice: Number(skinConfig.price || 0)
+            },
+            meta: {
+                source: 'skin_shop',
+                description: 'Отправлена серверная покупка скина.'
+            }
+        }
+    });
+    if (!purchaseResult) {
+        return false;
+    }
+
     logClientEvent('skins', 'skin_purchase_client', {
         skinId: skinConfig.id,
         skinName: skinConfig.name,
-        price: Number(skinConfig.price || 0)
+        price: effectivePrice,
+        basePrice: Number(skinConfig.price || 0)
     }, {
         source: 'skin_shop',
         description: 'Клиент купил и сразу установил новый скин.'
     });
-    saveskin();
     showNotification('Успешная покупка скина!', 'success');
     return true;
 }
 
-function confirmSkinAction() {
+async function confirmSkinAction() {
     const skinConfig = getSkinConfigById(skinActionState.skinId);
     if (!skinConfig) {
         hideSkinActionModal();
@@ -12105,7 +12548,7 @@ function confirmSkinAction() {
         return;
     }
 
-    if (applySkinPurchaseOrEquip(skinConfig, skinActionState.mode)) {
+    if (await applySkinPurchaseOrEquip(skinConfig, skinActionState.mode)) {
         hideSkinActionModal();
     }
 }
@@ -12140,6 +12583,7 @@ function normalizeProfileSummary(rawSummary) {
         dailyQuestTotal: Math.max(0, Number(rawSummary.dailyQuestTotal) || 0),
         weeklyQuestCompleted: Math.max(0, Number(rawSummary.weeklyQuestCompleted) || 0),
         weeklyQuestTotal: Math.max(0, Number(rawSummary.weeklyQuestTotal) || 0),
+        economy: normalizeEconomyProfile(rawSummary.economy),
         honors: normalizeProfileHonors(rawSummary.honors)
     };
 }
@@ -12733,6 +13177,7 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
         normalized.tapHuge = Math.max(0, Math.floor(Number(rawCounts.tapHuge) || 0));
         normalized.regenBoost = Math.max(0, Math.floor(Number(rawCounts.regenBoost) || 0));
         normalized.energyHuge = Math.max(0, Math.floor(Number(rawCounts.energyHuge) || 0));
+        normalized.clickRate = Math.max(0, Math.floor(Number(rawCounts.clickRate) || 0));
     }
 
     const resolvedPlus = Math.max(1, Math.floor(Number(options.plus) || 1));
@@ -12755,22 +13200,13 @@ function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
     return normalized;
 }
 
-function calculateUpgradeCost(baseCost, purchaseCount) {
-    const safeBaseCost = Math.max(1, Number(baseCost) || 1);
-    const safePurchaseCount = Math.max(0, Math.floor(Number(purchaseCount) || 0));
-    let currentCost = safeBaseCost;
-
-    for (let purchaseIndex = 1; purchaseIndex <= safePurchaseCount; purchaseIndex += 1) {
-        if (purchaseIndex >= 16) {
-            currentCost *= 1.6;
-        } else if (purchaseIndex >= 9) {
-            currentCost *= 1.4;
-        } else if (purchaseIndex >= 4) {
-            currentCost *= 1.25;
-        }
+function calculateUpgradeCost(baseCost, purchaseCount, type = '') {
+    if (type) {
+        return getEffectiveUpgradePrice(type);
     }
 
-    return Math.max(safeBaseCost, Math.round(currentCost));
+    const safeBaseCost = Math.max(1, Number(baseCost) || 1);
+    return safeBaseCost;
 }
 
 function getUpgradeBaseCost(type) {
@@ -12783,6 +13219,7 @@ function updateUpgradeShopUI() {
     const upgradeEnergyButton = document.getElementById('upgradeEnergyButton');
     const upgradeTap100Button = document.getElementById('upgradeTap100Button');
     const upgradeRegenBoostButton = document.getElementById('upgradeRegenBoostButton');
+    const upgradeClickRateButton = document.getElementById('upgradeClickRateButton');
     const upgradeEnergyHugeButton = document.getElementById('upgradeEnergyHugeButton');
     const cards = [
         {
@@ -12826,6 +13263,14 @@ function updateUpgradeShopUI() {
             lockedText: 'Нужно накопить на быструю зарядку'
         },
         {
+            type: 'clickRate',
+            button: upgradeClickRateButton,
+            baseCost: UPGRADE_BASE_COSTS.clickRate,
+            purchaseCount: upgradePurchaseCounts.clickRate,
+            affordableText: 'Можно поднять лимит засчитываемых кликов',
+            lockedText: 'Нужно накопить на разгон ритма'
+        },
+        {
             type: 'energyHuge',
             button: upgradeEnergyHugeButton,
             baseCost: UPGRADE_BASE_COSTS.energyHuge,
@@ -12841,11 +13286,11 @@ function updateUpgradeShopUI() {
             return;
         }
 
-        const currentCost = calculateUpgradeCost(cardConfig.baseCost, cardConfig.purchaseCount);
+        const currentCost = calculateUpgradeCost(cardConfig.baseCost, cardConfig.purchaseCount, cardConfig.type);
         const priceNode = button.querySelector('.upgrade-card-price');
         const statusNode = button.querySelector('.upgrade-card-status');
         const isAffordable = Boolean(userId) && score >= currentCost;
-        const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(cardConfig.baseCost, cardConfig.purchaseCount, score);
+        const maxAffordableQuantity = calculateMaxAffordableUpgradeQuantity(cardConfig.baseCost, cardConfig.purchaseCount, score, cardConfig.type);
         const blockedReason = !userId ? 'Сначала войдите в аккаунт' : (!isAffordable ? cardConfig.lockedText : '');
 
         button.classList.toggle('affordable', isAffordable);
@@ -14102,6 +14547,22 @@ if (upgradeActionModalNode) {
     });
 }
 
+const economyProfileModalNode = document.getElementById('economyProfileModal');
+if (economyProfileModalNode) {
+    economyProfileModalNode.addEventListener('click', (event) => {
+        if (event.target === economyProfileModalNode) {
+            closeEconomyProfileModal();
+        }
+    });
+}
+
+const economyProfileModalCloseButton = document.getElementById('economyProfileModalClose');
+if (economyProfileModalCloseButton) {
+    economyProfileModalCloseButton.addEventListener('click', () => {
+        closeEconomyProfileModal();
+    });
+}
+
 const skinActionCancelButton = document.getElementById('skinActionModalCancel');
 if (skinActionCancelButton) {
     skinActionCancelButton.addEventListener('click', () => {
@@ -14112,7 +14573,10 @@ if (skinActionCancelButton) {
 const skinActionConfirmButton = document.getElementById('skinActionModalConfirm');
 if (skinActionConfirmButton) {
     skinActionConfirmButton.addEventListener('click', () => {
-        confirmSkinAction();
+        confirmSkinAction().catch((error) => {
+            console.error('Не удалось подтвердить действие со скином:', error);
+            showNotification(error.message || 'Не удалось завершить действие со скином.', 'error');
+        });
     });
 }
 
@@ -14127,7 +14591,10 @@ const upgradeActionConfirmButton = document.getElementById('upgradeActionModalCo
 if (upgradeActionConfirmButton) {
     upgradeActionConfirmButton.addEventListener('click', () => {
         if (upgradeActionState.type) {
-            performUpgradePurchase(upgradeActionState.type, upgradeActionState.quantity);
+            performUpgradePurchase(upgradeActionState.type, upgradeActionState.quantity).catch((error) => {
+                console.error('Не удалось купить улучшение:', error);
+                showNotification(error.message || 'Не удалось купить улучшение.', 'error');
+            });
         }
     });
 }
@@ -14179,7 +14646,7 @@ document.querySelectorAll('.upgrade-quantity-preset').forEach((button) => {
             }
 
             const baseCost = getUpgradeBaseCost(upgradeActionState.type);
-            upgradeActionState.quantity = Math.max(1, calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score));
+            upgradeActionState.quantity = Math.max(1, calculateMaxAffordableUpgradeQuantity(baseCost, descriptor.purchaseCount, score, upgradeActionState.type));
         } else {
             upgradeActionState.quantity = Math.max(1, Math.floor(Number(rawQuantity) || 1));
         }
@@ -14187,6 +14654,58 @@ document.querySelectorAll('.upgrade-quantity-preset').forEach((button) => {
         updateUpgradeActionModalView();
     });
 });
+
+const profileModalStatsNode = document.getElementById('profileModalStats');
+if (profileModalStatsNode) {
+    const handleStatActivation = (target) => {
+        const actionNode = target instanceof Element ? target.closest('[data-stat-action]') : null;
+        if (!actionNode) {
+            return;
+        }
+
+        const action = String(actionNode.dataset.statAction || '').trim();
+        if (action === 'economy') {
+            openEconomyProfileModal('private');
+        }
+    };
+
+    profileModalStatsNode.addEventListener('click', (event) => {
+        handleStatActivation(event.target);
+    });
+    profileModalStatsNode.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+        handleStatActivation(event.target);
+        event.preventDefault();
+    });
+}
+
+const leaderboardProfileContentNode = document.getElementById('leaderboardProfileContent');
+if (leaderboardProfileContentNode) {
+    const handlePublicStatActivation = (target) => {
+        const actionNode = target instanceof Element ? target.closest('[data-stat-action]') : null;
+        if (!actionNode) {
+            return;
+        }
+
+        const action = String(actionNode.dataset.statAction || '').trim();
+        if (action === 'economy') {
+            openEconomyProfileModal('public');
+        }
+    };
+
+    leaderboardProfileContentNode.addEventListener('click', (event) => {
+        handlePublicStatActivation(event.target);
+    });
+    leaderboardProfileContentNode.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+        handlePublicStatActivation(event.target);
+        event.preventDefault();
+    });
+}
 
 const flyBeaverOpenButton = document.getElementById('flyBeaverOpenButton');
 if (flyBeaverOpenButton) {
@@ -14268,6 +14787,11 @@ function refreshSaveStatusFromState() {
         if (remainingMs > 0) {
             scheduleSaveStatusRefreshTimer(Math.min(1000, remainingMs));
         }
+        return;
+    }
+
+    if (shopPurchaseState.inFlight) {
+        setSaveStatus('saving', 'Подтверждаем покупку и обновляем облачное состояние...', { keepTimer: true });
         return;
     }
 
@@ -14442,50 +14966,6 @@ function restoreLocalDraftIfAvailable() {
         restored = true;
     }
 
-    const draftPlus = Number(draft.payload.plus);
-    if (Number.isFinite(draftPlus) && draftPlus > plus) {
-        plus = draftPlus;
-        restored = true;
-    }
-
-    const draftEnergyMax = Number(draft.payload.ENERGY_MAX);
-    if (Number.isFinite(draftEnergyMax) && draftEnergyMax > energy_max) {
-        energy_max = draftEnergyMax;
-        updateRegenRate();
-        restored = true;
-    }
-
-    const draftUpgradePurchases = normalizeUpgradePurchaseCounts(draft.payload.upgradePurchases, {
-        plus: draft.payload.plus,
-        energyMax: draft.payload.ENERGY_MAX
-    });
-    if (
-        draftUpgradePurchases.tapSmall > upgradePurchaseCounts.tapSmall ||
-        draftUpgradePurchases.tapBig > upgradePurchaseCounts.tapBig ||
-        draftUpgradePurchases.energy > upgradePurchaseCounts.energy ||
-        draftUpgradePurchases.tapHuge > upgradePurchaseCounts.tapHuge ||
-        draftUpgradePurchases.regenBoost > upgradePurchaseCounts.regenBoost ||
-        draftUpgradePurchases.energyHuge > upgradePurchaseCounts.energyHuge
-    ) {
-        upgradePurchaseCounts = {
-            tapSmall: Math.max(upgradePurchaseCounts.tapSmall, draftUpgradePurchases.tapSmall),
-            tapBig: Math.max(upgradePurchaseCounts.tapBig, draftUpgradePurchases.tapBig),
-            energy: Math.max(upgradePurchaseCounts.energy, draftUpgradePurchases.energy),
-            tapHuge: Math.max(upgradePurchaseCounts.tapHuge, draftUpgradePurchases.tapHuge),
-            regenBoost: Math.max(upgradePurchaseCounts.regenBoost, draftUpgradePurchases.regenBoost),
-            energyHuge: Math.max(upgradePurchaseCounts.energyHuge, draftUpgradePurchases.energyHuge)
-        };
-        restored = true;
-    }
-
-    const draftSkin = normalizeSkinState(draft.payload.skin);
-    if (JSON.stringify(draftSkin) !== JSON.stringify(skin)) {
-        skin = draftSkin;
-        skinLoad();
-        updateSkinShopUI();
-        restored = true;
-    }
-
     if (!restored) {
         clearLocalDraft();
         return false;
@@ -14504,6 +14984,7 @@ function resetUserState() {
     hideSessionConflictModal();
     hideSkinActionModal();
     hideUpgradeActionModal();
+    closeEconomyProfileModal();
     closeAuthModal();
     closeSettingsModal({ sync: false });
     closeProfileModal();
@@ -14529,6 +15010,7 @@ function resetUserState() {
     supportNoticeState.lastFullscreenUnread = 0;
     energyShortageNoticeState.lastShownAt = 0;
     energyShortageNoticeState.lastNotificationId = '';
+    clickRateLimitState.creditedClickTimestamps = [];
     supportState.tickets = [];
     supportState.selectedTicketId = 0;
     supportState.selectedTicket = null;
@@ -14635,6 +15117,7 @@ function applyAuthenticatedState(data) {
     updateSupportBadgeUI();
     renderProfileModal();
     renderQuestsModal();
+    renderEconomyProfileModal();
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
@@ -15089,7 +15572,8 @@ function buildSaveStatePayload() {
             energy: Math.max(0, Math.floor(upgradePurchaseCounts.energy || 0)),
             tapHuge: Math.max(0, Math.floor(upgradePurchaseCounts.tapHuge || 0)),
             regenBoost: Math.max(0, Math.floor(upgradePurchaseCounts.regenBoost || 0)),
-            energyHuge: Math.max(0, Math.floor(upgradePurchaseCounts.energyHuge || 0))
+            energyHuge: Math.max(0, Math.floor(upgradePurchaseCounts.energyHuge || 0)),
+            clickRate: Math.max(0, Math.floor(upgradePurchaseCounts.clickRate || 0))
         }
     };
 }
@@ -15215,6 +15699,11 @@ async function flushAutosave(options = {}) {
     }
 
     if (autosaveState.inFlight) {
+        return false;
+    }
+
+    if (shopPurchaseState.inFlight) {
+        scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
         return false;
     }
 
@@ -15420,6 +15909,7 @@ function applySynchronizedAccountState(data) {
     updateSupportBadgeUI();
     renderProfileModal();
     renderQuestsModal();
+    renderEconomyProfileModal();
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
     return true;
@@ -15582,6 +16072,10 @@ async function synchronizeMainState(options = {}) {
 
     if (isDatabaseQuotaCooldownActive()) {
         return false;
+    }
+
+    if (shopPurchaseState.inFlight) {
+        return true;
     }
 
     if (liveSyncState.inFlight || autosaveState.inFlight) {
@@ -15786,6 +16280,44 @@ function notifyInsufficientEnergy() {
     );
 }
 
+function pruneCreditedClickTimestamps(now = performance.now()) {
+    const cutoff = now - CLICK_RATE_LIMIT_CONFIG.windowMs;
+    clickRateLimitState.creditedClickTimestamps = clickRateLimitState.creditedClickTimestamps.filter((timestamp) => {
+        return timestamp >= cutoff;
+    });
+    return clickRateLimitState.creditedClickTimestamps.length;
+}
+
+function reserveCreditedClicks(requestedClicks = 1, now = performance.now()) {
+    const normalizedRequestedClicks = Math.max(0, Math.floor(Number(requestedClicks) || 0));
+    const activeCreditedClicks = pruneCreditedClickTimestamps(now);
+    if (normalizedRequestedClicks < 1) {
+        return {
+            granted: 0,
+            ignored: 0,
+            limited: false,
+            active: activeCreditedClicks
+        };
+    }
+
+    const availableClicks = Math.max(
+        0,
+        getCurrentClickRateLimit() - activeCreditedClicks
+    );
+    const grantedClicks = Math.min(normalizedRequestedClicks, availableClicks);
+
+    for (let index = 0; index < grantedClicks; index += 1) {
+        clickRateLimitState.creditedClickTimestamps.push(now);
+    }
+
+    return {
+        granted: grantedClicks,
+        ignored: normalizedRequestedClicks - grantedClicks,
+        limited: grantedClicks < normalizedRequestedClicks,
+        active: activeCreditedClicks + grantedClicks
+    };
+}
+
 function buySkin(skinId) {
     const skinConfig = getSkinConfigById(String(skinId || '').trim());
     if (!skinConfig) {
@@ -15857,11 +16389,13 @@ function buySkin(skinId) {
         return;
     }
 
-    if (score < skinConfig.price) {
+    const effectivePrice = getEffectiveSkinPrice(skinConfig);
+    if (score < effectivePrice) {
         logClientEvent('skins', 'skin_purchase_shortage', {
             skinId: skinConfig.id,
             skinName: skinConfig.name,
-            price: Number(skinConfig.price || 0),
+            price: effectivePrice,
+            basePrice: Number(skinConfig.price || 0),
             balance: score
         }, {
             source: 'skin_shop',
@@ -15887,7 +16421,6 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
     updateEnergy();
 
     const touches = e.touches.length;
-    const totalCost = plus * touches;
     const interactionPayload = buildInteractionPayload(e, touches);
     const antiCheatSnapshot = window.clickDetector && typeof window.clickDetector.recordInteraction === 'function'
         ? window.clickDetector.recordInteraction({
@@ -15898,6 +16431,14 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
             trusted: interactionPayload.trusted
         })
         : null;
+    const clickAllowance = reserveCreditedClicks(touches);
+    const creditedTouches = clickAllowance.granted;
+    const ignoredTouches = clickAllowance.ignored;
+    if (creditedTouches < 1) {
+        return;
+    }
+
+    const totalCost = plus * creditedTouches;
 
     if (energy >= totalCost) {
         score += totalCost;
@@ -15910,6 +16451,8 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
         logClientEvent('clicks', 'tap_success', {
             addedScore: totalCost,
             touchCount: touches,
+            creditedTouchCount: creditedTouches,
+            ignoredTouchCount: ignoredTouches,
             x: interactionPayload.x,
             y: interactionPayload.y,
             screenX: interactionPayload.screenX,
@@ -15934,6 +16477,8 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
     } else {
         logClientEvent('clicks', 'tap_no_energy', {
             touchCount: touches,
+            creditedTouchCount: creditedTouches,
+            ignoredTouchCount: ignoredTouches,
             requestedCost: totalCost,
             x: interactionPayload.x,
             y: interactionPayload.y,
@@ -16050,6 +16595,10 @@ function performSingleClickerActivation(event, options = {}) {
             trusted: interactionPayload.trusted
         })
         : null;
+    const clickAllowance = reserveCreditedClicks(1);
+    if (clickAllowance.granted < 1) {
+        return false;
+    }
     if (energy >= plus) {
         score += plus;
         energy -= plus;
@@ -16075,6 +16624,7 @@ function performSingleClickerActivation(event, options = {}) {
             trusted: interactionPayload.trusted,
             uiContext: interactionPayload.uiContext,
             antiCheatSnapshot: antiCheatSnapshot,
+            ignoredClickCount: clickAllowance.ignored,
             inputMethod: source === 'keyboard' ? 'keyboard' : 'pointer',
             activationKey: activationKey
         }, {
@@ -16089,6 +16639,7 @@ function performSingleClickerActivation(event, options = {}) {
             x: interactionPayload.x,
             y: interactionPayload.y,
             uiContext: interactionPayload.uiContext,
+            ignoredClickCount: clickAllowance.ignored,
             inputMethod: source === 'keyboard' ? 'keyboard' : 'pointer',
             activationKey: activationKey
         }, {
@@ -16603,6 +17154,29 @@ function buyEnergyHugeUpgrade() {
         return;
     }
     showUpgradeActionModal('energyHuge');
+}
+
+function buyClickRateUpgrade() {
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы покупать улучшения и хранить прогресс в облаке.'
+    })) {
+        return;
+    }
+
+    const descriptor = getUpgradeDescriptor('clickRate');
+    if (descriptor && score < descriptor.price) {
+        logClientEvent('progress', 'upgrade_shortage', {
+            upgradeType: 'clickRate',
+            price: descriptor.price,
+            balance: score
+        }, {
+            source: 'upgrade_shop',
+            description: 'Не хватило коинов на покупку улучшения лимита CPS.'
+        });
+        showUpgradeActionModal('clickRate');
+        return;
+    }
+    showUpgradeActionModal('clickRate');
 }
 
 function saveplus() {
