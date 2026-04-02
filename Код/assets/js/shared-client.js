@@ -691,16 +691,21 @@
         aesPromise: null,
     };
 
+    function normalizeRuntimeChallengeValue(value) {
+        var normalizedValue = String(value || '').trim();
+        return normalizedValue === '1' || normalizedValue === '2' ? normalizedValue : '';
+    }
+
     function getStoredRuntimeChallenge() {
         try {
-            return window.sessionStorage.getItem('bober_runtime_challenge') || '';
+            return normalizeRuntimeChallengeValue(window.sessionStorage.getItem('bober_runtime_challenge') || '');
         } catch (error) {
             return '';
         }
     }
 
     function setStoredRuntimeChallenge(value) {
-        var normalizedValue = String(value || '').trim();
+        var normalizedValue = normalizeRuntimeChallengeValue(value);
         challengeRuntimeState.currentValue = normalizedValue;
         try {
             if (normalizedValue) {
@@ -714,8 +719,10 @@
     }
 
     function getRuntimeChallengeValue() {
-        if (challengeRuntimeState.currentValue) {
-            return challengeRuntimeState.currentValue;
+        var currentRuntimeValue = normalizeRuntimeChallengeValue(challengeRuntimeState.currentValue);
+        if (currentRuntimeValue) {
+            challengeRuntimeState.currentValue = currentRuntimeValue;
+            return currentRuntimeValue;
         }
 
         var storedValue = getStoredRuntimeChallenge();
@@ -726,8 +733,9 @@
 
         try {
             var currentUrl = new URL(window.location.href);
-            var currentChallengeValue = currentUrl.searchParams.get('i');
+            var currentChallengeValue = normalizeRuntimeChallengeValue(currentUrl.searchParams.get('i'));
             if (currentChallengeValue) {
+                challengeRuntimeState.currentValue = currentChallengeValue;
                 return currentChallengeValue;
             }
         } catch (error) {
@@ -846,6 +854,34 @@
         return descriptor;
     }
 
+    function resolveChallengeRetryUrl(originalUrl, challengeDescriptor) {
+        var currentOrigin = '';
+        var currentProtocol = '';
+        try {
+            currentOrigin = window.location && window.location.origin ? window.location.origin : '';
+            currentProtocol = window.location && window.location.protocol ? window.location.protocol : '';
+        } catch (error) {
+            currentOrigin = '';
+            currentProtocol = '';
+        }
+
+        var redirectUrl = String(challengeDescriptor && challengeDescriptor.redirectUrl || '').trim();
+        if (redirectUrl) {
+            try {
+                var parsedRedirectUrl = new URL(redirectUrl, currentOrigin || undefined);
+                var isSameOriginRedirect = currentOrigin && parsedRedirectUrl.origin === currentOrigin;
+                var isSecureRedirect = currentProtocol !== 'https:' || parsedRedirectUrl.protocol === 'https:';
+                if (isSameOriginRedirect && isSecureRedirect) {
+                    return resolveRuntimeUrl(parsedRedirectUrl.pathname + parsedRedirectUrl.search + parsedRedirectUrl.hash, '2');
+                }
+            } catch (error) {
+                // ignore redirect parsing issues
+            }
+        }
+
+        return resolveRuntimeUrl(originalUrl, '2');
+    }
+
     function resolveRuntimeUrl(url, forcedChallengeValue) {
         if (typeof url !== 'string') {
             return url;
@@ -869,11 +905,13 @@
                 return normalizedUrl;
             }
 
-            var challengeValue = String(forcedChallengeValue || '').trim() || getRuntimeChallengeValue();
+            var challengeValue = normalizeRuntimeChallengeValue(forcedChallengeValue) || getRuntimeChallengeValue();
             if (/\.php$/i.test(parsedUrl.pathname) && (challengeValue || parsedUrl.searchParams.has('i'))) {
                 if (challengeValue) {
                     parsedUrl.searchParams.set('i', challengeValue);
                     setStoredRuntimeChallenge(challengeValue);
+                } else {
+                    parsedUrl.searchParams.delete('i');
                 }
             }
 
@@ -921,7 +959,7 @@
                     break;
                 }
 
-                resolvedUrl = resolveRuntimeUrl(challengeDescriptor.redirectUrl || url, '2');
+                resolvedUrl = resolveChallengeRetryUrl(url, challengeDescriptor);
                 continue;
             }
 

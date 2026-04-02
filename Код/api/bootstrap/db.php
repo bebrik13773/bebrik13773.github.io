@@ -1006,7 +1006,7 @@ function bober_upgrade_base_costs()
         'tapHuge' => 2500000,
         'regenBoost' => 35000,
         'energyHuge' => 90000,
-        'clickRate' => 1800000,
+        'clickRate' => 1500000,
     ];
 }
 
@@ -1194,12 +1194,12 @@ function bober_build_user_economy_profile(array $state)
         + ($flyFactor * 0.04);
     $index = max(0, min(100, (int) round($weightedSum * 100)));
 
-    if ($index <= 35) {
+    if ($index <= 50) {
         $multiplier = 1.0;
     } elseif ($index <= 70) {
-        $multiplier = 1 + (($index - 35) * 0.005);
+        $multiplier = 1 + (($index - 50) * 0.005);
     } else {
-        $multiplier = 1.175 + (($index - 70) * 0.0035);
+        $multiplier = 1.10 + (($index - 70) * 0.004);
     }
 
     return [
@@ -1415,21 +1415,34 @@ SQL;
 
     $defaultSkin = $conn->real_escape_string(bober_default_skin_json());
 
+    $signedNumeric = static function ($column, $fallback = '0') {
+        $resolvedColumn = bober_require_identifier($column, 'Имя колонки');
+        $resolvedFallback = preg_replace('/[^0-9-]/', '', (string) $fallback);
+        if ($resolvedFallback === '' || $resolvedFallback === '-') {
+            $resolvedFallback = '0';
+        }
+
+        return "CAST(COALESCE(NULLIF(TRIM(CAST(`{$resolvedColumn}` AS CHAR)), ''), '{$resolvedFallback}') AS SIGNED)";
+    };
+
     $normalizationQueries = [
         "UPDATE `users` SET `login` = CONCAT('legacy_user_', `id`) WHERE `login` IS NULL OR `login` = ''",
         "UPDATE `users` SET `skin` = '{$defaultSkin}' WHERE `skin` IS NULL OR `skin` = ''",
-        "UPDATE `users` SET `plus` = 1 WHERE `plus` IS NULL OR `plus` < 1",
-        "UPDATE `users` SET `ENERGY_MAX` = 5000 WHERE `ENERGY_MAX` IS NULL OR `ENERGY_MAX` < 1",
-        "UPDATE `users` SET `energy` = `ENERGY_MAX` WHERE `energy` IS NULL OR `energy` < 0",
-        "UPDATE `users` SET `last_energy_update` = 0 WHERE `last_energy_update` IS NULL",
-        "UPDATE `users` SET `score` = 0 WHERE `score` IS NULL",
-        "UPDATE `users` SET `upgrade_tap_small_count` = 0 WHERE `upgrade_tap_small_count` IS NULL OR `upgrade_tap_small_count` < 0",
-        "UPDATE `users` SET `upgrade_tap_big_count` = 0 WHERE `upgrade_tap_big_count` IS NULL OR `upgrade_tap_big_count` < 0",
-        "UPDATE `users` SET `upgrade_energy_count` = 0 WHERE `upgrade_energy_count` IS NULL OR `upgrade_energy_count` < 0",
-        "UPDATE `users` SET `upgrade_tap_huge_count` = 0 WHERE `upgrade_tap_huge_count` IS NULL OR `upgrade_tap_huge_count` < 0",
-        "UPDATE `users` SET `upgrade_regen_boost_count` = 0 WHERE `upgrade_regen_boost_count` IS NULL OR `upgrade_regen_boost_count` < 0",
-        "UPDATE `users` SET `upgrade_energy_huge_count` = 0 WHERE `upgrade_energy_huge_count` IS NULL OR `upgrade_energy_huge_count` < 0",
-        "UPDATE `users` SET `upgrade_click_rate_count` = 0 WHERE `upgrade_click_rate_count` IS NULL OR `upgrade_click_rate_count` < 0",
+        "UPDATE `users` SET `plus` = 1 WHERE `plus` IS NULL OR NULLIF(TRIM(CAST(`plus` AS CHAR)), '') IS NULL OR {$signedNumeric('plus')} < 1",
+        "UPDATE `users` SET `ENERGY_MAX` = 5000 WHERE `ENERGY_MAX` IS NULL OR NULLIF(TRIM(CAST(`ENERGY_MAX` AS CHAR)), '') IS NULL OR {$signedNumeric('ENERGY_MAX')} < 1",
+        "UPDATE `users` SET `energy` = GREATEST(0, {$signedNumeric('ENERGY_MAX', '5000')}) WHERE `energy` IS NULL OR NULLIF(TRIM(CAST(`energy` AS CHAR)), '') IS NULL OR {$signedNumeric('energy')} < 0",
+        "UPDATE `users` SET `last_energy_update` = 0 WHERE `last_energy_update` IS NULL OR NULLIF(TRIM(CAST(`last_energy_update` AS CHAR)), '') IS NULL",
+        "UPDATE `users` SET `score` = 0 WHERE `score` IS NULL OR NULLIF(TRIM(CAST(`score` AS CHAR)), '') IS NULL",
+        "UPDATE `users` SET `upgrade_tap_small_count` = 0 WHERE `upgrade_tap_small_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_tap_small_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_tap_small_count')} < 0",
+        "UPDATE `users` SET `upgrade_tap_big_count` = 0 WHERE `upgrade_tap_big_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_tap_big_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_tap_big_count')} < 0",
+        "UPDATE `users` SET `upgrade_energy_count` = 0 WHERE `upgrade_energy_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_energy_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_energy_count')} < 0",
+        "UPDATE `users` SET `upgrade_tap_huge_count` = 0 WHERE `upgrade_tap_huge_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_tap_huge_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_tap_huge_count')} < 0",
+        "UPDATE `users` SET `upgrade_regen_boost_count` = 0 WHERE `upgrade_regen_boost_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_regen_boost_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_regen_boost_count')} < 0",
+        "UPDATE `users` SET `upgrade_energy_huge_count` = 0 WHERE `upgrade_energy_huge_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_energy_huge_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_energy_huge_count')} < 0",
+        "UPDATE `users` SET `upgrade_click_rate_count` = 0 WHERE `upgrade_click_rate_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_click_rate_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_click_rate_count')} < 0",
+        "UPDATE `users` SET `plus` = {$signedNumeric('plus', '1')} WHERE NULLIF(TRIM(CAST(`plus` AS CHAR)), '') IS NOT NULL AND {$signedNumeric('plus', '1')} <> `plus`",
+        "UPDATE `users` SET `ENERGY_MAX` = {$signedNumeric('ENERGY_MAX', '5000')} WHERE NULLIF(TRIM(CAST(`ENERGY_MAX` AS CHAR)), '') IS NOT NULL AND {$signedNumeric('ENERGY_MAX', '5000')} <> `ENERGY_MAX`",
+        "UPDATE `users` SET `energy` = LEAST(GREATEST(0, {$signedNumeric('energy', '0')}), GREATEST(1, {$signedNumeric('ENERGY_MAX', '5000')})) WHERE NULLIF(TRIM(CAST(`energy` AS CHAR)), '') IS NOT NULL AND LEAST(GREATEST(0, {$signedNumeric('energy', '0')}), GREATEST(1, {$signedNumeric('ENERGY_MAX', '5000')})) <> `energy`",
     ];
 
     foreach ($normalizationQueries as $sql) {
@@ -1445,6 +1458,289 @@ SQL;
     if (!bober_index_exists($conn, 'users', 'idx_users_score') && !$conn->query("CREATE INDEX `idx_users_score` ON `users` (`score`)")) {
         throw new RuntimeException('Не удалось создать индекс для рейтинга.');
     }
+}
+
+function bober_normalize_announcement_row(array $row)
+{
+    return [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'title' => trim((string) ($row['title'] ?? '')),
+        'body' => trim((string) ($row['body'] ?? '')),
+        'isPublished' => !empty($row['is_published']) || !empty($row['isPublished']),
+        'publishedAt' => isset($row['published_at']) && $row['published_at'] !== null ? (string) $row['published_at'] : null,
+        'archivedAt' => isset($row['archived_at']) && $row['archived_at'] !== null ? (string) $row['archived_at'] : null,
+        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+        'updatedAt' => isset($row['updated_at']) ? (string) $row['updated_at'] : '',
+    ];
+}
+
+function bober_ensure_announcement_schema($conn)
+{
+    static $schemaEnsured = false;
+
+    if ($schemaEnsured) {
+        return;
+    }
+
+    $createAnnouncementsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `announcements` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(180) NOT NULL,
+    `body` LONGTEXT NOT NULL,
+    `is_published` TINYINT(1) NOT NULL DEFAULT 0,
+    `published_at` TIMESTAMP NULL DEFAULT NULL,
+    `archived_at` TIMESTAMP NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY `idx_announcements_published` (`is_published`, `archived_at`, `published_at`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+    if (!$conn->query($createAnnouncementsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу новостей.');
+    }
+
+    $announcementAlterStatements = [
+        'title' => "ALTER TABLE `announcements` ADD COLUMN `title` VARCHAR(180) NOT NULL DEFAULT '' AFTER `id`",
+        'body' => "ALTER TABLE `announcements` ADD COLUMN `body` LONGTEXT NOT NULL AFTER `title`",
+        'is_published' => "ALTER TABLE `announcements` ADD COLUMN `is_published` TINYINT(1) NOT NULL DEFAULT 0 AFTER `body`",
+        'published_at' => "ALTER TABLE `announcements` ADD COLUMN `published_at` TIMESTAMP NULL DEFAULT NULL AFTER `is_published`",
+        'archived_at' => "ALTER TABLE `announcements` ADD COLUMN `archived_at` TIMESTAMP NULL DEFAULT NULL AFTER `published_at`",
+        'created_at' => "ALTER TABLE `announcements` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `archived_at`",
+        'updated_at' => "ALTER TABLE `announcements` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
+    ];
+    foreach ($announcementAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'announcements', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру новостей.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'announcements', 'idx_announcements_published') && !$conn->query("CREATE INDEX `idx_announcements_published` ON `announcements` (`is_published`, `archived_at`, `published_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс новостей.');
+    }
+
+    $createViewsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `user_announcement_views` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `announcement_id` BIGINT UNSIGNED NOT NULL,
+    `seen_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uniq_user_announcement_view` (`user_id`, `announcement_id`),
+    KEY `idx_user_announcement_views_announcement` (`announcement_id`, `seen_at`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+    if (!$conn->query($createViewsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу просмотров новостей.');
+    }
+
+    $viewAlterStatements = [
+        'user_id' => "ALTER TABLE `user_announcement_views` ADD COLUMN `user_id` INT NOT NULL DEFAULT 0 AFTER `id`",
+        'announcement_id' => "ALTER TABLE `user_announcement_views` ADD COLUMN `announcement_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `user_id`",
+        'seen_at' => "ALTER TABLE `user_announcement_views` ADD COLUMN `seen_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `announcement_id`",
+    ];
+    foreach ($viewAlterStatements as $column => $sql) {
+        if (!bober_column_exists($conn, 'user_announcement_views', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру просмотров новостей.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'user_announcement_views', 'uniq_user_announcement_view') && !$conn->query("ALTER TABLE `user_announcement_views` ADD UNIQUE KEY `uniq_user_announcement_view` (`user_id`, `announcement_id`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс просмотров новостей.');
+    }
+
+    if (!bober_index_exists($conn, 'user_announcement_views', 'idx_user_announcement_views_announcement') && !$conn->query("CREATE INDEX `idx_user_announcement_views_announcement` ON `user_announcement_views` (`announcement_id`, `seen_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс просмотров новостей.');
+    }
+
+    $schemaEnsured = true;
+}
+
+function bober_fetch_admin_announcements($conn, array $options = [])
+{
+    bober_ensure_announcement_schema($conn);
+    $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
+    $result = $conn->query("
+        SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at
+        FROM announcements
+        ORDER BY
+            CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END ASC,
+            COALESCE(published_at, updated_at, created_at) DESC,
+            id DESC
+        LIMIT {$limit}
+    ");
+    if ($result === false) {
+        throw new RuntimeException('Не удалось загрузить новости.');
+    }
+
+    $items = [];
+    while ($row = $result->fetch_assoc()) {
+        $items[] = bober_normalize_announcement_row($row);
+    }
+    $result->free();
+
+    return $items;
+}
+
+function bober_fetch_admin_announcement_item($conn, $announcementId)
+{
+    bober_ensure_announcement_schema($conn);
+    $announcementId = max(0, (int) $announcementId);
+    if ($announcementId < 1) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at FROM announcements WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение новости.');
+    }
+
+    $stmt->bind_param('i', $announcementId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить новость.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return is_array($row) ? bober_normalize_announcement_row($row) : null;
+}
+
+function bober_save_announcement($conn, array $payload, $announcementId = 0)
+{
+    bober_ensure_announcement_schema($conn);
+
+    $title = preg_replace('/\s+/u', ' ', trim((string) ($payload['title'] ?? ''))) ?? '';
+    $body = trim((string) ($payload['body'] ?? ''));
+    $status = trim((string) ($payload['status'] ?? 'draft'));
+    if (!in_array($status, ['draft', 'published', 'archived'], true)) {
+        $status = 'draft';
+    }
+    $titleLength = function_exists('mb_strlen') ? mb_strlen($title, 'UTF-8') : strlen($title);
+    $bodyLength = function_exists('mb_strlen') ? mb_strlen($body, 'UTF-8') : strlen($body);
+    if ($title === '' || $titleLength < 3) {
+        throw new InvalidArgumentException('Заголовок новости должен быть длиной от 3 символов.');
+    }
+    if ($body === '' || $bodyLength < 6) {
+        throw new InvalidArgumentException('Текст новости должен быть длиной от 6 символов.');
+    }
+
+    $announcementId = max(0, (int) $announcementId);
+    if ($announcementId > 0) {
+        $currentItem = bober_fetch_admin_announcement_item($conn, $announcementId);
+        if ($currentItem === null) {
+            throw new RuntimeException('Новость не найдена.');
+        }
+    } else {
+        $currentItem = null;
+    }
+
+    $isPublished = $status === 'published' ? 1 : 0;
+    $nextPublishedAt = null;
+    $nextArchivedAt = null;
+    if ($status === 'published') {
+        $nextPublishedAt = $currentItem['publishedAt'] ?? null;
+        if ($nextPublishedAt === null || trim((string) $nextPublishedAt) === '') {
+            $nextPublishedAt = date('Y-m-d H:i:s');
+        }
+    }
+    if ($status === 'archived') {
+        $nextArchivedAt = $currentItem['archivedAt'] ?? null;
+        if ($nextArchivedAt === null || trim((string) $nextArchivedAt) === '') {
+            $nextArchivedAt = date('Y-m-d H:i:s');
+        }
+    }
+
+    if ($announcementId > 0) {
+        $stmt = $conn->prepare('UPDATE announcements SET title = ?, body = ?, is_published = ?, published_at = ?, archived_at = ? WHERE id = ? LIMIT 1');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить сохранение новости.');
+        }
+        $stmt->bind_param('ssissi', $title, $body, $isPublished, $nextPublishedAt, $nextArchivedAt, $announcementId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось сохранить новость.');
+        }
+        $stmt->close();
+    } else {
+        $stmt = $conn->prepare('INSERT INTO announcements (title, body, is_published, published_at, archived_at) VALUES (?, ?, ?, ?, ?)');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить создание новости.');
+        }
+        $stmt->bind_param('ssiss', $title, $body, $isPublished, $nextPublishedAt, $nextArchivedAt);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось создать новость.');
+        }
+        $announcementId = max(0, (int) $stmt->insert_id);
+        $stmt->close();
+    }
+
+    return bober_fetch_admin_announcement_item($conn, $announcementId);
+}
+
+function bober_fetch_latest_unread_announcement($conn, $userId)
+{
+    bober_ensure_announcement_schema($conn);
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return null;
+    }
+
+    $stmt = $conn->prepare("
+        SELECT a.id, a.title, a.body, a.is_published, a.published_at, a.archived_at, a.created_at, a.updated_at
+        FROM announcements a
+        LEFT JOIN user_announcement_views v
+            ON v.announcement_id = a.id
+            AND v.user_id = ?
+        WHERE a.is_published = 1
+            AND a.archived_at IS NULL
+            AND v.id IS NULL
+        ORDER BY COALESCE(a.published_at, a.updated_at, a.created_at) DESC, a.id DESC
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение новости для игрока.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить новость для игрока.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return is_array($row) ? bober_normalize_announcement_row($row) : null;
+}
+
+function bober_mark_announcement_seen($conn, $userId, $announcementId)
+{
+    bober_ensure_announcement_schema($conn);
+    $userId = max(0, (int) $userId);
+    $announcementId = max(0, (int) $announcementId);
+    if ($userId < 1 || $announcementId < 1) {
+        throw new InvalidArgumentException('Некорректная новость для отметки просмотра.');
+    }
+
+    $stmt = $conn->prepare('INSERT INTO user_announcement_views (user_id, announcement_id, seen_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE seen_at = CURRENT_TIMESTAMP');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить отметку просмотра новости.');
+    }
+    $stmt->bind_param('ii', $userId, $announcementId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось отметить новость как прочитанную.');
+    }
+    $stmt->close();
 }
 
 function bober_configured_admin_password_hash()
@@ -3948,6 +4244,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_user_achievement_overrides_schema($conn);
     bober_ensure_user_quests_schema($conn);
     bober_ensure_support_schema($conn);
+    bober_ensure_announcement_schema($conn);
 
     bober_schema_guard_touch('gameplay');
     $schemaEnsured = true;
@@ -4591,7 +4888,7 @@ function bober_auto_archive_support_tickets($conn, array $options = [])
 {
     bober_ensure_support_schema($conn);
 
-    $archiveDays = max(1, min(365, (int) ($options['days'] ?? 14)));
+    $archiveDays = max(1, min(365, (int) ($options['days'] ?? 2)));
     $archiveReason = trim((string) ($options['reason'] ?? 'closed_inactive'));
     if ($archiveReason === '') {
         $archiveReason = 'closed_inactive';
@@ -7035,6 +7332,12 @@ function bober_fetch_public_player_profile($conn, $userId)
                     COALESCE(u.updated_at, \'1970-01-01 00:00:00\'),
                     COALESCE(f.last_played_at, \'1970-01-01 00:00:00\'),
                     COALESCE((
+                        SELECT MAX(us.last_seen_at)
+                        FROM user_sessions us
+                        WHERE us.user_id = u.id
+                          AND us.revoked_at IS NULL
+                    ), \'1970-01-01 00:00:00\'),
+                    COALESCE((
                         SELECT MAX(iph.last_seen_at)
                         FROM user_ip_history iph
                         WHERE iph.user_id = u.id
@@ -8798,6 +9101,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     ];
 
     $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
+    $announcement = bober_fetch_latest_unread_announcement($conn, $userId);
     $response = [
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
@@ -8828,6 +9132,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'quests' => $quests,
         'questUnlocks' => $questUnlocks,
         'supportSummary' => $supportSummary,
+        'announcement' => $announcement,
     ];
 
     if ($includeActivity) {

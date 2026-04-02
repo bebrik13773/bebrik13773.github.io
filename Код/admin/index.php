@@ -1240,6 +1240,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_announcements') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $announcementItems = bober_fetch_admin_announcements($conn);
+                $response['success'] = true;
+                $response['announcements'] = array_values($announcementItems);
+                $response['total'] = count($announcementItems);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_announcement_item') {
+            if (requireAdminAuth($response)) {
+                $announcementId = max(0, (int) ($_POST['announcement_id'] ?? 0));
+                if ($announcementId < 1) {
+                    $response['message'] = 'Не указан идентификатор новости.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $announcementItem = bober_fetch_admin_announcement_item($conn, $announcementId);
+                        if ($announcementItem === null) {
+                            $response['message'] = 'Новость не найдена.';
+                        } else {
+                            $response['success'] = true;
+                            $response['announcement'] = $announcementItem;
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
+        if ($action === 'save_announcement_item') {
+            if (requireAdminAuth($response)) {
+                $announcementId = max(0, (int) ($_POST['announcement_id'] ?? 0));
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                try {
+                    $currentAnnouncementItem = $announcementId > 0
+                        ? bober_fetch_admin_announcement_item($conn, $announcementId)
+                        : null;
+                    if ($announcementId > 0 && $currentAnnouncementItem === null) {
+                        $response['message'] = 'Новость не найдена.';
+                    } else {
+                        $announcementItem = bober_save_announcement($conn, [
+                            'title' => trim((string) ($_POST['announcement_title'] ?? '')),
+                            'body' => trim((string) ($_POST['announcement_body'] ?? '')),
+                            'status' => trim((string) ($_POST['announcement_status'] ?? 'draft')),
+                        ], $announcementId);
+
+                        $response['success'] = true;
+                        $response['message'] = $announcementId > 0 ? 'Новость обновлена.' : 'Новость создана.';
+                        $response['announcement'] = $announcementItem;
+                        invalidateAdminRuntimeCaches($conn);
+
+                        bober_admin_log_action($conn, 'save_announcement_item', [
+                            'target_table' => 'announcements',
+                            'query_text' => ($announcementId > 0 ? 'UPDATE ANNOUNCEMENT ' : 'CREATE ANNOUNCEMENT ') . (string) ($announcementItem['id'] ?? 0),
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'announcement_id' => (int) ($announcementItem['id'] ?? 0),
+                                'previous_title' => (string) ($currentAnnouncementItem['title'] ?? ''),
+                                'title' => (string) ($announcementItem['title'] ?? ''),
+                                'is_published' => !empty($announcementItem['isPublished']),
+                                'published_at' => (string) ($announcementItem['publishedAt'] ?? ''),
+                                'archived_at' => (string) ($announcementItem['archivedAt'] ?? ''),
+                            ],
+                        ]);
+                    }
+                } finally {
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'get_users_overview') {
             if (requireAdminAuth($response)) {
                 $search = trim((string) ($_POST['search'] ?? ''));
@@ -5616,6 +5698,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">military_tech</span>
             <span>Достижения</span>
         </div>
+
+        <div class="sidebar-item" id="newsBtn">
+            <span class="material-icons">campaign</span>
+            <span>Новости</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -5892,6 +5979,44 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <div class="skin-catalog-meta" id="achievementCatalogMeta">Загрузка каталога достижений...</div>
                     <div class="skin-catalog-grid" id="achievementCatalogGrid"></div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="newsView" style="display: none;">
+                <div class="card skins-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">campaign</span>
+                                Новости для игроков
+                            </h2>
+                            <div class="card-subtitle">Последняя опубликованная новость показывается игроку один раз после входа в аккаунт. Черновики и архив доступны только из админки.</div>
+                        </div>
+                        <button class="btn btn-primary" id="createAnnouncementBtn">
+                            <span class="material-icons">post_add</span>
+                            Новая новость
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="announcementCatalogSearchInput" class="search-input" placeholder="Найти новость по заголовку или тексту">
+                        </div>
+                        <select class="form-control account-sort-select" id="announcementCatalogStatusSelect" aria-label="Фильтр по статусу новости">
+                            <option value="all">Все статусы</option>
+                            <option value="published">Только опубликованные</option>
+                            <option value="draft">Только черновики</option>
+                            <option value="archived">Только архив</option>
+                        </select>
+                        <button class="btn btn-outline" id="refreshAnnouncementCatalogBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-meta" id="announcementCatalogMeta">Загрузка новостей...</div>
+                    <div class="skin-catalog-grid" id="announcementCatalogGrid"></div>
                 </div>
             </div>
 
@@ -6717,6 +6842,52 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         </div>
     </div>
 
+    <div class="modal-overlay" id="editAnnouncementModal">
+        <div class="modal-content">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">campaign</span>
+                        <span id="editAnnouncementModalTitle">Новая новость</span>
+                    </h3>
+                    <div class="card-subtitle" id="editAnnouncementModalSubtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Опубликованная новость показывается игрокам один раз после входа.
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeEditAnnouncementModal" type="button">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="editAnnouncementForm">
+                    <div class="form-group">
+                        <label class="form-label" for="editAnnouncementTitleInput">Заголовок</label>
+                        <input class="form-control" id="editAnnouncementTitleInput" type="text" maxlength="180" placeholder="Например: Новое обновление кликера" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editAnnouncementBodyInput">Текст</label>
+                        <textarea class="form-control" id="editAnnouncementBodyInput" rows="8" maxlength="6000" placeholder="Коротко опишите, что изменилось для игроков." required></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="editAnnouncementStatusInput">Статус</label>
+                        <select class="form-control" id="editAnnouncementStatusInput">
+                            <option value="draft">Черновик</option>
+                            <option value="published">Опубликовано</option>
+                            <option value="archived">Архив</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelEditAnnouncementModal" type="button">Отмена</button>
+                <button class="btn btn-primary" id="saveEditAnnouncementBtn" type="button">
+                    <span class="btn-text">Сохранить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="deleteSkinModal">
         <div class="modal-content modal-content-danger">
             <div class="card-header">
@@ -6872,6 +7043,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let achievementCatalogSearch = '';
         let achievementCatalogStatusFilter = 'all';
         let achievementCatalogSecretFilter = 'all';
+        let announcementItems = [];
+        let announcementLoadPromise = null;
+        let announcementCatalogSearch = '';
+        let announcementCatalogStatusFilter = 'all';
         let pendingDeleteSkinId = '';
         let skinEditorState = {
             mode: 'create',
@@ -6885,6 +7060,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         };
         let achievementEditorState = {
             key: ''
+        };
+        let announcementEditorState = {
+            mode: 'create',
+            id: 0
         };
         let pendingBanDurationSelection = {
             isPermanent: false,
@@ -7666,6 +7845,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const createAnnouncementBtn = document.getElementById('createAnnouncementBtn');
+            if (createAnnouncementBtn) {
+                createAnnouncementBtn.addEventListener('click', function() {
+                    showEditAnnouncementModal('create');
+                });
+            }
+
             const addSkinModal = document.getElementById('addSkinModal');
             if (addSkinModal) {
                 addSkinModal.addEventListener('click', function(event) {
@@ -7749,6 +7935,44 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const editAnnouncementModal = document.getElementById('editAnnouncementModal');
+            if (editAnnouncementModal) {
+                editAnnouncementModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideEditAnnouncementModal();
+                    }
+                });
+            }
+
+            const closeEditAnnouncementModal = document.getElementById('closeEditAnnouncementModal');
+            if (closeEditAnnouncementModal) {
+                closeEditAnnouncementModal.addEventListener('click', function() {
+                    hideEditAnnouncementModal();
+                });
+            }
+
+            const cancelEditAnnouncementModal = document.getElementById('cancelEditAnnouncementModal');
+            if (cancelEditAnnouncementModal) {
+                cancelEditAnnouncementModal.addEventListener('click', function() {
+                    hideEditAnnouncementModal();
+                });
+            }
+
+            const saveEditAnnouncementBtn = document.getElementById('saveEditAnnouncementBtn');
+            if (saveEditAnnouncementBtn) {
+                saveEditAnnouncementBtn.addEventListener('click', function() {
+                    submitEditAnnouncementModal();
+                });
+            }
+
+            const editAnnouncementForm = document.getElementById('editAnnouncementForm');
+            if (editAnnouncementForm) {
+                editAnnouncementForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    submitEditAnnouncementModal();
+                });
+            }
+
             const deleteSkinModal = document.getElementById('deleteSkinModal');
             if (deleteSkinModal) {
                 deleteSkinModal.addEventListener('click', function(event) {
@@ -7805,6 +8029,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
             document.getElementById('achievementsBtn').addEventListener('click', function() {
                 showAchievementsView();
+                closeSidebarForCompactViewport();
+            });
+
+            document.getElementById('newsBtn').addEventListener('click', function() {
+                showNewsView();
                 closeSidebarForCompactViewport();
             });
             
@@ -7892,6 +8121,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshAchievementCatalogBtn) {
                 refreshAchievementCatalogBtn.addEventListener('click', function() {
                     loadAchievementCatalogAdmin();
+                });
+            }
+
+            const announcementCatalogSearchInput = document.getElementById('announcementCatalogSearchInput');
+            if (announcementCatalogSearchInput) {
+                announcementCatalogSearchInput.addEventListener('input', function() {
+                    announcementCatalogSearch = this.value.trim();
+                    renderAnnouncementCatalogList();
+                });
+            }
+
+            const announcementCatalogStatusSelect = document.getElementById('announcementCatalogStatusSelect');
+            if (announcementCatalogStatusSelect) {
+                announcementCatalogStatusSelect.addEventListener('change', function() {
+                    announcementCatalogStatusFilter = this.value || 'all';
+                    renderAnnouncementCatalogList();
+                });
+            }
+
+            const refreshAnnouncementCatalogBtn = document.getElementById('refreshAnnouncementCatalogBtn');
+            if (refreshAnnouncementCatalogBtn) {
+                refreshAnnouncementCatalogBtn.addEventListener('click', function() {
+                    loadAnnouncementCatalogAdmin();
                 });
             }
 
@@ -9499,6 +9751,340 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
         }
 
+        function normalizeAdminAnnouncementItem(rawAnnouncement) {
+            if (!rawAnnouncement || typeof rawAnnouncement !== 'object') {
+                return null;
+            }
+
+            const id = Math.max(0, Number(rawAnnouncement.id) || 0);
+            if (id < 1) {
+                return null;
+            }
+
+            const title = String(rawAnnouncement.title || '').trim();
+            const body = String(rawAnnouncement.body || '').trim();
+            const publishedAt = String(rawAnnouncement.publishedAt || rawAnnouncement.published_at || '').trim();
+            const archivedAt = String(rawAnnouncement.archivedAt || rawAnnouncement.archived_at || '').trim();
+            const isPublished = Boolean(rawAnnouncement.isPublished ?? rawAnnouncement.is_published);
+            const status = archivedAt
+                ? 'archived'
+                : (isPublished ? 'published' : 'draft');
+
+            return {
+                id,
+                title,
+                body,
+                isPublished,
+                publishedAt,
+                archivedAt,
+                createdAt: String(rawAnnouncement.createdAt || rawAnnouncement.created_at || '').trim(),
+                updatedAt: String(rawAnnouncement.updatedAt || rawAnnouncement.updated_at || '').trim(),
+                status
+            };
+        }
+
+        function fetchAnnouncementItems(options = {}) {
+            const forceRefresh = Boolean(options && options.forceRefresh);
+            if (!forceRefresh && announcementItems.length > 0) {
+                return Promise.resolve(announcementItems);
+            }
+
+            if (!forceRefresh && announcementLoadPromise) {
+                return announcementLoadPromise;
+            }
+
+            announcementLoadPromise = postAction({
+                action: 'get_announcements'
+            })
+                .then(data => {
+                    if (!data.success || !Array.isArray(data.announcements)) {
+                        throw new Error(data.message || 'Не удалось загрузить новости');
+                    }
+
+                    announcementItems = data.announcements
+                        .map(item => normalizeAdminAnnouncementItem(item))
+                        .filter(Boolean);
+                    return announcementItems;
+                })
+                .finally(() => {
+                    announcementLoadPromise = null;
+                });
+
+            return announcementLoadPromise;
+        }
+
+        function getFilteredAnnouncementItems() {
+            const query = announcementCatalogSearch.toLowerCase();
+
+            return announcementItems.filter(item => {
+                if (!item) {
+                    return false;
+                }
+
+                if (announcementCatalogStatusFilter !== 'all' && item.status !== announcementCatalogStatusFilter) {
+                    return false;
+                }
+
+                if (!query) {
+                    return true;
+                }
+
+                return [
+                    String(item.title || ''),
+                    String(item.body || '')
+                ].some(value => value.toLowerCase().includes(query));
+            });
+        }
+
+        function renderAnnouncementCatalogList() {
+            const grid = document.getElementById('announcementCatalogGrid');
+            const meta = document.getElementById('announcementCatalogMeta');
+            if (!grid || !meta) {
+                return;
+            }
+
+            const filteredItems = getFilteredAnnouncementItems();
+            meta.textContent = announcementCatalogSearch
+                ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(announcementItems.length)} новостей по запросу "${announcementCatalogSearch}".`
+                : `Всего новостей: ${formatAdminNumber(announcementItems.length)}. Фильтр: ${announcementCatalogStatusFilter === 'all' ? 'все статусы' : announcementCatalogStatusFilter}.`;
+
+            if (filteredItems.length < 1) {
+                grid.innerHTML = '<div class="empty-list">По этому запросу новости не найдены.</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredItems.map(item => {
+                const excerpt = item.body.length > 220 ? `${item.body.slice(0, 220).trim()}...` : item.body;
+                const publishedLabel = item.publishedAt ? formatAdminDateTime(item.publishedAt) : 'не публиковалась';
+                const updatedLabel = item.updatedAt ? formatAdminDateTime(item.updatedAt) : 'без даты';
+                const statusLabel = item.status === 'published'
+                    ? 'Опубликовано'
+                    : (item.status === 'archived' ? 'Архив' : 'Черновик');
+                const statusClass = item.status === 'published'
+                    ? 'active'
+                    : (item.status === 'archived' ? 'closed' : 'neutral');
+
+                return `
+                    <article class="skin-catalog-card" data-announcement-id="${escapeHtml(String(item.id))}">
+                        <div class="skin-catalog-card-body">
+                            <div class="skin-catalog-card-head">
+                                <div>
+                                    <div class="skin-catalog-card-title">${escapeHtml(item.title || `Новость #${item.id}`)}</div>
+                                    <div class="skin-catalog-card-id">ID ${formatAdminNumber(item.id)} • обновлено ${escapeHtml(updatedLabel)}</div>
+                                </div>
+                                <span class="status-pill ${statusClass}">${statusLabel}</span>
+                            </div>
+                            <div class="stack-item-meta">
+                                ${escapeHtml(excerpt || 'Текст пока не заполнен.')}<br>
+                                Публикация: ${escapeHtml(publishedLabel)}
+                            </div>
+                            <div class="skin-catalog-card-actions">
+                                <button class="btn btn-outline btn-small edit-announcement-btn" type="button" data-announcement-id="${escapeHtml(String(item.id))}">
+                                    <span class="material-icons">edit</span>
+                                    Редактировать
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+
+            grid.querySelectorAll('.edit-announcement-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    openAnnouncementItemEditor(Number(this.dataset.announcementId || 0));
+                });
+            });
+        }
+
+        function loadAnnouncementCatalogAdmin() {
+            const grid = document.getElementById('announcementCatalogGrid');
+            const meta = document.getElementById('announcementCatalogMeta');
+
+            if (grid) {
+                grid.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю новости...</div>';
+            }
+            if (meta) {
+                meta.textContent = 'Загрузка новостей...';
+            }
+
+            fetchAnnouncementItems({
+                forceRefresh: true
+            })
+                .then(() => {
+                    renderAnnouncementCatalogList();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (grid) {
+                        grid.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки новостей')}</div>`;
+                    }
+                    if (meta) {
+                        meta.textContent = 'Не удалось загрузить новости';
+                    }
+                    showNotification(error.message || 'Ошибка загрузки новостей', 'error');
+                });
+        }
+
+        function resetAnnouncementEditorForm() {
+            const form = document.getElementById('editAnnouncementForm');
+            if (form) {
+                form.reset();
+            }
+
+            const statusInput = document.getElementById('editAnnouncementStatusInput');
+            if (statusInput) {
+                statusInput.value = 'draft';
+            }
+
+            announcementEditorState = {
+                mode: 'create',
+                id: 0
+            };
+        }
+
+        function showEditAnnouncementModal(mode = 'create', announcementItem = null) {
+            resetAnnouncementEditorForm();
+
+            const titleNode = document.getElementById('editAnnouncementModalTitle');
+            const subtitleNode = document.getElementById('editAnnouncementModalSubtitle');
+            const saveButtonText = document.querySelector('#saveEditAnnouncementBtn .btn-text');
+            const titleInput = document.getElementById('editAnnouncementTitleInput');
+            const bodyInput = document.getElementById('editAnnouncementBodyInput');
+            const statusInput = document.getElementById('editAnnouncementStatusInput');
+
+            if (mode === 'edit' && announcementItem) {
+                announcementEditorState = {
+                    mode: 'edit',
+                    id: Number(announcementItem.id || 0)
+                };
+
+                if (titleNode) {
+                    titleNode.textContent = 'Редактировать новость';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = `ID: ${announcementEditorState.id}. Последняя опубликованная новость показывается игрокам один раз после входа.`;
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Сохранить изменения';
+                }
+                if (titleInput) {
+                    titleInput.value = String(announcementItem.title || '');
+                }
+                if (bodyInput) {
+                    bodyInput.value = String(announcementItem.body || '');
+                }
+                if (statusInput) {
+                    statusInput.value = String(announcementItem.status || 'draft');
+                }
+            } else {
+                if (titleNode) {
+                    titleNode.textContent = 'Новая новость';
+                }
+                if (subtitleNode) {
+                    subtitleNode.textContent = 'Опубликованная новость покажется игрокам один раз после входа, пока не выйдет более свежая публикация.';
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Создать новость';
+                }
+            }
+
+            document.getElementById('editAnnouncementModal').classList.add('active');
+        }
+
+        async function openAnnouncementItemEditor(announcementId) {
+            const normalizedAnnouncementId = Math.max(0, Number(announcementId) || 0);
+            if (normalizedAnnouncementId < 1) {
+                showNotification('Не удалось определить новость для редактирования.', 'error');
+                return;
+            }
+
+            try {
+                const data = await postAction({
+                    action: 'get_announcement_item',
+                    announcement_id: String(normalizedAnnouncementId)
+                });
+
+                if (!data.success || !data.announcement) {
+                    throw new Error(data.message || 'Не удалось загрузить новость для редактирования');
+                }
+
+                const normalizedAnnouncement = normalizeAdminAnnouncementItem(data.announcement);
+                if (!normalizedAnnouncement) {
+                    throw new Error('Сервер вернул некорректные данные новости');
+                }
+
+                showEditAnnouncementModal('edit', normalizedAnnouncement);
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка загрузки новости', 'error');
+            }
+        }
+
+        function hideEditAnnouncementModal() {
+            document.getElementById('editAnnouncementModal').classList.remove('active');
+        }
+
+        function submitEditAnnouncementModal() {
+            const saveButton = document.getElementById('saveEditAnnouncementBtn');
+            const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
+            const loader = saveButton ? saveButton.querySelector('.loader') : null;
+            const titleValue = String(document.getElementById('editAnnouncementTitleInput').value || '').trim();
+            const bodyValue = String(document.getElementById('editAnnouncementBodyInput').value || '').trim();
+            const statusValue = String(document.getElementById('editAnnouncementStatusInput').value || 'draft').trim();
+
+            if (titleValue.length < 3) {
+                showNotification('Заголовок новости должен быть длиной от 3 символов.', 'error');
+                return;
+            }
+
+            if (bodyValue.length < 6) {
+                showNotification('Текст новости должен быть длиной от 6 символов.', 'error');
+                return;
+            }
+
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: 'save_announcement_item',
+                announcement_id: String(announcementEditorState.id || 0),
+                announcement_title: titleValue,
+                announcement_body: bodyValue,
+                announcement_status: statusValue
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось сохранить новость');
+                    }
+
+                    hideEditAnnouncementModal();
+                    loadAnnouncementCatalogAdmin();
+                    showNotification(data.message || 'Новость сохранена', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка сохранения новости', 'error');
+                })
+                .finally(() => {
+                    if (saveButton) {
+                        saveButton.disabled = false;
+                    }
+                    if (btnText) {
+                        btnText.style.display = 'inline';
+                    }
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                });
+        }
+
         function showAchievementsView() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'achievements';
@@ -9507,6 +10093,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'block';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -9526,6 +10113,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'block';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -9544,6 +10132,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'block';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -9553,6 +10142,26 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             updateActiveMenuItem('skinsBtn');
             loadDashboardStats();
             loadSkinCatalogAdmin();
+        }
+
+        function showNewsView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'news';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'block';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('newsBtn');
+            loadDashboardStats();
+            loadAnnouncementCatalogAdmin();
         }
 
         function normalizeAdminSupportTicket(rawTicket) {
@@ -10402,6 +11011,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10782,6 +11392,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10810,6 +11421,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10830,6 +11442,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10849,6 +11462,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('skinsView').style.display = 'none';
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';

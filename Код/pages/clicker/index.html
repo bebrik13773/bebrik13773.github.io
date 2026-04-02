@@ -6051,6 +6051,9 @@ function showNotification(message, type = 'success', duration = 3000) {
                 <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
             </div>
         </div>
+        <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
+            <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
+        </div>
         <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
@@ -6059,7 +6062,6 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="profile-achievements-title">Достижения</div>
         <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
-            <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
             <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
         </div>
     </div>
@@ -6078,11 +6080,13 @@ function showNotification(message, type = 'success', duration = 3000) {
     <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboardProfileModalTitle">
         <div class="skin-action-modal-title" id="leaderboardProfileModalTitle">Профиль игрока</div>
         <div class="skin-action-modal-text">Публичная карточка игрока из таблицы лидеров.</div>
+        <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
+            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
+        </div>
         <div id="leaderboardProfileContent">
             <div class="public-profile-loading">Загружаю профиль игрока...</div>
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions">
-            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
             <button type="button" class="settings-action-button secondary" id="leaderboardProfileModalClose">Закрыть</button>
         </div>
     </div>
@@ -6111,6 +6115,19 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions">
             <button type="button" class="settings-action-button secondary" id="economyProfileModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="announcementModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal public-profile-modal" role="dialog" aria-modal="true" aria-labelledby="announcementModalTitle">
+        <div class="skin-action-modal-title" id="announcementModalTitle">Последняя новость</div>
+        <div class="skin-action-modal-text" id="announcementModalPublishedAt">Только что опубликовано</div>
+        <div id="announcementModalContent">
+            <div class="public-profile-loading">Загружаю новость...</div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button primary" id="announcementModalAcknowledge">Понятно</button>
+            <button type="button" class="settings-action-button secondary" id="announcementModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -6472,7 +6489,7 @@ const UPGRADE_BASE_COSTS = Object.freeze({
     tapHuge: 2500000,
     regenBoost: 35000,
     energyHuge: 90000,
-    clickRate: 1800000
+    clickRate: 1500000
 });
 const SKIN_RARITY_ORDER = Object.freeze({
     common: 0,
@@ -6523,6 +6540,11 @@ const economyProfileModalState = {
     source: 'private',
     login: 'Игрок',
     economy: getDefaultEconomyProfile()
+};
+const announcementState = {
+    current: null,
+    ackInFlight: false,
+    shownKey: ''
 };
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
@@ -6778,6 +6800,160 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
         achievements,
         recentActivity: normalizeProfileActivityList(rawPlayer.recentActivity)
     };
+}
+
+function normalizeAnnouncement(rawAnnouncement) {
+    if (!rawAnnouncement || typeof rawAnnouncement !== 'object') {
+        return null;
+    }
+
+    const announcementId = Math.max(0, Number(rawAnnouncement.id) || 0);
+    const title = String(rawAnnouncement.title || '').trim();
+    const body = String(rawAnnouncement.body || '').trim();
+    if (announcementId < 1 || !title || !body) {
+        return null;
+    }
+
+    return {
+        id: announcementId,
+        title,
+        body,
+        publishedAt: String(rawAnnouncement.publishedAt || rawAnnouncement.published_at || '').trim()
+    };
+}
+
+function formatAnnouncementPublishedAt(value) {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return 'Опубликовано недавно';
+    }
+
+    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
+    if (Number.isNaN(parsedDate.getTime())) {
+        return normalizedValue;
+    }
+
+    return parsedDate.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function buildAnnouncementBodyHtml(value) {
+    return escapeHtmlText(String(value || '')).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+}
+
+function renderAnnouncementModal() {
+    const contentNode = document.getElementById('announcementModalContent');
+    const titleNode = document.getElementById('announcementModalTitle');
+    const publishedAtNode = document.getElementById('announcementModalPublishedAt');
+    if (!contentNode || !titleNode || !publishedAtNode) {
+        return;
+    }
+
+    const announcement = normalizeAnnouncement(announcementState.current);
+    if (!announcement) {
+        titleNode.textContent = 'Последняя новость';
+        publishedAtNode.textContent = 'Нет доступных объявлений';
+        contentNode.innerHTML = '<div class="public-profile-empty">Свежих опубликованных новостей пока нет.</div>';
+        return;
+    }
+
+    titleNode.textContent = announcement.title;
+    publishedAtNode.textContent = `Опубликовано: ${formatAnnouncementPublishedAt(announcement.publishedAt)}`;
+    publishedAtNode.title = announcement.publishedAt ? formatAchievementDate(announcement.publishedAt) : 'Дата публикации недоступна';
+    contentNode.innerHTML = `
+        <div class="public-profile-skin-section">
+            <div class="profile-achievements-title">${escapeHtmlText(announcement.title)}</div>
+            <div class="profile-achievement-empty" style="text-align:left;line-height:1.7;">
+                <div style="margin:0;">${buildAnnouncementBodyHtml(announcement.body)}</div>
+            </div>
+        </div>
+    `;
+}
+
+async function acknowledgeAnnouncement(announcementId) {
+    const normalizedAnnouncementId = Math.max(0, Number(announcementId) || 0);
+    if (!userId || normalizedAnnouncementId < 1 || announcementState.ackInFlight) {
+        return;
+    }
+
+    announcementState.ackInFlight = true;
+    try {
+        await requestJson('/api/announcements/mark-seen.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                announcementId: normalizedAnnouncementId
+            })
+        });
+    } catch (error) {
+        console.warn('Не удалось отметить новость как прочитанную.', error);
+    } finally {
+        announcementState.ackInFlight = false;
+    }
+}
+
+function openAnnouncementModal(announcement) {
+    const normalizedAnnouncement = normalizeAnnouncement(announcement);
+    const modal = document.getElementById('announcementModal');
+    if (!modal || !normalizedAnnouncement) {
+        return;
+    }
+
+    announcementState.current = normalizedAnnouncement;
+    renderAnnouncementModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    acknowledgeAnnouncement(normalizedAnnouncement.id).catch(() => {});
+}
+
+function closeAnnouncementModal() {
+    const modal = document.getElementById('announcementModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    announcementState.current = null;
+    syncGlobalOverlayState();
+}
+
+function maybeShowAnnouncement(rawAnnouncement) {
+    const announcement = normalizeAnnouncement(rawAnnouncement);
+    if (!userId || !announcement) {
+        return;
+    }
+
+    const announcementKey = `${userId}:${announcement.id}`;
+    if (announcementState.shownKey === announcementKey) {
+        return;
+    }
+
+    announcementState.shownKey = announcementKey;
+    openAnnouncementModal(announcement);
+}
+
+function findCachedLeaderboardProfileByLogin(login) {
+    const normalizedLogin = String(login || '').trim().toLowerCase();
+    if (!normalizedLogin) {
+        return null;
+    }
+
+    for (const cachedProfile of leaderboardProfileState.cache.values()) {
+        const cachedLogin = String(cachedProfile?.login || '').trim().toLowerCase();
+        if (cachedLogin === normalizedLogin) {
+            return cachedProfile;
+        }
+    }
+
+    return null;
 }
 
 function setCurrentPublicProfileUrlState(login = '') {
@@ -8220,6 +8396,7 @@ function syncGlobalOverlayState() {
         document.getElementById('profileModal'),
         document.getElementById('questsModal'),
         document.getElementById('economyProfileModal'),
+        document.getElementById('announcementModal'),
         document.getElementById('leaderboardProfileModal'),
         document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
@@ -10201,14 +10378,16 @@ function renderLeaderboardPublicProfileModal() {
             : 'Ссылка недоступна';
     }
 
+    badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
+    badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
+    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${escapeHtmlText(formatCompactNumber(summary.achievementsUnlocked || unlockedAchievements.length))}</span>`);
+    badgeItems.push(`<span class="profile-badge" title="${escapeHtmlText(summary.lastActivityAt ? formatAchievementDate(summary.lastActivityAt) : 'Нет данных о последней активности')}">🕒 ${escapeHtmlText(formatPublicLastOnline(summary.lastActivityAt))}</span>`);
     if (summary.clickerTop1) {
         badgeItems.push('<span class="profile-badge top">👑 Топ-1 кликера</span>');
     }
     if (summary.flyTop1) {
         badgeItems.push('<span class="profile-badge top">🏆 Топ-1 Летающего бобра</span>');
     }
-    badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
-    badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
     if (leaderboardProfileState.refreshing) {
         badgeItems.push('<span class="profile-badge">Обновляю…</span>');
     }
@@ -10221,17 +10400,11 @@ function renderLeaderboardPublicProfileModal() {
     if (summary.grantOnlySkins > 0) {
         badgeItems.push(`<span class="profile-badge">🔐 Эксклюзивных: ${escapeHtmlText(formatCompactNumber(summary.grantOnlySkins))}</span>`);
     }
-    badgeItems.push(`<span class="profile-badge">✨ Достижений: ${escapeHtmlText(formatCompactNumber(summary.achievementsUnlocked || unlockedAchievements.length))}</span>`);
 
     const stats = [
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
         { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
-        {
-            label: 'Последний онлайн',
-            value: formatPublicLastOnline(summary.lastActivityAt),
-            title: summary.lastActivityAt ? formatAchievementDate(summary.lastActivityAt) : 'Нет данных о последней активности'
-        },
         { label: 'Экономический индекс', value: `${formatLeaderboardScore(summary.economy.index)} • ${formatEconomyMultiplier(summary.economy.multiplier)}`, action: 'economy' },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
@@ -10498,13 +10671,15 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
         return;
     }
 
-    leaderboardProfileState.openUserId = Math.max(0, Number(userId) || 0);
+    const normalizedUserId = Math.max(0, Number(userId) || 0);
+    const cachedProfile = normalizedUserId > 0 ? leaderboardProfileState.cache.get(normalizedUserId) || null : null;
+    leaderboardProfileState.openUserId = normalizedUserId;
     leaderboardProfileState.fallbackLogin = String(fallbackLogin || 'Игрок').trim() || 'Игрок';
-    leaderboardProfileState.loading = true;
-    leaderboardProfileState.refreshing = false;
+    leaderboardProfileState.loading = !cachedProfile;
+    leaderboardProfileState.refreshing = Boolean(cachedProfile);
     leaderboardProfileState.error = '';
-    leaderboardProfileState.data = null;
-    leaderboardProfileState.lastFetchedAt = 0;
+    leaderboardProfileState.data = cachedProfile;
+    leaderboardProfileState.lastFetchedAt = cachedProfile ? Date.now() : 0;
     closeProfileMenu();
     setCurrentPublicProfileUrlState(leaderboardProfileState.fallbackLogin);
     renderLeaderboardPublicProfileModal();
@@ -10584,13 +10759,15 @@ async function openLeaderboardPublicProfileByLogin(login, options = {}) {
     }
 
     const { syncUrl = true } = options;
-    leaderboardProfileState.openUserId = 0;
+    const cachedProfile = findCachedLeaderboardProfileByLogin(normalizedLogin);
+    const hasVisibleData = Boolean(cachedProfile);
+    leaderboardProfileState.openUserId = Math.max(0, Number(cachedProfile?.userId) || 0);
     leaderboardProfileState.fallbackLogin = normalizedLogin;
-    leaderboardProfileState.loading = true;
-    leaderboardProfileState.refreshing = false;
+    leaderboardProfileState.loading = !cachedProfile;
+    leaderboardProfileState.refreshing = Boolean(cachedProfile);
     leaderboardProfileState.error = '';
-    leaderboardProfileState.data = null;
-    leaderboardProfileState.lastFetchedAt = 0;
+    leaderboardProfileState.data = cachedProfile;
+    leaderboardProfileState.lastFetchedAt = cachedProfile ? Date.now() : 0;
     leaderboardProfileState.requestToken += 1;
 
     const modal = document.getElementById('leaderboardProfileModal');
@@ -10624,7 +10801,9 @@ async function openLeaderboardPublicProfileByLogin(login, options = {}) {
     } catch (error) {
         leaderboardProfileState.loading = false;
         leaderboardProfileState.refreshing = false;
-        leaderboardProfileState.data = null;
+        if (!hasVisibleData) {
+            leaderboardProfileState.data = null;
+        }
         leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
         if (syncUrl) {
             setCurrentPublicProfileUrlState(normalizedLogin);
@@ -14924,6 +15103,29 @@ if (economyProfileModalCloseButton) {
     });
 }
 
+const announcementModalNode = document.getElementById('announcementModal');
+if (announcementModalNode) {
+    announcementModalNode.addEventListener('click', (event) => {
+        if (event.target === announcementModalNode) {
+            closeAnnouncementModal();
+        }
+    });
+}
+
+const announcementModalCloseButton = document.getElementById('announcementModalClose');
+if (announcementModalCloseButton) {
+    announcementModalCloseButton.addEventListener('click', () => {
+        closeAnnouncementModal();
+    });
+}
+
+const announcementModalAcknowledgeButton = document.getElementById('announcementModalAcknowledge');
+if (announcementModalAcknowledgeButton) {
+    announcementModalAcknowledgeButton.addEventListener('click', () => {
+        closeAnnouncementModal();
+    });
+}
+
 const skinActionCancelButton = document.getElementById('skinActionModalCancel');
 if (skinActionCancelButton) {
     skinActionCancelButton.addEventListener('click', () => {
@@ -15346,6 +15548,7 @@ function resetUserState() {
     hideSkinActionModal();
     hideUpgradeActionModal();
     closeEconomyProfileModal();
+    closeAnnouncementModal();
     closeAuthModal();
     closeSettingsModal({ sync: false });
     closeProfileModal();
@@ -15369,6 +15572,8 @@ function resetUserState() {
     supportNoticeState.initialized = false;
     supportNoticeState.lastUnreadReplies = 0;
     supportNoticeState.lastFullscreenUnread = 0;
+    announcementState.shownKey = '';
+    announcementState.ackInFlight = false;
     energyShortageNoticeState.lastShownAt = 0;
     energyShortageNoticeState.lastNotificationId = '';
     clickRateLimitState.creditedClickTimestamps = [];
@@ -15479,6 +15684,7 @@ function applyAuthenticatedState(data) {
     renderProfileModal();
     renderQuestsModal();
     renderEconomyProfileModal();
+    maybeShowAnnouncement(data.announcement || data.account?.announcement);
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
@@ -17229,11 +17435,24 @@ document.addEventListener('keydown', function(event) {
     shortcut.handler();
 });
 
+document.getElementById('clicker').addEventListener('pointerdown', function(e) {
+    if (!e.isPrimary || e.button !== 0 || e.pointerType !== 'mouse') {
+        return;
+    }
+
+    e.preventDefault();
+    performSingleClickerActivation(e, {
+        source: 'pointerdown'
+    });
+});
+
 document.getElementById('clicker').onclick = function(e) {
     const keyboardLikeSource = resolveKeyboardLikeClickerSource(e);
-    performSingleClickerActivation(e, keyboardLikeSource || {
-        source: 'click'
-    });
+    if (!keyboardLikeSource) {
+        return;
+    }
+
+    performSingleClickerActivation(e, keyboardLikeSource);
 };
 
 document.getElementById('submitLogin').onclick = async function() {
