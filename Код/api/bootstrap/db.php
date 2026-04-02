@@ -4946,6 +4946,7 @@ function bober_fetch_user_support_summary($conn, $userId)
     }
 
     bober_ensure_support_schema($conn);
+    bober_auto_archive_support_tickets($conn);
     $stmt = $conn->prepare('SELECT COALESCE(SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END), 0) AS open_tickets, COALESCE(SUM(unread_by_user), 0) AS unread_replies FROM support_tickets WHERE user_id = ? AND archived_at IS NULL');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить сводку тикетов поддержки.');
@@ -5000,6 +5001,11 @@ function bober_auto_archive_support_tickets($conn, array $options = [])
     if ($archiveReason === '') {
         $archiveReason = 'closed_inactive';
     }
+    static $requestLevelRuns = [];
+    $requestCacheKey = $archiveDays . '::' . $archiveReason;
+    if (array_key_exists($requestCacheKey, $requestLevelRuns)) {
+        return $requestLevelRuns[$requestCacheKey];
+    }
 
     $sql = 'UPDATE support_tickets
         SET archived_at = CURRENT_TIMESTAMP,
@@ -5023,6 +5029,7 @@ function bober_auto_archive_support_tickets($conn, array $options = [])
 
     $archivedCount = max(0, (int) $stmt->affected_rows);
     $stmt->close();
+    $requestLevelRuns[$requestCacheKey] = $archivedCount;
 
     return $archivedCount;
 }
