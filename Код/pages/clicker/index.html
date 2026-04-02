@@ -789,12 +789,17 @@ Owner decisions:
 			color: #8ef2c5;
 		}
 		.save-status.dirty,
-		.save-status.draft {
+		.save-status.draft,
+        .save-status.local,
+        .save-status.queued {
 			color: #8bdcff;
 		}
 		.save-status.saving {
 			color: #ffe082;
 		}
+        .save-status.recovering {
+            color: #c8e7ff;
+        }
 		.save-status.error {
 			color: #ff9c9c;
 		}
@@ -2063,7 +2068,7 @@ Owner decisions:
         position: relative;
         overflow-x: hidden;
         isolation: isolate;
-        transition: background 0.28s ease;
+        transition: background 0.72s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     body::before {
@@ -2078,7 +2083,7 @@ Owner decisions:
             radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.12), transparent 34%),
             radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-b-rgb), calc(var(--page-horizon-opacity) * 0.72)), transparent 38%);
         z-index: 0;
-        transition: background 0.28s ease;
+        transition: background 0.72s cubic-bezier(0.22, 1, 0.36, 1);
         opacity: var(--page-ambient-opacity);
         will-change: transform, opacity;
         animation: pageAtmosphereDrift 28s ease-in-out infinite alternate, pageAtmospherePulse 18s ease-in-out infinite;
@@ -2099,6 +2104,10 @@ Owner decisions:
         mix-blend-mode: screen;
         transform: translate3d(0, 0, 0) scale(var(--page-aurora-scale));
         z-index: 0;
+        transition:
+            background 0.72s cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 0.72s cubic-bezier(0.22, 1, 0.36, 1),
+            transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
         will-change: transform, opacity;
         animation: pageAuroraDrift 24s ease-in-out infinite alternate, pageAuroraPulse 16s ease-in-out infinite;
     }
@@ -6758,7 +6767,12 @@ const autosaveState = {
     lastSavedAt: 0,
     lastBeaconAt: 0,
     lastBeaconRevision: -1,
-    lastError: ''
+    lastError: '',
+    nextAttemptAt: 0,
+    recoveryUntil: 0
+};
+const saveStatusUiState = {
+    timer: null
 };
 const supportLiveRefreshState = {
     timer: null,
@@ -7043,6 +7057,17 @@ const INTERACTION_PALETTES = {
         clickerGlow: '255, 180, 220'
     }
 };
+const INTERACTION_PALETTE_VARIABLES = [
+    { paletteKey: 'pageA', cssVar: '--page-color-a-rgb' },
+    { paletteKey: 'pageB', cssVar: '--page-color-b-rgb' },
+    { paletteKey: 'pageC', cssVar: '--page-color-c-rgb' },
+    { paletteKey: 'sheen', cssVar: '--page-sheen-rgb' },
+    { paletteKey: 'shadow', cssVar: '--page-shadow-rgb' },
+    { paletteKey: 'rippleCore', cssVar: '--ripple-core-rgb' },
+    { paletteKey: 'rippleRing', cssVar: '--ripple-ring-rgb' },
+    { paletteKey: 'rippleShadow', cssVar: '--ripple-shadow-rgb' },
+    { paletteKey: 'clickerGlow', cssVar: '--clicker-glow-rgb' }
+];
 const RIPPLE_ENGINE_CONFIG = {
     maxActiveRipples: 6,
     tapDuplicateWindowMs: 56,
@@ -7115,6 +7140,12 @@ const interactionFxState = {
     lastTapPageX: Number.NaN,
     lastTapPageY: Number.NaN,
     lastPaletteToken: 'main',
+    paletteTransitionRafId: 0,
+    paletteTransitionStartedAt: 0,
+    paletteTransitionDurationMs: 0,
+    paletteCurrentValues: null,
+    paletteTargetValues: null,
+    paletteTransitionStartValues: null,
     activeRipples: [],
     rippleScale: 6.4,
     rippleOpacity: 0.9,
@@ -8030,17 +8061,142 @@ function applyInteractionPalette(token = 'main') {
         return resolvedToken;
     }
     const palette = INTERACTION_PALETTES[resolvedToken];
-    document.body.style.setProperty('--page-color-a-rgb', palette.pageA);
-    document.body.style.setProperty('--page-color-b-rgb', palette.pageB);
-    document.body.style.setProperty('--page-color-c-rgb', palette.pageC);
-    document.body.style.setProperty('--page-sheen-rgb', palette.sheen);
-    document.body.style.setProperty('--page-shadow-rgb', palette.shadow);
-    document.body.style.setProperty('--ripple-core-rgb', palette.rippleCore);
-    document.body.style.setProperty('--ripple-ring-rgb', palette.rippleRing);
-    document.body.style.setProperty('--ripple-shadow-rgb', palette.rippleShadow);
-    document.body.style.setProperty('--clicker-glow-rgb', palette.clickerGlow);
+    scheduleInteractionPaletteTransition(palette);
     interactionFxState.lastPaletteToken = resolvedToken;
     return resolvedToken;
+}
+
+function parseRgbTriplet(value, fallback = [0, 0, 0]) {
+    const channels = String(value || '')
+        .split(',')
+        .map((channel) => Number.parseFloat(String(channel || '').trim()))
+        .filter((channel) => Number.isFinite(channel))
+        .slice(0, 3);
+    if (channels.length !== 3) {
+        return Array.isArray(fallback) ? fallback.slice(0, 3) : [0, 0, 0];
+    }
+    return channels.map((channel) => Math.max(0, Math.min(255, channel)));
+}
+
+function formatRgbTriplet(channels) {
+    return (Array.isArray(channels) ? channels : [0, 0, 0])
+        .slice(0, 3)
+        .map((channel) => Math.round(Math.max(0, Math.min(255, Number(channel) || 0))))
+        .join(', ');
+}
+
+function clonePaletteChannelMap(channelMap = {}) {
+    const clone = {};
+    INTERACTION_PALETTE_VARIABLES.forEach(({ paletteKey }) => {
+        clone[paletteKey] = parseRgbTriplet(channelMap[paletteKey], parseRgbTriplet(INTERACTION_PALETTES.main[paletteKey]));
+    });
+    return clone;
+}
+
+function resolvePaletteChannelMap(palette) {
+    const resolved = {};
+    INTERACTION_PALETTE_VARIABLES.forEach(({ paletteKey }) => {
+        resolved[paletteKey] = parseRgbTriplet(palette?.[paletteKey], parseRgbTriplet(INTERACTION_PALETTES.main[paletteKey]));
+    });
+    return resolved;
+}
+
+function readCurrentInteractionPaletteValues() {
+    const computedStyle = window.getComputedStyle(document.body);
+    const currentValues = {};
+    INTERACTION_PALETTE_VARIABLES.forEach(({ paletteKey, cssVar }) => {
+        currentValues[paletteKey] = parseRgbTriplet(
+            computedStyle.getPropertyValue(cssVar),
+            parseRgbTriplet(INTERACTION_PALETTES.main[paletteKey])
+        );
+    });
+    return currentValues;
+}
+
+function applyPaletteChannelMap(channelMap) {
+    if (!document.body || !channelMap) {
+        return;
+    }
+    INTERACTION_PALETTE_VARIABLES.forEach(({ paletteKey, cssVar }) => {
+        document.body.style.setProperty(cssVar, formatRgbTriplet(channelMap[paletteKey]));
+    });
+}
+
+function ensureInteractionPaletteState() {
+    if (interactionFxState.paletteCurrentValues) {
+        return;
+    }
+    const initialValues = clonePaletteChannelMap(readCurrentInteractionPaletteValues());
+    interactionFxState.paletteCurrentValues = clonePaletteChannelMap(initialValues);
+    interactionFxState.paletteTargetValues = clonePaletteChannelMap(initialValues);
+    interactionFxState.paletteTransitionStartValues = clonePaletteChannelMap(initialValues);
+}
+
+function getInteractionPaletteTransitionDurationMs() {
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    if (settings.animations.mode === 'off') {
+        return 0;
+    }
+    if (settings.animations.mode === 'reduced') {
+        return 420;
+    }
+    return 760;
+}
+
+function easeInteractionPaletteProgress(progress) {
+    const clampedProgress = Math.max(0, Math.min(1, Number(progress) || 0));
+    return 1 - Math.pow(1 - clampedProgress, 3);
+}
+
+function animateInteractionPaletteTransition(now) {
+    ensureInteractionPaletteState();
+    const durationMs = Math.max(0, Number(interactionFxState.paletteTransitionDurationMs) || 0);
+    const startedAt = Number(interactionFxState.paletteTransitionStartedAt) || 0;
+    const progress = durationMs > 0 ? Math.min(1, (now - startedAt) / durationMs) : 1;
+    const easedProgress = easeInteractionPaletteProgress(progress);
+    const nextValues = {};
+
+    INTERACTION_PALETTE_VARIABLES.forEach(({ paletteKey }) => {
+        const startChannels = parseRgbTriplet(interactionFxState.paletteTransitionStartValues?.[paletteKey], parseRgbTriplet(INTERACTION_PALETTES.main[paletteKey]));
+        const targetChannels = parseRgbTriplet(interactionFxState.paletteTargetValues?.[paletteKey], startChannels);
+        nextValues[paletteKey] = startChannels.map((startChannel, channelIndex) => {
+            const targetChannel = Number(targetChannels[channelIndex]) || 0;
+            return startChannel + (targetChannel - startChannel) * easedProgress;
+        });
+    });
+
+    interactionFxState.paletteCurrentValues = clonePaletteChannelMap(nextValues);
+    applyPaletteChannelMap(interactionFxState.paletteCurrentValues);
+
+    if (progress >= 1) {
+        interactionFxState.paletteTransitionRafId = 0;
+        interactionFxState.paletteTransitionStartValues = clonePaletteChannelMap(interactionFxState.paletteCurrentValues);
+        return;
+    }
+
+    interactionFxState.paletteTransitionRafId = window.requestAnimationFrame(animateInteractionPaletteTransition);
+}
+
+function scheduleInteractionPaletteTransition(palette) {
+    ensureInteractionPaletteState();
+    interactionFxState.paletteTransitionStartValues = clonePaletteChannelMap(interactionFxState.paletteCurrentValues);
+    interactionFxState.paletteTargetValues = resolvePaletteChannelMap(palette);
+    interactionFxState.paletteTransitionDurationMs = getInteractionPaletteTransitionDurationMs();
+    interactionFxState.paletteTransitionStartedAt = performance.now();
+
+    if (interactionFxState.paletteTransitionRafId) {
+        window.cancelAnimationFrame(interactionFxState.paletteTransitionRafId);
+        interactionFxState.paletteTransitionRafId = 0;
+    }
+
+    if (interactionFxState.paletteTransitionDurationMs <= 0) {
+        interactionFxState.paletteCurrentValues = clonePaletteChannelMap(interactionFxState.paletteTargetValues);
+        applyPaletteChannelMap(interactionFxState.paletteCurrentValues);
+        interactionFxState.paletteTransitionStartValues = clonePaletteChannelMap(interactionFxState.paletteCurrentValues);
+        return;
+    }
+
+    interactionFxState.paletteTransitionRafId = window.requestAnimationFrame(animateInteractionPaletteTransition);
 }
 
 function updateReactiveGlowPosition(clientX, clientY) {
@@ -13586,14 +13742,122 @@ function formatSaveTime(timestamp) {
     });
 }
 
-function setSaveStatus(state, message) {
+function clearSaveStatusRefreshTimer() {
+    if (saveStatusUiState.timer) {
+        clearTimeout(saveStatusUiState.timer);
+        saveStatusUiState.timer = null;
+    }
+}
+
+function scheduleSaveStatusRefreshTimer(delayMs = 1000) {
+    clearSaveStatusRefreshTimer();
+    const normalizedDelay = Math.max(180, Number(delayMs) || 0);
+    saveStatusUiState.timer = setTimeout(() => {
+        saveStatusUiState.timer = null;
+        refreshSaveStatusFromState();
+    }, normalizedDelay);
+}
+
+function formatSaveStatusDelay(remainingMs) {
+    const totalSeconds = Math.max(1, Math.ceil(Math.max(0, Number(remainingMs) || 0) / 1000));
+    if (totalSeconds < 60) {
+        return `${totalSeconds} сек.`;
+    }
+
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (totalMinutes < 60) {
+        return seconds > 0 ? `${totalMinutes} мин. ${seconds} сек.` : `${totalMinutes} мин.`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${hours} ч. ${minutes} мин.` : `${hours} ч.`;
+}
+
+function setSaveStatus(state, message, options = {}) {
     const statusNode = document.getElementById('saveStatus');
     if (!statusNode) {
         return;
     }
 
+    if (!options.keepTimer) {
+        clearSaveStatusRefreshTimer();
+    }
     statusNode.className = `save-status ${state}`;
     statusNode.textContent = message;
+}
+
+function refreshSaveStatusFromState() {
+    clearSaveStatusRefreshTimer();
+    const now = Date.now();
+
+    if (!userId) {
+        setSaveStatus('idle', 'Автосохранение выключено', { keepTimer: true });
+        return;
+    }
+
+    if (isDatabaseQuotaCooldownActive()) {
+        const remainingMs = getDatabaseQuotaCooldownRemainingMs();
+        setSaveStatus('error', getDatabaseQuotaStatusMessage(remainingMs), { keepTimer: true });
+        if (remainingMs > 0) {
+            scheduleSaveStatusRefreshTimer(Math.min(1000, remainingMs));
+        }
+        return;
+    }
+
+    if (autosaveState.inFlight) {
+        setSaveStatus('saving', 'Синхронизируем прогресс с облаком...', { keepTimer: true });
+        return;
+    }
+
+    if (hasPendingAutosave()) {
+        const remainingMs = Math.max(0, Number(autosaveState.nextAttemptAt || 0) - now);
+        if (autosaveState.lastError) {
+            if (remainingMs > 0) {
+                setSaveStatus('error', `Ошибка облака. Локальный черновик сохранен, повтор через ${formatSaveStatusDelay(remainingMs)}.`, { keepTimer: true });
+                scheduleSaveStatusRefreshTimer(Math.min(1000, remainingMs));
+                return;
+            }
+
+            setSaveStatus('local', 'Локально: черновик сохранен, ждем повторной отправки.', { keepTimer: true });
+            return;
+        }
+
+        if (remainingMs > 0) {
+            setSaveStatus('queued', `В очереди: отправим в облако через ${formatSaveStatusDelay(remainingMs)}.`, { keepTimer: true });
+            scheduleSaveStatusRefreshTimer(Math.min(1000, remainingMs));
+            return;
+        }
+
+        setSaveStatus('local', 'Локально: есть новые изменения.', { keepTimer: true });
+        return;
+    }
+
+    if (Number(autosaveState.recoveryUntil || 0) > now) {
+        const remainingMs = Math.max(0, Number(autosaveState.recoveryUntil || 0) - now);
+        setSaveStatus('recovering', 'Проверяем и восстанавливаем облачную синхронизацию...', { keepTimer: true });
+        if (remainingMs > 0) {
+            scheduleSaveStatusRefreshTimer(Math.min(1000, remainingMs));
+        }
+        return;
+    }
+
+    if (autosaveState.lastSavedAt > 0) {
+        setSaveStatus('saved', `Синхронизировано в ${formatSaveTime(autosaveState.lastSavedAt)}`, { keepTimer: true });
+        return;
+    }
+
+    setSaveStatus('idle', 'Облачное сохранение готово.', { keepTimer: true });
+}
+
+function markSaveRecoveryPending() {
+    if (!userId) {
+        return;
+    }
+
+    autosaveState.recoveryUntil = Date.now() + 7000;
+    refreshSaveStatusFromState();
 }
 
 function setAuthenticatedUI(isAuthenticated) {
@@ -13624,11 +13888,15 @@ function resetAutosaveState() {
     autosaveState.lastBeaconAt = 0;
     autosaveState.lastBeaconRevision = -1;
     autosaveState.lastError = '';
+    autosaveState.nextAttemptAt = 0;
+    autosaveState.recoveryUntil = 0;
 
     if (autosaveState.timer) {
         clearTimeout(autosaveState.timer);
         autosaveState.timer = null;
     }
+
+    clearSaveStatusRefreshTimer();
 }
 
 function getLocalDraftKey(userIdValue = userId) {
@@ -13761,7 +14029,7 @@ function restoreLocalDraftIfAvailable() {
     updateScoreUI();
     updateEnergyUI();
     updateUpgradeShopUI();
-    setSaveStatus('draft', `Восстановлен локальный черновик от ${formatSaveTime(draft.savedAt)}`);
+    setSaveStatus('draft', `Локально: восстановлен черновик от ${formatSaveTime(draft.savedAt)}.`, { keepTimer: true });
     showNotification('Восстановили локальный черновик прогресса.', 'success');
     markProgressDirty({ delayMs: AUTOSAVE_CONFIG.importantDelayMs });
     return true;
@@ -14367,6 +14635,8 @@ function hasPendingAutosave() {
 
 function scheduleAutosave(delayMs = AUTOSAVE_CONFIG.idleDelayMs) {
     if (!hasPendingAutosave()) {
+        autosaveState.nextAttemptAt = 0;
+        refreshSaveStatusFromState();
         return;
     }
 
@@ -14382,8 +14652,11 @@ function scheduleAutosave(delayMs = AUTOSAVE_CONFIG.idleDelayMs) {
         clearTimeout(autosaveState.timer);
     }
 
+    autosaveState.nextAttemptAt = Date.now() + finalDelay;
+    refreshSaveStatusFromState();
     autosaveState.timer = setTimeout(() => {
         autosaveState.timer = null;
+        autosaveState.nextAttemptAt = 0;
         flushAutosave({ reason: 'timer' });
     }, finalDelay);
 }
@@ -14402,7 +14675,6 @@ function markProgressDirty(options = {}) {
     }
 
     saveLocalDraft();
-    setSaveStatus('dirty', 'Есть несохраненные изменения');
     scheduleAutosave(options.delayMs ?? AUTOSAVE_CONFIG.idleDelayMs);
 }
 
@@ -14482,7 +14754,9 @@ async function flushAutosave(options = {}) {
     }
 
     autosaveState.inFlight = true;
-    setSaveStatus('saving', reason === 'manual' ? 'Сохраняем прогресс...' : 'Автосохранение...');
+    autosaveState.nextAttemptAt = 0;
+    autosaveState.recoveryUntil = 0;
+    refreshSaveStatusFromState();
     logClientEvent('save', 'save_attempt', {
         reason: reason,
         dirtyRevision: autosaveState.revision,
@@ -14512,14 +14786,15 @@ async function flushAutosave(options = {}) {
             autosaveState.firstDirtyAt = 0;
             autosaveState.lastSavedAt = Date.now();
             autosaveState.lastError = '';
+            autosaveState.nextAttemptAt = 0;
+            autosaveState.recoveryUntil = 0;
             clearLocalDraft();
         }
 
         if (hasPendingAutosave()) {
-            setSaveStatus('dirty', 'Есть несохраненные изменения');
             scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
         } else {
-            setSaveStatus('saved', `Сохранено в ${formatSaveTime(autosaveState.lastSavedAt)}`);
+            refreshSaveStatusFromState();
             if (!silent && reason === 'manual') {
                 showNotification('Успешное сохранение', 'success');
             }
@@ -14543,9 +14818,7 @@ async function flushAutosave(options = {}) {
     }
 
     scheduleAutosave(AUTOSAVE_CONFIG.retryDelayMs);
-    setSaveStatus('error', isDatabaseQuotaCooldownActive()
-        ? getDatabaseQuotaStatusMessage()
-        : 'Сбой сети, локальный черновик сохранен');
+    refreshSaveStatusFromState();
     logClientEvent('save', 'save_failed', {
         reason: reason,
         revision: revisionAtStart,
@@ -14605,7 +14878,7 @@ function flushAutosaveWithBeacon() {
         if (queued) {
             autosaveState.lastBeaconRevision = autosaveState.revision;
             autosaveState.lastBeaconAt = now;
-            setSaveStatus('saving', 'Фоновое сохранение...');
+            setSaveStatus('queued', 'В очереди браузера: отправим прогресс при уходе со страницы.');
         }
 
         return queued;
@@ -14908,21 +15181,26 @@ async function synchronizeMainState(options = {}) {
                 autosaveState.firstDirtyAt = 0;
                 autosaveState.lastSavedAt = Date.now();
                 autosaveState.lastError = '';
+                autosaveState.nextAttemptAt = 0;
+                autosaveState.recoveryUntil = 0;
                 clearLocalDraft();
-                setSaveStatus('saved', `Сохранено в ${formatSaveTime(autosaveState.lastSavedAt)}`);
+                refreshSaveStatusFromState();
             } else {
-                setSaveStatus('dirty', 'Есть несохраненные изменения');
                 scheduleAutosave(AUTOSAVE_CONFIG.importantDelayMs);
             }
         }
 
         liveSyncState.lastSyncedAt = Date.now();
+        autosaveState.recoveryUntil = 0;
+        if (!includedDirtyState) {
+            refreshSaveStatusFromState();
+        }
         leaderboardProfileState.cache.clear();
         return true;
     } catch (error) {
         if (isDatabaseQuotaExceededError(error)) {
             activateDatabaseQuotaCooldown(error);
-            setSaveStatus('error', getDatabaseQuotaStatusMessage());
+            refreshSaveStatusFromState();
             return false;
         }
         if (tryHandleSessionConflictError(error)) {
@@ -16122,6 +16400,7 @@ document.addEventListener('visibilitychange', function() {
     } else {
         updateBrowserNotificationsControls();
         if (userId) {
+            markSaveRecoveryPending();
             checkAuthenticatedSessionConflict();
         }
         performLiveRefreshCycle({
@@ -16151,6 +16430,7 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('pageshow', function() {
     updateBrowserNotificationsControls();
     if (userId) {
+        markSaveRecoveryPending();
         resumePendingSettingsSync().catch((error) => {
             console.warn('Не удалось досохранить настройки после pageshow.', error);
         });
@@ -16164,6 +16444,7 @@ window.addEventListener('pageshow', function() {
 
 window.addEventListener('online', function() {
     if (userId) {
+        markSaveRecoveryPending();
         resumePendingSettingsSync().catch((error) => {
             console.warn('Не удалось досохранить настройки после восстановления сети.', error);
         });
@@ -16177,6 +16458,9 @@ window.addEventListener('online', function() {
 
 window.addEventListener('focus', function() {
     updateBrowserNotificationsControls();
+    if (userId) {
+        markSaveRecoveryPending();
+    }
     requestImmediateLiveRefresh('window_focus', {
         includeDirtyState: true,
         silent: true,
