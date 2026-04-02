@@ -122,6 +122,7 @@ try {
         'settingsUpdatedAt' => $settingsUpdatedAt,
         'supportSummary' => $supportSummary,
         'announcement' => is_array($account) ? ($account['announcement'] ?? null) : null,
+        'latestAnnouncement' => is_array($account) ? ($account['latestAnnouncement'] ?? null) : null,
         'serverTime' => (int) round(microtime(true) * 1000),
         'saved' => $saveResult !== null,
         'settingsSaved' => $settingsSaved,

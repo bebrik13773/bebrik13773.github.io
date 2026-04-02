@@ -1722,6 +1722,30 @@ function bober_fetch_latest_unread_announcement($conn, $userId)
     return is_array($row) ? bober_normalize_announcement_row($row) : null;
 }
 
+function bober_fetch_latest_published_announcement($conn)
+{
+    bober_ensure_announcement_schema($conn);
+
+    $result = $conn->query("
+        SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at
+        FROM announcements
+        WHERE is_published = 1
+            AND archived_at IS NULL
+        ORDER BY COALESCE(published_at, updated_at, created_at) DESC, id DESC
+        LIMIT 1
+    ");
+    if (!$result) {
+        throw new RuntimeException('Не удалось получить последнюю опубликованную новость.');
+    }
+
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+
+    return is_array($row) ? bober_normalize_announcement_row($row) : null;
+}
+
 function bober_mark_announcement_seen($conn, $userId, $announcementId)
 {
     bober_ensure_announcement_schema($conn);
@@ -9102,6 +9126,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
 
     $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
     $announcement = bober_fetch_latest_unread_announcement($conn, $userId);
+    $latestAnnouncement = bober_fetch_latest_published_announcement($conn);
     $response = [
         'success' => true,
         'userId' => (int) ($row['id'] ?? $userId),
@@ -9133,6 +9158,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'questUnlocks' => $questUnlocks,
         'supportSummary' => $supportSummary,
         'announcement' => $announcement,
+        'latestAnnouncement' => $latestAnnouncement,
     ];
 
     if ($includeActivity) {

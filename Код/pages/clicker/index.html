@@ -6052,6 +6052,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions" style="justify-content:flex-start;padding:0 0 4px;">
+            <button type="button" class="settings-action-button muted" id="profileModalNewsButton">Новости</button>
             <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
         </div>
         <div class="profile-badge-row" id="profileModalBadges"></div>
@@ -6543,6 +6544,7 @@ const economyProfileModalState = {
 };
 const announcementState = {
     current: null,
+    latestPublished: null,
     ackInFlight: false,
     shownKey: ''
 };
@@ -6822,6 +6824,12 @@ function normalizeAnnouncement(rawAnnouncement) {
     };
 }
 
+function setLatestPublishedAnnouncement(rawAnnouncement) {
+    const normalizedAnnouncement = normalizeAnnouncement(rawAnnouncement);
+    announcementState.latestPublished = normalizedAnnouncement;
+    return normalizedAnnouncement;
+}
+
 function formatAnnouncementPublishedAt(value) {
     const normalizedValue = String(value || '').trim();
     if (!normalizedValue) {
@@ -6906,6 +6914,7 @@ function openAnnouncementModal(announcement) {
     }
 
     announcementState.current = normalizedAnnouncement;
+    announcementState.latestPublished = normalizedAnnouncement;
     renderAnnouncementModal();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -6931,12 +6940,29 @@ function maybeShowAnnouncement(rawAnnouncement) {
         return;
     }
 
+    announcementState.latestPublished = announcement;
     const announcementKey = `${userId}:${announcement.id}`;
     if (announcementState.shownKey === announcementKey) {
         return;
     }
 
     announcementState.shownKey = announcementKey;
+    const browserShown = showBrowserNotification(
+        `Новая новость: ${announcement.title}`,
+        announcement.body,
+        {
+            tag: `bober-announcement-${announcement.id}`,
+            renotify: true,
+            durationMs: 14000,
+            onClick: () => {
+                openAnnouncementModal(announcement);
+            }
+        }
+    );
+    if (browserShown) {
+        return;
+    }
+
     openAnnouncementModal(announcement);
 }
 
@@ -10018,6 +10044,7 @@ function renderProfileModal() {
     const statsNode = document.getElementById('profileModalStats');
     const activityNode = document.getElementById('profileModalActivity');
     const achievementsNode = document.getElementById('profileModalAchievements');
+    const newsButtonNode = document.getElementById('profileModalNewsButton');
     const copyButtonNode = document.getElementById('profileModalCopyLink');
 
     if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !activityNode || !achievementsNode) {
@@ -10171,6 +10198,14 @@ function renderProfileModal() {
         copyButtonNode.title = resolvedLogin
             ? `Скопировать публичную ссылку на профиль ${resolvedLogin}`
             : 'Сначала войдите в аккаунт';
+    }
+
+    if (newsButtonNode) {
+        const latestAnnouncement = normalizeAnnouncement(announcementState.latestPublished);
+        newsButtonNode.disabled = !latestAnnouncement;
+        newsButtonNode.title = latestAnnouncement
+            ? `Открыть новость: ${latestAnnouncement.title}`
+            : 'Последняя опубликованная новость пока недоступна';
     }
 
     if (economyProfileModalState.source === 'private') {
@@ -14635,6 +14670,19 @@ if (profileModalCopyLinkButton) {
     });
 }
 
+const profileModalNewsButton = document.getElementById('profileModalNewsButton');
+if (profileModalNewsButton) {
+    profileModalNewsButton.addEventListener('click', () => {
+        const latestAnnouncement = normalizeAnnouncement(announcementState.latestPublished);
+        if (!latestAnnouncement) {
+            showNotification('Последняя опубликованная новость пока недоступна.', 'warning');
+            return;
+        }
+
+        openAnnouncementModal(latestAnnouncement);
+    });
+}
+
 const questsModalCloseButton = document.getElementById('questsModalClose');
 if (questsModalCloseButton) {
     questsModalCloseButton.addEventListener('click', () => {
@@ -15572,6 +15620,7 @@ function resetUserState() {
     supportNoticeState.initialized = false;
     supportNoticeState.lastUnreadReplies = 0;
     supportNoticeState.lastFullscreenUnread = 0;
+    announcementState.latestPublished = null;
     announcementState.shownKey = '';
     announcementState.ackInFlight = false;
     energyShortageNoticeState.lastShownAt = 0;
@@ -15684,6 +15733,7 @@ function applyAuthenticatedState(data) {
     renderProfileModal();
     renderQuestsModal();
     renderEconomyProfileModal();
+    setLatestPublishedAnnouncement(data.latestAnnouncement || data.account?.latestAnnouncement || data.announcement || data.account?.announcement);
     maybeShowAnnouncement(data.announcement || data.account?.announcement);
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
