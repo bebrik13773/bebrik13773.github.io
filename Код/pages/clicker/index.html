@@ -3420,6 +3420,11 @@ Owner decisions:
         border-color: rgba(152, 255, 196, 0.22);
     }
 
+    .profile-quest-card.secret {
+        border-color: rgba(255, 219, 120, 0.18);
+        background: linear-gradient(180deg, rgba(28, 21, 48, 0.78), rgba(13, 11, 28, 0.9));
+    }
+
     .profile-quest-head {
         display: flex;
         align-items: flex-start;
@@ -3450,6 +3455,12 @@ Owner decisions:
         color: #dcffef;
         background: rgba(152, 255, 196, 0.12);
         border-color: rgba(152, 255, 196, 0.18);
+    }
+
+    .profile-quest-chip.secret {
+        color: #fff1c2;
+        background: rgba(255, 219, 120, 0.12);
+        border-color: rgba(255, 219, 120, 0.18);
     }
 
     .profile-quest-description,
@@ -10532,26 +10543,43 @@ function buildQuestGroupsHtml(normalizedQuests) {
             </div>
             ${group.items.length > 0
                 ? `<div class="profile-quest-list">${group.items.map((item) => {
-                    const progressPercent = Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
+                    const isHiddenSecret = Boolean(item.isSecret) && Boolean(item.hidden) && !item.claimed && !item.completed;
+                    const progressPercent = isHiddenSecret
+                        ? 0
+                        : Math.max(0, Math.min(100, item.goal > 0 ? (item.progress / item.goal) * 100 : 0));
                     const statusLabel = item.claimed
                         ? 'Награда получена'
-                        : (item.completed ? 'Готово' : 'В процессе');
+                        : (item.completed ? 'Готово' : (isHiddenSecret ? 'Секретно' : 'В процессе'));
+                    const cardClassName = [
+                        'profile-quest-card',
+                        item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress'),
+                        item.isSecret ? 'secret' : ''
+                    ].filter(Boolean).join(' ');
+                    const chipClassName = [
+                        'profile-quest-chip',
+                        item.claimed ? 'claimed' : '',
+                        isHiddenSecret ? 'secret' : ''
+                    ].filter(Boolean).join(' ');
+                    const progressText = isHiddenSecret
+                        ? '<span>Условия скрыты</span><span>???</span>'
+                        : `<span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span><span>${escapeHtmlText(Math.round(progressPercent))}%</span>`;
+                    const metaParts = [
+                        item.isSecret ? 'Тип: секретный недельный квест' : '',
+                        `Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов`
+                    ].filter(Boolean);
                     return `
-                        <article class="profile-quest-card ${item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress')}">
+                        <article class="${cardClassName}">
                             <div class="profile-quest-head">
                                 <div class="profile-quest-title">${escapeHtmlText(item.title)}</div>
-                                <div class="profile-quest-chip ${item.claimed ? 'claimed' : ''}">${escapeHtmlText(statusLabel)}</div>
+                                <div class="${chipClassName}">${escapeHtmlText(statusLabel)}</div>
                             </div>
                             <div class="profile-quest-description">${escapeHtmlText(item.description)}</div>
-                            <div class="profile-quest-meta">Награда: +${escapeHtmlText(formatCompactNumber(item.rewardCoins))} коинов</div>
+                            <div class="profile-quest-meta">${escapeHtmlText(metaParts.join(' • '))}</div>
                             <div class="profile-quest-progress">
                                 <div class="profile-quest-progress-bar">
                                     <div class="profile-quest-progress-fill" style="width:${escapeHtmlText(String(progressPercent.toFixed(2)))}%"></div>
                                 </div>
-                                <div class="profile-quest-progress-text">
-                                    <span>${escapeHtmlText(formatCompactNumber(item.progress))} / ${escapeHtmlText(formatCompactNumber(item.goal))}</span>
-                                    <span>${escapeHtmlText(Math.round(progressPercent))}%</span>
-                                </div>
+                                <div class="profile-quest-progress-text">${progressText}</div>
                             </div>
                         </article>
                     `;
@@ -13434,6 +13462,8 @@ function normalizeQuestItem(rawItem, fallbackScope = 'daily', fallbackPeriodKey 
         goal,
         progress,
         rewardCoins: Math.max(0, Number(rawItem.rewardCoins) || 0),
+        isSecret: Boolean(rawItem.isSecret || rawItem.secret),
+        hidden: Boolean(rawItem.hidden),
         completed: Boolean(rawItem.completed) || progress >= goal,
         claimed: Boolean(rawItem.claimed),
         claimedAt: String(rawItem.claimedAt || '').trim()
@@ -13683,7 +13713,9 @@ function notifyAboutQuestUnlocks(rawItems) {
             questUnlockState.seen.add(seenKey);
             persistSeenQuestUnlocks();
 
-            const scopeLabel = item.scope === 'weekly' ? 'Недельная цель' : 'Ежедневный квест';
+            const scopeLabel = item.isSecret
+                ? 'Секретный недельный квест'
+                : (item.scope === 'weekly' ? 'Недельная цель' : 'Ежедневный квест');
             const rewardLabel = item.rewardCoins > 0
                 ? ` +${item.rewardCoins.toLocaleString('ru-RU')} коинов`
                 : '';

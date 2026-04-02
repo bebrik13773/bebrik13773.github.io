@@ -8523,6 +8523,43 @@ function bober_select_rotating_quest_keys(array $definitions, $userId, $periodKe
     }, array_slice($scoredItems, 0, max(0, (int) $count))));
 }
 
+function bober_select_secret_weekly_quest_slot(array $definitions, array $visibleSlots, $userId, $periodKey, $rotationToken = 0)
+{
+    $excludedKeys = [];
+    foreach ($visibleSlots as $slot) {
+        $slotKey = trim((string) (($slot['key'] ?? '')));
+        if ($slotKey !== '') {
+            $excludedKeys[$slotKey] = true;
+        }
+    }
+
+    $secretPool = [];
+    foreach ($definitions as $questKey => $definition) {
+        $normalizedQuestKey = trim((string) $questKey);
+        if ($normalizedQuestKey === '' || isset($excludedKeys[$normalizedQuestKey])) {
+            continue;
+        }
+
+        $secretPool[$normalizedQuestKey] = $definition;
+    }
+
+    if (!$secretPool) {
+        return [];
+    }
+
+    $secretKeys = bober_select_rotating_quest_keys($secretPool, $userId, (string) $periodKey . '|secret', 1, $rotationToken);
+    $secretKey = trim((string) ($secretKeys[0] ?? ''));
+    if ($secretKey === '' || !isset($secretPool[$secretKey])) {
+        return [];
+    }
+
+    return [[
+        'key' => $secretKey,
+        'manual' => false,
+        'secret' => true,
+    ]];
+}
+
 function bober_store_user_quest_progress_state($conn, $userId, array $state)
 {
     $stmt = $conn->prepare(
@@ -8798,9 +8835,10 @@ function bober_extract_user_quest_manual_keys_from_slots(array $slots, $count = 
     return $manualKeys;
 }
 
-function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
+function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewerMode = 'player')
 {
     $userId = max(0, (int) $userId);
+    $normalizedViewerMode = strtolower(trim((string) $viewerMode)) === 'admin' ? 'admin' : 'player';
     if ($userId < 1) {
         return [
             'items' => [
@@ -8821,6 +8859,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
     $weeklyDefinitions = bober_attach_manual_quest_definitions($conn, $weeklyActiveDefinitions, 'weekly', (array) ($state['weeklyManualKeys'] ?? []));
     $dailySlots = bober_resolve_user_quest_slots($dailyDefinitions, $dailyKeys, (array) ($state['dailyManualKeys'] ?? []), 2);
     $weeklySlots = bober_resolve_user_quest_slots($weeklyDefinitions, $weeklyKeys, (array) ($state['weeklyManualKeys'] ?? []), 2);
+    $weeklySecretSlots = bober_select_secret_weekly_quest_slot($weeklyDefinitions, $weeklySlots, $userId, $state['weeklyPeriodKey'], $state['weeklyRollToken'] ?? 0);
     $rewardCoinsTotal = 0;
     $newlyCompleted = [];
     $stateChanged = false;
@@ -8836,7 +8875,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
         $stateChanged = true;
     }
 
-    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards) {
+    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards, $normalizedViewerMode) {
         $items = [];
         foreach ($questSlots as $slotIndex => $slot) {
             $questKey = trim((string) ($slot['key'] ?? ''));
@@ -8867,21 +8906,33 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
                     'progress' => $progress,
                     'rewardCoins' => $rewardCoins,
                     'claimedAt' => $claimedAt,
+                    'isSecret' => !empty($slot['secret']),
                 ];
             }
+
+            $isSecret = !empty($slot['secret']);
+            $isHiddenSecret = $isSecret && $normalizedViewerMode !== 'admin' && !$completed && $claimedAt === '';
+            $displayTitle = $isHiddenSecret
+                ? 'Секретный квест недели'
+                : (string) ($definition['title'] ?? $questKey);
+            $displayDescription = $isHiddenSecret
+                ? 'Условия скрыты до выполнения.'
+                : (string) ($definition['description'] ?? '');
 
             $items[] = [
                 'scope' => $scope,
                 'periodKey' => $periodKey,
                 'key' => $questKey,
                 'templateId' => max(0, (int) ($definition['id'] ?? 0)),
-                'title' => (string) ($definition['title'] ?? $questKey),
-                'description' => (string) ($definition['description'] ?? ''),
-                'metric' => $metric,
-                'goal' => $goal,
-                'progress' => $progress,
+                'title' => $displayTitle,
+                'description' => $displayDescription,
+                'metric' => $isHiddenSecret ? '' : $metric,
+                'goal' => $isHiddenSecret ? 0 : $goal,
+                'progress' => $isHiddenSecret ? 0 : $progress,
                 'slotIndex' => $slotIndex,
                 'manual' => !empty($slot['manual']),
+                'isSecret' => $isSecret,
+                'hidden' => $isHiddenSecret,
                 'completed' => $completed,
                 'claimed' => $claimedAt !== '',
                 'claimedAt' => $claimedAt,
@@ -8893,7 +8944,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
     };
 
     $dailyItems = $buildQuestItems('daily', $dailyDefinitions, $dailySlots, $state['dailyPeriodKey'], (array) $state['dailyCounters'], $state['dailyClaimed']);
-    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, $weeklySlots, $state['weeklyPeriodKey'], (array) $state['weeklyCounters'], $state['weeklyClaimed']);
+    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, array_merge($weeklySlots, $weeklySecretSlots), $state['weeklyPeriodKey'], (array) $state['weeklyCounters'], $state['weeklyClaimed']);
 
     if ($stateChanged) {
         bober_store_user_quest_progress_state($conn, $userId, $state);
@@ -8933,12 +8984,12 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true)
 
 function bober_refresh_user_quests($conn, $userId)
 {
-    return bober_resolve_user_quests($conn, $userId, true);
+    return bober_resolve_user_quests($conn, $userId, true, 'player');
 }
 
 function bober_peek_user_quests($conn, $userId)
 {
-    return bober_resolve_user_quests($conn, $userId, false);
+    return bober_resolve_user_quests($conn, $userId, false, 'admin');
 }
 
 function bober_reroll_user_quests($conn, $userId, $scope = 'all')
