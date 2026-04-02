@@ -3994,7 +3994,9 @@ function bober_create_support_ticket_as_admin($conn, $userId, $category, $subjec
         throw $error;
     }
 
-    return bober_fetch_admin_support_ticket($conn, $ticketId, false);
+    return bober_fetch_admin_support_ticket($conn, $ticketId, false, [
+        'includeArchived' => true,
+    ]);
 }
 
 function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message, $attachments = [])
@@ -4164,7 +4166,7 @@ function bober_fetch_admin_support_tickets($conn, array $options = [])
     return $items;
 }
 
-function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true)
+function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true, array $options = [])
 {
     $ticketId = max(0, (int) $ticketId);
     if ($ticketId < 1) {
@@ -4172,7 +4174,9 @@ function bober_fetch_admin_support_ticket($conn, $ticketId, $markRead = true)
     }
 
     bober_auto_archive_support_tickets($conn);
-    $stmt = $conn->prepare('SELECT t.id, t.user_id, u.login, t.category, t.subject, t.status, t.unread_by_user, t.unread_by_admin, t.created_at, t.updated_at, t.last_user_message_at, t.last_admin_message_at, t.archived_at FROM support_tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? AND t.archived_at IS NULL LIMIT 1');
+    $includeArchived = !empty($options['includeArchived']);
+    $whereArchive = $includeArchived ? '1=1' : 't.archived_at IS NULL';
+    $stmt = $conn->prepare("SELECT t.id, t.user_id, u.login, t.category, t.subject, t.status, t.unread_by_user, t.unread_by_admin, t.created_at, t.updated_at, t.last_user_message_at, t.last_admin_message_at, t.archived_at FROM support_tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ? AND {$whereArchive} LIMIT 1");
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение тикета поддержки для админа.');
     }
@@ -4212,7 +4216,9 @@ function bober_reply_support_ticket_as_admin($conn, $ticketId, $message, $attach
     }
 
     $payload = bober_prepare_support_ticket_message_payload($message, $attachments);
-    $ticket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
+    $ticket = bober_fetch_admin_support_ticket($conn, $ticketId, false, [
+        'includeArchived' => true,
+    ]);
 
     $authorType = 'admin';
     $storedAttachmentPaths = [];
@@ -4273,7 +4279,9 @@ function bober_update_support_ticket_status($conn, $ticketId, $status)
         throw new InvalidArgumentException('Не удалось определить тикет для смены статуса.');
     }
 
-    $existingTicket = bober_fetch_admin_support_ticket($conn, $ticketId, false);
+    $existingTicket = bober_fetch_admin_support_ticket($conn, $ticketId, false, [
+        'includeArchived' => true,
+    ]);
     $previousStatus = bober_normalize_support_ticket_status($existingTicket['status'] ?? 'waiting_support');
 
     $stmt = $conn->prepare("UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP, archived_at = CASE WHEN ? <> 'closed' THEN NULL ELSE archived_at END, archive_reason = CASE WHEN ? <> 'closed' THEN '' ELSE archive_reason END WHERE id = ? LIMIT 1");

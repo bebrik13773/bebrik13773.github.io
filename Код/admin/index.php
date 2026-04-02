@@ -1268,6 +1268,8 @@ SQL;
                     'unread' => (string) ($_POST['unread'] ?? 'all'),
                     'search' => (string) ($_POST['search'] ?? ''),
                     'limit' => (int) ($_POST['limit'] ?? 80),
+                    'includeArchived' => !empty($_POST['include_archived']),
+                    'archivedOnly' => !empty($_POST['archived_only']),
                 ]);
                 $conn->close();
             }
@@ -1282,7 +1284,9 @@ SQL;
                     $conn = connectDB();
                     bober_ensure_project_schema($conn);
                     $response['success'] = true;
-                    $response['ticket'] = bober_fetch_admin_support_ticket($conn, $ticketId, true);
+                    $response['ticket'] = bober_fetch_admin_support_ticket($conn, $ticketId, true, [
+                        'includeArchived' => !empty($_POST['include_archived']),
+                    ]);
                     $conn->close();
                 }
             }
@@ -5337,6 +5341,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <span class="material-icons search-icon">search</span>
                             <input type="text" id="supportSearchInput" class="search-input" placeholder="Найти по логину или теме тикета">
                         </div>
+                        <button class="btn btn-outline" id="supportArchiveToggleBtn" type="button">
+                            <span class="material-icons">inventory_2</span>
+                            Архив
+                        </button>
                         <select class="form-control account-sort-select" id="supportStatusFilter" aria-label="Фильтр по статусу">
                             <option value="all">Все статусы</option>
                             <option value="waiting_support">Ждут поддержку</option>
@@ -5978,6 +5986,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let currentSupportCategoryFilter = 'all';
         let currentSupportUnreadFilter = 'all';
         let currentSupportSearch = '';
+        let currentSupportArchiveMode = 'active';
         let supportTickets = [];
         let selectedSupportTicketId = 0;
         let selectedSupportTicket = null;
@@ -7002,6 +7011,19 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const supportArchiveToggleBtn = document.getElementById('supportArchiveToggleBtn');
+            if (supportArchiveToggleBtn) {
+                updateSupportArchiveToggleButton();
+                supportArchiveToggleBtn.addEventListener('click', function() {
+                    currentSupportArchiveMode = currentSupportArchiveMode === 'archive' ? 'active' : 'archive';
+                    selectedSupportTicketId = 0;
+                    selectedSupportTicket = null;
+                    resetAdminSupportDraftAttachments('reply');
+                    updateSupportArchiveToggleButton();
+                    loadSupportTicketsAdmin();
+                });
+            }
+
             const supportOpenProfileBtn = document.getElementById('supportOpenProfileBtn');
             if (supportOpenProfileBtn) {
                 supportOpenProfileBtn.addEventListener('click', function() {
@@ -7585,6 +7607,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 unreadByAdmin: Math.max(0, Number(rawTicket.unreadByAdmin) || 0),
                 createdAt: String(rawTicket.createdAt || '').trim(),
                 updatedAt: String(rawTicket.updatedAt || '').trim(),
+                archivedAt: String(rawTicket.archivedAt || '').trim(),
                 lastMessagePreview: String(rawTicket.lastMessagePreview || '').trim(),
                 messages: Array.isArray(rawTicket.messages)
                     ? rawTicket.messages.map((message) => ({
@@ -7799,7 +7822,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (!Array.isArray(supportTickets) || supportTickets.length < 1) {
                 metaNode.textContent = currentSupportSearch
                     ? `По запросу "${currentSupportSearch}" тикеты не найдены.`
-                    : 'Тикеты пока не найдены.';
+                    : (currentSupportArchiveMode === 'archive' ? 'Архив тикетов пуст.' : 'Тикеты пока не найдены.');
                 listNode.innerHTML = '<div class="empty-list">Список тикетов пуст.</div>';
                 return;
             }
@@ -7810,7 +7833,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const categoryLabel = currentSupportCategoryFilter === 'all'
                 ? 'все категории'
                 : getSupportCategoryLabel(currentSupportCategoryFilter);
-            metaNode.textContent = `Показано тикетов: ${formatAdminNumber(supportTickets.length)}. ${statusLabel}, ${categoryLabel}.`;
+            metaNode.textContent = currentSupportArchiveMode === 'archive'
+                ? `Архив тикетов: ${formatAdminNumber(supportTickets.length)}. ${statusLabel}, ${categoryLabel}.`
+                : `Показано тикетов: ${formatAdminNumber(supportTickets.length)}. ${statusLabel}, ${categoryLabel}.`;
             listNode.innerHTML = supportTickets.map((ticket) => {
                 const statusClass = getSupportStatusClass(ticket.status);
                 return `
@@ -7825,6 +7850,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                         <div class="support-ticket-admin-preview">${escapeHtml(ticket.lastMessagePreview || 'Сообщений пока нет.')}</div>
                         <div class="support-ticket-badges">
                             <span class="mini-chip"><span class="material-icons" style="font-size: 14px;">badge</span>ID ${formatAdminNumber(ticket.id)}</span>
+                            ${ticket.archivedAt ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">inventory_2</span>Архив ${escapeHtml(formatAdminDateTime(ticket.archivedAt))}</span>` : ''}
                             ${ticket.unreadByAdmin > 0 ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">mark_email_unread</span>Новых для админа: ${formatAdminNumber(ticket.unreadByAdmin)}</span>` : ''}
                             ${ticket.unreadByUser > 0 ? `<span class="mini-chip"><span class="material-icons" style="font-size: 14px;">reply</span>Не прочитал игрок: ${formatAdminNumber(ticket.unreadByUser)}</span>` : ''}
                         </div>
@@ -7874,6 +7900,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             contentNode.style.display = 'flex';
             titleNode.textContent = selectedSupportTicket.subject || 'Тикет поддержки';
             metaNode.textContent = `${selectedSupportTicket.login || 'Игрок'} • ${getSupportCategoryLabel(selectedSupportTicket.category)} • открыт ${formatAdminDateTime(selectedSupportTicket.createdAt)} • обновлен ${formatAdminDateTime(selectedSupportTicket.updatedAt)}`;
+            if (selectedSupportTicket.archivedAt) {
+                metaNode.textContent += ` • архив ${formatAdminDateTime(selectedSupportTicket.archivedAt)}`;
+            }
             statusNode.className = `status-pill ${getSupportStatusClass(selectedSupportTicket.status)}`;
             statusNode.textContent = getSupportStatusLabel(selectedSupportTicket.status);
             openProfileButton.disabled = Number(selectedSupportTicket.userId || 0) < 1;
@@ -7903,6 +7932,23 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 unreadByAdmin: Math.max(0, Number(ticket.unreadByAdmin) || 0),
                 updatedAt: String(ticket.updatedAt || '')
             })));
+        }
+
+        function updateSupportArchiveToggleButton() {
+            const archiveToggleButton = document.getElementById('supportArchiveToggleBtn');
+            if (!archiveToggleButton) {
+                return;
+            }
+
+            const archiveModeActive = currentSupportArchiveMode === 'archive';
+            archiveToggleButton.classList.toggle('btn-primary', archiveModeActive);
+            archiveToggleButton.classList.toggle('btn-outline', !archiveModeActive);
+            archiveToggleButton.innerHTML = archiveModeActive
+                ? '<span class="material-icons">unarchive</span>Активные'
+                : '<span class="material-icons">inventory_2</span>Архив';
+            archiveToggleButton.title = archiveModeActive
+                ? 'Показать активные тикеты'
+                : 'Показать скрытый архив тикетов';
         }
 
         function hideAdminSupportUnreadModal(options = {}) {
@@ -8199,7 +8245,9 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 category: currentSupportCategoryFilter === 'all' ? '' : currentSupportCategoryFilter,
                 unread: currentSupportUnreadFilter,
                 search: currentSupportSearch,
-                limit: 120
+                limit: 120,
+                archived_only: currentSupportArchiveMode === 'archive' ? '1' : '',
+                include_archived: currentSupportArchiveMode === 'archive' ? '1' : ''
             })
             .then(data => {
                 if (!data.success) {
@@ -8263,7 +8311,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             renderSupportTicketsAdmin();
             return postAction({
                 action: 'get_support_ticket',
-                ticket_id: normalizedTicketId
+                ticket_id: normalizedTicketId,
+                include_archived: currentSupportArchiveMode === 'archive' ? '1' : ''
             })
             .then(data => {
                 if (!data.success) {
@@ -8357,6 +8406,17 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (selectedSupportTicket) {
                     supportTickets = supportTickets.map((ticket) => Number(ticket.id) === Number(selectedSupportTicket.id) ? selectedSupportTicket : ticket);
                 }
+                if (currentSupportArchiveMode === 'archive' && selectedSupportTicket && !selectedSupportTicket.archivedAt) {
+                    selectedSupportTicketId = 0;
+                    selectedSupportTicket = null;
+                    renderSupportTicketsAdmin();
+                    renderSupportTicketDetailAdmin();
+                    showNotification((data.message || 'Статус тикета обновлен.') + ' Тикет возвращен в активные.', 'success');
+                    return loadSupportTicketsAdmin({
+                        silent: true
+                    });
+                }
+
                 renderSupportTicketsAdmin();
                 renderSupportTicketDetailAdmin();
                 showNotification(data.message || 'Статус тикета обновлен.', 'success');
@@ -8383,6 +8443,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('statsToolbar').style.display = 'flex';
             document.getElementById('statsGrid').style.display = 'grid';
             updateActiveMenuItem('supportBtn');
+            updateSupportArchiveToggleButton();
             loadDashboardStats();
             loadSupportTicketsAdmin().finally(() => {
                 scheduleSupportLiveRefreshAdmin(ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
@@ -10415,6 +10476,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 currentSupportStatusFilter = 'all';
                 currentSupportCategoryFilter = 'all';
                 currentSupportUnreadFilter = 'all';
+                currentSupportArchiveMode = 'active';
 
                 const supportSearchInput = document.getElementById('supportSearchInput');
                 const supportStatusFilter = document.getElementById('supportStatusFilter');
@@ -10424,6 +10486,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 if (supportStatusFilter) supportStatusFilter.value = 'all';
                 if (supportCategoryFilter) supportCategoryFilter.value = 'all';
                 if (supportUnreadFilter) supportUnreadFilter.value = 'all';
+                updateSupportArchiveToggleButton();
 
                 showNotification(data.message || 'Исходящий тикет создан.', 'success');
                 showSupportView();
