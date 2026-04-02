@@ -425,6 +425,13 @@
             },
             effects: {
                 quality: 'high'
+            },
+            privacy: {
+                publicProfile: true
+            },
+            performance: {
+                autoOptimize: true,
+                autoProfile: ''
             }
         };
     }
@@ -435,6 +442,7 @@
         var vibrationIntensity = String((((raw.vibration || {}).intensity) || defaults.vibration.intensity)).trim();
         var animationsMode = String((((raw.animations || {}).mode) || defaults.animations.mode)).trim();
         var effectsQuality = String((((raw.effects || {}).quality) || defaults.effects.quality)).trim();
+        var autoProfile = String((((raw.performance || {}).autoProfile) || defaults.performance.autoProfile)).trim();
 
         if (['low', 'medium', 'high'].indexOf(vibrationIntensity) === -1) {
             vibrationIntensity = defaults.vibration.intensity;
@@ -477,6 +485,17 @@
             },
             effects: {
                 quality: effectsQuality
+            },
+            privacy: {
+                publicProfile: !Object.prototype.hasOwnProperty.call(raw.privacy || {}, 'publicProfile')
+                    ? defaults.privacy.publicProfile
+                    : Boolean((raw.privacy || {}).publicProfile)
+            },
+            performance: {
+                autoOptimize: !Object.prototype.hasOwnProperty.call(raw.performance || {}, 'autoOptimize')
+                    ? defaults.performance.autoOptimize
+                    : Boolean((raw.performance || {}).autoOptimize),
+                autoProfile: autoProfile
             }
         };
     }

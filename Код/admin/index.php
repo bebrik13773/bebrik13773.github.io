@@ -976,6 +976,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_quest_catalog_item') {
+            if (requireAdminAuth($response)) {
+                $questId = max(0, (int) ($_POST['quest_id'] ?? 0));
+                if ($questId < 1) {
+                    $response['message'] = 'Не указан идентификатор квеста.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $questItem = bober_fetch_quest_template_by_id($conn, $questId);
+                        if ($questItem === null) {
+                            $response['message'] = 'Квест не найден.';
+                        } else {
+                            $response['success'] = true;
+                            $response['quest'] = $questItem;
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
         if ($action === 'create_quest_catalog_item') {
             if (requireAdminAuth($response)) {
                 $questScope = bober_normalize_quest_scope($_POST['quest_scope'] ?? 'daily');
@@ -7211,6 +7235,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const addQuestForm = document.getElementById('addQuestForm');
+            if (addQuestForm) {
+                addQuestForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    submitAddQuestModal();
+                });
+            }
+
             const deleteSkinModal = document.getElementById('deleteSkinModal');
             if (deleteSkinModal) {
                 deleteSkinModal.addEventListener('click', function(event) {
@@ -8086,10 +8118,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             grid.querySelectorAll('.edit-quest-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const questId = Number(this.dataset.questId || 0);
-                    const questItem = questCatalogItems.find(item => Number(item.id) === questId);
-                    if (questItem) {
-                        showAddQuestModal('edit', questItem);
-                    }
+                    openQuestCatalogItemEditor(questId);
                 });
             });
 
@@ -8239,6 +8268,35 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             document.getElementById('addQuestModal').classList.add('active');
+        }
+
+        async function openQuestCatalogItemEditor(questId) {
+            const normalizedQuestId = Math.max(0, Number(questId) || 0);
+            if (normalizedQuestId < 1) {
+                showNotification('Не удалось определить квест для редактирования.', 'error');
+                return;
+            }
+
+            try {
+                const data = await postAction({
+                    action: 'get_quest_catalog_item',
+                    quest_id: String(normalizedQuestId)
+                });
+
+                if (!data.success || !data.quest) {
+                    throw new Error(data.message || 'Не удалось загрузить квест для редактирования');
+                }
+
+                const normalizedQuest = normalizeAdminQuestTemplate(data.quest);
+                if (!normalizedQuest) {
+                    throw new Error('Сервер вернул некорректные данные квеста');
+                }
+
+                showAddQuestModal('edit', normalizedQuest);
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка загрузки квеста', 'error');
+            }
         }
 
         function hideAddQuestModal() {

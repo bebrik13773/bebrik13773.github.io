@@ -27,6 +27,8 @@ try {
         $statusCode = 400;
     } elseif ($message === 'Игрок не найден в публичной таблице лидеров.') {
         $statusCode = 404;
+    } elseif ($message === 'Игрок скрыл свой профиль.') {
+        $statusCode = 403;
     }
 
     bober_json_response([

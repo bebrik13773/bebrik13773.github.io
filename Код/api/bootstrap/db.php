@@ -3221,6 +3221,13 @@ function bober_default_user_settings()
         'effects' => [
             'quality' => 'high',
         ],
+        'privacy' => [
+            'publicProfile' => true,
+        ],
+        'performance' => [
+            'autoOptimize' => true,
+            'autoProfile' => '',
+        ],
     ];
 }
 
@@ -3262,6 +3269,15 @@ function bober_normalize_user_settings($settings)
         $effectsQuality = $defaults['effects']['quality'];
     }
 
+    $publicProfile = !array_key_exists('publicProfile', (array) ($raw['privacy'] ?? []))
+        ? $defaults['privacy']['publicProfile']
+        : !empty($raw['privacy']['publicProfile']);
+
+    $autoOptimize = !array_key_exists('autoOptimize', (array) ($raw['performance'] ?? []))
+        ? $defaults['performance']['autoOptimize']
+        : !empty($raw['performance']['autoOptimize']);
+    $autoProfile = trim((string) ($raw['performance']['autoProfile'] ?? $defaults['performance']['autoProfile']));
+
     return [
         'audio' => [
             'musicEnabled' => $musicEnabled,
@@ -3282,7 +3298,20 @@ function bober_normalize_user_settings($settings)
         'effects' => [
             'quality' => $effectsQuality,
         ],
+        'privacy' => [
+            'publicProfile' => $publicProfile,
+        ],
+        'performance' => [
+            'autoOptimize' => $autoOptimize,
+            'autoProfile' => $autoProfile,
+        ],
     ];
+}
+
+function bober_is_user_profile_public($conn, $userId)
+{
+    $settings = bober_fetch_user_settings($conn, $userId);
+    return !empty($settings['privacy']['publicProfile']);
 }
 
 function bober_ensure_user_settings_schema($conn)
@@ -5919,6 +5948,10 @@ function bober_fetch_public_player_profile($conn, $userId)
 
     if (!is_array($row)) {
         throw new RuntimeException('Игрок не найден в публичной таблице лидеров.');
+    }
+
+    if (!bober_is_user_profile_public($conn, $userId)) {
+        throw new RuntimeException('Игрок скрыл свой профиль.');
     }
 
     $skinState = bober_decode_skin_state($row['skin'] ?? null);

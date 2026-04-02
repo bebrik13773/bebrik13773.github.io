@@ -5854,6 +5854,23 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <option value="high">Высокое</option>
                     </select>
                 </div>
+                <div class="settings-field">
+                    <label for="settingsAutoOptimizeWeakDevice">Автооптимизация для слабых устройств</label>
+                    <input type="checkbox" id="settingsAutoOptimizeWeakDevice">
+                </div>
+                <div class="settings-card-actions">
+                    <button type="button" class="settings-action-button muted" id="settingsApplyAutoOptimizeButton">Применить рекомендации</button>
+                </div>
+                <div class="settings-card-text" id="settingsAutoOptimizeStatus">Профиль устройства еще не определен.</div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title">Приватность профиля</div>
+                <div class="settings-card-text">Можно скрыть публичную карточку игрока из поиска и просмотра другими игроками.</div>
+                <div class="settings-field">
+                    <label for="settingsProfilePublic">Показывать мой публичный профиль</label>
+                    <input type="checkbox" id="settingsProfilePublic">
+                </div>
+                <div class="settings-card-text" id="settingsProfileVisibilityStatus">Публичный профиль открыт.</div>
             </div>
             <div class="settings-card">
                 <div class="settings-card-title">Уведомления</div>
@@ -6346,6 +6363,7 @@ const leaderboardState = {
 const leaderboardProfileState = {
     openUserId: 0,
     loading: false,
+    refreshing: false,
     error: '',
     fallbackLogin: '',
     data: null,
@@ -6839,7 +6857,7 @@ const LIVE_SYNC_CONFIG = {
     detailIntervalMs: 4000,
     wakeDelayMs: 1200,
     minDelayMs: 2000,
-    publicProfileRefreshMs: 9000,
+    publicProfileRefreshMs: 30000,
     failureBaseDelayMs: 12000,
     failureMaxDelayMs: 60000,
     failureImmediateFloorMs: 8000,
@@ -7088,6 +7106,11 @@ const settingsState = {
     localUpdatedAt: 0,
     lastAppliedServerUpdatedAt: 0
 };
+const devicePerformanceState = {
+    summary: null,
+    autoApplying: false,
+    timer: null
+};
 const supportState = {
     tickets: [],
     selectedTicketId: 0,
@@ -7158,7 +7181,9 @@ let userSettings = SHARED_CLIENT.readCachedUserSettings
         vibration: { enabled: true, intensity: 'medium' },
         animations: { mode: 'full' },
         notifications: { enabled: true, browserEnabled: false },
-        effects: { quality: 'high' }
+        effects: { quality: 'high' },
+        privacy: { publicProfile: true },
+        performance: { autoOptimize: true, autoProfile: '' }
     };
 const bootPendingSettingsSync = readPendingSettingsSync();
 if (bootPendingSettingsSync && bootPendingSettingsSync.settings) {
@@ -7254,6 +7279,131 @@ function normalizeUserSettings(settings) {
     return SHARED_CLIENT.normalizeUserSettings
         ? SHARED_CLIENT.normalizeUserSettings(settings)
         : userSettings;
+}
+
+function detectDevicePerformanceSummary() {
+    if (devicePerformanceState.summary) {
+        return devicePerformanceState.summary;
+    }
+
+    const nav = typeof navigator === 'object' && navigator ? navigator : {};
+    const connection = nav.connection && typeof nav.connection === 'object' ? nav.connection : {};
+    const userAgent = String(nav.userAgent || '').toLowerCase();
+    const coarsePointer = typeof window.matchMedia === 'function'
+        ? window.matchMedia('(pointer: coarse)').matches
+        : false;
+    const prefersReducedMotion = typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
+    const mobile = coarsePointer || /android|iphone|ipad|ipod|mobile/.test(userAgent);
+    const deviceMemory = Math.max(0, Number(nav.deviceMemory) || 0);
+    const hardwareConcurrency = Math.max(0, Number(nav.hardwareConcurrency) || 0);
+    const saveData = Boolean(connection.saveData);
+
+    let tier = 'desktop';
+    if (
+        saveData
+        || (deviceMemory > 0 && deviceMemory <= 2)
+        || (hardwareConcurrency > 0 && hardwareConcurrency <= 2)
+    ) {
+        tier = 'weak';
+    } else if (
+        mobile
+        || prefersReducedMotion
+        || (deviceMemory > 0 && deviceMemory <= 4)
+        || (hardwareConcurrency > 0 && hardwareConcurrency <= 4)
+    ) {
+        tier = 'constrained';
+    }
+
+    let recommendedAnimations = 'full';
+    let recommendedQuality = 'high';
+    let label = 'Обычное устройство';
+
+    if (tier === 'weak') {
+        recommendedAnimations = 'reduced';
+        recommendedQuality = 'low';
+        label = 'Слабое устройство';
+    } else if (tier === 'constrained') {
+        recommendedAnimations = 'reduced';
+        recommendedQuality = 'medium';
+        label = mobile ? 'Мобильное устройство' : 'Ограниченное устройство';
+    }
+
+    devicePerformanceState.summary = {
+        tier,
+        label,
+        mobile,
+        deviceMemory,
+        hardwareConcurrency,
+        saveData,
+        prefersReducedMotion,
+        recommendedAnimations,
+        recommendedQuality
+    };
+
+    return devicePerformanceState.summary;
+}
+
+function getLiveSyncThrottleMultiplier() {
+    const summary = detectDevicePerformanceSummary();
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+
+    if (summary.tier === 'weak' || settings.effects.quality === 'low' || settings.animations.mode === 'off') {
+        return 1.8;
+    }
+
+    if (summary.tier === 'constrained' || settings.effects.quality === 'medium' || settings.animations.mode === 'reduced') {
+        return 1.35;
+    }
+
+    return 1;
+}
+
+function buildRecommendedPerformanceSettings(baseSettings) {
+    const settings = normalizeUserSettings(baseSettings);
+    const summary = detectDevicePerformanceSummary();
+
+    if (summary.tier === 'desktop') {
+        return {
+            settings,
+            changed: false,
+            summary
+        };
+    }
+
+    const nextSettings = normalizeUserSettings({
+        ...settings,
+        animations: {
+            ...settings.animations,
+            mode: summary.recommendedAnimations
+        },
+        effects: {
+            ...settings.effects,
+            quality: summary.recommendedQuality
+        },
+        vibration: {
+            ...settings.vibration,
+            intensity: summary.tier === 'weak' ? 'low' : settings.vibration.intensity
+        },
+        performance: {
+            ...settings.performance,
+            autoOptimize: true,
+            autoProfile: summary.tier
+        }
+    });
+
+    const changed = nextSettings.animations.mode !== settings.animations.mode
+        || nextSettings.effects.quality !== settings.effects.quality
+        || nextSettings.vibration.intensity !== settings.vibration.intensity
+        || nextSettings.performance.autoProfile !== settings.performance.autoProfile
+        || nextSettings.performance.autoOptimize !== settings.performance.autoOptimize;
+
+    return {
+        settings: nextSettings,
+        changed,
+        summary
+    };
 }
 
 function persistPendingSettingsSync(settings, userIdValue = userId) {
@@ -7648,6 +7798,7 @@ function applySettingsVisualState() {
     const normalized = normalizeUserSettings(userSettings);
     userSettings = normalized;
     window.__boberUserSettings = normalized;
+    const deviceSummary = detectDevicePerformanceSummary();
 
     const animationMode = normalized.animations.mode;
     const effectsQuality = normalized.effects.quality;
@@ -7658,6 +7809,7 @@ function applySettingsVisualState() {
     document.body.classList.toggle('effects-medium', effectsQuality === 'medium');
     document.body.classList.toggle('effects-high', effectsQuality === 'high');
     document.body.dataset.effectsQuality = effectsQuality;
+    document.body.dataset.deviceTier = deviceSummary.tier;
 
     const rippleScale = animationMode === 'off'
         ? '0'
@@ -7710,6 +7862,8 @@ function updateSettingsInputs() {
     const animationsNode = document.getElementById('settingsAnimationsMode');
     const notificationsNode = document.getElementById('settingsNotificationsEnabled');
     const effectsQualityNode = document.getElementById('settingsEffectsQuality');
+    const profilePublicNode = document.getElementById('settingsProfilePublic');
+    const autoOptimizeNode = document.getElementById('settingsAutoOptimizeWeakDevice');
 
     if (effectsNode) {
         effectsNode.checked = normalized.audio.effectsEnabled;
@@ -7735,8 +7889,16 @@ function updateSettingsInputs() {
     if (effectsQualityNode) {
         effectsQualityNode.value = normalized.effects.quality;
     }
+    if (profilePublicNode) {
+        profilePublicNode.checked = Boolean(normalized.privacy.publicProfile);
+    }
+    if (autoOptimizeNode) {
+        autoOptimizeNode.checked = Boolean(normalized.performance.autoOptimize);
+    }
 
     updateBrowserNotificationsControls();
+    updateProfileVisibilityStatus();
+    updatePerformanceSettingsStatus();
 }
 
 function getBrowserNotificationPermissionState() {
@@ -7796,6 +7958,113 @@ function updateBrowserNotificationsControls() {
 
     buttonNode.textContent = 'Разрешить уведомления браузера';
     statusNode.textContent = 'Системные уведомления браузера выключены.';
+}
+
+function updateProfileVisibilityStatus() {
+    const statusNode = document.getElementById('settingsProfileVisibilityStatus');
+    if (!statusNode) {
+        return;
+    }
+
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    statusNode.textContent = settings.privacy.publicProfile
+        ? 'Публичная карточка открыта. Другие игроки могут открыть ваш профиль из таблицы лидеров.'
+        : 'Публичная карточка скрыта. Другие игроки увидят сообщение, что профиль недоступен.';
+}
+
+function updatePerformanceSettingsStatus() {
+    const statusNode = document.getElementById('settingsAutoOptimizeStatus');
+    const buttonNode = document.getElementById('settingsApplyAutoOptimizeButton');
+    if (!statusNode) {
+        return;
+    }
+
+    const settings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    const summary = detectDevicePerformanceSummary();
+    const recommendationAvailable = summary.tier !== 'desktop';
+
+    if (buttonNode) {
+        buttonNode.disabled = !recommendationAvailable || devicePerformanceState.autoApplying;
+    }
+
+    if (!recommendationAvailable) {
+        statusNode.textContent = 'Устройство выглядит достаточно быстрым. Автооблегчение сейчас не требуется.';
+        return;
+    }
+
+    const modeLabel = settings.animations.mode === 'off'
+        ? 'анимации выключены'
+        : (settings.animations.mode === 'reduced' ? 'анимации упрощены' : 'анимации полные');
+    const qualityLabel = settings.effects.quality === 'low'
+        ? 'низкое качество эффектов'
+        : (settings.effects.quality === 'medium' ? 'среднее качество эффектов' : 'высокое качество эффектов');
+
+    if (settings.performance.autoOptimize) {
+        statusNode.textContent = `${summary.label}: автооптимизация включена. Рекомендация: ${summary.recommendedAnimations === 'reduced' ? 'упрощенные анимации' : 'полные анимации'}, ${summary.recommendedQuality === 'low' ? 'низкое качество эффектов' : 'среднее качество эффектов'}. Сейчас: ${modeLabel}, ${qualityLabel}.`;
+        return;
+    }
+
+    statusNode.textContent = `${summary.label}: автооптимизация выключена вручную. Сейчас: ${modeLabel}, ${qualityLabel}.`;
+}
+
+function applyRecommendedPerformanceProfile(options = {}) {
+    const { force = false, persistCloud = false } = options;
+    if (devicePerformanceState.autoApplying) {
+        return false;
+    }
+
+    const currentSettings = normalizeUserSettings(window.__boberUserSettings || userSettings);
+    const summary = detectDevicePerformanceSummary();
+    if (summary.tier === 'desktop') {
+        updatePerformanceSettingsStatus();
+        return false;
+    }
+
+    if (!force && !currentSettings.performance.autoOptimize) {
+        updatePerformanceSettingsStatus();
+        return false;
+    }
+
+    const recommended = buildRecommendedPerformanceSettings(currentSettings);
+    if (!recommended.changed && currentSettings.performance.autoOptimize === true) {
+        updatePerformanceSettingsStatus();
+        return false;
+    }
+
+    devicePerformanceState.autoApplying = true;
+    try {
+        applyUserSettings(recommended.settings, {
+            persist: true,
+            updateInputs: true,
+            skipAutoRecommendation: true
+        });
+
+        if (persistCloud && userId) {
+            markSettingsDirty();
+        } else {
+            persistCachedUserSettings(userSettings);
+            persistPendingSettingsSync(userSettings);
+        }
+    } finally {
+        devicePerformanceState.autoApplying = false;
+        updatePerformanceSettingsStatus();
+    }
+
+    return true;
+}
+
+function scheduleAutoPerformanceTuning(options = {}) {
+    const { persistCloud = false } = options;
+    if (devicePerformanceState.timer) {
+        window.clearTimeout(devicePerformanceState.timer);
+    }
+
+    devicePerformanceState.timer = window.setTimeout(() => {
+        devicePerformanceState.timer = null;
+        applyRecommendedPerformanceProfile({
+            persistCloud
+        });
+    }, 0);
 }
 
 function setBrowserNotificationsEnabled(enabled, options = {}) {
@@ -7933,6 +8202,15 @@ function applyUserSettings(settings, options = {}) {
     updateBrowserNotificationsControls();
     if (options.updateInputs !== false) {
         updateSettingsInputs();
+    } else {
+        updateProfileVisibilityStatus();
+        updatePerformanceSettingsStatus();
+    }
+
+    if (!options.skipAutoRecommendation) {
+        scheduleAutoPerformanceTuning({
+            persistCloud: Boolean(userId)
+        });
     }
 
     return userSettings;
@@ -9018,6 +9296,11 @@ function renderProfileModal() {
     if (summary.grantOnlySkins > 0) {
         badgeItems.push(`<span class="profile-badge">🔐 Эксклюзивных: ${formatCompactNumber(summary.grantOnlySkins)}</span>`);
     }
+    badgeItems.push(
+        normalizeUserSettings(window.__boberUserSettings || userSettings).privacy.publicProfile
+            ? '<span class="profile-badge">🌍 Публичный профиль открыт</span>'
+            : '<span class="profile-badge">🔒 Публичный профиль скрыт</span>'
+    );
     badgeItems.push(`<span class="profile-badge">✨ Достижений: ${formatCompactNumber(summary.achievementsUnlocked || unlockedItems.length)}</span>`);
     badgeItems.push(`<span class="profile-badge">🗓️ Выполнено ежедневных заданий: ${formatCompactNumber(summary.dailyQuestCompleted)}/${formatCompactNumber(summary.dailyQuestTotal)}</span>`);
     badgeItems.push(`<span class="profile-badge">📆 Выполнено недельных заданий: ${formatCompactNumber(summary.weeklyQuestCompleted)}/${formatCompactNumber(summary.weeklyQuestTotal)}</span>`);
@@ -9292,12 +9575,12 @@ function renderLeaderboardPublicProfileModal() {
         return;
     }
 
-    if (leaderboardProfileState.loading) {
+    if (leaderboardProfileState.loading && !leaderboardProfileState.data) {
         contentNode.innerHTML = `<div class="public-profile-loading">Загружаю публичный профиль игрока ${escapeHtmlText(leaderboardProfileState.fallbackLogin || 'Игрок')}...</div>`;
         return;
     }
 
-    if (leaderboardProfileState.error) {
+    if (leaderboardProfileState.error && !leaderboardProfileState.data) {
         contentNode.innerHTML = `<div class="public-profile-empty">${escapeHtmlText(leaderboardProfileState.error)}</div>`;
         return;
     }
@@ -9318,6 +9601,12 @@ function renderLeaderboardPublicProfileModal() {
     }
     badgeItems.push(`<span class="profile-badge">🎨 Скинов: ${escapeHtmlText(formatCompactNumber(summary.ownedSkins))}</span>`);
     badgeItems.push(`<span class="profile-badge">🧩 Коллекция: ${escapeHtmlText(formatCompactNumber(summary.collectionSkins))}</span>`);
+    if (leaderboardProfileState.refreshing) {
+        badgeItems.push('<span class="profile-badge">Обновляю…</span>');
+    }
+    if (leaderboardProfileState.error) {
+        badgeItems.push('<span class="profile-badge">Последнее обновление не удалось</span>');
+    }
     if (summary.legendarySkins > 0) {
         badgeItems.push(`<span class="profile-badge">🌟 Легендарных: ${escapeHtmlText(formatCompactNumber(summary.legendarySkins))}</span>`);
     }
@@ -9463,9 +9752,13 @@ async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок'
     }
 
     const requestToken = ++leaderboardProfileState.requestToken;
-    leaderboardProfileState.loading = true;
+    const hasVisibleData = Boolean(leaderboardProfileState.data) && leaderboardProfileState.openUserId === normalizedUserId;
+    leaderboardProfileState.loading = !hasVisibleData;
+    leaderboardProfileState.refreshing = hasVisibleData;
     leaderboardProfileState.error = '';
-    leaderboardProfileState.data = null;
+    if (!hasVisibleData) {
+        leaderboardProfileState.data = null;
+    }
     leaderboardProfileState.fallbackLogin = String(fallbackLogin || 'Игрок').trim() || 'Игрок';
     renderLeaderboardPublicProfileModal();
 
@@ -9480,6 +9773,7 @@ async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок'
         }
 
         leaderboardProfileState.loading = false;
+        leaderboardProfileState.refreshing = false;
         leaderboardProfileState.error = '';
         leaderboardProfileState.data = profileData;
         leaderboardProfileState.lastFetchedAt = Date.now();
@@ -9490,7 +9784,10 @@ async function loadLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок'
         }
 
         leaderboardProfileState.loading = false;
-        leaderboardProfileState.data = null;
+        leaderboardProfileState.refreshing = false;
+        if (!hasVisibleData) {
+            leaderboardProfileState.data = null;
+        }
         leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
         renderLeaderboardPublicProfileModal();
     }
@@ -9505,6 +9802,7 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
     leaderboardProfileState.openUserId = Math.max(0, Number(userId) || 0);
     leaderboardProfileState.fallbackLogin = String(fallbackLogin || 'Игрок').trim() || 'Игрок';
     leaderboardProfileState.loading = true;
+    leaderboardProfileState.refreshing = false;
     leaderboardProfileState.error = '';
     leaderboardProfileState.data = null;
     leaderboardProfileState.lastFetchedAt = 0;
@@ -9516,11 +9814,6 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
     loadLeaderboardPublicProfile(leaderboardProfileState.openUserId, leaderboardProfileState.fallbackLogin, {
         force: true
     }).catch(() => {});
-    requestImmediateLiveRefresh('leaderboard_profile_open', {
-        includeDirtyState: true,
-        silent: true,
-        forceCatalog: true
-    });
 }
 
 function openLeaderboardProfileLookupModal(prefillLogin = '') {
@@ -9584,6 +9877,7 @@ async function submitLeaderboardProfileLookup() {
     leaderboardProfileState.openUserId = 0;
     leaderboardProfileState.fallbackLogin = login;
     leaderboardProfileState.loading = true;
+    leaderboardProfileState.refreshing = false;
     leaderboardProfileState.error = '';
     leaderboardProfileState.data = null;
     leaderboardProfileState.lastFetchedAt = 0;
@@ -9603,6 +9897,7 @@ async function submitLeaderboardProfileLookup() {
         });
         leaderboardProfileState.data = normalizeLeaderboardPublicProfile(response?.player || response, login);
         leaderboardProfileState.loading = false;
+        leaderboardProfileState.refreshing = false;
         leaderboardProfileState.error = '';
         leaderboardProfileState.lastFetchedAt = Date.now();
         if (leaderboardProfileState.data?.userId) {
@@ -9612,6 +9907,7 @@ async function submitLeaderboardProfileLookup() {
         renderLeaderboardPublicProfileModal();
     } catch (error) {
         leaderboardProfileState.loading = false;
+        leaderboardProfileState.refreshing = false;
         leaderboardProfileState.data = null;
         leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
         renderLeaderboardPublicProfileModal();
@@ -9628,9 +9924,11 @@ function closeLeaderboardPublicProfile() {
     modal.setAttribute('aria-hidden', 'true');
     leaderboardProfileState.openUserId = 0;
     leaderboardProfileState.loading = false;
+    leaderboardProfileState.refreshing = false;
     leaderboardProfileState.error = '';
     leaderboardProfileState.data = null;
     leaderboardProfileState.lastFetchedAt = 0;
+    leaderboardProfileState.requestToken += 1;
     syncGlobalOverlayState();
     scheduleLiveSync(getLiveSyncInterval());
 }
@@ -9956,11 +10254,12 @@ function hasPriorityLiveSurfaceOpen() {
 }
 
 function getLiveSyncInterval() {
+    const multiplier = getLiveSyncThrottleMultiplier();
     if (hasPriorityLiveSurfaceOpen()) {
-        return LIVE_SYNC_CONFIG.detailIntervalMs;
+        return Math.round(LIVE_SYNC_CONFIG.detailIntervalMs * multiplier);
     }
 
-    return userId ? LIVE_SYNC_CONFIG.authenticatedIntervalMs : LIVE_SYNC_CONFIG.guestIntervalMs;
+    return Math.round((userId ? LIVE_SYNC_CONFIG.authenticatedIntervalMs : LIVE_SYNC_CONFIG.guestIntervalMs) * multiplier);
 }
 
 function stopSupportLiveRefresh() {
@@ -9971,11 +10270,16 @@ function stopSupportLiveRefresh() {
 }
 
 function getSupportRefreshInterval() {
+    const multiplier = getLiveSyncThrottleMultiplier();
     if (supportState.activeTab === 'inbox' && Number(supportState.selectedTicketId) > 0) {
-        return SUPPORT_LIVE_REFRESH_CONFIG.threadIntervalMs;
+        return Math.round(SUPPORT_LIVE_REFRESH_CONFIG.threadIntervalMs * multiplier);
     }
 
-    return SUPPORT_LIVE_REFRESH_CONFIG.listIntervalMs;
+    return Math.round(SUPPORT_LIVE_REFRESH_CONFIG.listIntervalMs * multiplier);
+}
+
+function getPublicProfileRefreshInterval() {
+    return Math.round(LIVE_SYNC_CONFIG.publicProfileRefreshMs * getLiveSyncThrottleMultiplier());
 }
 
 function getRestrictedSupportAccessPayload() {
@@ -13674,6 +13978,11 @@ if (viewPlayerProfileButton) {
             animations: {
                 ...userSettings.animations,
                 mode: String(event.target.value || 'full')
+            },
+            performance: {
+                ...normalizeUserSettings(userSettings).performance,
+                autoOptimize: false,
+                autoProfile: ''
             }
         });
         markSettingsDirty();
@@ -13694,9 +14003,49 @@ if (viewPlayerProfileButton) {
             effects: {
                 ...userSettings.effects,
                 quality: String(event.target.value || 'high')
+            },
+            performance: {
+                ...normalizeUserSettings(userSettings).performance,
+                autoOptimize: false,
+                autoProfile: ''
             }
         });
         markSettingsDirty();
+    }],
+    ['settingsProfilePublic', (event) => {
+        applyUserSettings({
+            ...userSettings,
+            privacy: {
+                ...normalizeUserSettings(userSettings).privacy,
+                publicProfile: Boolean(event.target.checked)
+            }
+        });
+        markSettingsDirty();
+    }],
+    ['settingsAutoOptimizeWeakDevice', (event) => {
+        const enabled = Boolean(event.target.checked);
+        applyUserSettings({
+            ...userSettings,
+            performance: {
+                ...normalizeUserSettings(userSettings).performance,
+                autoOptimize: enabled,
+                autoProfile: enabled ? normalizeUserSettings(userSettings).performance.autoProfile : ''
+            }
+        }, {
+            skipAutoRecommendation: true
+        });
+
+        if (enabled) {
+            const changed = applyRecommendedPerformanceProfile({
+                force: true,
+                persistCloud: Boolean(userId)
+            });
+            if (!changed) {
+                markSettingsDirty();
+            }
+        } else {
+            markSettingsDirty();
+        }
     }]
 ].forEach(([id, handler]) => {
     const node = document.getElementById(id);
@@ -13716,6 +14065,22 @@ if (settingsBrowserNotificationsButton) {
         requestBrowserNotificationAccess().catch((error) => {
             console.warn('Не удалось включить системные уведомления браузера.', error);
         });
+    });
+}
+
+const settingsApplyAutoOptimizeButton = document.getElementById('settingsApplyAutoOptimizeButton');
+if (settingsApplyAutoOptimizeButton) {
+    settingsApplyAutoOptimizeButton.addEventListener('click', () => {
+        const changed = applyRecommendedPerformanceProfile({
+            force: true,
+            persistCloud: Boolean(userId)
+        });
+
+        if (!changed) {
+            showNotification('Для этого устройства дополнительные ограничения сейчас не требуются.', 'warning');
+        } else {
+            showNotification('Рекомендации для слабого устройства применены.', 'success');
+        }
     });
 }
 
@@ -15079,9 +15444,15 @@ async function refreshOpenLiveSurfaces(options = {}) {
         );
     }
 
-    if (isLeaderboardPublicProfileOpen() && leaderboardProfileState.openUserId > 0) {
+    if (
+        isLeaderboardPublicProfileOpen()
+        && leaderboardProfileState.openUserId > 0
+        && !leaderboardProfileState.loading
+        && !leaderboardProfileState.refreshing
+    ) {
+        const publicProfileRefreshInterval = getPublicProfileRefreshInterval();
         const shouldRefreshPublicProfile = leaderboardProfileState.lastFetchedAt < 1
-            || (Date.now() - leaderboardProfileState.lastFetchedAt) >= LIVE_SYNC_CONFIG.publicProfileRefreshMs;
+            || (Date.now() - leaderboardProfileState.lastFetchedAt) >= publicProfileRefreshInterval;
 
         if (shouldRefreshPublicProfile) {
             tasks.push(
