@@ -6744,6 +6744,7 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
             score: Math.max(0, Number(rawProfile.score) || 0),
             plus: Math.max(1, Number(rawProfile.plus) || 1),
             energyMax: Math.max(1, Number(rawProfile.energyMax) || 5000),
+            lastActivityAt: String(rawProfile.lastActivityAt || rawProfile.last_activity_at || '').trim(),
             flyBest: Math.max(0, Number(rawProfile.flyBest) || 0),
             flyGamesPlayed: Math.max(0, Number(rawProfile.flyGamesPlayed) || 0),
             economy: normalizeEconomyProfile(rawProfile.economy),
@@ -9598,6 +9599,63 @@ function formatAchievementDate(value) {
     });
 }
 
+function formatRussianCount(value, forms) {
+    const numericValue = Math.max(0, Math.abs(Math.floor(Number(value) || 0)));
+    const normalizedForms = Array.isArray(forms) ? forms : [];
+    const singular = String(normalizedForms[0] || '').trim();
+    const paucal = String(normalizedForms[1] || singular).trim();
+    const plural = String(normalizedForms[2] || paucal || singular).trim();
+    const mod10 = numericValue % 10;
+    const mod100 = numericValue % 100;
+
+    let form = plural;
+    if (mod10 === 1 && mod100 !== 11) {
+        form = singular;
+    } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        form = paucal;
+    }
+
+    return `${formatCompactNumber(numericValue)} ${form}`.trim();
+}
+
+function formatPublicLastOnline(value) {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) {
+        return 'нет данных';
+    }
+
+    const parsedDate = new Date(normalizedValue.replace(' ', 'T'));
+    if (Number.isNaN(parsedDate.getTime())) {
+        return normalizedValue;
+    }
+
+    const diffMs = Date.now() - parsedDate.getTime();
+    if (!Number.isFinite(diffMs)) {
+        return formatAchievementDate(normalizedValue);
+    }
+
+    if (diffMs < 60 * 1000) {
+        return 'был(а) только что';
+    }
+
+    const diffMinutes = Math.floor(diffMs / (60 * 1000));
+    if (diffMinutes < 60) {
+        return `был(а) ${formatRussianCount(diffMinutes, ['минуту', 'минуты', 'минут'])} назад`;
+    }
+
+    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (diffHours < 24) {
+        return `был(а) ${formatRussianCount(diffHours, ['час', 'часа', 'часов'])} назад`;
+    }
+
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    if (diffDays < 30) {
+        return `был(а) ${formatRussianCount(diffDays, ['день', 'дня', 'дней'])} назад`;
+    }
+
+    return `был(а) ${formatAchievementDate(normalizedValue)}`;
+}
+
 function formatProfileActivitySignedValue(value) {
     const numericValue = Number(value) || 0;
     const absoluteValue = Math.abs(numericValue);
@@ -10026,6 +10084,11 @@ function renderLeaderboardPublicProfileModal() {
         { label: 'Счет', value: formatLeaderboardScore(summary.score) },
         { label: 'Плюс за клик', value: `+${formatLeaderboardScore(summary.plus)}` },
         { label: 'Макс. энергия', value: formatLeaderboardScore(summary.energyMax) },
+        {
+            label: 'Последний онлайн',
+            value: formatPublicLastOnline(summary.lastActivityAt),
+            title: summary.lastActivityAt ? formatAchievementDate(summary.lastActivityAt) : 'Нет данных о последней активности'
+        },
         { label: 'Экономический индекс', value: `${formatLeaderboardScore(summary.economy.index)} • ${formatEconomyMultiplier(summary.economy.multiplier)}`, action: 'economy' },
         { label: 'Рекорд fly-beaver', value: formatLeaderboardScore(summary.flyBest) },
         { label: 'Забегов сыграно', value: formatLeaderboardScore(summary.flyGamesPlayed) },
@@ -10111,7 +10174,7 @@ function renderLeaderboardPublicProfileModal() {
         <div class="profile-trophy-row">${buildProfileTrophyHtml(honors.trophies)}</div>
         <div class="profile-stats-grid">
             ${stats.map((item) => `
-                <div class="profile-stat-card ${item.action ? 'interactive' : ''}" ${item.action ? `data-stat-action="${escapeHtmlText(item.action)}" role="button" tabindex="0" title="Показать детали"` : ''}>
+                <div class="profile-stat-card ${item.action ? 'interactive' : ''}" ${item.action ? `data-stat-action="${escapeHtmlText(item.action)}" role="button" tabindex="0" title="Показать детали"` : (item.title ? `title="${escapeHtmlText(item.title)}"` : '')}>
                     <div class="profile-stat-label">${escapeHtmlText(item.label)}</div>
                     <div class="profile-stat-value">${escapeHtmlText(item.value)}</div>
                 </div>

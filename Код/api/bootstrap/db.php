@@ -6189,7 +6189,16 @@ function bober_fetch_public_player_profile($conn, $userId)
                 u.upgrade_tap_huge_count, u.upgrade_regen_boost_count, u.upgrade_energy_huge_count,
                 u.upgrade_click_rate_count,
                 COALESCE(f.best_score, 0) AS fly_best,
-                COALESCE(f.games_played, 0) AS fly_games_played
+                COALESCE(f.games_played, 0) AS fly_games_played,
+                GREATEST(
+                    COALESCE(u.updated_at, \'1970-01-01 00:00:00\'),
+                    COALESCE(f.last_played_at, \'1970-01-01 00:00:00\'),
+                    COALESCE((
+                        SELECT MAX(iph.last_seen_at)
+                        FROM user_ip_history iph
+                        WHERE iph.user_id = u.id
+                    ), \'1970-01-01 00:00:00\')
+                ) AS last_activity_at
          FROM users u
          LEFT JOIN fly_beaver_progress f ON f.user_id = u.id
          LEFT JOIN user_bans b
@@ -6303,6 +6312,7 @@ function bober_fetch_public_player_profile($conn, $userId)
             'score' => max(0, (int) ($row['score'] ?? 0)),
             'plus' => $resolvedPlus,
             'energyMax' => $resolvedEnergyMax,
+            'lastActivityAt' => isset($row['last_activity_at']) ? (string) $row['last_activity_at'] : null,
             'flyBest' => max(0, (int) ($row['fly_best'] ?? 0)),
             'flyGamesPlayed' => max(0, (int) ($row['fly_games_played'] ?? 0)),
             'ownedSkins' => count($ownedSkinIds),
