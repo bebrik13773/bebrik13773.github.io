@@ -6041,6 +6041,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="profile-achievements-title">Достижения</div>
         <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button primary" id="profileModalCopyLink">Скопировать ссылку</button>
             <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
         </div>
     </div>
@@ -6063,6 +6064,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             <div class="public-profile-loading">Загружаю профиль игрока...</div>
         </div>
         <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
             <button type="button" class="settings-action-button secondary" id="leaderboardProfileModalClose">Закрыть</button>
         </div>
     </div>
@@ -6428,6 +6430,7 @@ const queryString = window.location.search;
 const testm = false;
 const urlParams = new URLSearchParams(queryString);
 const test = urlParams.get('test');
+const sharedProfileLoginFromUrl = String(urlParams.get('profile') || '').trim();
 if (test == null && testm === true) {
     window.location.replace('tex.html');
 }
@@ -6757,6 +6760,98 @@ function normalizeLeaderboardPublicProfile(rawPlayer, fallbackLogin = 'Игро�
         achievements,
         recentActivity: normalizeProfileActivityList(rawPlayer.recentActivity)
     };
+}
+
+function setCurrentPublicProfileUrlState(login = '') {
+    if (!window.history || typeof window.history.replaceState !== 'function') {
+        return;
+    }
+
+    const nextUrl = new URL(window.location.href);
+    const normalizedLogin = String(login || '').trim();
+    if (normalizedLogin) {
+        nextUrl.searchParams.set('profile', normalizedLogin);
+    } else {
+        nextUrl.searchParams.delete('profile');
+    }
+    window.history.replaceState({}, '', nextUrl.toString());
+}
+
+function buildPublicProfileShareUrl(login) {
+    const normalizedLogin = String(login || '').trim();
+    if (!normalizedLogin) {
+        return '';
+    }
+
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.delete('profile');
+    shareUrl.searchParams.delete('i');
+    shareUrl.searchParams.delete('test');
+    shareUrl.searchParams.set('profile', normalizedLogin);
+    shareUrl.hash = '';
+    return shareUrl.toString();
+}
+
+async function copyTextToClipboard(text) {
+    const normalizedText = String(text || '').trim();
+    if (!normalizedText) {
+        return false;
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        await navigator.clipboard.writeText(normalizedText);
+        return true;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = normalizedText;
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    let copied = false;
+    try {
+        copied = document.execCommand('copy');
+    } finally {
+        document.body.removeChild(textarea);
+    }
+
+    return copied;
+}
+
+async function copyPublicProfileLink(login, options = {}) {
+    const normalizedLogin = String(login || '').trim();
+    if (!normalizedLogin) {
+        showNotification('Не удалось определить логин для ссылки на профиль.', 'error');
+        return false;
+    }
+
+    const shareUrl = buildPublicProfileShareUrl(normalizedLogin);
+    if (!shareUrl) {
+        showNotification('Не удалось подготовить ссылку на профиль.', 'error');
+        return false;
+    }
+
+    try {
+        const copied = await copyTextToClipboard(shareUrl);
+        if (!copied) {
+            throw new Error('Clipboard copy failed');
+        }
+
+        const suffix = options.isHidden
+            ? ' Профиль сейчас скрыт, поэтому по ссылке будет показано сообщение о приватности.'
+            : '';
+        showNotification(`Ссылка на профиль ${normalizedLogin} скопирована.${suffix}`, options.isHidden ? 'error' : 'success', 4200);
+        return true;
+    } catch (error) {
+        console.warn('Не удалось скопировать ссылку на профиль.', error);
+        showNotification('Не удалось скопировать ссылку на профиль.', 'error');
+        return false;
+    }
 }
 
 function normalizeSkinRarity(value) {
@@ -9728,6 +9823,7 @@ function renderProfileModal() {
     const statsNode = document.getElementById('profileModalStats');
     const activityNode = document.getElementById('profileModalActivity');
     const achievementsNode = document.getElementById('profileModalAchievements');
+    const copyButtonNode = document.getElementById('profileModalCopyLink');
 
     if (!heroNode || !loginNode || !titleChipNode || !subtitleNode || !badgesNode || !trophiesNode || !statsNode || !activityNode || !achievementsNode) {
         return;
@@ -9874,6 +9970,13 @@ function renderProfileModal() {
                 : '<div class="profile-achievement-empty">Все достижения уже открыты.</div>'}
         </section>
     `;
+
+    if (copyButtonNode) {
+        copyButtonNode.disabled = !resolvedLogin;
+        copyButtonNode.title = resolvedLogin
+            ? `Скопировать публичную ссылку на профиль ${resolvedLogin}`
+            : 'Сначала войдите в аккаунт';
+    }
 
     if (economyProfileModalState.source === 'private') {
         renderEconomyProfileModal();
@@ -10036,16 +10139,31 @@ function closeProfileModal() {
 
 function renderLeaderboardPublicProfileModal() {
     const contentNode = document.getElementById('leaderboardProfileContent');
+    const copyButtonNode = document.getElementById('leaderboardProfileModalCopyLink');
     if (!contentNode) {
         return;
     }
 
     if (leaderboardProfileState.loading && !leaderboardProfileState.data) {
+        if (copyButtonNode) {
+            const canCopyFallbackLogin = Boolean(String(leaderboardProfileState.fallbackLogin || '').trim());
+            copyButtonNode.disabled = !canCopyFallbackLogin;
+            copyButtonNode.title = canCopyFallbackLogin
+                ? `Скопировать ссылку на профиль ${String(leaderboardProfileState.fallbackLogin || '').trim()}`
+                : 'Ссылка появится после определения игрока';
+        }
         contentNode.innerHTML = `<div class="public-profile-loading">Загружаю публичный профиль игрока ${escapeHtmlText(leaderboardProfileState.fallbackLogin || 'Игрок')}...</div>`;
         return;
     }
 
     if (leaderboardProfileState.error && !leaderboardProfileState.data) {
+        if (copyButtonNode) {
+            const canCopyFallbackLogin = Boolean(String(leaderboardProfileState.fallbackLogin || '').trim());
+            copyButtonNode.disabled = !canCopyFallbackLogin;
+            copyButtonNode.title = canCopyFallbackLogin
+                ? `Скопировать ссылку на профиль ${String(leaderboardProfileState.fallbackLogin || '').trim()}`
+                : 'Ссылка недоступна';
+        }
         contentNode.innerHTML = `<div class="public-profile-empty">${escapeHtmlText(leaderboardProfileState.error)}</div>`;
         return;
     }
@@ -10057,6 +10175,13 @@ function renderLeaderboardPublicProfileModal() {
     const unlockedAchievements = Array.isArray(data.achievements) ? [...data.achievements] : [];
     const honors = normalizeProfileHonors(summary.honors);
     const badgeItems = [];
+
+    if (copyButtonNode) {
+        copyButtonNode.disabled = !data.login;
+        copyButtonNode.title = data.login
+            ? `Скопировать ссылку на профиль ${data.login}`
+            : 'Ссылка недоступна';
+    }
 
     if (summary.clickerTop1) {
         badgeItems.push('<span class="profile-badge top">👑 Топ-1 кликера</span>');
@@ -10363,6 +10488,7 @@ function openLeaderboardPublicProfile(userId, fallbackLogin = 'Игрок') {
     leaderboardProfileState.data = null;
     leaderboardProfileState.lastFetchedAt = 0;
     closeProfileMenu();
+    setCurrentPublicProfileUrlState(leaderboardProfileState.fallbackLogin);
     renderLeaderboardPublicProfileModal();
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -10430,8 +10556,18 @@ async function submitLeaderboardProfileLookup() {
     }
 
     closeLeaderboardProfileLookupModal();
+    await openLeaderboardPublicProfileByLogin(login);
+}
+
+async function openLeaderboardPublicProfileByLogin(login, options = {}) {
+    const normalizedLogin = String(login || '').trim();
+    if (!normalizedLogin) {
+        return;
+    }
+
+    const { syncUrl = true } = options;
     leaderboardProfileState.openUserId = 0;
-    leaderboardProfileState.fallbackLogin = login;
+    leaderboardProfileState.fallbackLogin = normalizedLogin;
     leaderboardProfileState.loading = true;
     leaderboardProfileState.refreshing = false;
     leaderboardProfileState.error = '';
@@ -10441,6 +10577,9 @@ async function submitLeaderboardProfileLookup() {
 
     const modal = document.getElementById('leaderboardProfileModal');
     if (modal) {
+        if (syncUrl) {
+            setCurrentPublicProfileUrlState(normalizedLogin);
+        }
         renderLeaderboardPublicProfileModal();
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
@@ -10448,10 +10587,10 @@ async function submitLeaderboardProfileLookup() {
     }
 
     try {
-        const response = await requestJson(`/api/leaderboards/player-profile.php?login=${encodeURIComponent(login)}`, {
+        const response = await requestJson(`/api/leaderboards/player-profile.php?login=${encodeURIComponent(normalizedLogin)}`, {
             method: 'GET'
         });
-        leaderboardProfileState.data = normalizeLeaderboardPublicProfile(response?.player || response, login);
+        leaderboardProfileState.data = normalizeLeaderboardPublicProfile(response?.player || response, normalizedLogin);
         leaderboardProfileState.loading = false;
         leaderboardProfileState.refreshing = false;
         leaderboardProfileState.error = '';
@@ -10460,12 +10599,18 @@ async function submitLeaderboardProfileLookup() {
             leaderboardProfileState.openUserId = Math.max(0, Number(leaderboardProfileState.data.userId) || 0);
             leaderboardProfileState.cache.set(leaderboardProfileState.openUserId, leaderboardProfileState.data);
         }
+        if (syncUrl) {
+            setCurrentPublicProfileUrlState(leaderboardProfileState.data?.login || normalizedLogin);
+        }
         renderLeaderboardPublicProfileModal();
     } catch (error) {
         leaderboardProfileState.loading = false;
         leaderboardProfileState.refreshing = false;
         leaderboardProfileState.data = null;
         leaderboardProfileState.error = String(error?.message || 'Не удалось загрузить профиль игрока.');
+        if (syncUrl) {
+            setCurrentPublicProfileUrlState(normalizedLogin);
+        }
         renderLeaderboardPublicProfileModal();
     }
 }
@@ -10485,6 +10630,7 @@ function closeLeaderboardPublicProfile() {
     leaderboardProfileState.data = null;
     leaderboardProfileState.lastFetchedAt = 0;
     leaderboardProfileState.requestToken += 1;
+    setCurrentPublicProfileUrlState('');
     syncGlobalOverlayState();
     scheduleLiveSync(getLiveSyncInterval());
 }
@@ -14262,6 +14408,22 @@ if (profileModalCloseButton) {
     });
 }
 
+const profileModalCopyLinkButton = document.getElementById('profileModalCopyLink');
+if (profileModalCopyLinkButton) {
+    profileModalCopyLinkButton.addEventListener('click', async () => {
+        const resolvedLogin = String(currentLogin || '').trim();
+        if (!resolvedLogin) {
+            showNotification('Сначала войдите в аккаунт, чтобы скопировать ссылку на профиль.', 'error');
+            return;
+        }
+
+        const isPublicProfileHidden = !normalizeUserSettings(window.__boberUserSettings || userSettings).privacy.publicProfile;
+        await copyPublicProfileLink(resolvedLogin, {
+            isHidden: isPublicProfileHidden
+        });
+    });
+}
+
 const questsModalCloseButton = document.getElementById('questsModalClose');
 if (questsModalCloseButton) {
     questsModalCloseButton.addEventListener('click', () => {
@@ -14273,6 +14435,18 @@ const leaderboardProfileModalCloseButton = document.getElementById('leaderboardP
 if (leaderboardProfileModalCloseButton) {
     leaderboardProfileModalCloseButton.addEventListener('click', () => {
         closeLeaderboardPublicProfile();
+    });
+}
+
+const leaderboardProfileModalCopyLinkButton = document.getElementById('leaderboardProfileModalCopyLink');
+if (leaderboardProfileModalCopyLinkButton) {
+    leaderboardProfileModalCopyLinkButton.addEventListener('click', async () => {
+        const publicProfile = normalizeLeaderboardPublicProfile(
+            leaderboardProfileState.data,
+            leaderboardProfileState.fallbackLogin
+        );
+        const resolvedLogin = String(publicProfile.login || leaderboardProfileState.fallbackLogin || '').trim();
+        await copyPublicProfileLink(resolvedLogin);
     });
 }
 
@@ -17573,7 +17747,7 @@ window.addEventListener('load', async function() {
             restoreSession(),
             loadSkinCatalog({ silent: true })
         ]);
-        if (!sessionRestored && !window.__boberBanInfo && !authModalState.hasShownGuestPrompt) {
+        if (!sessionRestored && !window.__boberBanInfo && !authModalState.hasShownGuestPrompt && !sharedProfileLoginFromUrl) {
             authModalState.hasShownGuestPrompt = true;
             openAuthModal('login', {
                 title: 'Давай войдем в аккаунт!',
@@ -17583,6 +17757,14 @@ window.addEventListener('load', async function() {
         scheduleLiveSync(getLiveSyncInterval());
     } finally {
         setLoadingOverlay(false);
+    }
+
+    if (sharedProfileLoginFromUrl) {
+        openLeaderboardPublicProfileByLogin(sharedProfileLoginFromUrl, {
+            syncUrl: false
+        }).catch((error) => {
+            console.warn('Не удалось открыть публичный профиль по ссылке.', error);
+        });
     }
 });
 
