@@ -1235,6 +1235,36 @@ function bober_calculate_effective_purchase_price($basePrice, array $economyProf
     return max($resolvedBasePrice, (int) round($resolvedBasePrice * $multiplier));
 }
 
+function bober_calculate_progress_reward_multiplier(array $economyProfile)
+{
+    $index = max(0, min(100, (int) ($economyProfile['index'] ?? 0)));
+
+    if ($index <= 55) {
+        $multiplier = 1.0;
+    } elseif ($index <= 75) {
+        $multiplier = 1.0 + (($index - 55) * 0.01);
+    } else {
+        $multiplier = 1.20 + (($index - 75) * 0.012);
+    }
+
+    return round(min(1.50, max(1.0, $multiplier)), 4);
+}
+
+function bober_calculate_effective_progress_reward_coins($baseRewardCoins, array $economyProfile)
+{
+    $resolvedBaseRewardCoins = max(0, (int) $baseRewardCoins);
+    if ($resolvedBaseRewardCoins < 1) {
+        return 0;
+    }
+
+    $multiplier = bober_calculate_progress_reward_multiplier($economyProfile);
+    if ($multiplier <= 1.0) {
+        return $resolvedBaseRewardCoins;
+    }
+
+    return max($resolvedBaseRewardCoins, (int) round($resolvedBaseRewardCoins * $multiplier));
+}
+
 function bober_grant_skin_to_user($conn, $userId, $skinId, $equip = false)
 {
     $userId = max(0, (int) $userId);
@@ -6784,7 +6814,7 @@ function bober_fetch_user_achievements($conn, $userId, array $options = [])
     return $items;
 }
 
-function bober_refresh_user_achievements($conn, $userId, array $snapshot)
+function bober_refresh_user_achievements($conn, $userId, array $snapshot, array $economyProfile = null)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -6798,6 +6828,16 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
     bober_ensure_user_achievements_schema($conn);
     bober_ensure_user_achievement_overrides_schema($conn);
     bober_ensure_achievement_catalog_schema($conn);
+
+    $rewardEconomyProfile = is_array($economyProfile) ? $economyProfile : bober_build_user_economy_profile([
+        'score' => max(0, (int) ($snapshot['score'] ?? 0)),
+        'plus' => max(1, (int) ($snapshot['plus'] ?? 1)),
+        'energyMax' => max(5000, (int) ($snapshot['energyMax'] ?? 5000)),
+        'flyBest' => max(0, (int) (($snapshot['flyBeaver']['bestScore'] ?? null) ?? ($snapshot['flyBest'] ?? 0))),
+        'ownedSkinIds' => array_values(array_unique(array_map('strval', (array) ($snapshot['ownedSkinIds'] ?? [])))),
+        'upgradeCounts' => bober_normalize_upgrade_counts($snapshot['upgradeCounts'] ?? []),
+        'catalog' => bober_skin_catalog(),
+    ]);
 
     $catalogMap = bober_fetch_achievement_catalog_map($conn);
     $autoExpectedKeys = array_values(array_filter(
@@ -6864,9 +6904,12 @@ function bober_refresh_user_achievements($conn, $userId, array $snapshot)
         foreach ($missingKeys as $achievementKey) {
             $overrideMode = (string) ($overrideMap[$achievementKey]['mode'] ?? '');
             $catalogItem = is_array($catalogMap[$achievementKey] ?? null) ? $catalogMap[$achievementKey] : [];
-            $rewardCoins = $overrideMode === 'grant'
+            $baseRewardCoins = $overrideMode === 'grant'
                 ? 0
                 : max(0, (int) ($catalogItem['rewardCoins'] ?? bober_get_achievement_reward_coins($achievementKey, $conn)));
+            $rewardCoins = $overrideMode === 'grant'
+                ? 0
+                : bober_calculate_effective_progress_reward_coins($baseRewardCoins, $rewardEconomyProfile);
             $metaJson = json_encode(
                 bober_build_achievement_meta_payload($achievementKey, $rewardCoins, $catalogItem, [
                     'manualOverride' => $overrideMode === 'grant',
@@ -7009,6 +7052,7 @@ function bober_collect_user_achievement_snapshot_from_database($conn, $userId)
         'score' => max(0, (int) ($row['score'] ?? 0)),
         'plus' => bober_calculate_plus_from_upgrade_counts($upgradeCounts),
         'energyMax' => bober_calculate_energy_max_from_upgrade_counts($upgradeCounts),
+        'ownedSkinIds' => $ownedSkinIds,
         'ownedSkinCount' => count($ownedSkinIds),
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
         'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
@@ -9197,7 +9241,7 @@ function bober_extract_user_quest_manual_keys_from_slots(array $slots, $count = 
     return $manualKeys;
 }
 
-function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewerMode = 'player')
+function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewerMode = 'player', array $economyProfile = null)
 {
     $userId = max(0, (int) $userId);
     $normalizedViewerMode = strtolower(trim((string) $viewerMode)) === 'admin' ? 'admin' : 'player';
@@ -9210,6 +9254,14 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
             'newlyCompleted' => [],
             'rewardCoins' => 0,
         ];
+    }
+
+    $rewardEconomyProfile = is_array($economyProfile) ? $economyProfile : null;
+    if (!is_array($rewardEconomyProfile)) {
+        $runtimeState = bober_fetch_user_purchase_runtime_state($conn, $userId, false);
+        $rewardEconomyProfile = is_array($runtimeState['economy'] ?? null)
+            ? $runtimeState['economy']
+            : ['index' => 0, 'multiplier' => 1.0, 'factors' => []];
     }
 
     $state = bober_prepare_user_quest_progress_state($conn, $userId, $applyRewards);
@@ -9237,7 +9289,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
         $stateChanged = true;
     }
 
-    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards, $normalizedViewerMode) {
+    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards, $normalizedViewerMode, $rewardEconomyProfile) {
         $items = [];
         foreach ($questSlots as $slotIndex => $slot) {
             $questKey = trim((string) ($slot['key'] ?? ''));
@@ -9267,7 +9319,10 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
             if ($completed && $claimedAt === '' && $applyRewards) {
                 $claimedAt = gmdate('c');
                 $claimedMap[$questKey] = $claimedAt;
-                $rewardCoins = max(0, (int) ($definition['rewardCoins'] ?? 0));
+                $rewardCoins = bober_calculate_effective_progress_reward_coins(
+                    max(0, (int) ($definition['rewardCoins'] ?? 0)),
+                    $rewardEconomyProfile
+                );
                 $rewardCoinsTotal += $rewardCoins;
                 $stateChanged = true;
                 $newlyCompleted[] = [
@@ -9319,7 +9374,10 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
                 'completed' => $completed,
                 'claimed' => $claimedAt !== '',
                 'claimedAt' => $claimedAt,
-                'rewardCoins' => max(0, (int) ($definition['rewardCoins'] ?? 0)),
+                'rewardCoins' => bober_calculate_effective_progress_reward_coins(
+                    max(0, (int) ($definition['rewardCoins'] ?? 0)),
+                    $rewardEconomyProfile
+                ),
             ];
         }
 
@@ -9365,9 +9423,9 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
     ];
 }
 
-function bober_refresh_user_quests($conn, $userId)
+function bober_refresh_user_quests($conn, $userId, array $economyProfile = null)
 {
-    return bober_resolve_user_quests($conn, $userId, true, 'player');
+    return bober_resolve_user_quests($conn, $userId, true, 'player', $economyProfile);
 }
 
 function bober_peek_user_quests($conn, $userId)
@@ -9522,10 +9580,21 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $upgradeEnergyHugeCount = $upgradeCounts['energyHuge'];
     $upgradeClickRateCount = $upgradeCounts['clickRate'];
     $totalUpgradePurchases = array_sum($upgradeCounts);
+    $catalog = bober_skin_catalog();
+    $economyProfilePreRewards = bober_build_user_economy_profile([
+        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'plus' => $resolvedPlus,
+        'energyMax' => $energyMax,
+        'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
+        'ownedSkinIds' => $ownedSkinIds,
+        'upgradeCounts' => $upgradeCounts,
+        'catalog' => $catalog,
+    ]);
     $achievementSnapshot = [
         'score' => max(0, (int) ($row['score'] ?? 0)),
         'plus' => $resolvedPlus,
         'energyMax' => $energyMax,
+        'ownedSkinIds' => $ownedSkinIds,
         'ownedSkinCount' => count($ownedSkinIds),
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
         'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
@@ -9542,7 +9611,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
             'clickRate' => $upgradeClickRateCount,
         ],
     ];
-    $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot);
+    $achievementRefresh = bober_refresh_user_achievements($conn, $userId, $achievementSnapshot, $economyProfilePreRewards);
     $achievementStatsBundle = bober_fetch_achievement_stats($conn, !empty($achievementRefresh['statsChanged']));
     $achievementStats = is_array($achievementStatsBundle['items'] ?? null) ? $achievementStatsBundle['items'] : [];
     $achievementPlayerBase = max(0, (int) ($achievementStatsBundle['totalPlayers'] ?? 0));
@@ -9560,7 +9629,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         $achievementCatalogMap
     );
     $achievementRewardCoins = max(0, (int) ($achievementRefresh['rewardCoins'] ?? 0));
-    $questRefresh = bober_refresh_user_quests($conn, $userId);
+    $questRefresh = bober_refresh_user_quests($conn, $userId, $economyProfilePreRewards);
     $quests = is_array($questRefresh['items'] ?? null) ? $questRefresh['items'] : [
         'daily' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
         'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
@@ -9609,10 +9678,9 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         ]);
     }
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
-    $catalog = bober_skin_catalog();
     $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
     $economyProfile = bober_build_user_economy_profile([
-        'score' => max(0, (int) ($row['score'] ?? 0)),
+        'score' => $resolvedScore,
         'plus' => $resolvedPlus,
         'energyMax' => $energyMax,
         'flyBest' => max(0, (int) ($flyBeaver['bestScore'] ?? 0)),
