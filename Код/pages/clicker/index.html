@@ -3587,6 +3587,16 @@ Owner decisions:
         font-weight: 700;
     }
 
+    .profile-quest-actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .profile-quest-claim-button {
+        min-width: 168px;
+    }
+
     .profile-activity-section {
         display: flex;
         flex-direction: column;
@@ -8209,6 +8219,9 @@ const achievementUnlockState = {
     active: null,
     seen: new Set()
 };
+const questRewardClaimState = {
+    inFlightKey: ''
+};
 const questUnlockState = {
     queue: [],
     active: null,
@@ -8948,6 +8961,124 @@ async function performAuthoritativePurchase(requestBody, options = {}) {
     } finally {
         shopPurchaseState.inFlight = false;
         refreshSaveStatusFromState();
+    }
+}
+
+function buildQuestClaimRequestKey(scope = '', periodKey = '', key = '') {
+    return [
+        String(scope || '').trim(),
+        String(periodKey || '').trim(),
+        String(key || '').trim()
+    ].join('::');
+}
+
+async function claimQuestReward(rawQuest, options = {}) {
+    const quest = normalizeQuestItem(rawQuest, rawQuest?.scope || 'daily', rawQuest?.periodKey || '');
+    if (!quest) {
+        return null;
+    }
+
+    if (!userId) {
+        requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы получать награды за квесты.'
+        });
+        return null;
+    }
+
+    if (!quest.completed) {
+        showNotification('Награду можно получить только после выполнения квеста.', 'warning', 4800);
+        return null;
+    }
+
+    if (quest.claimed) {
+        showNotification('Награда за этот квест уже получена.', 'warning', 4200);
+        return null;
+    }
+
+    const requestKey = buildQuestClaimRequestKey(quest.scope, quest.periodKey, quest.key);
+    if (questRewardClaimState.inFlightKey === requestKey) {
+        return null;
+    }
+
+    if (hasPendingAutosave()) {
+        const flushed = await flushAutosave({ reason: 'quest_pre_claim', silent: true });
+        if (!flushed && hasPendingAutosave()) {
+            showNotification('Перед получением награды не удалось досохранить текущий прогресс. Дождитесь синхронизации и повторите попытку.', 'warning', 5200);
+            return null;
+        }
+    }
+
+    questRewardClaimState.inFlightKey = requestKey;
+    renderQuestsModal();
+    if (questUnlockState.active && buildQuestClaimRequestKey(questUnlockState.active.scope, questUnlockState.active.periodKey, questUnlockState.active.key) === requestKey) {
+        renderQuestUnlockModal();
+    }
+
+    try {
+        const response = await requestJson('/api/quests/claim.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId,
+                scope: quest.scope,
+                periodKey: quest.periodKey,
+                key: quest.key
+            })
+        });
+
+        if (response && response.account) {
+            applySynchronizedAccountState(response.account);
+            leaderboardProfileState.cache.delete(Number(response.account.userId) || 0);
+        }
+
+        if (response && response.supportSummary) {
+            applySupportSummary(response.supportSummary);
+        }
+        if (response && response.achievementUnlocks) {
+            enqueueAchievementUnlocks(response.achievementUnlocks);
+        }
+        if (response && response.quests) {
+            questState = normalizeQuestState(response.quests);
+            renderQuestsModal();
+        }
+        if (response && (response.achievementStats || response.achievementPlayerBase)) {
+            applyAchievementStats(response.achievementStats, response.achievementPlayerBase);
+        }
+        if (response && response.flyBeaver) {
+            flyBeaverState = normalizeFlyBeaverState(response.flyBeaver);
+            updateFlyRewardUI();
+        }
+
+        const rewardCoins = Math.max(0, Number(response?.claim?.rewardCoins ?? quest.rewardCoins) || 0);
+        if (rewardCoins > 0) {
+            showNotification(`Награда за квест получена: +${formatCompactNumber(rewardCoins)} коинов.`, 'success', 4200);
+        }
+
+        if (!options.keepPopupOpen && questUnlockState.active && buildQuestClaimRequestKey(questUnlockState.active.scope, questUnlockState.active.periodKey, questUnlockState.active.key) === requestKey) {
+            closeQuestUnlockModal();
+        }
+
+        return response;
+    } catch (error) {
+        if (isDatabaseQuotaExceededError(error)) {
+            activateDatabaseQuotaCooldown(error);
+        } else if (tryHandleSessionConflictError(error) || tryHandleSessionEndedError(error)) {
+            return null;
+        } else if (tryHandleBanError(error)) {
+            resetUserState();
+            return null;
+        }
+
+        showNotification(error.message || 'Не удалось получить награду за квест.', 'error', 5200);
+        return null;
+    } finally {
+        questRewardClaimState.inFlightKey = '';
+        renderQuestsModal();
+        if (questUnlockState.active) {
+            renderQuestUnlockModal();
+        }
     }
 }
 
@@ -10810,7 +10941,7 @@ function buildQuestGroupsHtml(normalizedQuests) {
                     <div class="profile-achievement-group-title">${escapeHtmlText(group.title)}</div>
                     <div class="profile-achievement-empty" style="margin-top:8px;padding:10px 12px;">${escapeHtmlText(group.subtitle)}</div>
                 </div>
-                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(group.items.filter((item) => item.claimed).length))}/${escapeHtmlText(formatCompactNumber(group.items.length))}</div>
+                <div class="profile-achievement-group-count">${escapeHtmlText(formatCompactNumber(group.items.filter((item) => item.completed).length))}/${escapeHtmlText(formatCompactNumber(group.items.length))}</div>
             </div>
             ${group.items.length > 0
                 ? `<div class="profile-quest-list">${group.items.map((item) => {
@@ -10820,7 +10951,7 @@ function buildQuestGroupsHtml(normalizedQuests) {
                         : Math.max(0, Math.min(100, Number(item.progressPercent) || 0));
                     const statusLabel = item.claimed
                         ? 'Награда получена'
-                        : (item.completed ? 'Готово' : (isHiddenSecret ? 'Секретно' : 'В процессе'));
+                        : (item.completed ? 'Готово к получению' : (isHiddenSecret ? 'Секретно' : 'В процессе'));
                     const cardClassName = [
                         'profile-quest-card',
                         item.claimed ? 'claimed' : (item.completed ? 'ready' : 'progress'),
@@ -10834,6 +10965,8 @@ function buildQuestGroupsHtml(normalizedQuests) {
                     const progressText = isHiddenSecret
                         ? '<span>Условия скрыты</span><span>???</span>'
                         : `<span>${escapeHtmlText(String(item.progressLabelLeft || formatCompactNumber(item.progress)))} / ${escapeHtmlText(String(item.progressLabelRight || formatCompactNumber(item.goal)))}</span><span>${escapeHtmlText(Math.round(progressPercent))}%</span>`;
+                    const claimRequestKey = buildQuestClaimRequestKey(item.scope, item.periodKey, item.key);
+                    const claimInFlight = questRewardClaimState.inFlightKey === claimRequestKey;
                     const metaParts = [
                         item.isSecret ? 'Тип: секретный недельный квест' : '',
                         !isHiddenSecret && item.totalConditions > 1 ? `Условий выполнено: ${formatCompactNumber(item.completedCount)}/${formatCompactNumber(item.totalConditions)}` : '',
@@ -10855,6 +10988,21 @@ function buildQuestGroupsHtml(normalizedQuests) {
                                 </div>
                                 <div class="profile-quest-progress-text">${progressText}</div>
                             </div>
+                            ${item.completed && !item.claimed
+                                ? `
+                                    <div class="profile-quest-actions">
+                                        <button
+                                            type="button"
+                                            class="settings-action-button primary profile-quest-claim-button"
+                                            data-quest-claim="1"
+                                            data-quest-scope="${escapeHtmlText(item.scope)}"
+                                            data-quest-period="${escapeHtmlText(item.periodKey)}"
+                                            data-quest-key="${escapeHtmlText(item.key)}"
+                                            ${claimInFlight ? 'disabled' : ''}
+                                        >${escapeHtmlText(claimInFlight ? 'Получаем…' : `Получить +${formatCompactNumber(item.rewardCoins)}`)}</button>
+                                    </div>
+                                `
+                                : ''}
                         </article>
                     `;
                 }).join('')}</div>`
@@ -14136,12 +14284,21 @@ function renderQuestUnlockModal() {
 
     kickerNode.textContent = `${getQuestUnlockScopeLabel(activeUnlock)} выполнен`;
     titleNode.textContent = activeUnlock.title || 'Квест выполнен';
-    textNode.textContent = description || summary || 'Награда уже начислена на аккаунт.';
+    textNode.textContent = description || summary || 'Награда будет начислена после получения.';
     iconNode.textContent = getQuestUnlockIcon(activeUnlock);
     rewardNode.textContent = rewardCoins > 0
         ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
         : 'Награда получена';
     metaNode.textContent = summary || metaParts.join(' • ') || 'Квест завершен';
+    const actionButton = document.getElementById('questUnlockAcknowledge');
+    if (actionButton) {
+        const activeClaimKey = buildQuestClaimRequestKey(activeUnlock.scope, activeUnlock.periodKey, activeUnlock.key);
+        const claimInFlight = questRewardClaimState.inFlightKey === activeClaimKey;
+        actionButton.disabled = claimInFlight;
+        actionButton.textContent = rewardCoins > 0
+            ? (claimInFlight ? 'Получаем награду…' : 'Получить награду')
+            : 'Закрыть';
+    }
 
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
@@ -15381,6 +15538,25 @@ if (questsModalNode) {
     });
 }
 
+const questsModalContentNode = document.getElementById('questsModalContent');
+if (questsModalContentNode) {
+    questsModalContentNode.addEventListener('click', (event) => {
+        const claimButton = event.target instanceof Element ? event.target.closest('[data-quest-claim="1"]') : null;
+        if (!claimButton) {
+            return;
+        }
+
+        event.preventDefault();
+        claimQuestReward({
+            scope: claimButton.getAttribute('data-quest-scope') || 'daily',
+            periodKey: claimButton.getAttribute('data-quest-period') || '',
+            key: claimButton.getAttribute('data-quest-key') || ''
+        }, {
+            keepPopupOpen: true
+        });
+    });
+}
+
 const leaderboardProfileModalNode = document.getElementById('leaderboardProfileModal');
 if (leaderboardProfileModalNode) {
     leaderboardProfileModalNode.addEventListener('click', (event) => {
@@ -15553,8 +15729,21 @@ if (achievementUnlockAcknowledgeButton) {
 
 const questUnlockAcknowledgeButton = document.getElementById('questUnlockAcknowledge');
 if (questUnlockAcknowledgeButton) {
-    questUnlockAcknowledgeButton.addEventListener('click', () => {
-        closeQuestUnlockModal();
+    questUnlockAcknowledgeButton.addEventListener('click', async () => {
+        const activeUnlock = questUnlockState.active;
+        if (!activeUnlock) {
+            closeQuestUnlockModal();
+            return;
+        }
+
+        if (Math.max(0, Number(activeUnlock.rewardCoins) || 0) < 1) {
+            closeQuestUnlockModal();
+            return;
+        }
+
+        await claimQuestReward(activeUnlock, {
+            keepPopupOpen: false
+        });
     });
 }
 

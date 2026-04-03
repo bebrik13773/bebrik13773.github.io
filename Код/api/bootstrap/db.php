@@ -9274,7 +9274,6 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
     $dailySlots = bober_resolve_user_quest_slots($dailyDefinitions, $dailyKeys, (array) ($state['dailyManualKeys'] ?? []), 2);
     $weeklySlots = bober_resolve_user_quest_slots($weeklyDefinitions, $weeklyKeys, (array) ($state['weeklyManualKeys'] ?? []), 2);
     $weeklySecretSlots = bober_select_secret_weekly_quest_slot($weeklyDefinitions, $weeklySlots, $userId, $state['weeklyPeriodKey'], $state['weeklyRollToken'] ?? 0);
-    $rewardCoinsTotal = 0;
     $newlyCompleted = [];
     $stateChanged = false;
 
@@ -9289,7 +9288,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
         $stateChanged = true;
     }
 
-    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array $counters, array &$claimedMap) use (&$rewardCoinsTotal, &$newlyCompleted, &$stateChanged, $applyRewards, $normalizedViewerMode, $rewardEconomyProfile) {
+    $buildQuestItems = static function ($scope, array $definitions, array $questSlots, $periodKey, array &$claimedMap, array $counters) use (&$newlyCompleted, &$stateChanged, $normalizedViewerMode, $rewardEconomyProfile) {
         $items = [];
         foreach ($questSlots as $slotIndex => $slot) {
             $questKey = trim((string) ($slot['key'] ?? ''));
@@ -9316,15 +9315,12 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
             $completed = !empty($evaluation['completed']);
             $claimedAt = trim((string) ($claimedMap[$questKey] ?? ''));
 
-            if ($completed && $claimedAt === '' && $applyRewards) {
-                $claimedAt = gmdate('c');
-                $claimedMap[$questKey] = $claimedAt;
-                $rewardCoins = bober_calculate_effective_progress_reward_coins(
-                    max(0, (int) ($definition['rewardCoins'] ?? 0)),
-                    $rewardEconomyProfile
-                );
-                $rewardCoinsTotal += $rewardCoins;
-                $stateChanged = true;
+            $rewardCoins = bober_calculate_effective_progress_reward_coins(
+                max(0, (int) ($definition['rewardCoins'] ?? 0)),
+                $rewardEconomyProfile
+            );
+
+            if ($completed && $claimedAt === '') {
                 $newlyCompleted[] = [
                     'scope' => $scope,
                     'periodKey' => $periodKey,
@@ -9334,7 +9330,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
                     'goal' => $goal,
                     'progress' => $progress,
                     'rewardCoins' => $rewardCoins,
-                    'claimedAt' => $claimedAt,
+                    'claimedAt' => '',
                     'isSecret' => !empty($slot['secret']),
                     'conditionMode' => (string) ($evaluation['conditionMode'] ?? 'all'),
                     'conditions' => $evaluation['conditions'] ?? [],
@@ -9374,35 +9370,18 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
                 'completed' => $completed,
                 'claimed' => $claimedAt !== '',
                 'claimedAt' => $claimedAt,
-                'rewardCoins' => bober_calculate_effective_progress_reward_coins(
-                    max(0, (int) ($definition['rewardCoins'] ?? 0)),
-                    $rewardEconomyProfile
-                ),
+                'rewardCoins' => $rewardCoins,
             ];
         }
 
         return $items;
     };
 
-    $dailyItems = $buildQuestItems('daily', $dailyDefinitions, $dailySlots, $state['dailyPeriodKey'], (array) $state['dailyCounters'], $state['dailyClaimed']);
-    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, array_merge($weeklySlots, $weeklySecretSlots), $state['weeklyPeriodKey'], (array) $state['weeklyCounters'], $state['weeklyClaimed']);
+    $dailyItems = $buildQuestItems('daily', $dailyDefinitions, $dailySlots, $state['dailyPeriodKey'], $state['dailyClaimed'], (array) $state['dailyCounters']);
+    $weeklyItems = $buildQuestItems('weekly', $weeklyDefinitions, array_merge($weeklySlots, $weeklySecretSlots), $state['weeklyPeriodKey'], $state['weeklyClaimed'], (array) $state['weeklyCounters']);
 
     if ($stateChanged) {
         bober_store_user_quest_progress_state($conn, $userId, $state);
-    }
-
-    if ($rewardCoinsTotal > 0 && $applyRewards) {
-        $rewardStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ? LIMIT 1');
-        if (!$rewardStmt) {
-            throw new RuntimeException('Не удалось подготовить начисление наград за квесты.');
-        }
-
-        $rewardStmt->bind_param('ii', $rewardCoinsTotal, $userId);
-        if (!$rewardStmt->execute()) {
-            $rewardStmt->close();
-            throw new RuntimeException('Не удалось начислить награды за квесты.');
-        }
-        $rewardStmt->close();
     }
 
     return [
@@ -9419,7 +9398,7 @@ function bober_resolve_user_quests($conn, $userId, $applyRewards = true, $viewer
             ],
         ],
         'newlyCompleted' => $newlyCompleted,
-        'rewardCoins' => $rewardCoinsTotal,
+        'rewardCoins' => 0,
     ];
 }
 
@@ -9513,6 +9492,155 @@ function bober_assign_user_quest($conn, $userId, $scope, $slotIndex, $questKey =
     bober_store_user_quest_progress_state($conn, $userId, $state);
 
     return bober_peek_user_quests($conn, $userId);
+}
+
+function bober_claim_user_quest_reward($conn, $userId, $scope, $questKey, $periodKey = '')
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $normalizedScope = bober_normalize_quest_scope($scope);
+    $normalizedQuestKey = trim((string) $questKey);
+    $normalizedPeriodKey = trim((string) $periodKey);
+    if ($normalizedQuestKey === '') {
+        throw new InvalidArgumentException('Не указан ключ квеста.');
+    }
+
+    $conn->begin_transaction();
+
+    try {
+        $runtimeState = bober_fetch_user_purchase_runtime_state($conn, $userId, true);
+        $economyProfile = is_array($runtimeState['economy'] ?? null)
+            ? $runtimeState['economy']
+            : ['index' => 0, 'multiplier' => 1.0, 'factors' => []];
+        $userRow = is_array($runtimeState['row'] ?? null) ? $runtimeState['row'] : [];
+        $state = bober_prepare_user_quest_progress_state($conn, $userId, true);
+
+        $definitions = $normalizedScope === 'weekly'
+            ? bober_attach_manual_quest_definitions($conn, bober_fetch_active_quest_definitions($conn, 'weekly'), 'weekly', (array) ($state['weeklyManualKeys'] ?? []))
+            : bober_attach_manual_quest_definitions($conn, bober_fetch_active_quest_definitions($conn, 'daily'), 'daily', (array) ($state['dailyManualKeys'] ?? []));
+
+        $periodKeyFromState = $normalizedScope === 'weekly'
+            ? (string) ($state['weeklyPeriodKey'] ?? '')
+            : (string) ($state['dailyPeriodKey'] ?? '');
+        if ($normalizedPeriodKey !== '' && $periodKeyFromState !== '' && $normalizedPeriodKey !== $periodKeyFromState) {
+            throw new RuntimeException('Ротация квестов уже обновилась. Откройте список квестов заново.');
+        }
+
+        $rotatingKeys = $normalizedScope === 'weekly'
+            ? bober_select_rotating_quest_keys($definitions, $userId, $periodKeyFromState, 2, $state['weeklyRollToken'] ?? 0)
+            : bober_select_rotating_quest_keys($definitions, $userId, $periodKeyFromState, 2, $state['dailyRollToken'] ?? 0);
+        $manualKeys = $normalizedScope === 'weekly'
+            ? (array) ($state['weeklyManualKeys'] ?? [])
+            : (array) ($state['dailyManualKeys'] ?? []);
+        $slots = bober_resolve_user_quest_slots($definitions, $rotatingKeys, $manualKeys, 2);
+        if ($normalizedScope === 'weekly') {
+            $slots = array_merge(
+                $slots,
+                bober_select_secret_weekly_quest_slot($definitions, $slots, $userId, $periodKeyFromState, $state['weeklyRollToken'] ?? 0)
+            );
+        }
+
+        $definition = null;
+        foreach ($slots as $slot) {
+            $slotQuestKey = trim((string) ($slot['key'] ?? ''));
+            if ($slotQuestKey === $normalizedQuestKey && isset($definitions[$slotQuestKey])) {
+                $definition = $definitions[$slotQuestKey];
+                break;
+            }
+        }
+
+        if (!is_array($definition)) {
+            throw new RuntimeException('Квест не найден в текущей ротации.');
+        }
+
+        $claimedField = $normalizedScope === 'weekly' ? 'weeklyClaimed' : 'dailyClaimed';
+        $claimedMap = is_array($state[$claimedField] ?? null) ? $state[$claimedField] : [];
+        if (trim((string) ($claimedMap[$normalizedQuestKey] ?? '')) !== '') {
+            throw new RuntimeException('Награда за этот квест уже получена.');
+        }
+
+        $counters = $normalizedScope === 'weekly'
+            ? (array) ($state['weeklyCounters'] ?? [])
+            : (array) ($state['dailyCounters'] ?? []);
+        $conditions = bober_normalize_threshold_condition_list(
+            $definition['conditions'] ?? [],
+            bober_get_quest_metric_definitions(),
+            $definition['metric'] ?? 'scoreGain',
+            $definition['goal'] ?? 1
+        );
+        $evaluation = bober_evaluate_threshold_conditions(
+            $conditions,
+            $definition['conditionMode'] ?? 'all',
+            $counters,
+            bober_get_quest_metric_definitions()
+        );
+        if (empty($evaluation['completed'])) {
+            throw new RuntimeException('Награду можно получить только после выполнения квеста.');
+        }
+
+        $rewardCoins = bober_calculate_effective_progress_reward_coins(
+            max(0, (int) ($definition['rewardCoins'] ?? 0)),
+            $economyProfile
+        );
+        $claimedAt = gmdate('c');
+        $state[$claimedField][$normalizedQuestKey] = $claimedAt;
+        bober_store_user_quest_progress_state($conn, $userId, $state);
+
+        if ($rewardCoins > 0) {
+            $rewardStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ? LIMIT 1');
+            if (!$rewardStmt) {
+                throw new RuntimeException('Не удалось подготовить начисление награды за квест.');
+            }
+            $rewardStmt->bind_param('ii', $rewardCoins, $userId);
+            if (!$rewardStmt->execute()) {
+                $rewardStmt->close();
+                throw new RuntimeException('Не удалось начислить награду за квест.');
+            }
+            $rewardStmt->close();
+        }
+
+        $questTitle = trim((string) ($definition['title'] ?? $normalizedQuestKey));
+        bober_log_user_activity($conn, $userId, 'quest_complete', [
+            'action_group' => 'quests',
+            'source' => 'quest_claim',
+            'login' => (string) ($userRow['login'] ?? ($_SESSION['game_login'] ?? '')),
+            'description' => $questTitle !== ''
+                ? 'Получена награда за квест «' . $questTitle . '».'
+                : 'Получена награда за выполненный квест.',
+            'coins_delta' => $rewardCoins,
+            'meta' => [
+                'key' => $normalizedQuestKey,
+                'scope' => $normalizedScope,
+                'period_key' => $periodKeyFromState,
+                'title' => $questTitle,
+                'description' => trim((string) ($definition['description'] ?? '')),
+                'goal' => max(0, (int) ($evaluation['goal'] ?? ($definition['goal'] ?? 0))),
+                'progress' => max(0, (int) ($evaluation['progress'] ?? 0)),
+                'reward_coins' => $rewardCoins,
+                'claimed_at' => $claimedAt,
+            ],
+        ]);
+
+        $conn->commit();
+    } catch (Throwable $error) {
+        $conn->rollback();
+        throw $error;
+    }
+
+    $account = bober_fetch_account_snapshot($conn, $userId);
+
+    return [
+        'account' => $account,
+        'claim' => [
+            'scope' => $normalizedScope,
+            'key' => $normalizedQuestKey,
+            'periodKey' => $periodKeyFromState,
+            'rewardCoins' => $rewardCoins,
+        ],
+    ];
 }
 
 function bober_fetch_account_snapshot($conn, $userId, array $options = [])
@@ -9635,8 +9763,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'weekly' => ['periodKey' => '', 'manualKeys' => ['', ''], 'items' => []],
     ];
     $questUnlocks = is_array($questRefresh['newlyCompleted'] ?? null) ? $questRefresh['newlyCompleted'] : [];
-    $questRewardCoins = max(0, (int) ($questRefresh['rewardCoins'] ?? 0));
-    $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins + $questRewardCoins;
+    $resolvedScore = max(0, (int) ($row['score'] ?? 0)) + $achievementRewardCoins;
     foreach ($achievementUnlocks as $achievementItem) {
         $achievementMeta = is_array($achievementItem['meta'] ?? null) ? $achievementItem['meta'] : [];
         $achievementTitle = trim((string) ($achievementMeta['title'] ?? ($achievementItem['key'] ?? '')));
@@ -9655,28 +9782,6 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
             ],
         ]);
     }
-    foreach ($questUnlocks as $questItem) {
-        $questTitle = trim((string) ($questItem['title'] ?? ($questItem['key'] ?? '')));
-        bober_log_user_activity($conn, $userId, 'quest_complete', [
-            'action_group' => 'quests',
-            'source' => 'account_snapshot',
-            'login' => (string) ($row['login'] ?? ''),
-            'description' => $questTitle !== ''
-                ? 'Выполнен квест «' . $questTitle . '».'
-                : 'Выполнен квест.',
-            'coins_delta' => max(0, (int) ($questItem['rewardCoins'] ?? 0)),
-            'meta' => [
-                'key' => (string) ($questItem['key'] ?? ''),
-                'scope' => (string) ($questItem['scope'] ?? ''),
-                'period_key' => (string) ($questItem['periodKey'] ?? ''),
-                'title' => $questTitle,
-                'description' => trim((string) ($questItem['description'] ?? '')),
-                'goal' => max(0, (int) ($questItem['goal'] ?? 0)),
-                'progress' => max(0, (int) ($questItem['progress'] ?? 0)),
-                'reward_coins' => max(0, (int) ($questItem['rewardCoins'] ?? 0)),
-            ],
-        ]);
-    }
     $supportSummary = bober_fetch_user_support_summary($conn, $userId);
     $skinSummary = bober_build_owned_skin_summary($catalog, $ownedSkinIds);
     $economyProfile = bober_build_user_economy_profile([
@@ -9691,10 +9796,10 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $dailyQuestItems = is_array($quests['daily']['items'] ?? null) ? $quests['daily']['items'] : [];
     $weeklyQuestItems = is_array($quests['weekly']['items'] ?? null) ? $quests['weekly']['items'] : [];
     $dailyCompletedCount = count(array_filter($dailyQuestItems, static function ($item) {
-        return !empty($item['claimed']);
+        return !empty($item['completed']);
     }));
     $weeklyCompletedCount = count(array_filter($weeklyQuestItems, static function ($item) {
-        return !empty($item['claimed']);
+        return !empty($item['completed']);
     }));
     $honors = bober_build_profile_honors([
         'score' => $resolvedScore,
