@@ -6382,6 +6382,17 @@ function showNotification(message, type = 'success', duration = 3000) {
         <button type="button" class="settings-action-button primary achievement-unlock-button" id="achievementUnlockAcknowledge">Забрать и продолжить</button>
     </div>
 </div>
+<div class="modal-backdrop" id="questUnlockModal" aria-hidden="true" data-palette="modal">
+    <div class="achievement-unlock-modal" role="dialog" aria-modal="true" aria-labelledby="questUnlockTitle">
+        <div class="achievement-unlock-kicker" id="questUnlockKicker">Квест выполнен</div>
+        <div class="achievement-unlock-icon" id="questUnlockIcon">✅</div>
+        <div class="achievement-unlock-title" id="questUnlockTitle">Квест</div>
+        <div class="achievement-unlock-text" id="questUnlockText">Описание квеста.</div>
+        <div class="achievement-unlock-reward" id="questUnlockReward">+0 коинов</div>
+        <div class="achievement-unlock-percent" id="questUnlockMeta">Ежедневная ротация</div>
+        <button type="button" class="settings-action-button primary achievement-unlock-button" id="questUnlockAcknowledge">Забрать и продолжить</button>
+    </div>
+</div>
     <script>
 //Последнее изменение
 // === КОНФИГУРАЦИЯ ===
@@ -8199,6 +8210,8 @@ const achievementUnlockState = {
     seen: new Set()
 };
 const questUnlockState = {
+    queue: [],
+    active: null,
     seen: new Set()
 };
 const liveSyncState = {
@@ -8957,7 +8970,8 @@ function syncGlobalOverlayState() {
         document.getElementById('leaderboardProfileLookupModal'),
         document.getElementById('supportModal'),
         document.getElementById('supportUnreadAlertModal'),
-        document.getElementById('achievementUnlockModal')
+        document.getElementById('achievementUnlockModal'),
+        document.getElementById('questUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
     const loadingVisible = Boolean(document.getElementById('loadingOverlay') && document.getElementById('loadingOverlay').classList.contains('show'));
     document.body.classList.toggle('modal-open', hasOpenModal || loadingVisible);
@@ -9850,7 +9864,8 @@ function isHeavyUiSurfaceOpen() {
         document.getElementById('questsModal')?.classList.contains('show') ||
         document.getElementById('leaderboardProfileModal')?.classList.contains('show') ||
         document.getElementById('authModal')?.classList.contains('show') ||
-        document.getElementById('achievementUnlockModal')?.classList.contains('show')
+        document.getElementById('achievementUnlockModal')?.classList.contains('show') ||
+        document.getElementById('questUnlockModal')?.classList.contains('show')
     );
 }
 
@@ -14057,6 +14072,110 @@ function formatQuestPeriodLabel(scope, periodKey) {
     return normalizedPeriodKey;
 }
 
+function getQuestUnlockScopeLabel(item) {
+    if (item?.isSecret) {
+        return 'Секретный недельный квест';
+    }
+
+    return item?.scope === 'weekly' ? 'Недельная цель' : 'Ежедневный квест';
+}
+
+function getQuestUnlockIcon(item) {
+    if (item?.isSecret) {
+        return '🕵️';
+    }
+
+    return item?.scope === 'weekly' ? '🏁' : '✅';
+}
+
+function isQuestUnlockQueuedOrActive(item) {
+    const targetKey = buildQuestSeenKey(item);
+    if (!targetKey || targetKey === '::::') {
+        return false;
+    }
+
+    if (questUnlockState.active && buildQuestSeenKey(questUnlockState.active) === targetKey) {
+        return true;
+    }
+
+    return questUnlockState.queue.some((queueItem) => buildQuestSeenKey(queueItem) === targetKey);
+}
+
+function markQuestUnlockSeen(item) {
+    const seenKey = buildQuestSeenKey(item);
+    if (!seenKey || seenKey === '::::' || questUnlockState.seen.has(seenKey)) {
+        return;
+    }
+
+    questUnlockState.seen.add(seenKey);
+    persistSeenQuestUnlocks();
+}
+
+function renderQuestUnlockModal() {
+    const modal = document.getElementById('questUnlockModal');
+    const kickerNode = document.getElementById('questUnlockKicker');
+    const titleNode = document.getElementById('questUnlockTitle');
+    const textNode = document.getElementById('questUnlockText');
+    const iconNode = document.getElementById('questUnlockIcon');
+    const rewardNode = document.getElementById('questUnlockReward');
+    const metaNode = document.getElementById('questUnlockMeta');
+    if (!modal || !questUnlockState.active || !kickerNode || !titleNode || !textNode || !iconNode || !rewardNode || !metaNode) {
+        return;
+    }
+
+    const activeUnlock = questUnlockState.active;
+    const rewardCoins = Math.max(0, Number(activeUnlock.rewardCoins) || 0);
+    const summary = buildQuestConditionSummary(activeUnlock, {
+        isHiddenSecret: false
+    });
+    const description = String(activeUnlock.description || '').trim();
+    const metaParts = [
+        getQuestUnlockScopeLabel(activeUnlock),
+        formatQuestPeriodLabel(activeUnlock.scope, activeUnlock.periodKey)
+    ].filter(Boolean);
+
+    kickerNode.textContent = `${getQuestUnlockScopeLabel(activeUnlock)} выполнен`;
+    titleNode.textContent = activeUnlock.title || 'Квест выполнен';
+    textNode.textContent = description || summary || 'Награда уже начислена на аккаунт.';
+    iconNode.textContent = getQuestUnlockIcon(activeUnlock);
+    rewardNode.textContent = rewardCoins > 0
+        ? `+${rewardCoins.toLocaleString('ru-RU')} коинов`
+        : 'Награда получена';
+    metaNode.textContent = summary || metaParts.join(' • ') || 'Квест завершен';
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    markQuestUnlockSeen(activeUnlock);
+    syncGlobalOverlayState();
+}
+
+function closeQuestUnlockModal() {
+    const modal = document.getElementById('questUnlockModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    questUnlockState.active = null;
+    syncGlobalOverlayState();
+
+    if (questUnlockState.queue.length > 0) {
+        window.setTimeout(() => {
+            showNextQuestUnlock();
+        }, 90);
+    }
+}
+
+function showNextQuestUnlock() {
+    if (questUnlockState.active || questUnlockState.queue.length < 1) {
+        return;
+    }
+
+    questUnlockState.active = questUnlockState.queue.shift();
+    renderQuestUnlockModal();
+}
+
 function notifyAboutQuestUnlocks(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length < 1) {
         return;
@@ -14071,32 +14190,33 @@ function notifyAboutQuestUnlocks(rawItems) {
                 return;
             }
 
-            questUnlockState.seen.add(seenKey);
-            persistSeenQuestUnlocks();
+            if (isQuestUnlockQueuedOrActive(item)) {
+                return;
+            }
 
-            const scopeLabel = item.isSecret
-                ? 'Секретный недельный квест'
-                : (item.scope === 'weekly' ? 'Недельная цель' : 'Ежедневный квест');
             const rewardLabel = item.rewardCoins > 0
                 ? ` +${item.rewardCoins.toLocaleString('ru-RU')} коинов`
                 : '';
-            const browserShown = showBrowserNotification(
-                `${scopeLabel} выполнена`,
-                `${item.title}.${rewardLabel}`,
-                {
-                    tag: `bober-quest-${item.scope}`,
-                    renotify: true,
-                    durationMs: 12000,
-                    onClick: () => {
-                        openProfileModal();
-                    }
-                }
-            );
+            const scopeLabel = getQuestUnlockScopeLabel(item);
+            questUnlockState.queue.push(item);
 
-            if (!browserShown || !document.hidden) {
-                showNotification(`${scopeLabel}: ${item.title}.${rewardLabel}`, 'success', 5200);
+            if (document.hidden) {
+                showBrowserNotification(
+                    `${scopeLabel} выполнен`,
+                    `${item.title}.${rewardLabel}`,
+                    {
+                        tag: `bober-quest-${item.scope}`,
+                        renotify: true,
+                        durationMs: 12000,
+                        onClick: () => {
+                            openQuestsModal();
+                        }
+                    }
+                );
             }
         });
+
+    showNextQuestUnlock();
 }
 
 function updateSupportBadgeUI() {
@@ -15306,6 +15426,15 @@ if (achievementUnlockModalNode) {
     });
 }
 
+const questUnlockModalNode = document.getElementById('questUnlockModal');
+if (questUnlockModalNode) {
+    questUnlockModalNode.addEventListener('click', (event) => {
+        if (event.target === questUnlockModalNode) {
+            closeQuestUnlockModal();
+        }
+    });
+}
+
 const settingsModalCloseButton = document.getElementById('settingsModalClose');
 if (settingsModalCloseButton) {
     settingsModalCloseButton.addEventListener('click', () => {
@@ -15419,6 +15548,13 @@ const achievementUnlockAcknowledgeButton = document.getElementById('achievementU
 if (achievementUnlockAcknowledgeButton) {
     achievementUnlockAcknowledgeButton.addEventListener('click', () => {
         closeAchievementUnlockModal();
+    });
+}
+
+const questUnlockAcknowledgeButton = document.getElementById('questUnlockAcknowledge');
+if (questUnlockAcknowledgeButton) {
+    questUnlockAcknowledgeButton.addEventListener('click', () => {
+        closeQuestUnlockModal();
     });
 }
 
