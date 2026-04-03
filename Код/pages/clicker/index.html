@@ -6722,6 +6722,11 @@ const announcementState = {
     ackInFlight: false,
     shownKey: ''
 };
+const ANNOUNCEMENT_LIVE_REFRESH_CONFIG = {
+    idleIntervalMs: 120000,
+    modalIntervalMs: 25000,
+    retryDelayMs: 45000
+};
 const ACHIEVEMENT_DEFINITIONS = SHARED_CLIENT.ACHIEVEMENT_DEFINITIONS || Object.freeze({});
 const ALL_ACHIEVEMENT_KEYS = Object.freeze(Object.keys(ACHIEVEMENT_DEFINITIONS));
 
@@ -7244,6 +7249,35 @@ function setAnnouncementSnapshot(rawFeed, options = {}) {
     return normalizedFeed;
 }
 
+function isAnnouncementModalOpen() {
+    return Boolean(document.getElementById('announcementModal')?.classList.contains('show'));
+}
+
+function applyAnnouncementServerSnapshot(data = {}, options = {}) {
+    const normalizedData = data && typeof data === 'object' ? data : {};
+    const nextFeed = setAnnouncementSnapshot(
+        normalizedData.announcementFeed || normalizedData.feed || [],
+        {
+            latestAnnouncement: normalizedData.latestAnnouncement,
+            unreadAnnouncement: normalizedData.announcement
+        }
+    );
+
+    updateProfileMenuUI();
+    if (isAnnouncementModalOpen()) {
+        renderAnnouncementModal();
+    }
+
+    if (options.maybeNotify !== false) {
+        maybeShowAnnouncements(nextFeed, {
+            latestAnnouncement: normalizedData.latestAnnouncement,
+            unreadAnnouncement: normalizedData.announcement
+        });
+    }
+
+    return nextFeed;
+}
+
 function getAnnouncementFeedItems() {
     const normalizedFeed = normalizeAnnouncementFeed(announcementState.feed);
     if (normalizedFeed.length > 0) {
@@ -7432,6 +7466,12 @@ function openAnnouncementModal() {
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
+    refreshAnnouncementFeed({
+        reason: 'modal_open',
+        silent: true
+    }).catch((error) => {
+        console.warn('Не удалось обновить ленту новостей при открытии.', error);
+    });
 }
 
 function openAnnouncementCenterFromEntry(entryPoint = 'menu') {
@@ -7470,6 +7510,7 @@ function closeAnnouncementModal() {
     modal.classList.remove('show');
     modal.setAttribute('aria-hidden', 'true');
     syncGlobalOverlayState();
+    scheduleAnnouncementFeedRefresh();
 }
 
 function maybeShowAnnouncements(rawFeed = null, options = {}) {
@@ -7515,6 +7556,73 @@ function maybeShowAnnouncements(rawFeed = null, options = {}) {
     }
 
     openAnnouncementModal();
+}
+
+function stopAnnouncementFeedRefresh() {
+    if (announcementLiveRefreshState.timer) {
+        clearTimeout(announcementLiveRefreshState.timer);
+        announcementLiveRefreshState.timer = null;
+    }
+}
+
+function getAnnouncementFeedRefreshInterval() {
+    if (!userId || document.hidden) {
+        return 0;
+    }
+
+    return isAnnouncementModalOpen()
+        ? ANNOUNCEMENT_LIVE_REFRESH_CONFIG.modalIntervalMs
+        : ANNOUNCEMENT_LIVE_REFRESH_CONFIG.idleIntervalMs;
+}
+
+function scheduleAnnouncementFeedRefresh(delayMs = getAnnouncementFeedRefreshInterval()) {
+    stopAnnouncementFeedRefresh();
+
+    const normalizedDelay = Math.max(0, Number(delayMs) || 0);
+    if (!userId || normalizedDelay < 1) {
+        return;
+    }
+
+    announcementLiveRefreshState.timer = window.setTimeout(() => {
+        announcementLiveRefreshState.timer = null;
+        refreshAnnouncementFeed({
+            reason: 'timer',
+            silent: true
+        }).catch((error) => {
+            console.warn('Не удалось обновить ленту новостей по таймеру.', error);
+        });
+    }, normalizedDelay);
+}
+
+async function refreshAnnouncementFeed(options = {}) {
+    if (!userId) {
+        stopAnnouncementFeedRefresh();
+        return null;
+    }
+
+    if (announcementLiveRefreshState.inFlight) {
+        return null;
+    }
+
+    announcementLiveRefreshState.inFlight = true;
+    try {
+        const data = await requestJson('/api/announcements/feed.php', {
+            cache: 'no-store'
+        });
+        applyAnnouncementServerSnapshot(data, {
+            maybeNotify: options.maybeNotify !== false
+        });
+        announcementLiveRefreshState.lastFetchedAt = Date.now();
+        announcementLiveRefreshState.lastErrorAt = 0;
+        scheduleAnnouncementFeedRefresh();
+        return data;
+    } catch (error) {
+        announcementLiveRefreshState.lastErrorAt = Date.now();
+        scheduleAnnouncementFeedRefresh(ANNOUNCEMENT_LIVE_REFRESH_CONFIG.retryDelayMs);
+        throw error;
+    } finally {
+        announcementLiveRefreshState.inFlight = false;
+    }
 }
 
 function findCachedLeaderboardProfileByLogin(login) {
@@ -7859,6 +7967,12 @@ const supportLiveRefreshState = {
     timer: null,
     inFlight: false,
     lastListRefreshAt: 0
+};
+const announcementLiveRefreshState = {
+    timer: null,
+    inFlight: false,
+    lastFetchedAt: 0,
+    lastErrorAt: 0
 };
 const ENERGY_SHORTAGE_NOTICE_CONFIG = {
     cooldownMs: 2200,
@@ -16611,6 +16725,10 @@ function resetUserState() {
     announcementState.latestPublished = null;
     announcementState.shownKey = '';
     announcementState.ackInFlight = false;
+    stopAnnouncementFeedRefresh();
+    announcementLiveRefreshState.inFlight = false;
+    announcementLiveRefreshState.lastFetchedAt = 0;
+    announcementLiveRefreshState.lastErrorAt = 0;
     energyShortageNoticeState.lastShownAt = 0;
     energyShortageNoticeState.lastNotificationId = '';
     clickRateLimitState.creditedClickTimestamps = [];
@@ -16721,17 +16839,18 @@ function applyAuthenticatedState(data) {
     renderProfileModal();
     renderQuestsModal();
     renderEconomyProfileModal();
-    const announcementFeed = setAnnouncementSnapshot(
-        data.announcementFeed || data.account?.announcementFeed,
-        {
-            latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
-            unreadAnnouncement: data.announcement || data.account?.announcement
-        }
-    );
+    const announcementFeed = applyAnnouncementServerSnapshot({
+        announcementFeed: data.announcementFeed || data.account?.announcementFeed,
+        latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
+        announcement: data.announcement || data.account?.announcement
+    }, {
+        maybeNotify: false
+    });
     maybeShowAnnouncements(announcementFeed, {
         latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
         unreadAnnouncement: data.announcement || data.account?.announcement
     });
+    scheduleAnnouncementFeedRefresh();
     resumePendingSettingsSync().catch((error) => {
         console.warn('Не удалось досохранить локальные настройки после входа.', error);
     });
@@ -17524,8 +17643,14 @@ function applySynchronizedAccountState(data) {
     renderProfileModal();
     renderQuestsModal();
     renderEconomyProfileModal();
+    applyAnnouncementServerSnapshot({
+        announcementFeed: data.announcementFeed || data.account?.announcementFeed,
+        latestAnnouncement: data.latestAnnouncement || data.account?.latestAnnouncement,
+        announcement: data.announcement || data.account?.announcement
+    });
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
+    scheduleAnnouncementFeedRefresh();
     return true;
 }
 
@@ -19143,6 +19268,7 @@ document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
         stopLiveSyncTimer();
         stopSupportLiveRefresh();
+        stopAnnouncementFeedRefresh();
         flushAutosaveWithBeacon();
         flushSettingsWithBeacon();
     } else {
@@ -19172,6 +19298,14 @@ document.addEventListener('visibilitychange', function() {
                 console.warn('Не удалось обновить поддержку после возврата во вкладку.', error);
             });
         }
+        if (userId) {
+            refreshAnnouncementFeed({
+                reason: 'visibility_return',
+                silent: true
+            }).catch((error) => {
+                console.warn('Не удалось обновить ленту новостей после возврата во вкладку.', error);
+            });
+        }
     }
 });
 
@@ -19188,6 +19322,14 @@ window.addEventListener('pageshow', function() {
         silent: true,
         forceCatalog: true
     });
+    if (userId) {
+        refreshAnnouncementFeed({
+            reason: 'pageshow',
+            silent: true
+        }).catch((error) => {
+            console.warn('Не удалось обновить ленту новостей после pageshow.', error);
+        });
+    }
 });
 
 window.addEventListener('online', function() {
@@ -19202,6 +19344,14 @@ window.addEventListener('online', function() {
         silent: true,
         forceCatalog: true
     });
+    if (userId) {
+        refreshAnnouncementFeed({
+            reason: 'online_return',
+            silent: true
+        }).catch((error) => {
+            console.warn('Не удалось обновить ленту новостей после восстановления сети.', error);
+        });
+    }
 });
 
 window.addEventListener('focus', function() {
@@ -19214,6 +19364,14 @@ window.addEventListener('focus', function() {
         silent: true,
         forceCatalog: true
     });
+    if (userId) {
+        refreshAnnouncementFeed({
+            reason: 'window_focus',
+            silent: true
+        }).catch((error) => {
+            console.warn('Не удалось обновить ленту новостей после возврата фокуса.', error);
+        });
+    }
 });
 
 window.addEventListener('storage', function(event) {
