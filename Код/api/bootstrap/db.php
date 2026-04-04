@@ -8058,66 +8058,66 @@ function bober_get_daily_quest_definitions()
 {
     return [
         'daily_score_15k' => [
-            'title' => 'Разогрев дня',
-            'description' => 'Заработайте 15 000 коинов за день.',
+            'title' => 'Разогрев смены',
+            'description' => 'Заработайте 30 000 коинов за день.',
             'metric' => 'scoreGain',
-            'goal' => 15000,
+            'goal' => 30000,
             'rewardCoins' => 3500,
         ],
         'daily_score_50k' => [
-            'title' => 'Ускорение',
-            'description' => 'Заработайте 50 000 коинов за день.',
+            'title' => 'Высокий темп',
+            'description' => 'Заработайте 90 000 коинов за день.',
             'metric' => 'scoreGain',
-            'goal' => 50000,
+            'goal' => 90000,
             'rewardCoins' => 9000,
         ],
         'daily_upgrades_4' => [
-            'title' => 'Тонкая настройка',
-            'description' => 'Купите 4 улучшения за день.',
+            'title' => 'Точная доводка',
+            'description' => 'Купите 7 улучшений за день.',
             'metric' => 'upgradeBuys',
-            'goal' => 4,
+            'goal' => 7,
             'rewardCoins' => 3000,
         ],
         'daily_upgrades_10' => [
-            'title' => 'Конструктор',
-            'description' => 'Купите 10 улучшений за день.',
+            'title' => 'Сборка под нагрузкой',
+            'description' => 'Купите 16 улучшений за день.',
             'metric' => 'upgradeBuys',
-            'goal' => 10,
+            'goal' => 16,
             'rewardCoins' => 8000,
         ],
         'daily_plus_20' => [
-            'title' => 'Новый темп',
-            'description' => 'Увеличьте силу клика на 20 за день.',
+            'title' => 'Разгон клика',
+            'description' => 'Увеличьте силу клика на 35 за день.',
             'metric' => 'plusGain',
-            'goal' => 20,
+            'goal' => 35,
             'rewardCoins' => 2500,
         ],
         'daily_plus_60' => [
-            'title' => 'Серьезный буст',
-            'description' => 'Увеличьте силу клика на 60 за день.',
+            'title' => 'Силовой буст',
+            'description' => 'Увеличьте силу клика на 100 за день.',
             'metric' => 'plusGain',
-            'goal' => 60,
+            'goal' => 100,
             'rewardCoins' => 7000,
         ],
         'daily_energy_2000' => [
-            'title' => 'Запас на день',
-            'description' => 'Увеличьте максимальную энергию на 2 000 за день.',
+            'title' => 'Энергорезерв',
+            'description' => 'Увеличьте максимальную энергию на 4 000 за день.',
             'metric' => 'energyMaxGain',
-            'goal' => 2000,
+            'goal' => 4000,
             'rewardCoins' => 4500,
         ],
         'daily_fly_runs_3' => [
-            'title' => 'Три попытки',
-            'description' => 'Сыграйте 3 забега в Летающего бобра за день.',
+            'title' => 'Шесть вылетов',
+            'description' => 'Сыграйте 6 забегов в Летающего бобра за день.',
             'metric' => 'flyRuns',
-            'goal' => 3,
+            'goal' => 6,
             'rewardCoins' => 5000,
         ],
         'daily_fly_score_120' => [
-            'title' => 'Полет по плану',
-            'description' => 'Наберите 120 очков в Летающем бобре за день.',
+            'title' => 'Маршрут под контролем',
+            'description' => 'Наберите 220 очков в Летающем бобре за день.',
             'metric' => 'flyScoreGain',
-            'goal' => 120,
+            'goal' => 220,
             'rewardCoins' => 6500,
         ],
     ];
@@ -8127,66 +8127,66 @@ function bober_get_weekly_quest_definitions()
 {
     return [
         'weekly_score_250k' => [
-            'title' => 'Большой рывок',
-            'description' => 'Заработайте 250 000 коинов за неделю.',
+            'title' => 'Крупный рывок',
+            'description' => 'Заработайте 450 000 коинов за неделю.',
             'metric' => 'scoreGain',
-            'goal' => 250000,
+            'goal' => 450000,
             'rewardCoins' => 45000,
         ],
         'weekly_score_1m' => [
-            'title' => 'Неделя без паузы',
-            'description' => 'Заработайте 1 000 000 коинов за неделю.',
+            'title' => 'Неделя на максимуме',
+            'description' => 'Заработайте 1 600 000 коинов за неделю.',
             'metric' => 'scoreGain',
-            'goal' => 1000000,
+            'goal' => 1600000,
             'rewardCoins' => 130000,
         ],
         'weekly_upgrades_30' => [
-            'title' => 'Мастер апгрейдов',
-            'description' => 'Купите 30 улучшений за неделю.',
+            'title' => 'Цех апгрейдов',
+            'description' => 'Купите 48 улучшений за неделю.',
             'metric' => 'upgradeBuys',
-            'goal' => 30,
+            'goal' => 48,
             'rewardCoins' => 40000,
         ],
         'weekly_upgrades_75' => [
-            'title' => 'Инженер недели',
-            'description' => 'Купите 75 улучшений за неделю.',
+            'title' => 'Инженерный режим',
+            'description' => 'Купите 120 улучшений за неделю.',
             'metric' => 'upgradeBuys',
-            'goal' => 75,
+            'goal' => 120,
             'rewardCoins' => 100000,
         ],
         'weekly_plus_150' => [
-            'title' => 'Стабильный рост',
-            'description' => 'Увеличьте силу клика на 150 за неделю.',
+            'title' => 'Стабильный разгон',
+            'description' => 'Увеличьте силу клика на 240 за неделю.',
             'metric' => 'plusGain',
-            'goal' => 150,
+            'goal' => 240,
             'rewardCoins' => 35000,
         ],
         'weekly_plus_400' => [
-            'title' => 'Тяжелая артиллерия',
-            'description' => 'Увеличьте силу клика на 400 за неделю.',
+            'title' => 'Ударная сборка',
+            'description' => 'Увеличьте силу клика на 650 за неделю.',
             'metric' => 'plusGain',
-            'goal' => 400,
+            'goal' => 650,
             'rewardCoins' => 90000,
         ],
         'weekly_energy_12000' => [
-            'title' => 'Энергоцех',
-            'description' => 'Увеличьте максимальную энергию на 12 000 за неделю.',
+            'title' => 'Энергокомплекс',
+            'description' => 'Увеличьте максимальную энергию на 22 000 за неделю.',
             'metric' => 'energyMaxGain',
-            'goal' => 12000,
+            'goal' => 22000,
             'rewardCoins' => 50000,
         ],
         'weekly_fly_runs_18' => [
-            'title' => 'Небесная рутина',
-            'description' => 'Сыграйте 18 забегов в Летающего бобра за неделю.',
+            'title' => 'Небесная дисциплина',
+            'description' => 'Сыграйте 28 забегов в Летающего бобра за неделю.',
             'metric' => 'flyRuns',
-            'goal' => 18,
+            'goal' => 28,
             'rewardCoins' => 48000,
         ],
         'weekly_fly_score_900' => [
-            'title' => 'Крылатая неделя',
-            'description' => 'Наберите 900 очков в Летающем бобре за неделю.',
+            'title' => 'Крылатый норматив',
+            'description' => 'Наберите 1 500 очков в Летающем бобре за неделю.',
             'metric' => 'flyScoreGain',
-            'goal' => 900,
+            'goal' => 1500,
             'rewardCoins' => 70000,
         ],
     ];
@@ -8513,40 +8513,81 @@ function bober_seed_default_quest_templates($conn)
 
 function bober_sync_default_quest_templates($conn)
 {
-    $result = $conn->query('SELECT `quest_key` FROM `quest_templates`');
+    $result = $conn->query('SELECT `quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active` FROM `quest_templates`');
     if (!$result) {
         throw new RuntimeException('Не удалось проверить актуальность каталога квестов.');
     }
 
-    $existingKeys = [];
+    $existingItems = [];
     if ($result instanceof mysqli_result) {
         while ($row = $result->fetch_assoc()) {
             $questKey = trim((string) ($row['quest_key'] ?? ''));
             if ($questKey !== '') {
-                $existingKeys[$questKey] = true;
+                $existingItems[$questKey] = $row;
             }
         }
         $result->free();
     }
 
-    $missingItems = array_values(array_filter(bober_default_quest_template_catalog(), static function ($item) use ($existingKeys) {
+    $defaultCatalog = bober_default_quest_template_catalog();
+    $missingItems = array_values(array_filter($defaultCatalog, static function ($item) use ($existingItems) {
         $questKey = trim((string) ($item['quest_key'] ?? ''));
-        return $questKey !== '' && !isset($existingKeys[$questKey]);
+        return $questKey !== '' && !isset($existingItems[$questKey]);
     }));
-    if (!$missingItems) {
-        return;
+
+    if ($missingItems) {
+        $insertStmt = $conn->prepare(
+            'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if (!$insertStmt) {
+            throw new RuntimeException('Не удалось подготовить обновление стартовых шаблонов квестов.');
+        }
+
+        foreach ($missingItems as $item) {
+            $questKey = trim((string) ($item['quest_key'] ?? ''));
+            $scope = bober_normalize_quest_scope($item['scope'] ?? 'daily');
+            $title = trim((string) ($item['title'] ?? ''));
+            $description = trim((string) ($item['description'] ?? ''));
+            $metric = bober_normalize_quest_metric($item['metric'] ?? 'scoreGain');
+            $goal = max(1, (int) ($item['goal'] ?? 1));
+            $conditionMode = bober_normalize_condition_mode($item['condition_mode'] ?? 'all');
+            $conditionsJson = bober_encode_threshold_condition_list(bober_normalize_threshold_condition_list(
+                bober_decode_json_list((string) ($item['conditions_json'] ?? ''), []),
+                bober_get_quest_metric_definitions(),
+                $metric,
+                $goal
+            ));
+            $rewardCoins = max(0, (int) ($item['reward_coins'] ?? 0));
+            $isActive = !empty($item['is_active']) ? 1 : 0;
+
+            $insertStmt->bind_param('sssssissii', $questKey, $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive);
+            if (!$insertStmt->execute()) {
+                $insertStmt->close();
+                throw new RuntimeException('Не удалось добавить новые стартовые шаблоны квестов.');
+            }
+        }
+
+        $insertStmt->close();
     }
 
-    $stmt = $conn->prepare(
-        'INSERT INTO `quest_templates` (`quest_key`, `scope`, `title`, `description`, `metric`, `goal`, `condition_mode`, `conditions_json`, `reward_coins`, `is_active`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    $updateStmt = $conn->prepare(
+        'UPDATE `quest_templates`
+         SET `scope` = ?, `title` = ?, `description` = ?, `metric` = ?, `goal` = ?, `condition_mode` = ?, `conditions_json` = ?, `reward_coins` = ?
+         WHERE `quest_key` = ?
+         LIMIT 1'
     );
-    if (!$stmt) {
-        throw new RuntimeException('Не удалось подготовить обновление стартовых шаблонов квестов.');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить синхронизацию стартовых шаблонов квестов.');
     }
 
-    foreach ($missingItems as $item) {
+    $updatedCount = 0;
+    foreach ($defaultCatalog as $item) {
         $questKey = trim((string) ($item['quest_key'] ?? ''));
+        if ($questKey === '' || !isset($existingItems[$questKey])) {
+            continue;
+        }
+
         $scope = bober_normalize_quest_scope($item['scope'] ?? 'daily');
         $title = trim((string) ($item['title'] ?? ''));
         $description = trim((string) ($item['description'] ?? ''));
@@ -8560,17 +8601,38 @@ function bober_sync_default_quest_templates($conn)
             $goal
         ));
         $rewardCoins = max(0, (int) ($item['reward_coins'] ?? 0));
-        $isActive = !empty($item['is_active']) ? 1 : 0;
-
-        $stmt->bind_param('sssssissii', $questKey, $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $isActive);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            throw new RuntimeException('Не удалось добавить новые стартовые шаблоны квестов.');
+        $currentItem = $existingItems[$questKey];
+        $currentConditionsJson = bober_encode_threshold_condition_list(bober_normalize_threshold_condition_list(
+            bober_decode_json_list((string) ($currentItem['conditions_json'] ?? ''), []),
+            bober_get_quest_metric_definitions(),
+            bober_normalize_quest_metric($currentItem['metric'] ?? 'scoreGain'),
+            max(1, (int) ($currentItem['goal'] ?? 1))
+        ));
+        $needsUpdate =
+            bober_normalize_quest_scope($currentItem['scope'] ?? 'daily') !== $scope
+            || trim((string) ($currentItem['title'] ?? '')) !== $title
+            || trim((string) ($currentItem['description'] ?? '')) !== $description
+            || bober_normalize_quest_metric($currentItem['metric'] ?? 'scoreGain') !== $metric
+            || max(1, (int) ($currentItem['goal'] ?? 1)) !== $goal
+            || bober_normalize_condition_mode($currentItem['condition_mode'] ?? 'all') !== $conditionMode
+            || $currentConditionsJson !== $conditionsJson
+            || max(0, (int) ($currentItem['reward_coins'] ?? 0)) !== $rewardCoins;
+        if (!$needsUpdate) {
+            continue;
         }
+
+        $updateStmt->bind_param('ssssissis', $scope, $title, $description, $metric, $goal, $conditionMode, $conditionsJson, $rewardCoins, $questKey);
+        if (!$updateStmt->execute()) {
+            $updateStmt->close();
+            throw new RuntimeException('Не удалось синхронизировать стартовые шаблоны квестов.');
+        }
+        $updatedCount += max(0, (int) $updateStmt->affected_rows);
     }
 
-    $stmt->close();
-    bober_clear_quest_template_caches();
+    $updateStmt->close();
+    if ($missingItems || $updatedCount > 0) {
+        bober_clear_quest_template_caches();
+    }
 }
 
 function bober_fetch_quest_templates($conn, array $options = [])
