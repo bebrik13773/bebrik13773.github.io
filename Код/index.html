@@ -92,6 +92,11 @@
         </div>
     </main>
     <script>
+        const href = window.location.host;
+        if (href === 'bebrik13773.github.io') {
+            window.location.replace('https://bober-api.gt.tc/pages/clicker/' + (window.location.search || '') + (window.location.hash || ''));
+            return;
+        }
         (function() {
             const target = '/pages/clicker/' + (window.location.search || '') + (window.location.hash || '');
             window.requestAnimationFrame(function() {
