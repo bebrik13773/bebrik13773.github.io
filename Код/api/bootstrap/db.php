@@ -9655,9 +9655,12 @@ function bober_claim_user_quest_reward($conn, $userId, $scope, $questKey, $perio
             throw new RuntimeException('Награда за этот квест уже получена.');
         }
 
+        // Используем сохранённые счётчики, но если определение только для scoreGain,
+        // пересчитываем его на основе реальных данных пользователя для повышенной надёжности
         $counters = $normalizedScope === 'weekly'
             ? (array) ($state['weeklyCounters'] ?? [])
             : (array) ($state['dailyCounters'] ?? []);
+        
         $conditions = bober_normalize_threshold_condition_list(
             $definition['conditions'] ?? [],
             bober_get_quest_metric_definitions(),
@@ -9670,6 +9673,27 @@ function bober_claim_user_quest_reward($conn, $userId, $scope, $questKey, $perio
             $counters,
             bober_get_quest_metric_definitions()
         );
+        
+        // Если квест не выполнен согласно сохранённым счётчикам, но пользователь заявляет о выполнении,
+        // пересчитаем кэш квестов полностью. Это помогает в случаях потери синхронизации.
+        if (empty($evaluation['completed'])) {
+            try {
+                bober_refresh_user_quests($conn, $userId, $economyProfile);
+                $state = bober_prepare_user_quest_progress_state($conn, $userId, true);
+                $counters = $normalizedScope === 'weekly'
+                    ? (array) ($state['weeklyCounters'] ?? [])
+                    : (array) ($state['dailyCounters'] ?? []);
+                $evaluation = bober_evaluate_threshold_conditions(
+                    $conditions,
+                    $definition['conditionMode'] ?? 'all',
+                    $counters,
+                    bober_get_quest_metric_definitions()
+                );
+            } catch (Throwable $refreshError) {
+                // Если пересчёт не помог, падаем с оригинальной ошибкой
+            }
+        }
+        
         if (empty($evaluation['completed'])) {
             throw new RuntimeException('Награду можно получить только после выполнения квеста.');
         }
