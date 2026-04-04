@@ -1513,10 +1513,24 @@ function bober_normalize_announcement_row(array $row)
         $seenAt = (string) $row['seenAt'];
     }
 
+    $bodyFormat = 'markdown';
+    if (array_key_exists('body_format', $row) && $row['body_format'] !== null) {
+        $format = trim((string) $row['body_format']);
+        if ($format === 'plain' || $format === 'html') {
+            $bodyFormat = $format;
+        }
+    } elseif (array_key_exists('bodyFormat', $row) && $row['bodyFormat'] !== null) {
+        $format = trim((string) $row['bodyFormat']);
+        if ($format === 'markdown' || $format === 'plain' || $format === 'html') {
+            $bodyFormat = $format;
+        }
+    }
+
     return [
         'id' => max(0, (int) ($row['id'] ?? 0)),
         'title' => trim((string) ($row['title'] ?? '')),
         'body' => trim((string) ($row['body'] ?? '')),
+        'bodyFormat' => $bodyFormat,
         'isPublished' => !empty($row['is_published']) || !empty($row['isPublished']),
         'isRead' => !empty($row['is_read']) || !empty($row['isRead']) || $seenAt !== null,
         'seenAt' => $seenAt,
@@ -1540,6 +1554,7 @@ CREATE TABLE IF NOT EXISTS `announcements` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `title` VARCHAR(180) NOT NULL,
     `body` LONGTEXT NOT NULL,
+    `body_format` ENUM('markdown', 'plain', 'html') NOT NULL DEFAULT 'markdown',
     `is_published` TINYINT(1) NOT NULL DEFAULT 0,
     `published_at` TIMESTAMP NULL DEFAULT NULL,
     `archived_at` TIMESTAMP NULL DEFAULT NULL,
@@ -1555,7 +1570,8 @@ SQL;
     $announcementAlterStatements = [
         'title' => "ALTER TABLE `announcements` ADD COLUMN `title` VARCHAR(180) NOT NULL DEFAULT '' AFTER `id`",
         'body' => "ALTER TABLE `announcements` ADD COLUMN `body` LONGTEXT NOT NULL AFTER `title`",
-        'is_published' => "ALTER TABLE `announcements` ADD COLUMN `is_published` TINYINT(1) NOT NULL DEFAULT 0 AFTER `body`",
+        'body_format' => "ALTER TABLE `announcements` ADD COLUMN `body_format` ENUM('markdown', 'plain', 'html') NOT NULL DEFAULT 'markdown' AFTER `body`",
+        'is_published' => "ALTER TABLE `announcements` ADD COLUMN `is_published` TINYINT(1) NOT NULL DEFAULT 0 AFTER `body_format`",
         'published_at' => "ALTER TABLE `announcements` ADD COLUMN `published_at` TIMESTAMP NULL DEFAULT NULL AFTER `is_published`",
         'archived_at' => "ALTER TABLE `announcements` ADD COLUMN `archived_at` TIMESTAMP NULL DEFAULT NULL AFTER `published_at`",
         'created_at' => "ALTER TABLE `announcements` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `archived_at`",
@@ -1612,7 +1628,7 @@ function bober_fetch_admin_announcements($conn, array $options = [])
     bober_ensure_announcement_schema($conn);
     $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
     $result = $conn->query("
-        SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at
+        SELECT id, title, body, body_format, is_published, published_at, archived_at, created_at, updated_at
         FROM announcements
         ORDER BY
             CASE WHEN archived_at IS NULL THEN 0 ELSE 1 END ASC,
@@ -1641,7 +1657,7 @@ function bober_fetch_admin_announcement_item($conn, $announcementId)
         return null;
     }
 
-    $stmt = $conn->prepare('SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at FROM announcements WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, title, body, body_format, is_published, published_at, archived_at, created_at, updated_at FROM announcements WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить чтение новости.');
     }
@@ -1780,7 +1796,7 @@ function bober_fetch_latest_published_announcement($conn)
     bober_ensure_announcement_schema($conn);
 
     $result = $conn->query("
-        SELECT id, title, body, is_published, published_at, archived_at, created_at, updated_at
+        SELECT id, title, body, body_format, is_published, published_at, archived_at, created_at, updated_at
         FROM announcements
         WHERE is_published = 1
             AND archived_at IS NULL
@@ -1813,6 +1829,7 @@ function bober_fetch_user_announcement_feed($conn, $userId, array $options = [])
             a.id,
             a.title,
             a.body,
+            a.body_format,
             a.is_published,
             a.published_at,
             a.archived_at,
@@ -1850,6 +1867,20 @@ function bober_fetch_user_announcement_feed($conn, $userId, array $options = [])
     $stmt->close();
 
     return $items;
+}
+
+function bober_fetch_user_unread_announcement_feed($conn, $userId, array $options = [])
+{
+    $allAnnouncements = bober_fetch_user_announcement_feed($conn, $userId, $options);
+    
+    $unreadAnnouncements = [];
+    foreach ($allAnnouncements as $announcement) {
+        if (empty($announcement['isRead'])) {
+            $unreadAnnouncements[] = $announcement;
+        }
+    }
+    
+    return $unreadAnnouncements;
 }
 
 function bober_mark_announcements_seen($conn, $userId, array $announcementIds)
@@ -8058,67 +8089,67 @@ function bober_get_daily_quest_definitions()
 {
     return [
         'daily_score_15k' => [
-            'title' => 'Разогрев смены',
-            'description' => 'Заработайте 30 000 коинов за день.',
+            'title' => 'Экстремальный заработок',
+            'description' => 'Заработайте 50 000 коинов за день. Серьёзный вызов для грейдеров.',
             'metric' => 'scoreGain',
-            'goal' => 30000,
-            'rewardCoins' => 3500,
-        ],
-        'daily_score_50k' => [
-            'title' => 'Высокий темп',
-            'description' => 'Заработайте 90 000 коинов за день.',
-            'metric' => 'scoreGain',
-            'goal' => 90000,
-            'rewardCoins' => 9000,
-        ],
-        'daily_upgrades_4' => [
-            'title' => 'Точная доводка',
-            'description' => 'Купите 7 улучшений за день.',
-            'metric' => 'upgradeBuys',
-            'goal' => 7,
-            'rewardCoins' => 3000,
-        ],
-        'daily_upgrades_10' => [
-            'title' => 'Сборка под нагрузкой',
-            'description' => 'Купите 16 улучшений за день.',
-            'metric' => 'upgradeBuys',
-            'goal' => 16,
-            'rewardCoins' => 8000,
-        ],
-        'daily_plus_20' => [
-            'title' => 'Разгон клика',
-            'description' => 'Увеличьте силу клика на 35 за день.',
-            'metric' => 'plusGain',
-            'goal' => 35,
-            'rewardCoins' => 2500,
-        ],
-        'daily_plus_60' => [
-            'title' => 'Силовой буст',
-            'description' => 'Увеличьте силу клика на 100 за день.',
-            'metric' => 'plusGain',
-            'goal' => 100,
-            'rewardCoins' => 7000,
-        ],
-        'daily_energy_2000' => [
-            'title' => 'Энергорезерв',
-            'description' => 'Увеличьте максимальную энергию на 4 000 за день.',
-            'metric' => 'energyMaxGain',
-            'goal' => 4000,
+            'goal' => 50000,
             'rewardCoins' => 4500,
         ],
+        'daily_score_50k' => [
+            'title' => 'Легенда дневного гринда',
+            'description' => 'Заработайте 150 000 коинов за день. Только для самых упорных.',
+            'metric' => 'scoreGain',
+            'goal' => 150000,
+            'rewardCoins' => 12000,
+        ],
+        'daily_upgrades_4' => [
+            'title' => 'Архитектор системы',
+            'description' => 'Купите 12 улучшений за день. Постройте мощную машину.',
+            'metric' => 'upgradeBuys',
+            'goal' => 12,
+            'rewardCoins' => 4000,
+        ],
+        'daily_upgrades_10' => [
+            'title' => 'Титан прокачки',
+            'description' => 'Купите 25 улучшений за день. Максимальная доводка.',
+            'metric' => 'upgradeBuys',
+            'goal' => 25,
+            'rewardCoins' => 11000,
+        ],
+        'daily_plus_20' => [
+            'title' => 'Огненный щелчок',
+            'description' => 'Увеличьте силу клика на 60 за день. Развивайте удар.',
+            'metric' => 'plusGain',
+            'goal' => 60,
+            'rewardCoins' => 3500,
+        ],
+        'daily_plus_60' => [
+            'title' => 'Сокрушитель кликов',
+            'description' => 'Увеличьте силу клика на 175 за день. Мощь в кончиках пальцев.',
+            'metric' => 'plusGain',
+            'goal' => 175,
+            'rewardCoins' => 9500,
+        ],
+        'daily_energy_2000' => [
+            'title' => 'Энергетический штормовик',
+            'description' => 'Увеличьте максимальную энергию на 7 000 за день. Безлимитный потенциал.',
+            'metric' => 'energyMaxGain',
+            'goal' => 7000,
+            'rewardCoins' => 6000,
+        ],
         'daily_fly_runs_3' => [
-            'title' => 'Шесть вылетов',
-            'description' => 'Сыграйте 6 забегов в Летающего бобра за день.',
+            'title' => 'Небесный марафон',
+            'description' => 'Сыграйте 10 забегов в Летающего бобра за день. Небо ждёт.',
             'metric' => 'flyRuns',
-            'goal' => 6,
-            'rewardCoins' => 5000,
+            'goal' => 10,
+            'rewardCoins' => 6500,
         ],
         'daily_fly_score_120' => [
-            'title' => 'Маршрут под контролем',
-            'description' => 'Наберите 220 очков в Летающем бобре за день.',
+            'title' => 'Пилот экстра-класса',
+            'description' => 'Наберите 350 очков в Летающем бобре за день. Полёт совершенства.',
             'metric' => 'flyScoreGain',
-            'goal' => 220,
-            'rewardCoins' => 6500,
+            'goal' => 350,
+            'rewardCoins' => 8000,
         ],
     ];
 }
@@ -8127,67 +8158,67 @@ function bober_get_weekly_quest_definitions()
 {
     return [
         'weekly_score_250k' => [
-            'title' => 'Крупный рывок',
-            'description' => 'Заработайте 450 000 коинов за неделю.',
+            'title' => 'Неделя железного гринда',
+            'description' => 'Заработайте 750 000 коинов за неделю. Промышленные масштабы.',
             'metric' => 'scoreGain',
-            'goal' => 450000,
-            'rewardCoins' => 45000,
+            'goal' => 750000,
+            'rewardCoins' => 55000,
         ],
         'weekly_score_1m' => [
-            'title' => 'Неделя на максимуме',
-            'description' => 'Заработайте 1 600 000 коинов за неделю.',
+            'title' => 'Миллионер недели',
+            'description' => 'Заработайте 2 500 000 коинов за неделю. Вершина возможного.',
             'metric' => 'scoreGain',
-            'goal' => 1600000,
-            'rewardCoins' => 130000,
+            'goal' => 2500000,
+            'rewardCoins' => 160000,
         ],
         'weekly_upgrades_30' => [
-            'title' => 'Цех апгрейдов',
-            'description' => 'Купите 48 улучшений за неделю.',
+            'title' => 'Месторождение апгрейдов',
+            'description' => 'Купите 75 улучшений за неделю. Полная модернизация.',
             'metric' => 'upgradeBuys',
-            'goal' => 48,
-            'rewardCoins' => 40000,
-        ],
-        'weekly_upgrades_75' => [
-            'title' => 'Инженерный режим',
-            'description' => 'Купите 120 улучшений за неделю.',
-            'metric' => 'upgradeBuys',
-            'goal' => 120,
-            'rewardCoins' => 100000,
-        ],
-        'weekly_plus_150' => [
-            'title' => 'Стабильный разгон',
-            'description' => 'Увеличьте силу клика на 240 за неделю.',
-            'metric' => 'plusGain',
-            'goal' => 240,
-            'rewardCoins' => 35000,
-        ],
-        'weekly_plus_400' => [
-            'title' => 'Ударная сборка',
-            'description' => 'Увеличьте силу клика на 650 за неделю.',
-            'metric' => 'plusGain',
-            'goal' => 650,
-            'rewardCoins' => 90000,
-        ],
-        'weekly_energy_12000' => [
-            'title' => 'Энергокомплекс',
-            'description' => 'Увеличьте максимальную энергию на 22 000 за неделю.',
-            'metric' => 'energyMaxGain',
-            'goal' => 22000,
+            'goal' => 75,
             'rewardCoins' => 50000,
         ],
+        'weekly_upgrades_75' => [
+            'title' => 'Фабрика совершенства',
+            'description' => 'Купите 180 улучшений за неделю. Максимум за неделю.',
+            'metric' => 'upgradeBuys',
+            'goal' => 180,
+            'rewardCoins' => 125000,
+        ],
+        'weekly_plus_150' => [
+            'title' => 'Неделя мощи',
+            'description' => 'Увеличьте силу клика на 400 за неделю. Накопление силы.',
+            'metric' => 'plusGain',
+            'goal' => 400,
+            'rewardCoins' => 45000,
+        ],
+        'weekly_plus_400' => [
+            'title' => 'Апокалиптический щелчок',
+            'description' => 'Увеличьте силу клика на 1 000 за неделю. Божественная дневная мощь.',
+            'metric' => 'plusGain',
+            'goal' => 1000,
+            'rewardCoins' => 115000,
+        ],
+        'weekly_energy_12000' => [
+            'title' => 'Энергетическая империя',
+            'description' => 'Увеличьте максимальную энергию на 35 000 за неделю. Ресурсная база гиганта.',
+            'metric' => 'energyMaxGain',
+            'goal' => 35000,
+            'rewardCoins' => 65000,
+        ],
         'weekly_fly_runs_18' => [
-            'title' => 'Небесная дисциплина',
-            'description' => 'Сыграйте 28 забегов в Летающего бобра за неделю.',
+            'title' => 'Крылья легенды',
+            'description' => 'Сыграйте 42 забега в Летающего бобра за неделю. Небеса покорены.',
             'metric' => 'flyRuns',
-            'goal' => 28,
-            'rewardCoins' => 48000,
+            'goal' => 42,
+            'rewardCoins' => 60000,
         ],
         'weekly_fly_score_900' => [
-            'title' => 'Крылатый норматив',
-            'description' => 'Наберите 1 500 очков в Летающем бобре за неделю.',
+            'title' => 'Авиатор высшего класса',
+            'description' => 'Наберите 2 200 очков в Летающем бобре за неделю. Полёт совершенства.',
             'metric' => 'flyScoreGain',
-            'goal' => 1500,
-            'rewardCoins' => 70000,
+            'goal' => 2200,
+            'rewardCoins' => 85000,
         ],
     ];
 }
