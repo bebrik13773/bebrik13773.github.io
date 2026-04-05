@@ -92,10 +92,9 @@
         </div>
     </main>
     <script>
-        const href = window.location.host;
-        if (href === 'bebrik13773.github.io') {
-            window.location.replace('https://bober-api.gt.tc/pages/clicker/' + (window.location.search || '') + (window.location.hash || ''));
-            return;
+        const href = window.location.host + window.location.pathname;
+        if (href === 'bebrik13773.github.io/Код/index.html' || href === 'bebrik13773.github.io/Код/') {
+            window.location.replace('https://bober-api.gt.tc/pages/clicker/' + (window.location.search || '') + (window.location.hash ||''));
         }
         (function() {
             const target = '/pages/clicker/' + (window.location.search || '') + (window.location.hash || '');
