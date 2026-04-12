@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0c0c14;color:#e0e0f0;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;padding-bottom:76px}
+
+.nav{position:fixed;bottom:0;left:0;right:0;background:#13131f;border-top:1px solid #1e1e30;display:flex;z-index:50}
+.nav-btn{flex:1;padding:9px 4px 11px;background:none;border:none;cursor:pointer;color:#444;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;transition:color .15s}
+.nav-btn.active{color:#6c7fff}
+.nav-btn svg{width:22px;height:22px}
+
+.page{display:none;padding:14px}
+.page.active{display:block}
+
+.card{background:#13131f;border:1px solid #1e1e30;border-radius:14px;padding:16px;margin-bottom:12px}
+.card-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-header svg{width:16px;height:16px;flex-shrink:0;opacity:.6}
+.card-title{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.07em}
+
+.hero{background:#13131f;border:1px solid #1e1e30;border-radius:14px;overflow:hidden;margin-bottom:12px}
+.hero-img-wrap{width:100%;height:170px;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f0f20,#1a0f2e)}
+.hero-img-wrap img{height:150px;width:auto;object-fit:contain;filter:drop-shadow(0 8px 32px #a855f755)}
+.hero-no-img{display:flex;flex-direction:column;align-items:center;gap:8px;color:#333}
+.hero-no-img svg{width:48px;height:48px}
+.hero-info{padding:12px 16px 14px;display:flex;align-items:center;gap:12px}
+.hero-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#6c7fff22,#a855f722);border:1px solid #6c7fff33;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hero-icon svg{width:20px;height:20px;color:#a855f7}
+.hero-name{font-size:17px;font-weight:600;background:linear-gradient(90deg,#6c7fff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:12px;color:#555;margin-top:2px}
+
+.prog-nums{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.prog-saved{font-size:24px;font-weight:600}
+.prog-goal{font-size:13px;color:#555}
+.bar-bg{background:#1e1e30;border-radius:99px;height:13px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#6c7fff,#a855f7);transition:width .6s ease}
+.prog-row2{display:flex;justify-content:space-between;margin-top:7px;font-size:12px}
+.prog-pct{font-weight:600;background:linear-gradient(90deg,#6c7fff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.prog-rem{color:#555}
+
+.ag{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+@media(max-width:400px){.ag{grid-template-columns:1fr 1fr}}
+.stat{background:#0c0c14;border:1px solid #1e1e30;border-radius:10px;padding:10px 10px 9px}
+.stat-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;margin-bottom:7px}
+.stat-icon svg{width:14px;height:14px}
+.stat-val{font-size:15px;font-weight:600;margin-bottom:1px}
+.stat-lbl{font-size:10px;color:#555;line-height:1.4}
+.c-blue{color:#6c7fff}.c-purple{color:#a855f7}.c-green{color:#22c55e}.c-amber{color:#f59e0b}.c-red{color:#ef4444}.c-teal{color:#2dd4bf}
+.bg-blue{background:#6c7fff18}.bg-purple{background:#a855f718}.bg-green{background:#22c55e18}.bg-amber{background:#f59e0b18}.bg-teal{background:#2dd4bf18}.bg-red{background:#ef444418}
+
+.trend-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:99px;margin-top:10px}
+.trend-badge.up{background:#16a34a22;color:#22c55e}
+.trend-badge.down{background:#dc262622;color:#ef4444}
+.trend-badge.same{background:#1e1e30;color:#888}
+
+/* Add page */
+.type-toggle{display:flex;gap:6px;margin-bottom:12px}
+.type-btn{flex:1;padding:9px 8px;border-radius:10px;border:1px solid #2a2a40;background:transparent;color:#666;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.type-btn svg{width:17px;height:17px}
+.type-btn.a-add{background:#16a34a22;border-color:#22c55e;color:#22c55e}
+.type-btn.a-sub{background:#dc262622;border-color:#ef4444;color:#ef4444}
+
+.inp{background:#0c0c14;border:1px solid #2a2a40;border-radius:9px;color:#e0e0f0;font-size:14px;padding:9px 12px;width:100%;outline:none;margin-bottom:8px}
+.inp:focus{border-color:#6c7fff}
+.inp::placeholder{color:#3a3a55}
+.inp-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.inp-row .inp{margin-bottom:0;flex:1}
+.inp-icon{width:38px;height:38px;background:#1e1e30;border:1px solid #2a2a40;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.inp-icon svg{width:17px;height:17px;color:#555}
+
+.btn{border:none;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;padding:10px 16px;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:7px;width:100%}
+.btn svg{width:16px;height:16px}
+.btn:hover{opacity:.85}
+.btn-grad{background:linear-gradient(135deg,#6c7fff,#a855f7);color:#fff}
+.btn-outline{background:transparent;border:1px solid #2a2a40;color:#888}
+.btn-outline:hover{border-color:#6c7fff;color:#6c7fff}
+.btn-danger{background:#dc262622;border:1px solid #ef444433;color:#ef4444}
+.btn-danger:hover{background:#dc262633}
+
+.hist{max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.hist::-webkit-scrollbar{width:3px}
+.hist::-webkit-scrollbar-thumb{background:#2a2a40;border-radius:3px}
+.op-item{display:flex;align-items:center;gap:10px;background:#0c0c14;border:1px solid #1e1e30;border-radius:9px;padding:9px 11px}
+.op-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.op-icon svg{width:16px;height:16px}
+.op-info{flex:1;min-width:0}
+.op-note{font-size:13px;color:#c0c0d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-date{font-size:11px;color:#3a3a55;margin-top:1px}
+.op-amt{font-size:14px;font-weight:600;flex-shrink:0}
+.op-amt.add{color:#22c55e}.op-amt.sub{color:#ef4444}
+.op-del{background:none;border:none;color:#2a2a40;cursor:pointer;font-size:18px;line-height:1;padding:0 3px;transition:color .15s;flex-shrink:0}
+.op-del:hover{color:#ef4444}
+.empty{text-align:center;color:#333;font-size:13px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty svg{width:32px;height:32px;color:#2a2a40}
+
+/* Settings */
+.sett-row{margin-bottom:10px}
+.sett-label{font-size:12px;color:#666;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.sett-label svg{width:14px;height:14px;opacity:.7}
+.img-preview{width:100%;height:120px;border-radius:10px;border:1px solid #2a2a40;display:flex;align-items:center;justify-content:center;margin-bottom:8px;overflow:hidden;background:#0c0c14;position:relative}
+.img-preview img{height:110px;width:auto;object-fit:contain;filter:drop-shadow(0 4px 16px #a855f744)}
+.img-preview .no-img-ph{display:flex;flex-direction:column;align-items:center;gap:6px;color:#333;font-size:11px}
+.img-preview .no-img-ph svg{width:28px;height:28px}
+.img-actions{display:flex;gap:7px;margin-bottom:8px}
+.img-actions .btn{flex:1;padding:8px;font-size:12px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1e1e30}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{display:flex;align-items:center;gap:8px;font-size:13px;color:#c0c0d8}
+.toggle-label svg{width:16px;height:16px;color:#555}
+.toggle{width:40px;height:22px;background:#1e1e30;border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none}
+.toggle.on{background:linear-gradient(90deg,#6c7fff,#a855f7)}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left .2s}
+.toggle.on::after{left:21px}
+.file-input{display:none}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:#13131f;border:1px solid #1e1e30;border-radius:16px;padding:20px;width:100%;max-width:340px}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.modal-title svg{width:18px;height:18px;color:#ef4444}
+.modal-desc{font-size:13px;color:#555;line-height:1.6;margin-bottom:14px}
+.modal-btns{display:flex;gap:8px}
+.modal-btns .btn{flex:1}
+
+.toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%) translateY(6px);background:#1e1e30;border:1px solid #2a2a40;border-radius:10px;padding:8px 16px;font-size:13px;color:#e0e0f0;opacity:0;transition:all .25s;z-index:200;white-space:nowrap;pointer-events:none;display:flex;align-items:center;gap:7px}
+.toast svg{width:15px;height:15px;flex-shrink:0}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="pgHome" class="page active">
+  <div class="hero" id="heroCard">
+    <div class="hero-img-wrap" id="heroImgWrap">
+      <img id="heroImg" src="https://cdn.bambulab.com/others/product-img/bambu-a1-mini-5.webp"
+        onerror="this.style.display='none';document.getElementById('heroFallback').style.display='flex'" alt="Bambu Lab A1 Mini">
+      <div id="heroFallback" class="hero-no-img" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><circle cx="12" cy="13" r="2"/></svg>
+        <span style="font-size:11px">Нет изображения</span>
+      </div>
+    </div>
+    <div class="hero-info">
+      <div class="hero-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><circle cx="12" cy="13" r="2"/><path d="M12 11v4"/></svg>
+      </div>
+      <div>
+        <div class="hero-name" id="heroName">Bambu Lab A1 Mini</div>
+        <div class="hero-sub" id="heroSub">FDM 3D-принтер · цель не задана</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-purple"><path d="M2 10a8 8 0 1 1 16 0A8 8 0 0 1 2 10zm8-5a1 1 0 0 1 1 1v3.586l2.707 2.707a1 1 0 0 1-1.414 1.414l-3-3A1 1 0 0 1 9 10V6a1 1 0 0 1 1-1z"/></svg>
+      <span class="card-title">Прогресс</span>
+    </div>
+    <div class="prog-nums">
+      <span class="prog-saved" id="progSaved">0 ₽</span>
+      <span class="prog-goal" id="progGoal">из — ₽</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+    <div class="prog-row2">
+      <span class="prog-pct" id="progPct">0%</span>
+      <span class="prog-rem" id="progRem">Установите цель в настройках</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-blue"><path d="M2 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5zm6-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V7zm6-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V4z"/></svg>
+      <span class="card-title">Аналитика</span>
+    </div>
+    <div class="ag">
+      <div class="stat">
+        <div class="stat-icon bg-blue"><svg viewBox="0 0 20 20" fill="#6c7fff"><path d="M2 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5zm6-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V7zm6-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V4z"/></svg></div>
+        <div class="stat-val c-blue" id="aDay">—</div><div class="stat-lbl">₽ / день</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon bg-purple"><svg viewBox="0 0 20 20" fill="#a855f7"><path d="M6 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V3a1 1 0 1 0-2 0v1H7V3a1 1 0 0 0-1-1zm0 5a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2H6z"/></svg></div>
+        <div class="stat-val c-purple" id="aMonth">—</div><div class="stat-lbl">₽ / месяц</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon bg-teal"><svg viewBox="0 0 20 20" fill="#2dd4bf"><path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6z"/></svg></div>
+        <div class="stat-val c-teal" id="aForecast" style="font-size:12px;line-height:1.3">—</div><div class="stat-lbl">прогноз даты</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon bg-amber"><svg viewBox="0 0 20 20" fill="#f59e0b"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 0 0 .95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 0 0-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 0 0-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 0 0-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 0 0 .951-.69l1.07-3.292z"/></svg></div>
+        <div class="stat-val c-amber" id="aBest">—</div><div class="stat-lbl">лучшее пополнение</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon bg-green"><svg viewBox="0 0 20 20" fill="#22c55e"><path d="M12.395 2.553a1 1 0 0 0-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 0 0-.613 3.58 2.64 2.64 0 0 1-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 0 0 5.05 6.05 6.981 6.981 0 0 0 3 11a7 7 0 1 0 11.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03z"/></svg></div>
+        <div class="stat-val c-green" id="aStreak">—</div><div class="stat-lbl">серия дней</div>
+      </div>
+      <div class="stat">
+        <div class="stat-icon" style="background:#e0e0f010"><svg viewBox="0 0 20 20" fill="#888"><path d="M9 2a1 1 0 0 0 0 2h2a1 1 0 1 0 0-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 0 1 2-2 3 3 0 0 0 3 3h2a3 3 0 0 0 3-3 2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5zm3 4a1 1 0 0 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 0 0 0 2h3a1 1 0 1 0 0-2h-3zm-3 4a1 1 0 0 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 0 0 0 2h3a1 1 0 1 0 0-2h-3z" clip-rule="evenodd"/></svg></div>
+        <div class="stat-val" id="aOps">0</div><div class="stat-lbl">операций</div>
+      </div>
+    </div>
+    <div id="trendWrap"></div>
+  </div>
+</div>
+
+<!-- ADD -->
+<div id="pgAdd" class="page">
+  <div style="height:8px"></div>
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-green"><path fill-rule="evenodd" d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z" clip-rule="evenodd"/></svg>
+      <span class="card-title">Тип операции</span>
+    </div>
+    <div class="type-toggle">
+      <button class="type-btn a-add" id="btnAdd" onclick="setType('add')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"/></svg>
+        Пополнение
+      </button>
+      <button class="type-btn" id="btnSub" onclick="setType('sub')">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M4 10a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1z"/></svg>
+        Расход
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-blue"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 0 1-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 0 1-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-13a1 1 0 1 0-2 0v.092a4.535 4.535 0 0 0-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 1 0-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 1 0 2 0v-.092a4.535 4.535 0 0 0 1.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0 0 11 9.092V7.151c.391.127.68.317.843.504a1 1 0 1 0 1.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
+      <span class="card-title">Сумма и заметка</span>
+    </div>
+    <div class="inp-row">
+      <div class="inp-icon">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 0 1-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 0 1-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-13a1 1 0 1 0-2 0v.092a4.535 4.535 0 0 0-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 1 0-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 1 0 2 0v-.092a4.535 4.535 0 0 0 1.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0 0 11 9.092V7.151c.391.127.68.317.843.504a1 1 0 1 0 1.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
+      </div>
+      <input class="inp" id="opAmt" type="number" placeholder="Сумма в ₽" min="1">
+    </div>
+    <div class="inp-row">
+      <div class="inp-icon">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 5v8a2 2 0 0 1-2 2h-5l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clip-rule="evenodd"/></svg>
+      </div>
+      <input class="inp" id="opNote" type="text" placeholder="Заметка (необязательно)">
+    </div>
+    <button class="btn btn-grad" onclick="addOp()">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z" clip-rule="evenodd"/></svg>
+      Добавить операцию
+    </button>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" style="opacity:.6"><path fill-rule="evenodd" d="M3 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3zm2 3a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1zm0 4a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1zm0 4a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z" clip-rule="evenodd"/></svg>
+      <span class="card-title">История операций</span>
+    </div>
+    <div class="hist" id="histList"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="pgSettings" class="page">
+  <div style="height:8px"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-amber"><path fill-rule="evenodd" d="M4 4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2V6h10a2 2 0 0 0-2-2H4zm2 6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H6zm1 2a1 1 0 0 0 0 2h.01a1 1 0 1 0 0-2H7zm3 0a1 1 0 0 0 0 2h3a1 1 0 1 0 0-2h-3z" clip-rule="evenodd"/></svg>
+      <span class="card-title">Цель накоплений</span>
+    </div>
+    <div class="sett-row">
+      <div class="sett-label">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 0 1-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 0 1-.567.267z"/><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-13a1 1 0 1 0-2 0v.092a4.535 4.535 0 0 0-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 1 0-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 1 0 2 0v-.092a4.535 4.535 0 0 0 1.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0 0 11 9.092V7.151c.391.127.68.317.843.504a1 1 0 1 0 1.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"/></svg>
+        Сумма цели, ₽
+      </div>
+      <input class="inp" id="settGoal" type="number" placeholder="например 30000" min="1">
+    </div>
+    <div class="sett-row">
+      <div class="sett-label">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 5v8a2 2 0 0 1-2 2h-5l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clip-rule="evenodd"/></svg>
+        Название цели
+      </div>
+      <input class="inp" id="settName" type="text" placeholder="Bambu Lab A1 Mini">
+    </div>
+    <button class="btn btn-grad" onclick="saveSettings()">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 1 0-1.414 1.414l3 3a1 1 0 0 0 1.414 0l3-3a1 1 0 0 0-1.414-1.414L11 11.586V6h5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5v5.586l-1.293-1.293z"/></svg>
+      Сохранить настройки
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-purple"><path fill-rule="evenodd" d="M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+      <span class="card-title">Изображение цели</span>
+    </div>
+    <div class="img-preview" id="settImgPreview">
+      <img id="settPreviewImg" style="display:none;height:110px;width:auto;object-fit:contain">
+      <div class="no-img-ph" id="settNoImg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <span>Нет изображения</span>
+      </div>
+    </div>
+    <div class="img-actions">
+      <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1zM6.293 6.707a1 1 0 0 1 0-1.414l3-3a1 1 0 0 1 1.414 0l3 3a1 1 0 0 1-1.414 1.414L11 5.414V13a1 1 0 1 1-2 0V5.414L7.707 6.707a1 1 0 0 1-1.414 0z" clip-rule="evenodd"/></svg>
+        Загрузить
+      </button>
+      <button class="btn btn-outline" onclick="showUrlInput()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 1 1 2.828 2.828l-3 3a2 2 0 0 1-2.828 0 1 1 0 0 0-1.414 1.414 4 4 0 0 0 5.656 0l3-3a4 4 0 0 0-5.656-5.656l-1.5 1.5a1 1 0 1 0 1.414 1.414l1.5-1.5zm-5 5a2 2 0 0 1 2.828 0 1 1 0 1 0 1.414-1.414 4 4 0 0 0-5.656 0l-3 3a4 4 0 1 0 5.656 5.656l1.5-1.5a1 1 0 1 0-1.414-1.414l-1.5 1.5a2 2 0 1 1-2.828-2.828l3-3z" clip-rule="evenodd"/></svg>
+        По ссылке
+      </button>
+      <button class="btn btn-danger" onclick="clearImg()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"/></svg>
+        Убрать
+      </button>
+    </div>
+    <div id="urlInputWrap" style="display:none">
+      <div class="inp-row">
+        <div class="inp-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 1 1 2.828 2.828l-3 3a2 2 0 0 1-2.828 0 1 1 0 0 0-1.414 1.414 4 4 0 0 0 5.656 0l3-3a4 4 0 0 0-5.656-5.656l-1.5 1.5a1 1 0 1 0 1.414 1.414l1.5-1.5zm-5 5a2 2 0 0 1 2.828 0 1 1 0 1 0 1.414-1.414 4 4 0 0 0-5.656 0l-3 3a4 4 0 1 0 5.656 5.656l1.5-1.5a1 1 0 1 0-1.414-1.414l-1.5 1.5a2 2 0 1 1-2.828-2.828l3-3z" clip-rule="evenodd"/></svg></div>
+        <input class="inp" id="imgUrlInp" type="url" placeholder="https://...">
+      </div>
+      <button class="btn btn-grad" onclick="applyUrl()" style="margin-top:0">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 1 0-1.414 1.414l3 3a1 1 0 0 0 1.414 0l3-3a1 1 0 0 0-1.414-1.414L11 11.586V6h5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5v5.586l-1.293-1.293z"/></svg>
+        Применить
+      </button>
+    </div>
+    <input type="file" id="fileInput" class="file-input" accept="image/*" onchange="handleFile(event)">
+    <div style="margin-top:12px">
+      <div class="toggle-row">
+        <span class="toggle-label">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/></svg>
+          Показывать фото на главной
+        </span>
+        <button class="toggle on" id="toggleImg" onclick="toggleImgSetting()"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="c-red"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-8a1 1 0 0 0-1 1v3a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z" clip-rule="evenodd"/></svg>
+      <span class="card-title">Опасная зона</span>
+    </div>
+    <button class="btn btn-danger" onclick="confirmReset()">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM7 8a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8zm4 0a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8z" clip-rule="evenodd"/></svg>
+      Сбросить все данные
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 20 20" fill="currentColor" style="opacity:.5"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9z" clip-rule="evenodd"/></svg>
+      <span class="card-title">О приложении</span>
+    </div>
+    <div style="font-size:12px;color:#444;line-height:1.8">
+      Трекер накоплений v1.2<br>
+      Данные хранятся локально в вашем браузере.
+    </div>
+  </div>
+</div>
+
+<!-- Nav -->
+<nav class="nav">
+  <button class="nav-btn active" id="navHome" onclick="go('Home')">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 0 0-1.414 0l-7 7A1 1 0 0 0 3 11h1v6a1 1 0 0 0 1 1h4v-4h2v4h4a1 1 0 0 0 1-1v-6h1a1 1 0 0 0 .707-1.707z"/></svg>
+    Главная
+  </button>
+  <button class="nav-btn" id="navAdd" onclick="go('Add')">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z" clip-rule="evenodd"/></svg>
+    Добавить
+  </button>
+  <button class="nav-btn" id="navSettings" onclick="go('Settings')">
+    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 0 1-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 0 1 .947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 0 1 2.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 0 1 2.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 0 1 .947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 0 1-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 0 1-2.287-.947zM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" clip-rule="evenodd"/></svg>
+    Настройки
+  </button>
+</nav>
+
+<div class="modal-bg" id="modalReset">
+  <div class="modal">
+    <div class="modal-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-8a1 1 0 0 0-1 1v3a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z" clip-rule="evenodd"/></svg>
+      Сбросить все данные?
+    </div>
+    <div class="modal-desc">Все операции и настройки будут удалены. Это действие нельзя отменить.</div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeModal()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"/></svg>
+        Отмена
+      </button>
+      <button class="btn btn-danger" onclick="resetAll()">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a1 1 0 0 0 0 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a1 1 0 1 0 0-2h-3.382l-.724-1.447A1 1 0 0 0 11 2H9zM7 8a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8zm4 0a1 1 0 0 1 2 0v6a1 1 0 1 1-2 0V8z" clip-rule="evenodd"/></svg>
+        Удалить всё
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg id="toastIcon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z" clip-rule="evenodd"/></svg>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+let S={goal:0,name:'Bambu Lab A1 Mini',ops:[],opType:'add',imgSrc:null,showImg:true};
+
+const fmt=n=>Math.round(n).toLocaleString('ru-RU');
+const dStr=ts=>new Date(ts).toLocaleDateString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const dOnly=ts=>new Date(ts).toISOString().slice(0,10);
+
+function toast(m,type='ok'){
+  const t=document.getElementById('toast'),ic=document.getElementById('toastIcon'),msg=document.getElementById('toastMsg');
+  msg.textContent=m;
+  const icons={ok:'<path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z" clip-rule="evenodd"/>',err:'<path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-9a1 1 0 0 0-1 1v4a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z" clip-rule="evenodd"/>',add:'<path d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"/>',sub:'<path d="M4 10a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1z"/>'};
+  ic.innerHTML=icons[type]||icons.ok;
+  ic.style.color=type==='err'?'#ef4444':type==='sub'?'#ef4444':type==='add'?'#22c55e':'#6c7fff';
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+async function persist(){
+  const toSave={...S};
+  if(toSave.imgSrc&&toSave.imgSrc.startsWith('data:')&&toSave.imgSrc.length>500000){
+    toSave.imgSrc=toSave.imgSrc;
+  }
+  try{await window.storage.set('bambu_v3',JSON.stringify(toSave));}catch(e){}
+}
+async function hydrate(){try{const r=await window.storage.get('bambu_v3');if(r?.value)S=JSON.parse(r.value);}catch(e){}}
+
+function go(pg){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pg'+pg).classList.add('active');
+  document.getElementById('nav'+pg).classList.add('active');
+  if(pg==='Settings'){
+    document.getElementById('settGoal').value=S.goal||'';
+    document.getElementById('settName').value=S.name||'';
+    updateSettingsImgPreview();
+    document.getElementById('toggleImg').className='toggle'+(S.showImg?' on':'');
+  }
+  if(pg==='Add')renderHist();
+}
+
+function setType(t){
+  S.opType=t;
+  document.getElementById('btnAdd').className='type-btn'+(t==='add'?' a-add':'');
+  document.getElementById('btnSub').className='type-btn'+(t==='sub'?' a-sub':'');
+}
+
+function saveSettings(){
+  const g=parseFloat(document.getElementById('settGoal').value);
+  const n=document.getElementById('settName').value.trim();
+  if(g&&g>0)S.goal=g;
+  if(n)S.name=n;
+  persist();render();toast('Настройки сохранены');
+}
+
+function addOp(){
+  const a=parseFloat(document.getElementById('opAmt').value);
+  const note=document.getElementById('opNote').value.trim();
+  if(!a||a<=0){toast('Введите сумму','err');return;}
+  S.ops.push({id:Date.now(),type:S.opType,amount:a,note,ts:Date.now()});
+  document.getElementById('opAmt').value='';
+  document.getElementById('opNote').value='';
+  persist();render();renderHist();
+  toast(S.opType==='add'?`+${fmt(a)} ₽ добавлено`:` -${fmt(a)} ₽ расход`,S.opType==='add'?'add':'sub');
+}
+
+function delOp(id){S.ops=S.ops.filter(o=>o.id!==id);persist();render();renderHist();}
+
+function confirmReset(){document.getElementById('modalReset').classList.add('open')}
+function closeModal(){document.getElementById('modalReset').classList.remove('open')}
+async function resetAll(){
+  S={goal:0,name:'Bambu Lab A1 Mini',ops:[],opType:'add',imgSrc:null,showImg:true};
+  try{await window.storage.delete('bambu_v3');}catch(e){}
+  closeModal();render();renderHist();toast('Данные сброшены','err');
+}
+
+// Image
+function showUrlInput(){
+  const w=document.getElementById('urlInputWrap');
+  w.style.display=w.style.display==='none'?'block':'none';
+}
+function applyUrl(){
+  const url=document.getElementById('imgUrlInp').value.trim();
+  if(!url){toast('Введите ссылку','err');return;}
+  S.imgSrc=url;
+  persist();updateHeroImg();updateSettingsImgPreview();
+  document.getElementById('urlInputWrap').style.display='none';
+  toast('Изображение обновлено');
+}
+function handleFile(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{S.imgSrc=ev.target.result;persist();updateHeroImg();updateSettingsImgPreview();toast('Изображение загружено');};
+  r.readAsDataURL(f);
+}
+function clearImg(){
+  S.imgSrc=null;persist();updateHeroImg();updateSettingsImgPreview();toast('Изображение удалено','err');
+}
+function toggleImgSetting(){
+  S.showImg=!S.showImg;
+  document.getElementById('toggleImg').className='toggle'+(S.showImg?' on':'');
+  persist();updateHeroImg();toast(S.showImg?'Фото включено':'Фото скрыто');
+}
+function updateSettingsImgPreview(){
+  const pi=document.getElementById('settPreviewImg'),ni=document.getElementById('settNoImg');
+  if(S.imgSrc){pi.src=S.imgSrc;pi.style.display='block';ni.style.display='none';}
+  else{pi.style.display='none';ni.style.display='flex';}
+}
+function updateHeroImg(){
+  const wrap=document.getElementById('heroImgWrap');
+  if(!S.showImg){wrap.style.display='none';return;}
+  wrap.style.display='flex';
+  const src=S.imgSrc||'https://cdn.bambulab.com/others/product-img/bambu-a1-mini-5.webp';
+  wrap.innerHTML=`<img src="${src}" style="height:150px;width:auto;object-fit:contain;filter:drop-shadow(0 8px 32px #a855f755)"
+    onerror="this.parentNode.innerHTML='<div class=hero-no-img><svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.2\\' style=\\'width:48px;height:48px\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'3\\'/><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'/><path d=\\'m21 15-5-5L5 21\\'/></svg><span style=\\'font-size:11px\\'>Ошибка загрузки</span></div>'"
+    alt="${S.name}">`;
+}
+
+function calcSaved(){return S.ops.reduce((s,o)=>s+(o.type==='add'?o.amount:-o.amount),0)}
+
+function render(){
+  const saved=Math.max(calcSaved(),0);
+  const goal=S.goal;
+  const pct=goal>0?Math.min(saved/goal*100,100):0;
+  document.getElementById('progSaved').textContent=fmt(saved)+' ₽';
+  document.getElementById('progGoal').textContent='из '+(goal>0?fmt(goal)+' ₽':'— ₽');
+  document.getElementById('barFill').style.width=pct+'%';
+  document.getElementById('progPct').textContent=pct.toFixed(1)+'%';
+  const rem=goal-saved;
+  document.getElementById('progRem').textContent=goal>0?(rem>0?'осталось '+fmt(rem)+' ₽':'🎉 Цель достигнута!'):'Установите цель в настройках';
+  document.getElementById('heroName').textContent=S.name||'Bambu Lab A1 Mini';
+  document.getElementById('heroSub').textContent='FDM 3D-принтер'+(goal>0?' · цель: '+fmt(goal)+' ₽':' · цель не задана');
+  updateHeroImg();
+
+  const adds=S.ops.filter(o=>o.type==='add');
+  if(!adds.length){
+    ['aDay','aMonth','aForecast','aBest','aStreak'].forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('aOps').textContent=S.ops.length;
+    document.getElementById('trendWrap').innerHTML='';return;
+  }
+  const sorted=adds.slice().sort((a,b)=>a.ts-b.ts);
+  const diffDays=Math.max((Date.now()-sorted[0].ts)/86400000,1);
+  const totalAdded=adds.reduce((s,o)=>s+o.amount,0);
+  const avgDay=totalAdded/diffDays;
+  document.getElementById('aDay').textContent=fmt(avgDay);
+  document.getElementById('aMonth').textContent=fmt(avgDay*30);
+  document.getElementById('aBest').textContent=fmt(Math.max(...adds.map(o=>o.amount)));
+  document.getElementById('aOps').textContent=S.ops.length;
+  let forecast='—';
+  if(goal>0&&saved<goal&&avgDay>0){
+    const d=new Date(Date.now()+(goal-saved)/avgDay*86400000);
+    forecast=d.toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:'numeric'});
+  }else if(goal>0&&saved>=goal)forecast='Готово!';
+  document.getElementById('aForecast').textContent=forecast;
+  const uDays=[...new Set(S.ops.map(o=>dOnly(o.ts)))].sort();
+  let streak=1,mx=1;
+  for(let i=1;i<uDays.length;i++){const diff=(new Date(uDays[i])-new Date(uDays[i-1]))/86400000;streak=diff===1?streak+1:1;mx=Math.max(mx,streak);}
+  document.getElementById('aStreak').textContent=mx+' дн.';
+  const now=Date.now(),d30=30*86400000;
+  const r1=adds.filter(o=>o.ts>=now-d30).reduce((s,o)=>s+o.amount,0)/30;
+  const r2=adds.filter(o=>o.ts>=now-d30*2&&o.ts<now-d30).reduce((s,o)=>s+o.amount,0)/30;
+  let tC='same',tT='≈ Темп стабилен';
+  if(r2>0){const d=((r1-r2)/r2*100).toFixed(0);if(r1>r2*1.05){tC='up';tT=`▲ Быстрее на ${d}% чем 30 дней назад`;}else if(r1<r2*0.95){tC='down';tT=`▼ Медленнее на ${Math.abs(d)}% чем 30 дней назад`;}}
+  document.getElementById('trendWrap').innerHTML=`<span class="trend-badge ${tC}">${tT}</span>`;
+}
+
+function renderHist(){
+  const el=document.getElementById('histList');
+  const sorted=S.ops.slice().sort((a,b)=>b.ts-a.ts);
+  if(!sorted.length){
+    el.innerHTML=`<div class="empty"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3zm2 3a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1zm0 4a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1zm0 4a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z" clip-rule="evenodd"/></svg>Операций пока нет</div>`;return;
+  }
+  const addIco=`<svg viewBox="0 0 20 20" fill="#22c55e"><path d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"/></svg>`;
+  const subIco=`<svg viewBox="0 0 20 20" fill="#ef4444"><path d="M4 10a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1z"/></svg>`;
+  el.innerHTML=sorted.map(o=>`
+    <div class="op-item">
+      <div class="op-icon ${o.type}" style="background:${o.type==='add'?'#16a34a22':'#dc262622'}">${o.type==='add'?addIco:subIco}</div>
+      <div class="op-info">
+        <div class="op-note">${o.note||'Без заметки'}</div>
+        <div class="op-date">${dStr(o.ts)}</div>
+      </div>
+      <div class="op-amt ${o.type}">${o.type==='add'?'+':'-'}${fmt(o.amount)} ₽</div>
+      <button class="op-del" onclick="delOp(${o.id})">×</button>
+    </div>`).join('');
+}
+
+(async()=>{await hydrate();render();renderHist();})();
+</script>
+</body>
+</html>
