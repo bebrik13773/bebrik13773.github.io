@@ -1,8 +1,8 @@
 on:
   push:
     branches:
-      - '**'  # Деплой при push в любую ветку
-  workflow_dispatch:  # Ручной запуск
+      - '**'
+  workflow_dispatch:
     inputs:
       target_environment:
         description: 'Target environment'
@@ -23,7 +23,7 @@ jobs:
     - name: 🚚 Get latest code
       uses: actions/checkout@v3
 
-    - name: 🔐 Build runtime DB config
+    - name: 🔐 Build runtime DB config (кликер)
       shell: bash
       env:
         DB_HOST: ${{ secrets.BOBER_DB_HOST }}
@@ -40,10 +40,7 @@ jobs:
             missing=1
           fi
         done
-
-        if [ "$missing" -ne 0 ]; then
-          exit 1
-        fi
+        if [ "$missing" -ne 0 ]; then exit 1; fi
 
         php_escape() {
           python3 -c "import sys; value = sys.stdin.read(); print(value.replace('\\\\', '\\\\\\\\').replace(\"'\", \"\\\\'\").replace('\\r', '').replace('\\n', '\\\\n'), end='')"
@@ -68,11 +65,37 @@ jobs:
             'admin_initial_password' => '${ADMIN_INITIAL_PASSWORD_ESCAPED}',
         ];
         EOF
-      
+
+    - name: 🔐 Build runtime DB config (трекер накоплений)
+      shell: bash
+      env:
+        DB_HOST: ${{ secrets.BOBER_DB_HOST }}
+        DB_USER: ${{ secrets.BOBER_DB_USER }}
+        DB_PASS: ${{ secrets.BOBER_DB_PASS }}
+        DB_NAME: ${{ secrets.BOBER_DB_NAME }}
+      run: |
+        php_escape() {
+          python3 -c "import sys; value = sys.stdin.read(); print(value.replace('\\\\', '\\\\\\\\').replace(\"'\", \"\\\\'\").replace('\\r', '').replace('\\n', '\\\\n'), end='')"
+        }
+
+        DB_HOST_ESCAPED="$(printf '%s' "$DB_HOST" | php_escape)"
+        DB_USER_ESCAPED="$(printf '%s' "$DB_USER" | php_escape)"
+        DB_PASS_ESCAPED="$(printf '%s' "$DB_PASS" | php_escape)"
+        DB_NAME_ESCAPED="$(printf '%s' "$DB_NAME" | php_escape)"
+
+        cat > ./Код/tracker_db_config.php <<EOF
+        <?php
+        return [
+            'db_host' => '${DB_HOST_ESCAPED}',
+            'db_user' => '${DB_USER_ESCAPED}',
+            'db_pass' => '${DB_PASS_ESCAPED}',
+            'db_name' => '${DB_NAME_ESCAPED}',
+        ];
+        EOF
+
     - name: 🔍 Determine deployment directory
       id: deployment
       run: |
-        # Для ручного запуска используем выбранное окружение
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           if [ "${{ inputs.target_environment }}" == "production" ]; then
             echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
@@ -81,7 +104,6 @@ jobs:
             echo "target_dir=htdocs/test/" >> $GITHUB_OUTPUT
             echo "env_name=Test" >> $GITHUB_OUTPUT
           fi
-        # Для автоматического push проверяем ветку
         else
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "target_dir=htdocs/" >> $GITHUB_OUTPUT
@@ -92,7 +114,7 @@ jobs:
           fi
         fi
         echo "branch_name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-      
+
     - name: 📦 Deploy to ${{ steps.deployment.outputs.env_name }}
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
@@ -101,7 +123,7 @@ jobs:
         password: ${{ secrets.password }}
         local-dir: ./Код/
         server-dir: ${{ steps.deployment.outputs.target_dir }}
-        
+
     - name: ✅ Deployment Summary
       run: |
         echo "### 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
@@ -110,7 +132,8 @@ jobs:
         echo "- **Environment:** ${{ steps.deployment.outputs.env_name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Target Directory:** ${{ steps.deployment.outputs.target_dir }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Runtime Config:** \`Код/config/db_config.php\` generated from GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runtime Config (кликер):** \`Код/config/db_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runtime Config (трекер):** \`Код/tracker_db_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ steps.deployment.outputs.env_name }}" == "Production" ]; then
           echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY
