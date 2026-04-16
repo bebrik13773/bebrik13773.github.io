@@ -6825,7 +6825,13 @@ function normalizeEconomyFactor(rawFactor) {
 
 function calculateEconomyMultiplierFromIndex(index) {
     const safeIndex = Math.max(0, Math.min(100, Math.round(Number(index) || 0)));
-    return Math.max(1, 1 + (safeIndex / 100) * 0.3);
+    if (safeIndex <= 50) {
+        return 1.0;
+    } else if (safeIndex <= 70) {
+        return 1 + ((safeIndex - 50) * 0.005);
+    } else {
+        return 1.10 + ((safeIndex - 70) * 0.004);
+    }
 }
 
 function normalizeEconomyProfile(rawEconomy) {
