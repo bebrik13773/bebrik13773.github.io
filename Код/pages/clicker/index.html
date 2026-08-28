@@ -26,8 +26,6 @@ Owner decisions:
 <noscript><div><img src="https://mc.yandex.ru/watch/104611709" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 <!-- /Yandex.Metrika counter -->
 
-
-
     <meta charset="UTF-8">
     <meta name="yandex-verification" content="19827a8b0e297689" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -42,6 +40,7 @@ Owner decisions:
 
         html {
             scroll-behavior: smooth;
+            background: #1c0f42;
         }
 
         :root {
@@ -135,43 +134,7 @@ Owner decisions:
             }
         }
     </style>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #8b00ff;
-        }
-        #clicker {
-			width: 200px;
-			height: 200px;
-            color: white;
-            font-size: 24px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-        #clicker:active {
-            transform: scale(1.11);
-        }
-        #loginForm, #registerForm {
-            margin: 0;
-        }
-        #loginForm input,
-        #registerForm input {
-            margin: 5px;
-            padding: 10px;
-            width: 200px;
-        }
-    </style>
 <style>
-    
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-			background-color: #8b00ff;
-        }
-        
         #clicker {
 		    touch-action: manipulation;
             user-select: none;
@@ -210,8 +173,6 @@ Owner decisions:
 			padding: 14px 16px;
 			background: rgba(15, 18, 36, 0.34);
 			color: #f3fbff;
-			backdrop-filter: blur(14px);
-			-webkit-backdrop-filter: blur(14px);
 			box-shadow: 0 16px 26px rgba(8, 10, 26, 0.18);
 		}
 		.skin-shop-panel-title {
@@ -243,8 +204,6 @@ Owner decisions:
 			background: rgba(9, 13, 27, 0.62);
 			color: #fff;
 			font-size: 14px;
-			backdrop-filter: blur(12px);
-			-webkit-backdrop-filter: blur(12px);
 		}
 		.skin-shop-card {
 			appearance: none;
@@ -329,14 +288,14 @@ Owner decisions:
 		}
 		.skin-shop-card.equipped {
 			border-color: #7ef1ff;
-			box-shadow: 0 0 0 3px rgba(126, 241, 255, 0.28), 0 20px 38px rgba(0, 0, 0, 0.32);
+			box-shadow: 0 0 0 3px rgba(126, 241, 255, 0.28);
 		}
 		.skin-shop-card.locked {
 			border-color: rgba(255, 255, 255, 0.14);
 		}
 		.skin-shop-card.blocked {
 			border-color: rgba(255, 126, 145, 0.48);
-			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12), 0 20px 34px rgba(48, 7, 18, 0.34);
+			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12);
 		}
 		.skin-shop-card.coming-soon {
 			border-color: rgba(255, 214, 133, 0.3);
@@ -354,8 +313,6 @@ Owner decisions:
 			padding: 10px 10px 9px;
 			border-radius: 16px;
 			background: linear-gradient(180deg, rgba(6, 10, 24, 0.08), rgba(6, 10, 24, 0.22));
-			backdrop-filter: blur(12px);
-			-webkit-backdrop-filter: blur(12px);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 			margin-top: 12px;
 		}
@@ -426,8 +383,6 @@ Owner decisions:
 			font-size: 12px;
 			font-weight: 700;
 			background: rgba(10, 10, 25, 0.55);
-			backdrop-filter: blur(8px);
-			-webkit-backdrop-filter: blur(8px);
 		}
 		.skin-shop-badge.equipped {
 			background: rgba(111, 241, 227, 0.24);
@@ -499,8 +454,6 @@ Owner decisions:
 			overflow: hidden;
 			box-shadow: 0 16px 30px rgba(0, 0, 0, 0.24);
 			transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, filter 0.16s ease;
-			backdrop-filter: blur(12px);
-			-webkit-backdrop-filter: blur(12px);
 		}
 		.upgrade-card::before {
 			content: '';
@@ -561,7 +514,7 @@ Owner decisions:
 		}
 		.upgrade-card.blocked {
 			border-color: rgba(255, 126, 145, 0.48);
-			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12), 0 20px 34px rgba(54, 8, 20, 0.34);
+			box-shadow: 0 0 0 1px rgba(255, 126, 145, 0.12);
 		}
 		.upgrade-card.blocked .upgrade-card-footer {
 			background: rgba(54, 8, 20, 0.34);
@@ -569,7 +522,7 @@ Owner decisions:
 		}
 		.upgrade-card.affordable {
 			border-color: rgba(126, 241, 255, 0.56);
-			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.16), 0 22px 34px rgba(0, 0, 0, 0.3);
+			box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.16);
 		}
 		.upgrade-card-top {
 			display: flex;
@@ -586,8 +539,6 @@ Owner decisions:
 			border-radius: 999px;
 			background: rgba(255, 255, 255, 0.14);
 			border: 1px solid rgba(255, 255, 255, 0.12);
-			backdrop-filter: blur(10px);
-			-webkit-backdrop-filter: blur(10px);
 			font-size: 13px;
 			font-weight: 800;
 			letter-spacing: 0.03em;
@@ -610,8 +561,6 @@ Owner decisions:
 			border-radius: 16px;
 			background: rgba(7, 12, 27, 0.38);
 			border: 1px solid rgba(255, 255, 255, 0.08);
-			backdrop-filter: blur(12px);
-			-webkit-backdrop-filter: blur(12px);
 			display: flex;
 			flex-direction: column;
 			gap: 6px;
@@ -871,8 +820,6 @@ Owner decisions:
             radial-gradient(circle at top right, rgba(126, 241, 255, 0.08), transparent 38%);
         border: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow: 0 18px 34px rgba(4, 8, 24, 0.34), 0 0 0 1px rgba(126, 241, 255, 0.05) inset;
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
     }
 
     .notification::before {
@@ -1022,7 +969,7 @@ Owner decisions:
         border-radius: 24px;
         background: linear-gradient(180deg, rgba(34, 8, 66, 0.94), rgba(14, 8, 33, 0.97));
         border: 2px solid rgba(51, 197, 199, 0.62);
-        box-shadow: 0 18px 38px rgba(10, 4, 27, 0.5), 0 0 24px rgba(51, 197, 199, 0.18);
+        box-shadow: 0 18px 38px rgba(10, 4, 27, 0.5);
         color: #fff;
         text-align: left;
     }
@@ -1158,8 +1105,6 @@ Owner decisions:
         border-radius: 18px;
         background: linear-gradient(180deg, rgba(27, 20, 61, 0.95), rgba(20, 14, 45, 0.92));
         border: 1px solid rgba(51, 197, 199, 0.28);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
     }
 
     .leaderboard-item-shell {
@@ -1178,7 +1123,7 @@ Owner decisions:
     button.leaderboard-item:focus-visible {
         outline: none;
         border-color: rgba(126, 241, 255, 0.58);
-        box-shadow: 0 0 0 2px rgba(126, 241, 255, 0.18), 0 22px 30px rgba(9, 4, 24, 0.28);
+        box-shadow: 0 0 0 2px rgba(126, 241, 255, 0.18);
     }
 
     .leaderboard-rank {
@@ -1512,8 +1457,6 @@ Owner decisions:
         font-weight: 800;
         letter-spacing: 0.01em;
         box-shadow: 0 14px 26px rgba(4, 8, 22, 0.26);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
         transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease;
     }
 
@@ -1529,31 +1472,29 @@ Owner decisions:
 
     .settings-action-button:focus-visible {
         outline: none;
-        box-shadow:
-            0 0 0 2px rgba(126, 241, 255, 0.28),
-            0 16px 28px rgba(5, 10, 28, 0.24);
+        box-shadow: 0 0 0 2px rgba(126, 241, 255, 0.28);
     }
 
     .settings-action-button.primary {
         background: linear-gradient(180deg, rgba(86, 245, 224, 0.96), rgba(27, 166, 196, 0.94));
         border-color: rgba(171, 255, 246, 0.42);
         color: #071822;
-        box-shadow: 0 12px 0 rgba(12, 91, 107, 0.9), 0 18px 24px rgba(0, 0, 0, 0.24);
+        box-shadow: 0 12px 0 rgba(12, 91, 107, 0.9);
     }
 
     .settings-action-button.primary:hover {
-        box-shadow: 0 9px 0 rgba(12, 91, 107, 0.9), 0 14px 20px rgba(0, 0, 0, 0.24);
+        box-shadow: 0 9px 0 rgba(12, 91, 107, 0.9);
     }
 
     .settings-action-button.secondary {
         background: linear-gradient(180deg, rgba(104, 122, 170, 0.92), rgba(64, 74, 111, 0.96));
         border-color: rgba(192, 214, 255, 0.3);
         color: #f3f7ff;
-        box-shadow: 0 12px 0 rgba(34, 42, 73, 0.9), 0 18px 24px rgba(0, 0, 0, 0.24);
+        box-shadow: 0 12px 0 rgba(34, 42, 73, 0.9);
     }
 
     .settings-action-button.secondary:hover {
-        box-shadow: 0 9px 0 rgba(34, 42, 73, 0.9), 0 14px 20px rgba(0, 0, 0, 0.24);
+        box-shadow: 0 9px 0 rgba(34, 42, 73, 0.9);
     }
 
     .settings-action-button:disabled,
@@ -1564,7 +1505,7 @@ Owner decisions:
         color: rgba(226, 232, 242, 0.68);
         border-color: rgba(167, 176, 194, 0.18);
         background: linear-gradient(180deg, rgba(91, 99, 119, 0.68), rgba(58, 64, 79, 0.76));
-        box-shadow: 0 8px 0 rgba(40, 45, 56, 0.72), 0 10px 16px rgba(0, 0, 0, 0.16);
+        box-shadow: 0 8px 0 rgba(40, 45, 56, 0.72);
         opacity: 0.88;
     }
 
@@ -1737,8 +1678,6 @@ Owner decisions:
         margin-bottom: 16px;
         background: rgba(7, 12, 27, 0.42);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
         font-size: 14px;
         color: rgba(255, 255, 255, 0.88);
     }
@@ -1759,8 +1698,6 @@ Owner decisions:
         background: linear-gradient(180deg, rgba(24, 17, 53, 0.95), rgba(16, 11, 35, 0.92));
         border: 1px solid rgba(93, 240, 217, 0.16);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
     }
 
     .session-conflict-card-head {
@@ -1800,8 +1737,6 @@ Owner decisions:
         border: 1px solid rgba(255, 255, 255, 0.08);
         font-size: 12px;
         color: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
     }
 
     .session-conflict-times {
@@ -1824,21 +1759,21 @@ Owner decisions:
     .skin-modal-cancel {
         background: linear-gradient(180deg, #6c7aa9 0%, #445072 100%);
         color: #fff;
-        box-shadow: 0 8px 0 #313a54, 0 14px 20px rgba(0,0,0,0.28);
+        box-shadow: 0 8px 0 #313a54;
     }
 
     .skin-modal-cancel:hover {
-        box-shadow: 0 6px 0 #313a54, 0 10px 12px rgba(0,0,0,0.28);
+        box-shadow: 0 6px 0 #313a54;
     }
 
     .skin-modal-confirm.install {
         background: linear-gradient(180deg, #5df0d9 0%, #22a8b7 100%);
         color: #102027;
-        box-shadow: 0 8px 0 #0f717e, 0 14px 20px rgba(0,0,0,0.28);
+        box-shadow: 0 8px 0 #0f717e;
     }
 
     .skin-modal-confirm.install:hover {
-        box-shadow: 0 6px 0 #0f717e, 0 10px 12px rgba(0,0,0,0.28);
+        box-shadow: 0 6px 0 #0f717e;
     }
 
     @media (max-width: 768px) {
@@ -2027,8 +1962,6 @@ Owner decisions:
     display: inline-block;
     box-shadow: 0 12px 24px rgba(7, 12, 28, 0.24);
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
     font-weight: 500;
     line-height: 1.45;
     text-shadow: 0 1px 6px rgba(5, 10, 22, 0.34);
@@ -2102,8 +2035,6 @@ Owner decisions:
         z-index: 0;
         transition: background 0.72s cubic-bezier(0.22, 1, 0.36, 1);
         opacity: var(--page-ambient-opacity);
-        will-change: transform, opacity;
-        animation: pageAtmosphereDrift 28s ease-in-out infinite alternate, pageAtmospherePulse 18s ease-in-out infinite;
     }
 
     body::after {
@@ -2117,7 +2048,7 @@ Owner decisions:
             radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.2), transparent 26%),
             radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-a-rgb), calc(var(--page-horizon-opacity) * 0.52)), transparent 30%);
         opacity: var(--page-depth-opacity);
-        filter: blur(38px) saturate(126%);
+        filter: saturate(126%);
         mix-blend-mode: screen;
         transform: translate3d(0, 0, 0) scale(var(--page-aurora-scale));
         z-index: 0;
@@ -2125,8 +2056,6 @@ Owner decisions:
             background 0.72s cubic-bezier(0.22, 1, 0.36, 1),
             opacity 0.72s cubic-bezier(0.22, 1, 0.36, 1),
             transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
-        will-change: transform, opacity;
-        animation: pageAuroraDrift 24s ease-in-out infinite alternate, pageAuroraPulse 16s ease-in-out infinite;
     }
 
     @keyframes pageAtmosphereDrift {
@@ -2195,10 +2124,7 @@ Owner decisions:
         opacity: var(--ripple-opacity, var(--page-ripple-opacity));
         animation: pageWaterRipple var(--ripple-duration, 1150ms) ease-out forwards;
         filter: blur(var(--page-ripple-blur));
-        box-shadow:
-            0 0 0 1px rgba(var(--ripple-ring-rgb), 0.18),
-            0 0 18px rgba(var(--ripple-core-rgb), 0.12),
-            0 0 28px rgba(var(--ripple-shadow-rgb), 0.08);
+        box-shadow: 0 0 0 1px rgba(var(--ripple-ring-rgb), 0.18);
         will-change: transform, opacity;
         contain: layout style paint;
         pointer-events: none;
@@ -2216,7 +2142,6 @@ Owner decisions:
     .page-water-ripple::before {
         background:
             radial-gradient(circle, rgba(var(--ripple-core-rgb), 0.16) 0%, rgba(var(--ripple-core-rgb), 0.08) 36%, rgba(var(--ripple-core-rgb), 0) 72%);
-        filter: blur(calc(var(--page-ripple-blur) * 1.9));
         transform: scale(1.55);
         opacity: 0.9;
     }
@@ -2224,9 +2149,7 @@ Owner decisions:
     .page-water-ripple::after {
         inset: -18%;
         border: 1px solid rgba(var(--ripple-ring-rgb), 0.42);
-        box-shadow:
-            0 0 0 6px rgba(var(--ripple-ring-rgb), 0.08),
-            0 0 34px rgba(var(--ripple-shadow-rgb), 0.16);
+        box-shadow: 0 0 0 6px rgba(var(--ripple-ring-rgb), 0.08);
         opacity: 0.92;
     }
 
@@ -2272,7 +2195,7 @@ Owner decisions:
     body.modal-open .footer {
         pointer-events: none;
         user-select: none;
-        filter: blur(11px) saturate(0.82) brightness(0.82);
+        filter: blur(4px) saturate(0.82) brightness(0.82);
     }
 
     .loading-overlay {
@@ -2414,8 +2337,6 @@ Owner decisions:
             0 0 0 1px rgba(255, 255, 255, 0.12) inset,
             0 0 18px rgba(126, 241, 255, 0.14),
             0 24px 40px rgba(0, 0, 0, 0.24);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
         text-align: center;
         color: #f1ffff;
         text-shadow: 0 10px 28px rgba(0, 0, 0, 0.26);
@@ -2466,8 +2387,6 @@ Owner decisions:
         font-size: 14px;
         font-weight: 700;
         box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
         transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
     }
 
@@ -2523,8 +2442,6 @@ Owner decisions:
         font-size: 14px;
         font-weight: 700;
         box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
         transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
 
@@ -2586,8 +2503,6 @@ Owner decisions:
         border: 1px solid rgba(126, 241, 255, 0.24);
         background: linear-gradient(180deg, rgba(20, 18, 48, 0.96), rgba(12, 12, 30, 0.98));
         box-shadow: 0 24px 40px rgba(0,0,0,0.32);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
         display: none;
         z-index: 10025;
     }
@@ -2684,8 +2599,6 @@ Owner decisions:
         font-size: 15px;
         font-weight: 700;
         box-shadow: 0 14px 24px rgba(5, 10, 28, 0.22);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
         transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
     }
 
@@ -2812,8 +2725,6 @@ Owner decisions:
         background:
             linear-gradient(180deg, rgba(20, 18, 48, 0.9), rgba(10, 12, 30, 0.96));
         box-shadow: 0 22px 38px rgba(0, 0, 0, 0.22);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
         text-align: center;
         color: #e9ffff;
         text-shadow: 0 8px 24px rgba(51, 197, 199, 0.22);
@@ -2827,8 +2738,6 @@ Owner decisions:
         border: 1px solid rgba(126, 241, 255, 0.2);
         background: linear-gradient(180deg, rgba(22, 18, 52, 0.92), rgba(10, 12, 30, 0.98));
         box-shadow: 0 24px 38px rgba(4, 10, 26, 0.2);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
     }
 
     .auth-panel h2 {
@@ -2865,8 +2774,6 @@ Owner decisions:
         background: rgba(7, 14, 30, 0.58);
         color: #f8ffff;
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
     }
 
     .auth-password-shell {
@@ -2923,7 +2830,7 @@ Owner decisions:
     #registerForm input:focus {
         outline: none;
         border-color: rgba(126, 241, 255, 0.44);
-        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.2), 0 18px 24px rgba(8, 14, 31, 0.18);
+        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.2);
     }
 
     @media (hover: hover) {
@@ -2935,7 +2842,7 @@ Owner decisions:
             transform: translateY(-2px);
             border-color: rgba(126, 241, 255, 0.52);
             background: linear-gradient(180deg, rgba(32, 22, 70, 0.98), rgba(18, 12, 43, 0.96));
-            box-shadow: 0 22px 30px rgba(9, 4, 24, 0.28), 0 0 18px rgba(126, 241, 255, 0.14);
+            box-shadow: 0 22px 30px rgba(9, 4, 24, 0.28);
         }
     }
 
@@ -2970,7 +2877,7 @@ Owner decisions:
     #upgradeActionModalConfirm.is-blocked {
         background: linear-gradient(180deg, rgba(255, 114, 140, 0.96), rgba(143, 24, 48, 0.98));
         color: #fff4f6;
-        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88), 0 14px 20px rgba(55, 8, 20, 0.28);
+        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88);
         border-color: rgba(255, 192, 203, 0.24);
         cursor: not-allowed;
         opacity: 1;
@@ -2982,7 +2889,7 @@ Owner decisions:
     #upgradeActionModalConfirm:disabled:hover,
     #upgradeActionModalConfirm.is-blocked:hover {
         transform: none;
-        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88), 0 14px 20px rgba(55, 8, 20, 0.28);
+        box-shadow: 0 8px 0 rgba(92, 14, 31, 0.88);
     }
 
     #shopExit {
@@ -3027,11 +2934,11 @@ Owner decisions:
     }
 
     body.effects-low::after {
-        filter: blur(20px) saturate(108%);
+        filter: saturate(108%);
     }
 
     body.effects-medium::after {
-        filter: blur(28px) saturate(116%);
+        filter: saturate(116%);
     }
 
     body.effects-low .settings-card,
@@ -3041,8 +2948,6 @@ Owner decisions:
     body.effects-low .skin-shop-feature-copy,
     body.effects-low .upgrade-card,
     body.effects-low #leaderboard {
-        backdrop-filter: blur(6px) !important;
-        -webkit-backdrop-filter: blur(6px) !important;
         box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2) !important;
     }
 
@@ -3118,26 +3023,24 @@ Owner decisions:
     }
 
     .profile-modal-top-actions .settings-action-button.primary:focus-visible {
-        box-shadow:
-            0 0 0 2px rgba(126, 241, 255, 0.28),
-            0 12px 20px rgba(5, 10, 28, 0.22);
+        box-shadow: 0 0 0 2px rgba(126, 241, 255, 0.28);
     }
 
     .profile-modal-hero[data-frame="rare"] {
         border-color: rgba(126, 241, 255, 0.22);
-        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.06), 0 18px 28px rgba(5, 10, 28, 0.18);
+        box-shadow: 0 0 0 1px rgba(126, 241, 255, 0.06);
     }
 
     .profile-modal-hero[data-frame="epic"] {
         border-color: rgba(196, 132, 255, 0.26);
         background: linear-gradient(180deg, rgba(34, 20, 58, 0.78), rgba(10, 10, 28, 0.9));
-        box-shadow: 0 0 0 1px rgba(196, 132, 255, 0.08), 0 20px 32px rgba(16, 8, 32, 0.22);
+        box-shadow: 0 0 0 1px rgba(196, 132, 255, 0.08);
     }
 
     .profile-modal-hero[data-frame="legend"] {
         border-color: rgba(255, 219, 122, 0.32);
         background: linear-gradient(180deg, rgba(52, 34, 10, 0.82), rgba(18, 14, 10, 0.94));
-        box-shadow: 0 0 0 1px rgba(255, 219, 122, 0.1), 0 22px 36px rgba(26, 16, 4, 0.24);
+        box-shadow: 0 0 0 1px rgba(255, 219, 122, 0.1);
     }
 
     .profile-modal-avatar {
@@ -4189,9 +4092,7 @@ Owner decisions:
         background:
             linear-gradient(180deg, rgba(49, 38, 18, 0.28), rgba(13, 16, 33, 0.96)),
             linear-gradient(180deg, rgba(20, 29, 62, 0.88), rgba(11, 16, 34, 0.95));
-        box-shadow:
-            0 0 0 1px rgba(255, 204, 102, 0.18),
-            0 18px 34px rgba(22, 13, 3, 0.28);
+        box-shadow: 0 0 0 1px rgba(255, 204, 102, 0.18);
     }
 
     .support-ticket-card.has-unread-reply::before {
@@ -4314,9 +4215,7 @@ Owner decisions:
 
     .support-thread-response-banner.unread {
         border-color: rgba(255, 214, 111, 0.34);
-        box-shadow:
-            0 0 0 1px rgba(255, 214, 111, 0.16),
-            0 18px 30px rgba(24, 14, 2, 0.24);
+        box-shadow: 0 0 0 1px rgba(255, 214, 111, 0.16);
     }
 
     .support-thread-response-banner strong {
@@ -4361,9 +4260,7 @@ Owner decisions:
             linear-gradient(180deg, rgba(55, 78, 142, 0.32), rgba(18, 28, 62, 0.34)),
             rgba(104, 122, 170, 0.18);
         border-color: rgba(145, 228, 255, 0.3);
-        box-shadow:
-            0 0 0 1px rgba(111, 218, 255, 0.1),
-            0 14px 28px rgba(4, 8, 22, 0.2);
+        box-shadow: 0 0 0 1px rgba(111, 218, 255, 0.1);
     }
 
     .support-ticket-message.admin.latest-support {
@@ -4371,9 +4268,7 @@ Owner decisions:
         background:
             linear-gradient(180deg, rgba(77, 108, 184, 0.34), rgba(22, 34, 73, 0.42)),
             linear-gradient(180deg, rgba(255, 194, 79, 0.08), rgba(255, 130, 48, 0.04));
-        box-shadow:
-            0 0 0 1px rgba(255, 216, 120, 0.14),
-            0 16px 30px rgba(11, 18, 42, 0.26);
+        box-shadow: 0 0 0 1px rgba(255, 216, 120, 0.14);
     }
 
     .support-ticket-message.system {
@@ -4732,8 +4627,6 @@ Owner decisions:
         background: rgba(7, 12, 27, 0.28);
         border: 1px solid rgba(255,255,255,0.14);
         box-shadow: 0 16px 26px rgba(0,0,0,0.16);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
     }
 
     #energy-container {
@@ -4742,8 +4635,6 @@ Owner decisions:
         background: rgba(7, 12, 27, 0.24);
         border: 1px solid rgba(255,255,255,0.12);
         box-shadow: 0 14px 24px rgba(0,0,0,0.14);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
     }
 
     #saveStatus {
@@ -4752,8 +4643,6 @@ Owner decisions:
         border-radius: 18px;
         background: rgba(7, 12, 27, 0.22);
         border: 1px solid rgba(255,255,255,0.1);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
     }
 
     #flyRewardPanel {
@@ -4763,8 +4652,6 @@ Owner decisions:
         background: rgba(7, 12, 27, 0.26);
         border: 1px solid rgba(255,255,255,0.12);
         box-shadow: 0 18px 30px rgba(0,0,0,0.18);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
     }
 
     #clicker {
@@ -4842,13 +4729,9 @@ Owner decisions:
     }
 
     #leaderboard {
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
     }
 
     .leaderboard-item {
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
     }
 
     .skin-shop-card {
@@ -4899,7 +4782,7 @@ Owner decisions:
 
     .skin-shop-card.equipped {
         border-color: #7ef1ff;
-        box-shadow: 0 0 0 4px rgba(126, 241, 255, 0.34), 0 22px 36px rgba(0,0,0,0.28);
+        box-shadow: 0 0 0 4px rgba(126, 241, 255, 0.34);
     }
 
     #upgradeSection {
@@ -5007,8 +4890,6 @@ Owner decisions:
         font-size: 16px;
         font-weight: 700;
         min-height: 46px;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
     }
 
     .upgrade-quantity-input {
@@ -5148,8 +5029,6 @@ Owner decisions:
         padding: 28px 18px 22px;
         background: linear-gradient(180deg, rgba(9, 10, 24, 0.34), rgba(5, 7, 18, 0.6));
         border-top: 1px solid rgba(126, 241, 255, 0.18);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
     }
 
     .footer-container,
@@ -5166,8 +5045,6 @@ Owner decisions:
         border-radius: 14px;
         background: rgba(255,255,255,0.05);
         border: 1px solid rgba(255,255,255,0.08);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
     }
 
     .footer-link-button {
@@ -5479,11 +5356,11 @@ Owner decisions:
             min-height: 48px;
             padding: 12px 14px;
             border-radius: 16px;
-            box-shadow: 0 6px 0 rgba(10, 31, 46, 0.5), 0 10px 14px rgba(0, 0, 0, 0.16);
+            box-shadow: 0 6px 0 rgba(10, 31, 46, 0.5);
         }
 
         .settings-action-button.secondary {
-            box-shadow: 0 6px 0 rgba(34, 42, 73, 0.72), 0 10px 14px rgba(0, 0, 0, 0.16);
+            box-shadow: 0 6px 0 rgba(34, 42, 73, 0.72);
         }
 
         .profile-modal .settings-modal-actions .settings-action-button {
