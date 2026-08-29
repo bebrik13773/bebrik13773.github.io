@@ -2891,9 +2891,18 @@ Owner decisions:
         padding: 16px 22px;
         font-size: 17px;
         border-radius: 20px;
+        flex-direction: column;
+        gap: 4px;
         box-shadow:
             0 24px 32px rgba(6, 13, 30, 0.24),
             inset 0 1px 0 rgba(255, 255, 255, 0.44);
+    }
+
+    .fly-beaver-button-main {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
     }
 
     .game-mode-action-stack #flyBeaverOpenButton {
@@ -2910,9 +2919,9 @@ Owner decisions:
     }
 
     .fly-beaver-best-score-label {
-        margin-top: 8px;
         font-size: 13px;
-        color: rgba(255, 255, 255, 0.68);
+        font-weight: 500;
+        color: rgba(6, 32, 53, 0.68);
         text-align: center;
     }
 
@@ -5748,10 +5757,12 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <div class="game-mode-action-stack">
     <button class="shop-action-btn" id="flyBeaverOpenButton" type="button" title="Летающий бобер (F)">
-        <span aria-hidden="true">🪽</span>
-        <span>Летающий бобер</span>
+        <span class="fly-beaver-button-main">
+            <span aria-hidden="true">🪽</span>
+            <span>Летающий бобер</span>
+        </span>
+        <span id="flyBeaverBestScoreLabel" class="fly-beaver-best-score-label"></span>
     </button>
-    <div id="flyBeaverBestScoreLabel" class="fly-beaver-best-score-label"></div>
 </div>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <div id="flyRewardPanel">
