@@ -2019,7 +2019,6 @@ Owner decisions:
         position: relative;
         overflow-x: hidden;
         isolation: isolate;
-        transition: background 0.72s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     body::before {
@@ -2034,7 +2033,6 @@ Owner decisions:
             radial-gradient(circle at var(--page-depth-x) var(--page-depth-y), rgba(var(--page-color-c-rgb), 0.12), transparent 34%),
             radial-gradient(ellipse at var(--page-horizon-x) var(--page-horizon-y), rgba(var(--page-color-b-rgb), calc(var(--page-horizon-opacity) * 0.72)), transparent 38%);
         z-index: 0;
-        transition: background 0.72s cubic-bezier(0.22, 1, 0.36, 1);
         opacity: var(--page-ambient-opacity);
     }
 
@@ -2053,10 +2051,6 @@ Owner decisions:
         mix-blend-mode: screen;
         transform: translate3d(0, 0, 0) scale(var(--page-aurora-scale));
         z-index: 0;
-        transition:
-            background 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-            opacity 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-            transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     @keyframes pageAtmosphereDrift {
@@ -10073,7 +10067,6 @@ function queueInterfaceMotion(sample) {
         interactionFxState.lastKnownPageY = pageY;
 
         const paletteToken = applyInteractionPalette(resolveInteractionPaletteToken(target));
-        updateReactiveGlowPosition(clientX, clientY);
 
         const now = performance.now();
         const deltaSinceLastRipple = now - interactionFxState.lastSpawnAt;
