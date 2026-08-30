@@ -1217,7 +1217,8 @@ Owner decisions:
     .modal-backdrop {
         position: fixed;
         inset: 0;
-        display: none;
+        display: flex;
+        visibility: hidden;
         align-items: center;
         justify-content: center;
         padding: 14px;
@@ -1225,10 +1226,16 @@ Owner decisions:
         backdrop-filter: blur(4px);
         -webkit-backdrop-filter: blur(4px);
         z-index: 10020;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.16s ease, visibility 0s linear 0.16s;
     }
 
     .modal-backdrop.show {
-        display: flex;
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+        transition: opacity 0.16s ease, visibility 0s linear 0s;
     }
 
     #sessionConflictModal {
