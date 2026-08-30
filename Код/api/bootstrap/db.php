@@ -1208,12 +1208,10 @@ function bober_build_user_economy_profile(array $state)
         + ($flyFactor * 0.04);
     $index = max(0, min(100, (int) round($weightedSum * 100)));
 
-    if ($index <= 50) {
+    if ($index <= 10) {
         $multiplier = 1.0;
-    } elseif ($index <= 70) {
-        $multiplier = 1 + (($index - 50) * 0.005);
     } else {
-        $multiplier = 1.10 + (($index - 70) * 0.004);
+        $multiplier = 1.0 + (($index - 10) / 90) * 0.30;
     }
 
     return [
