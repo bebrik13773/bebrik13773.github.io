@@ -19,7 +19,8 @@ Owner decisions:
         var tg = window.Telegram && window.Telegram.WebApp;
         var hasInitData = tg && tg.initData;
         var hasKnownPlatform = tg && tg.platform && tg.platform !== 'unknown';
-        if (hasInitData || hasKnownPlatform) {
+        var uaHasTelegram = /Telegram/i.test(navigator.userAgent || '');
+        if (hasInitData || hasKnownPlatform || uaHasTelegram) {
             document.documentElement.classList.add('telegram-app');
         }
 
@@ -30,6 +31,7 @@ Owner decisions:
             info += 'WebApp exists: ' + Boolean(tg) + '\n';
             info += 'initData: "' + (tg ? tg.initData : 'n/a') + '"\n';
             info += 'platform: "' + (tg ? tg.platform : 'n/a') + '"\n';
+            info += 'userAgent: "' + navigator.userAgent + '"\n';
             info += 'class applied: ' + document.documentElement.classList.contains('telegram-app');
             debugBox.textContent = info;
             document.body.prepend(debugBox);
