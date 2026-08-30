@@ -16,7 +16,7 @@ Owner decisions:
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
     (function() {
-        if (window.Telegram && window.Telegram.WebApp) {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
             document.documentElement.classList.add('telegram-app');
         }
     })();
@@ -2752,7 +2752,7 @@ Owner decisions:
         padding: 14px 18px;
         width: min(100%, 320px);
         display: block;
-        margin: 0 auto;
+        margin: 16px auto 0;
     }
 
     #shopTitle {
