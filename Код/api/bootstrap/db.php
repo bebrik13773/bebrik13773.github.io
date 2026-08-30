@@ -1211,7 +1211,7 @@ function bober_build_user_economy_profile(array $state)
     if ($index <= 10) {
         $multiplier = 1.0;
     } else {
-        $multiplier = 1.0 + (($index - 10) / 90) * 0.30;
+        $multiplier = 1.0 + sqrt(($index - 10) / 90) * 0.30;
     }
 
     return [
