@@ -22,6 +22,18 @@ Owner decisions:
         if (hasInitData || hasKnownPlatform) {
             document.documentElement.classList.add('telegram-app');
         }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            var debugBox = document.createElement('div');
+            debugBox.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;font-size:11px;padding:8px;font-family:monospace;white-space:pre-wrap;word-break:break-all;';
+            var info = 'window.Telegram exists: ' + Boolean(window.Telegram) + '\n';
+            info += 'WebApp exists: ' + Boolean(tg) + '\n';
+            info += 'initData: "' + (tg ? tg.initData : 'n/a') + '"\n';
+            info += 'platform: "' + (tg ? tg.platform : 'n/a') + '"\n';
+            info += 'class applied: ' + document.documentElement.classList.contains('telegram-app');
+            debugBox.textContent = info;
+            document.body.prepend(debugBox);
+        });
     })();
 </script>
 <script type="text/javascript">
