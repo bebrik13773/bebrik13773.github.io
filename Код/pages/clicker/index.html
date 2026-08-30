@@ -6628,6 +6628,8 @@ let SKIN_CATALOG = [];
 let SKIN_BY_ID = {};
 let DEFAULT_SKIN_ID = 'classic';
 let DEFAULT_OWNED_SKIN_IDS = [];
+let skinCatalogLoadedAt = 0;
+const SKIN_CATALOG_CACHE_MS = 5 * 60 * 1000;
 const skinShopViewState = {
     category: localStorage.getItem('skin_shop_category') || 'all',
     sort: localStorage.getItem('skin_shop_sort') || 'manual'
@@ -12077,7 +12079,7 @@ async function refreshSkinCatalogLive(options = {}) {
 
     skinCatalogLiveRefreshState.inFlight = true;
     try {
-        await loadSkinCatalog({ silent: true });
+        await loadSkinCatalog({ silent: true, forceReload: true });
         skinCatalogLiveRefreshState.lastSyncedAt = Date.now();
         return true;
     } catch (error) {
@@ -17240,6 +17242,14 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 async function loadSkinCatalog(options = {}) {
+    const now = Date.now();
+    const cacheIsFresh = skinCatalogLoadedAt > 0 && (now - skinCatalogLoadedAt) < SKIN_CATALOG_CACHE_MS;
+    if (cacheIsFresh && SKIN_CATALOG.length > 0 && !options.forceReload) {
+        skin = normalizeSkinState(skin);
+        updateSkinShopUI();
+        return true;
+    }
+
     try {
         const data = await requestJson('/api/catalog/skin-catalog.php', {
             cache: 'no-store'
@@ -17250,6 +17260,7 @@ async function loadSkinCatalog(options = {}) {
         }
 
         rebuildSkinCatalogRuntime(data.skins);
+        skinCatalogLoadedAt = Date.now();
         skin = normalizeSkinState(skin);
         renderSkinShop();
         skinLoad();
