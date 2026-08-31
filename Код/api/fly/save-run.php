@@ -95,7 +95,7 @@ try {
             ? 'Этот забег уже сохранен.'
             : ($creditedScore > 0
                 ? 'Забег сохранен и засчитан в облачный счет.'
-                : 'Забег сохранен в статистику, но не пошел в очередь: нужно минимум 10 очков, поэтому очередь вывода очищена.'),
+                : "Забег сохранен. Нужно минимум {$minimumCreditedScore} очков за забег, чтобы он пошел в зачет."),
         'duplicate' => $isDuplicate,
         'creditedScore' => $creditedScore,
         'minimumCreditedScore' => $minimumCreditedScore,
