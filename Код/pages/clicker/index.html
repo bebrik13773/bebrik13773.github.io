@@ -5778,7 +5778,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         }
     </style>
     <button id="save" onclick="Save()">Сохранить</button>
-    <div id="saveStatus" class="save-status idle">Автосохранение выключено</div>
+    <div id="saveStatus" class="save-status idle">Игра без аккаунта не сохраняется</div>
 <br>
     <button id="loginButton">Войти</button>
     <button id="registerButton">Регистрация</button>
@@ -6410,8 +6410,6 @@ async function getLatestCommit() {
         const commits = await response.json();
         
         if (commits && commits.length > 0) {
-            const commitMessage = commits[0].commit.message.split('\n')[0];
-            const author = commits[0].commit.author.name;
             const date = formatBoberDateTime(commits[0].commit.author.date, {
                 day: '2-digit',
                 month: '2-digit',
@@ -6419,9 +6417,7 @@ async function getLatestCommit() {
             }, '');
             
             commitElement.innerHTML = `
-                <strong>📌 Последнее изменение в коде:</strong><br>
-                ${commitMessage}<br>
-                <small>👤 ${author} | 📅 ${date}</small>
+                Кликер последний раз обновлялся: ${date}
             `;
             
             commitElement.classList.remove('loading');
@@ -6453,18 +6449,8 @@ function handleError(error, commitElement) {
 
     commitElement.classList.remove('loading');
     commitElement.classList.add('error');
-    
-    let errorMessage = 'Ошибка загрузки';
-    
-    if (error.message.includes('403')) {
-        errorMessage = '⚠️ Лимит запросов исчерпан. Попробуйте позже.';
-    } else if (error.message.includes('404')) {
-        errorMessage = '❌ Репозиторий не найден. Проверьте настройки.';
-    } else if (error.message.includes('NetworkError')) {
-        errorMessage = '📡 Проблема с подключением к интернету';
-    }
-    
-    commitElement.innerHTML = `<strong>${errorMessage}</strong>`;
+
+    commitElement.innerHTML = `Информация об обновлениях временно недоступна`;
     
     retryCount++;
     if (retryCount < CONFIG.maxRetries) {
@@ -16494,7 +16480,7 @@ function refreshSaveStatusFromState() {
     const now = Date.now();
 
     if (!userId) {
-        setSaveStatus('idle', 'Автосохранение выключено', { keepTimer: true });
+        setSaveStatus('idle', 'Игра без аккаунта не сохраняется', { keepTimer: true });
         return;
     }
 
@@ -16766,7 +16752,7 @@ function resetUserState() {
     document.getElementById('password').value = '';
     document.getElementById('login').value = currentLogin || localStorage.getItem('login') || '';
     flyBeaverState = getDefaultFlyBeaverState();
-    setSaveStatus('idle', 'Автосохранение выключено');
+    setSaveStatus('idle', 'Игра без аккаунта не сохраняется');
     updateFlyRewardUI();
     updateProfileMenuUI();
     updateSupportBadgeUI();
@@ -20665,7 +20651,7 @@ console.log('Настройки античита:', clickDetector.config);
 	            </div>
         </div>
                     <br>
-            <p id="comit">Загрузка последнего изменения...</p>
+            <p id="comit">Загрузка информации об обновлении...</p>
         <div class="footer-bottom">
             <p>© Бобер кликер. Тапайте бобра.</p>
         </div>
