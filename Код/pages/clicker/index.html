@@ -674,15 +674,6 @@ Owner decisions:
 			padding: 8px 16px;
 			font-size: 16px;
 		}
-		#logoutButton {
-			appearance: none;
-			border: 0;
-			border-radius: 5px;
-			background: #4676D7;
-			color: #fff;
-			padding: 8px 16px;
-			font-size: 16px;
-		}
 		#sessionsButton {
 			appearance: none;
 			border: 0;
@@ -2567,6 +2558,38 @@ Owner decisions:
         text-align: left;
     }
 
+    .profile-menu-summary-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .profile-menu-summary-info {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .profile-menu-summary-logout {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 126, 145, 0.24);
+        background: rgba(255, 126, 145, 0.08);
+        color: #ffdfe6;
+        font-size: 16px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .profile-menu-summary-logout:hover {
+        background: rgba(255, 126, 145, 0.16);
+    }
+
     .profile-menu-summary strong {
         display: block;
         font-size: 16px;
@@ -2579,6 +2602,10 @@ Owner decisions:
         font-size: 13px;
         color: rgba(255,255,255,0.74);
         line-height: 1.45;
+    }
+
+    .profile-menu-summary span:empty {
+        display: none;
     }
 
     .profile-menu-unread-badge,
@@ -2618,7 +2645,6 @@ Owner decisions:
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
-    #logoutButton,
     #sessionsButton,
     #submitRegister,
     #submitLogin,
@@ -2653,7 +2679,6 @@ Owner decisions:
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
     #supportAppealButton,
-    #logoutButton,
     #sessionsButton {
         width: 100%;
         max-width: 100%;
@@ -2676,14 +2701,6 @@ Owner decisions:
     #sessionsButton {
         border-color: rgba(255, 255, 255, 0.08);
         color: rgba(248, 251, 255, 0.84);
-    }
-
-    #logoutButton {
-        border-color: rgba(255, 126, 145, 0.24);
-        color: #ffdfe6;
-        position: sticky;
-        bottom: 0;
-        background: linear-gradient(180deg, rgba(20, 18, 48, 0.4), rgba(30, 14, 24, 0.96) 30%);
     }
 
     #submitRegister:hover,
@@ -5709,8 +5726,13 @@ function showNotification(message, type = 'success', duration = 3000) {
                     </button>
                     <div class="profile-menu-dropdown" id="profileMenuDropdown">
                         <div class="profile-menu-summary">
-                            <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
-                            <span id="profileMenuSummaryText">Здесь находятся профиль, выход и управление сессиями.</span>
+                            <div class="profile-menu-summary-row">
+                                <div class="profile-menu-summary-info">
+                                    <strong id="profileMenuSummaryTitle">Аккаунт не выбран</strong>
+                                    <span id="profileMenuSummaryText"></span>
+                                </div>
+                                <button id="logoutButton" type="button" class="profile-menu-summary-logout" title="Выйти">⏻</button>
+                            </div>
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
                         <button id="profileAchievementsButton" type="button">Достижения</button>
@@ -5723,8 +5745,6 @@ function showNotification(message, type = 'success', duration = 3000) {
                             <span>Поддержка и входящие</span>
                             <span class="profile-menu-button-badge" id="supportAppealBadge" hidden>0</span>
                         </button>
-                        <button id="sessionsButton" type="button">Мои сессии</button>
-                        <button id="logoutButton" type="button">Выйти</button>
                     </div>
                 </div>
             </div>
@@ -10471,11 +10491,9 @@ function updateProfileMenuUI() {
     }
 
     if (textNode) {
-        textNode.textContent = userId
-            ? (supportSummary.unreadReplies > 0
-                ? `Есть ${formatCompactNumber(supportSummary.unreadReplies)} новых ответов поддержки.`
-                : 'Здесь доступны профиль, сессии, поддержка и выход из аккаунта.')
-            : 'Войдите в аккаунт, чтобы управлять сессиями и профилем.';
+        textNode.textContent = (userId && supportSummary.unreadReplies > 0)
+            ? `Есть ${formatCompactNumber(supportSummary.unreadReplies)} новых ответов поддержки.`
+            : '';
     }
 
     if (newsButtonNode) {
@@ -18234,10 +18252,13 @@ document.getElementById('registerButton').onclick = function() {
     openAuthModal('register');
 };
 
-document.getElementById('sessionsButton').onclick = function() {
-    closeProfileMenu();
-    openSessionManagerModal();
-};
+const sessionsButtonEl = document.getElementById('sessionsButton');
+if (sessionsButtonEl) {
+    sessionsButtonEl.onclick = function() {
+        closeProfileMenu();
+        openSessionManagerModal();
+    };
+}
 
 const supportAppealButton = document.getElementById('supportAppealButton');
 if (supportAppealButton) {
