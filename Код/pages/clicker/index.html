@@ -2799,6 +2799,38 @@ Owner decisions:
         text-shadow: 0 8px 24px rgba(51, 197, 199, 0.22);
     }
 
+    .shop-category-tabs {
+        width: min(100%, 480px);
+        margin: 0 auto 22px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .shop-category-tab {
+        appearance: none;
+        border: 1px solid rgba(126, 241, 255, 0.22);
+        border-radius: 16px;
+        padding: 12px 16px;
+        font-size: 15px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.05);
+        color: rgba(233, 255, 255, 0.7);
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .shop-category-tab.active {
+        background: linear-gradient(180deg, rgba(126, 241, 255, 0.28), rgba(51, 197, 199, 0.22));
+        border-color: rgba(126, 241, 255, 0.55);
+        color: #e9ffff;
+    }
+
+    #upgradeSection.shop-tab-hidden,
+    #skinShopSection.shop-tab-hidden {
+        display: none;
+    }
+
     .auth-panel {
         width: min(100%, 420px);
         margin: 18px auto 0;
@@ -5816,6 +5848,10 @@ function showNotification(message, type = 'success', duration = 3000) {
 <br>
 <div id="shop" data-palette="shop">
 <h1 id="shopTitle">Магазин улучшений и скинов</h1>
+<div class="shop-category-tabs" id="shopCategoryTabs">
+    <button type="button" class="shop-category-tab active" id="shopTabUpgrades" data-shop-tab="upgrades">Улучшения</button>
+    <button type="button" class="shop-category-tab" id="shopTabSkins" data-shop-tab="skins">Скины</button>
+</div>
 <div id="upgradeSection">
 <button class="upgrade-card tap-small" id="upgradeTap1Button" data-palette="upgrade-tap-small" onclick="buyUpgrade1()">
     <span class="upgrade-card-top">
@@ -5896,6 +5932,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 </button>
 </div>
 <br>
+<div id="skinShopSection">
 <div class="skin-shop-toolbar">
     <div class="skin-shop-panel">
         <div class="skin-shop-panel-title">Каталог скинов</div>
@@ -5950,6 +5987,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     </div>
 </div>
 <div id="skins"></div>
+</div>
 </div>
 <br>
 <div id="leaderboard" data-palette="leaderboard">Ошибка получения таблицы лидеров!<br> Обратитесь в поддержку!</div>
@@ -18743,10 +18781,35 @@ document.getElementById('submitLogin').onclick = async function() {
     }
 };
 
+function setShopTab(tab) {
+    const upgradesSection = document.getElementById('upgradeSection');
+    const skinsSection = document.getElementById('skinShopSection');
+    const tabUpgrades = document.getElementById('shopTabUpgrades');
+    const tabSkins = document.getElementById('shopTabSkins');
+
+    if (!upgradesSection || !skinsSection || !tabUpgrades || !tabSkins) {
+        return;
+    }
+
+    const showSkins = tab === 'skins';
+
+    upgradesSection.classList.toggle('shop-tab-hidden', showSkins);
+    skinsSection.classList.toggle('shop-tab-hidden', !showSkins);
+    tabUpgrades.classList.toggle('active', !showSkins);
+    tabSkins.classList.toggle('active', showSkins);
+}
+
+document.querySelectorAll('.shop-category-tab').forEach((tabButton) => {
+    tabButton.addEventListener('click', () => {
+        setShopTab(tabButton.dataset.shopTab);
+    });
+});
+
 function shopShow() {
     loadSkinCatalog({ silent: true });
     updateSkinShopUI();
     closeProfileMenu();
+    setShopTab('upgrades');
     logClientEvent('shop', 'shop_open', {
         from: 'main_page'
     }, {
