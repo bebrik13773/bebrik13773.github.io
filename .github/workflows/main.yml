@@ -96,7 +96,7 @@ jobs:
     - name: 🏷️ Stamp build commit id (кликер)
       shell: bash
       run: |
-        sed -i "s/__BUILD_COMMIT_SHA__/${GITHUB_SHA}/g" "./Код/pages/clicker/index.html"
+        sed -i "s/data-build-commit=\"__BUILD_COMMIT_SHA__\"/data-build-commit=\"${GITHUB_SHA}\"/" "./Код/pages/clicker/index.html"
 
     - name: 🔍 Determine deployment directory
       id: deployment
