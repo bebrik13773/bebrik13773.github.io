@@ -2831,6 +2831,16 @@ Owner decisions:
         display: none;
     }
 
+    .build-commit-id {
+        width: min(100%, 960px);
+        margin: 18px auto 0;
+        text-align: center;
+        font-size: 11px;
+        font-family: monospace;
+        color: rgba(255, 255, 255, 0.28);
+        user-select: text;
+    }
+
     .auth-panel {
         width: min(100%, 420px);
         margin: 18px auto 0;
@@ -5987,7 +5997,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     </div>
 </div>
 <div id="skins"></div>
-<div id="buildCommitId" data-build-commit="__BUILD_COMMIT_SHA__" hidden></div>
+<div id="buildCommitId" class="build-commit-id" data-build-commit="__BUILD_COMMIT_SHA__"></div>
 </div>
 </div>
 <br>
@@ -6438,6 +6448,24 @@ function getCommitWidgetElement() {
 }
 
 // === ОСНОВНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ КОММИТА ===
+function renderBuildCommitId() {
+    const buildMarker = document.getElementById('buildCommitId');
+    if (!buildMarker) {
+        return;
+    }
+
+    const builtWithSha = buildMarker.dataset.buildCommit;
+
+    if (!builtWithSha || builtWithSha === '__BUILD_COMMIT_SHA__') {
+        buildMarker.textContent = '';
+        return;
+    }
+
+    buildMarker.textContent = `build ${builtWithSha.slice(0, 7)}`;
+}
+
+document.addEventListener('DOMContentLoaded', renderBuildCommitId);
+
 function checkBuildIsStale(latestCommitSha) {
     const buildMarker = document.getElementById('buildCommitId');
     if (!buildMarker) {
