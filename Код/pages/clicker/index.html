@@ -5987,6 +5987,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     </div>
 </div>
 <div id="skins"></div>
+<div id="buildCommitId" data-build-commit="__BUILD_COMMIT_SHA__" hidden></div>
 </div>
 </div>
 <br>
@@ -6437,6 +6438,34 @@ function getCommitWidgetElement() {
 }
 
 // === ОСНОВНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ КОММИТА ===
+function checkBuildIsStale(latestCommitSha) {
+    const buildMarker = document.getElementById('buildCommitId');
+    if (!buildMarker) {
+        return;
+    }
+
+    const builtWithSha = buildMarker.dataset.buildCommit;
+
+    if (!builtWithSha || builtWithSha === '__BUILD_COMMIT_SHA__') {
+        // Плейсхолдер не был заменён при деплое (например, локальный запуск) - пропускаем проверку.
+        return;
+    }
+
+    if (!latestCommitSha || builtWithSha === latestCommitSha) {
+        return;
+    }
+
+    const reloadFlagKey = `bober_stale_reload_${latestCommitSha}`;
+    if (sessionStorage.getItem(reloadFlagKey)) {
+        // Уже пробовали обновиться до этой версии в этой сессии - не зацикливаемся.
+        return;
+    }
+
+    sessionStorage.setItem(reloadFlagKey, '1');
+    console.log(`🔄 Обнаружена новая версия (${latestCommitSha.slice(0, 7)}), текущая (${builtWithSha.slice(0, 7)}). Обновляем страницу...`);
+    window.location.reload(true);
+}
+
 async function getLatestCommit() {
     const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits`;
     const commitElement = getCommitWidgetElement();
@@ -6457,6 +6486,8 @@ async function getLatestCommit() {
         const commits = await response.json();
         
         if (commits && commits.length > 0) {
+            checkBuildIsStale(commits[0].sha);
+
             const date = formatBoberDateTime(commits[0].commit.author.date, {
                 day: '2-digit',
                 month: '2-digit',
