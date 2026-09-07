@@ -1138,12 +1138,29 @@ function bober_build_user_economy_profile(array $state)
     $totalUpgradePurchases = array_sum($upgradeCounts);
     $purchasedShopSkinCount = bober_count_purchased_shop_skins($catalog, $ownedSkinIds);
 
-    $scoreFactor = bober_clamp_float((log10(max($score, 1)) - 6) / 4, 0, 1);
-    $plusFactor = bober_clamp_float((log10(max($plus, 1)) - 2) / 3, 0, 1);
-    $upgradeFactor = bober_clamp_float($totalUpgradePurchases / 140, 0, 1);
-    $shopSkinFactor = bober_clamp_float($purchasedShopSkinCount / 28, 0, 1);
-    $energyFactor = bober_clamp_float(($energyMax - 5000) / 45000, 0, 1);
-    $flyFactor = bober_clamp_float((log10(max($flyBest, 1)) - 3) / 3, 0, 1);
+    $scoreFactorRaw = (log10(max($score, 1)) - 6) / 4;
+    $plusFactorRaw = (log10(max($plus, 1)) - 2) / 3;
+    $upgradeFactorRaw = $totalUpgradePurchases / 140;
+    $shopSkinFactorRaw = $purchasedShopSkinCount / 28;
+    $energyFactorRaw = ($energyMax - 5000) / 45000;
+    $flyFactorRaw = (log10(max($flyBest, 1)) - 3) / 3;
+
+    $scoreFactor = bober_clamp_float($scoreFactorRaw, 0, 1);
+    $plusFactor = bober_clamp_float($plusFactorRaw, 0, 1);
+    $upgradeFactor = bober_clamp_float($upgradeFactorRaw, 0, 1);
+    $shopSkinFactor = bober_clamp_float($shopSkinFactorRaw, 0, 1);
+    $energyFactor = bober_clamp_float($energyFactorRaw, 0, 1);
+    $flyFactor = bober_clamp_float($flyFactorRaw, 0, 1);
+
+    // "Избыточный" прогресс сверх обычных порогов факторов (не зажимается в 1) -
+    // нужен, чтобы у сильно прокачанных аккаунтов множитель продолжал плавно расти
+    // и после того, как индекс 0-100 уже уперся в потолок.
+    $overScoreFactor = max(0, $scoreFactorRaw - 1);
+    $overPlusFactor = max(0, $plusFactorRaw - 1);
+    $overUpgradeFactor = max(0, $upgradeFactorRaw - 1);
+    $overShopSkinFactor = max(0, $shopSkinFactorRaw - 1);
+    $overEnergyFactor = max(0, $energyFactorRaw - 1);
+    $overFlyFactor = max(0, $flyFactorRaw - 1);
 
     $factors = [
         [
@@ -1208,15 +1225,28 @@ function bober_build_user_economy_profile(array $state)
         + ($flyFactor * 0.04);
     $index = max(0, min(100, (int) round($weightedSum * 100)));
 
+    $overWeightedSum = ($overScoreFactor * 0.30)
+        + ($overPlusFactor * 0.22)
+        + ($overUpgradeFactor * 0.22)
+        + ($overShopSkinFactor * 0.16)
+        + ($overEnergyFactor * 0.06)
+        + ($overFlyFactor * 0.04);
+
     if ($index <= 10) {
         $multiplier = 1.0;
     } else {
-        $multiplier = 1.0 + sqrt(($index - 10) / 90) * 0.30;
+        $multiplier = 1.0 + sqrt(($index - 10) / 90) * 0.45;
+    }
+
+    // Для аккаунтов, уже упершихся в индекс 100, даём множителю расти и дальше -
+    // медленно (sqrt, с существенно меньшим весом), без верхнего предела.
+    if ($overWeightedSum > 0) {
+        $multiplier += sqrt($overWeightedSum) * 0.15;
     }
 
     return [
         'index' => $index,
-        'multiplier' => round(min(1.30, max(1.0, $multiplier)), 4),
+        'multiplier' => round(max(1.0, min(2.0, $multiplier)), 4),
         'factors' => $factors,
     ];
 }
