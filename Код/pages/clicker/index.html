@@ -5920,9 +5920,9 @@ function showNotification(message, type = 'success', duration = 3000) {
 </button>
 <button class="upgrade-card click-rate" id="upgradeClickRateButton" data-palette="upgrade-click-rate" onclick="buyClickRateUpgrade()">
     <span class="upgrade-card-top">
-        <span class="upgrade-card-badge">+3 CPS</span>
+        <span class="upgrade-card-badge">+3 кликов/сек</span>
         <span class="upgrade-card-title">Разогнать ритм</span>
-        <span class="upgrade-card-meta">Поднимает лимит засчитываемых кликов на 3 CPS. Полезно, если уже упираетесь в потолок скорости.</span>
+        <span class="upgrade-card-meta">Поднимает лимит засчитываемых кликов на 3 в секунду. Полезно, если кликаешь очень быстро и часть кликов не засчитывается.</span>
     </span>
     <span class="upgrade-card-footer">
         <span class="upgrade-card-price"></span>
@@ -13155,7 +13155,7 @@ function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
     if (type === 'tapSmall' || type === 'tapBig' || type === 'tapHuge') {
         const addedCoinsPerClick = Math.max(1, Number(descriptor.effectStep || 0) * safeQuantity);
         const paybackClicks = Math.max(1, Math.ceil(safeTotalPrice / addedCoinsPerClick));
-        return `Окупаемость: около ${formatCompactNumber(paybackClicks)} кликов после покупки.`;
+        return `Окупится примерно за ${formatCompactNumber(paybackClicks)} тапов после покупки.`;
     }
 
     if (type === 'regenBoost') {
@@ -13169,7 +13169,7 @@ function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
     if (type === 'clickRate') {
         const currentLimit = getCurrentClickRateLimit();
         const nextLimit = currentLimit + (CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade * safeQuantity);
-        return `Эффект набора: лимит засчитываемых кликов вырастет с ${formatCompactNumber(currentLimit)} до ${formatCompactNumber(nextLimit)} CPS. Доход напрямую не растет, но лишние быстрые клики перестанут теряться.`;
+        return `Эффект набора: лимит засчитываемых кликов вырастет с ${formatCompactNumber(currentLimit)} до ${formatCompactNumber(nextLimit)} в секунду. Доход напрямую не растет, но лишние быстрые клики перестанут теряться.`;
     }
 
     return '';
@@ -13646,7 +13646,7 @@ function getUpgradeDescriptor(type) {
         },
         clickRate: {
             title: 'Разогнать ритм',
-            effect: '+3 CPS к лимиту засчитываемых кликов',
+            effect: '+3 к лимиту кликов в секунду',
             effectStep: CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade,
             purchaseCount: upgradePurchaseCounts.clickRate,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.clickRate, upgradePurchaseCounts.clickRate, 'clickRate')
@@ -13775,7 +13775,7 @@ function updateUpgradeActionModalView() {
         } else if (upgradeActionState.type === 'regenBoost') {
             effectLabel = 'энергии/сек';
         } else if (upgradeActionState.type === 'clickRate') {
-            effectLabel = 'к лимиту CPS';
+            effectLabel = 'к лимиту кликов/сек';
         }
         effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${effectLabel}`;
     }
@@ -13900,7 +13900,7 @@ async function performUpgradePurchase(type, quantity = 1) {
             : type === 'regenBoost'
                 ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Реген: +${formatCompactNumber(upgradePurchaseCounts.regenBoost * 2)} энергии/сек`
                 : type === 'clickRate'
-                    ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый лимит: ${formatCompactNumber(getCurrentClickRateLimit())} CPS`
+                    ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый лимит: ${formatCompactNumber(getCurrentClickRateLimit())} кликов/сек`
                 : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
         'success'
     );
@@ -19125,7 +19125,7 @@ function buyClickRateUpgrade() {
             balance: score
         }, {
             source: 'upgrade_shop',
-            description: 'Не хватило коинов на покупку улучшения лимита CPS.'
+            description: 'Не хватило коинов на покупку улучшения лимита кликов в секунду.'
         });
         showUpgradeActionModal('clickRate');
         return;
