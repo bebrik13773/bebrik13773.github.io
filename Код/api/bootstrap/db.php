@@ -1409,6 +1409,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `last_energy_update` BIGINT NOT NULL DEFAULT 0,
     `ENERGY_MAX` INT NOT NULL DEFAULT 5000,
     `score` BIGINT NOT NULL DEFAULT 0,
+    `last_score_update` BIGINT NOT NULL DEFAULT 0,
     `upgrade_tap_small_count` INT NOT NULL DEFAULT 0,
     `upgrade_tap_big_count` INT NOT NULL DEFAULT 0,
     `upgrade_energy_count` INT NOT NULL DEFAULT 0,
@@ -1434,6 +1435,7 @@ SQL;
         'last_energy_update' => "ALTER TABLE `users` ADD COLUMN `last_energy_update` BIGINT NOT NULL DEFAULT 0 AFTER `energy`",
         'ENERGY_MAX' => "ALTER TABLE `users` ADD COLUMN `ENERGY_MAX` INT NOT NULL DEFAULT 5000 AFTER `last_energy_update`",
         'score' => "ALTER TABLE `users` ADD COLUMN `score` BIGINT NOT NULL DEFAULT 0 AFTER `ENERGY_MAX`",
+        'last_score_update' => "ALTER TABLE `users` ADD COLUMN `last_score_update` BIGINT NOT NULL DEFAULT 0 AFTER `score`",
         'upgrade_tap_small_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_tap_small_count` INT NOT NULL DEFAULT 0 AFTER `score`",
         'upgrade_tap_big_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_tap_big_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_small_count`",
         'upgrade_energy_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_energy_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_tap_big_count`",
@@ -1475,6 +1477,7 @@ SQL;
         "UPDATE `users` SET `energy` = GREATEST(0, {$signedNumeric('ENERGY_MAX', '5000')}) WHERE `energy` IS NULL OR NULLIF(TRIM(CAST(`energy` AS CHAR)), '') IS NULL OR {$signedNumeric('energy')} < 0",
         "UPDATE `users` SET `last_energy_update` = 0 WHERE `last_energy_update` IS NULL OR NULLIF(TRIM(CAST(`last_energy_update` AS CHAR)), '') IS NULL",
         "UPDATE `users` SET `score` = 0 WHERE `score` IS NULL OR NULLIF(TRIM(CAST(`score` AS CHAR)), '') IS NULL",
+        "UPDATE `users` SET `last_score_update` = 0 WHERE `last_score_update` IS NULL OR NULLIF(TRIM(CAST(`last_score_update` AS CHAR)), '') IS NULL",
         "UPDATE `users` SET `upgrade_tap_small_count` = 0 WHERE `upgrade_tap_small_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_tap_small_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_tap_small_count')} < 0",
         "UPDATE `users` SET `upgrade_tap_big_count` = 0 WHERE `upgrade_tap_big_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_tap_big_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_tap_big_count')} < 0",
         "UPDATE `users` SET `upgrade_energy_count` = 0 WHERE `upgrade_energy_count` IS NULL OR NULLIF(TRIM(CAST(`upgrade_energy_count` AS CHAR)), '') IS NULL OR {$signedNumeric('upgrade_energy_count')} < 0",
@@ -4894,6 +4897,7 @@ function bober_support_ticket_categories()
         'skins',
         'skins_shop',
         'fly_beaver',
+        'anti_cheat',
         'other',
     ];
 }
@@ -10013,6 +10017,98 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     return $response;
 }
 
+/**
+ * Грубая серверная проверка правдоподобия прироста score между сохранениями.
+ *
+ * Не блокирует сохранение (клиент всё ещё присылает абсолютный score, и мы ему
+ * доверяем, как и раньше) — только детектирует явно невозможный прирост и заводит
+ * тикет от имени системы, чтобы разобраться вручную. Все допуски выбраны заведомо
+ * щедрыми (в пользу игрока), чтобы не спамить ложными срабатываниями на офлайн-
+ * прогресс, лаги или редкие сохранения.
+ */
+function bober_flag_suspicious_score_gain($conn, $userId, array $context)
+{
+    $previousScore = max(0, (int) ($context['previousScore'] ?? 0));
+    $nextScore = max(0, (int) ($context['nextScore'] ?? 0));
+    $scoreGain = $nextScore - $previousScore;
+
+    // Прирост отрицательный или нулевой — накрутка тут в принципе не про рост числа.
+    if ($scoreGain <= 0) {
+        return;
+    }
+
+    $previousLastScoreUpdate = max(0, (int) ($context['previousLastScoreUpdate'] ?? 0));
+    $nowMs = max(0, (int) ($context['nowMs'] ?? 0));
+
+    // Нет предыдущей метки времени (первое сохранение после миграции/регистрации) —
+    // не с чем сравнивать скорость, пропускаем проверку.
+    if ($previousLastScoreUpdate <= 0 || $nowMs <= $previousLastScoreUpdate) {
+        return;
+    }
+
+    $elapsedSeconds = ($nowMs - $previousLastScoreUpdate) / 1000;
+    // Щедрый потолок: не считаем офлайн-прогресс дольше 30 дней подряд,
+    // чтобы не получить нереалистично огромный "правдоподобный" лимит из-за
+    // пользователя, не заходившего много месяцев.
+    $elapsedSeconds = min($elapsedSeconds, 30 * 24 * 60 * 60);
+
+    $previousUpgradeCounts = is_array($context['previousUpgradeCounts'] ?? null) ? $context['previousUpgradeCounts'] : [];
+    $previousPlus = max(1, (int) ($context['previousPlus'] ?? bober_calculate_plus_from_upgrade_counts($previousUpgradeCounts)));
+    $previousClickRateLimit = max(1, (int) bober_calculate_click_rate_limit_from_upgrade_counts($previousUpgradeCounts));
+
+    // Максимально возможный доход от одних только тапов: коинов-за-тап × кликов-в-секунду,
+    // умноженное на прошедшее время. Берём x2 сверху как допуск на погрешность замера
+    // времени клиента/сервера и на то, что лимит кликов мог быть повышен в течение интервала.
+    $maxPlausibleTapIncome = (int) ceil($previousPlus * $previousClickRateLimit * $elapsedSeconds * 2);
+    // Небольшой фиксированный запас на редкие события (квесты/ачивки/скины), чтобы не
+    // ловить обычных игроков, которым просто повезло с наградой между сохранениями.
+    $flatAllowance = 200000;
+
+    $maxPlausibleGain = $maxPlausibleTapIncome + $flatAllowance;
+
+    if ($scoreGain <= $maxPlausibleGain) {
+        return;
+    }
+
+    $login = trim((string) ($context['login'] ?? ''));
+    $elapsedMinutes = round($elapsedSeconds / 60, 1);
+
+    bober_log_user_activity($conn, $userId, 'suspicious_score_gain', [
+        'action_group' => 'security',
+        'source' => 'save_state',
+        'login' => $login,
+        'description' => 'Обнаружен неправдоподобный прирост счёта между сохранениями.',
+        'score_delta' => $scoreGain,
+        'coins_delta' => $scoreGain,
+        'meta' => [
+            'previous_score' => $previousScore,
+            'next_score' => $nextScore,
+            'elapsed_seconds' => round($elapsedSeconds, 1),
+            'previous_plus' => $previousPlus,
+            'previous_click_rate_limit' => $previousClickRateLimit,
+            'max_plausible_gain' => $maxPlausibleGain,
+        ],
+    ]);
+
+    try {
+        $subject = 'Подозрительный прирост счёта (авто-детект)';
+        $message = sprintf(
+            "Автоматическая проверка обнаружила у игрока '%s' (ID %d) прирост счёта на %s монет за %s мин. между двумя сохранениями.\n".
+            "Правдоподобный максимум для этого игрока за то же время: около %s монет (тап-доход x2 + запас на награды).\n".
+            "Это не блокировка — просто сигнал для ручной проверки: возможна прямая подмена запроса на сервер, либо ложное срабатывание (крупная награда/баг). Аккаунт не ограничен автоматически.",
+            $login !== '' ? $login : ('user_' . $userId),
+            $userId,
+            number_format($scoreGain, 0, '.', ' '),
+            (string) $elapsedMinutes,
+            number_format($maxPlausibleGain, 0, '.', ' ')
+        );
+
+        bober_create_support_ticket_as_admin($conn, $userId, 'anti_cheat', $subject, $message);
+    } catch (Throwable $ticketError) {
+        // Не даём проблеме с созданием тикета сорвать сохранение прогресса игрока.
+    }
+}
+
 function bober_apply_user_state_update($conn, $userId, $data)
 {
     $userId = max(0, (int) $userId);
@@ -10026,7 +10122,7 @@ function bober_apply_user_state_update($conn, $userId, $data)
     $lastEnergyUpdate = (string) max(0, (int) ($data['lastEnergyUpdate'] ?? 0));
     $clientLogBatch = is_array($data['clientLogBatch'] ?? null) ? $data['clientLogBatch'] : null;
 
-    $currentStmt = $conn->prepare('SELECT score, plus, skin, energy, ENERGY_MAX, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1');
+    $currentStmt = $conn->prepare('SELECT score, plus, skin, energy, ENERGY_MAX, last_score_update, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1');
     if (!$currentStmt) {
         throw new RuntimeException('Ошибка подготовки чтения текущего состояния.');
     }
@@ -10075,12 +10171,14 @@ function bober_apply_user_state_update($conn, $userId, $data)
     }
     $skin = bober_encode_skin_state($nextSkinState);
 
-    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
+    $nowMs = (string) (int) round(microtime(true) * 1000);
+
+    $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, last_score_update = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
 
-    $stmt->bind_param('iisisiiiiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount, $upgradeClickRateCount, $userId);
+    $stmt->bind_param('iisisisiiiiiiii', $score, $plus, $skin, $energy, $lastEnergyUpdate, $energyMax, $nowMs, $upgradeTapSmallCount, $upgradeTapBigCount, $upgradeEnergyCount, $upgradeTapHugeCount, $upgradeRegenBoostCount, $upgradeEnergyHugeCount, $upgradeClickRateCount, $userId);
     if (!$stmt->execute()) {
         $stmt->close();
         throw new RuntimeException('Ошибка выполнения запроса.');
@@ -10102,6 +10200,21 @@ function bober_apply_user_state_update($conn, $userId, $data)
         $previousEnergyHuge = max(0, (int) ($currentRow['upgrade_energy_huge_count'] ?? 0));
         $previousClickRate = max(0, (int) ($currentRow['upgrade_click_rate_count'] ?? 0));
         $previousSkinState = $currentSkinState;
+        $previousLastScoreUpdate = max(0, (int) ($currentRow['last_score_update'] ?? 0));
+
+        try {
+            bober_flag_suspicious_score_gain($conn, $userId, [
+                'previousScore' => $previousScore,
+                'nextScore' => $score,
+                'previousUpgradeCounts' => $previousUpgradeCounts,
+                'previousPlus' => $previousPlus,
+                'previousLastScoreUpdate' => $previousLastScoreUpdate,
+                'nowMs' => (int) $nowMs,
+                'login' => $_SESSION['game_login'] ?? '',
+            ]);
+        } catch (Throwable $flagError) {
+            // Детекция накрутки никогда не должна мешать сохранению прогресса игрока.
+        }
 
         if ($upgradeTapSmallCount > $previousTapSmall) {
             bober_log_user_activity($conn, $userId, 'upgrade_tap_small_purchase', [
