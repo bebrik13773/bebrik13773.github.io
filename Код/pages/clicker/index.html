@@ -6713,6 +6713,9 @@ let energy_max = 5000;
 const SHARED_CLIENT = window.BoberSharedClient || {};
 const ENERGY_REGEN_TIME = 15 * 60 * 1000;
 let ENERGY_REGEN_PER_MS = 0;
+let lastTapTimestamp = 0;
+const ACTIVE_TAPPING_WINDOW_MS = 1000;
+const ACTIVE_TAPPING_REGEN_FACTOR = 0.5;
 const REGISTER_LOGIN_PATTERN = /^[A-Za-z0-9_-]{3,10}$/;
 const REGISTER_LOGIN_RULES = 'Логин должен быть длиной от 3 до 10 символов и содержать только английские буквы, цифры, "-" и "_".';
 const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
@@ -18077,7 +18080,9 @@ function updateEnergy() {
     const delta = now - lastEnergyUpdate;
 
     if (delta > 0) {
-        const regen = delta * ENERGY_REGEN_PER_MS;
+        const isActivelyTapping = (now - lastTapTimestamp) <= ACTIVE_TAPPING_WINDOW_MS;
+        const regenRate = isActivelyTapping ? ENERGY_REGEN_PER_MS * ACTIVE_TAPPING_REGEN_FACTOR : ENERGY_REGEN_PER_MS;
+        const regen = delta * regenRate;
         energy = Math.min(energy_max, energy + regen);
         lastEnergyUpdate = now;
     }
@@ -18264,6 +18269,7 @@ document.getElementById('clicker').addEventListener('touchstart', function(e) {
 
     e.preventDefault();
     updateEnergy();
+    lastTapTimestamp = Date.now();
 
     const touches = e.touches.length;
     const interactionPayload = buildInteractionPayload(e, touches);
@@ -18433,6 +18439,7 @@ function performSingleClickerActivation(event, options = {}) {
     }
 
     updateEnergy();
+    lastTapTimestamp = Date.now();
     const interactionPayload = buildInteractionPayload(event, 1);
     const antiCheatSnapshot = window.clickDetector && typeof window.clickDetector.recordInteraction === 'function'
         ? window.clickDetector.recordInteraction({
