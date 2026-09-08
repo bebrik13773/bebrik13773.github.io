@@ -1138,7 +1138,7 @@ function bober_build_user_economy_profile(array $state)
     $totalUpgradePurchases = array_sum($upgradeCounts);
     $purchasedShopSkinCount = bober_count_purchased_shop_skins($catalog, $ownedSkinIds);
 
-    $scoreFactorRaw = (log10(max($score, 1)) - 6) / 4;
+    $scoreFactorRaw = (log10(max($score, 1)) - log10(500000)) / 4;
     $plusFactorRaw = (log10(max($plus, 1)) - 2) / 3;
     $upgradeFactorRaw = $totalUpgradePurchases / 140;
     $shopSkinFactorRaw = $purchasedShopSkinCount / 28;
