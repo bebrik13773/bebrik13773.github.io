@@ -1,0 +1,159 @@
+
+html_content = '''<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Техническое обслуживание</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(180deg, #1a0f2e 0%, #0d1b2a 50%, #1a0f2e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(13, 27, 42, 0.6);
+            border: 1px solid rgba(100, 149, 237, 0.25);
+            border-radius: 32px;
+            padding: 48px 32px 40px;
+            box-shadow: 0 0 60px rgba(100, 149, 237, 0.08), inset 0 1px 0 rgba(255,255,255,0.05);
+            text-align: left;
+        }
+        .label {
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #8b9bb4;
+            margin-bottom: 20px;
+        }
+        .title {
+            font-size: 36px;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1.2;
+            margin-bottom: 24px;
+        }
+        .description {
+            font-size: 17px;
+            line-height: 1.65;
+            color: #a0aec0;
+            margin-bottom: 28px;
+        }
+        .info-box {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(100, 149, 237, 0.15);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .info-box p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        .info-box .highlight {
+            color: #7dd3fc;
+            font-weight: 600;
+        }
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 16px 24px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(100, 149, 237, 0.2);
+            border-radius: 16px;
+            color: #e2e8f0;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            background: rgba(51, 65, 85, 0.9);
+            border-color: rgba(100, 149, 237, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .channel-link {
+            display: block;
+            margin-top: 20px;
+            padding: 16px 20px;
+            background: rgba(36, 161, 222, 0.1);
+            border: 1px solid rgba(36, 161, 222, 0.25);
+            border-radius: 16px;
+            color: #7dd3fc;
+            font-size: 15px;
+            font-weight: 500;
+            text-align: center;
+            text-decoration: none;
+            line-height: 1.5;
+            transition: all 0.2s ease;
+        }
+        .channel-link:hover {
+            background: rgba(36, 161, 222, 0.2);
+            border-color: rgba(36, 161, 222, 0.5);
+        }
+        .channel-link .tg-icon {
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 18px;
+            vertical-align: middle;
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 36px 24px 32px;
+                border-radius: 24px;
+            }
+            .title {
+                font-size: 28px;
+            }
+            .description {
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="label">Сервис временно недоступен</div>
+        <div class="title">Техническое обслуживание</div>
+        <div class="description">
+            Сейчас проводятся плановые работы на сервере. 
+            Мы уже всё чиним и скоро вернёмся. 
+            Попробуйте зайти чуть позже.
+        </div>
+        <div class="info-box">
+            <p>
+                <span class="highlight">Время уже опубликовали в канале:</span> 
+                Новости кликера, розыгрыши и примерное время окончания можно посмотреть в канале.
+            </p>
+        </div>
+        <a href="/" class="btn">Обновить страницу</a>
+        <a href="https://t.me/+PKzlhakAdf8wMmVi" target="_blank" class="channel-link">
+            <span class="tg-icon">📢</span>Новости кликера, розыгрыши и примерное время окончания можно посмотреть в канале
+        </a>
+    </div>
+</body>
+</html>'''
+
+with open('/mnt/agents/output/tex.html', 'w', encoding='utf-8') as f:
+    f.write(html_content)
+
+print("Файл сохранён: /mnt/agents/output/tex.html")
