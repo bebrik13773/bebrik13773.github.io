@@ -3973,6 +3973,53 @@ SQL;
     }
 }
 
+function bober_ensure_match3_schema($conn)
+{
+    $createMatch3ProgressSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `match3_progress` (
+    `user_id` INT PRIMARY KEY,
+    `best_score` INT NOT NULL DEFAULT 0,
+    `last_score` INT NOT NULL DEFAULT 0,
+    `games_played` INT NOT NULL DEFAULT 0,
+    `total_score` BIGINT NOT NULL DEFAULT 0,
+    `pending_transfer_score` BIGINT NOT NULL DEFAULT 0,
+    `transferred_total_score` BIGINT NOT NULL DEFAULT 0,
+    `transfer_window_started_at` TIMESTAMP NULL DEFAULT NULL,
+    `transfer_window_coins` BIGINT NOT NULL DEFAULT 0,
+    `last_played_at` TIMESTAMP NULL DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createMatch3ProgressSql)) {
+        throw new RuntimeException('Не удалось создать таблицу прогресса Три Бобра.');
+    }
+
+    $createMatch3RunsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `match3_runs` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `run_token` VARCHAR(80) NOT NULL,
+    `score` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createMatch3RunsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу запусков Три Бобра.');
+    }
+
+    if (!bober_index_exists($conn, 'match3_runs', 'uniq_match3_user_run') && !$conn->query("CREATE UNIQUE INDEX `uniq_match3_user_run` ON `match3_runs` (`user_id`, `run_token`)")) {
+        throw new RuntimeException('Не удалось создать уникальный индекс запусков Три Бобра.');
+    }
+
+    if (!bober_index_exists($conn, 'match3_runs', 'idx_match3_runs_created') && !$conn->query("CREATE INDEX `idx_match3_runs_created` ON `match3_runs` (`user_id`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс истории Три Бобра.');
+    }
+}
+
+
 function bober_default_user_settings()
 {
     return [
@@ -4471,6 +4518,7 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_game_schema($conn);
     bober_ensure_security_schema($conn);
     bober_ensure_fly_beaver_schema($conn);
+    bober_ensure_match3_schema($conn);
     bober_ensure_user_settings_schema($conn);
     bober_ensure_user_achievements_schema($conn);
     bober_ensure_achievement_catalog_schema($conn);
@@ -4582,7 +4630,84 @@ function bober_fetch_fly_beaver_progress($conn, $userId)
     return bober_normalize_fly_beaver_progress_row($row);
 }
 
-function bober_fetch_user_settings_record($conn, $userId)
+function bober_default_match3_progress()
+{
+    return [
+        'bestScore' => 0,
+        'lastScore' => 0,
+        'gamesPlayed' => 0,
+        'totalScore' => 0,
+        'pendingTransferScore' => 0,
+        'transferredTotalScore' => 0,
+        'lastPlayedAt' => null,
+    ];
+}
+
+function bober_normalize_match3_progress_row($row)
+{
+    $defaults = bober_default_match3_progress();
+
+    if (!is_array($row)) {
+        return $defaults;
+    }
+
+    return [
+        'bestScore' => max(0, (int) ($row['best_score'] ?? $row['bestScore'] ?? 0)),
+        'lastScore' => max(0, (int) ($row['last_score'] ?? $row['lastScore'] ?? 0)),
+        'gamesPlayed' => max(0, (int) ($row['games_played'] ?? $row['gamesPlayed'] ?? 0)),
+        'totalScore' => max(0, (int) ($row['total_score'] ?? $row['totalScore'] ?? 0)),
+        'pendingTransferScore' => max(0, (int) ($row['pending_transfer_score'] ?? $row['pendingTransferScore'] ?? 0)),
+        'transferredTotalScore' => max(0, (int) ($row['transferred_total_score'] ?? $row['transferredTotalScore'] ?? 0)),
+        'lastPlayedAt' => isset($row['last_played_at']) ? (string) $row['last_played_at'] : ($row['lastPlayedAt'] ?? null),
+    ];
+}
+
+function bober_ensure_match3_progress_row($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('INSERT IGNORE INTO match3_progress (user_id) VALUES (?)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить создание строки прогресса Три Бобра.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function bober_fetch_match3_progress($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return bober_default_match3_progress();
+    }
+
+    $stmt = $conn->prepare('SELECT best_score, last_score, games_played, total_score, pending_transfer_score, transferred_total_score, last_played_at FROM match3_progress WHERE user_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить получение прогресса Три Бобра.');
+    }
+
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось получить прогресс Три Бобра.');
+    }
+
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return bober_normalize_match3_progress_row($row);
+}
+
+
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -9850,6 +9975,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     $energyMax = bober_calculate_energy_max_from_upgrade_counts($upgradeCounts);
     $energy = max(0, min($energyMax, (int) ($row['energy'] ?? 0)));
     $flyBeaver = bober_fetch_fly_beaver_progress($conn, $userId);
+    $match3 = bober_fetch_match3_progress($conn, $userId);
     $skinState = bober_decode_skin_state($normalizedSkin);
     $ownedSkinIds = array_values(array_unique(array_map('strval', $skinState['ownedSkinIds'] ?? [])));
     $upgradeTapSmallCount = $upgradeCounts['tapSmall'];
@@ -9879,7 +10005,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'clickerTop1' => in_array(bober_clicker_top_reward_skin_id(), $ownedSkinIds, true),
         'flyTop1' => in_array(bober_fly_beaver_top_reward_skin_id(), $ownedSkinIds, true),
         'flyBeaver' => $flyBeaver,
-        'flyGamesPlayed' => max(0, (int) ($flyBeaver['gamesPlayed'] ?? 0)),
+        'match3' => $match3,
         'totalUpgradePurchases' => $totalUpgradePurchases,
         'upgradeCounts' => [
             'tapSmall' => $upgradeTapSmallCount,
@@ -10025,7 +10151,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
             'clickRate' => $upgradeClickRateCount,
         ],
         'flyBeaver' => $flyBeaver,
-        'settings' => is_array($settingsRecord['settings'] ?? null) ? $settingsRecord['settings'] : bober_default_user_settings(),
+        'match3' => $match3,
         'settingsUpdatedAt' => isset($settingsRecord['updatedAt']) ? (string) $settingsRecord['updatedAt'] : '',
         'profile' => $profile,
         'achievements' => $achievements,

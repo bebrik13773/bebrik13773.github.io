@@ -2973,6 +2973,19 @@ Owner decisions:
             inset 0 1px 0 rgba(255, 255, 255, 0.44);
     }
 
+    .game-mode-action-stack #match3OpenButton {
+        width: min(100%, 360px);
+        min-height: 60px;
+        padding: 16px 22px;
+        font-size: 17px;
+        border-radius: 20px;
+        flex-direction: column;
+        gap: 4px;
+        box-shadow:
+            0 24px 32px rgba(6, 13, 30, 0.24),
+            inset 0 1px 0 rgba(255, 255, 255, 0.44);
+    }
+
     .fly-beaver-button-main {
         display: inline-flex;
         align-items: center;
@@ -2988,6 +3001,19 @@ Owner decisions:
     }
 
     .game-mode-action-stack #flyBeaverOpenButton:hover {
+        box-shadow:
+            0 28px 36px rgba(6, 13, 30, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.52);
+    }
+
+    .game-mode-action-stack #match3OpenButton {
+        background:
+            linear-gradient(180deg, rgba(168, 230, 128, 0.92), rgba(70, 173, 90, 0.96)),
+            rgba(255, 255, 255, 0.06);
+        color: #0d2b12;
+    }
+
+    .game-mode-action-stack #match3OpenButton:hover {
         box-shadow:
             0 28px 36px rgba(6, 13, 30, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.52);
@@ -5847,11 +5873,22 @@ function showNotification(message, type = 'success', duration = 3000) {
         </span>
         <span id="flyBeaverBestScoreLabel" class="fly-beaver-best-score-label"></span>
     </button>
+    <button class="shop-action-btn" id="match3OpenButton" type="button" title="Три Бобра (T)">
+        <span class="fly-beaver-button-main">
+            <span aria-hidden="true">🌰</span>
+            <span>Три Бобра</span>
+        </span>
+        <span id="match3BestScoreLabel" class="fly-beaver-best-score-label"></span>
+    </button>
 </div>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <div id="flyRewardPanel">
     <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
     <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
+</div>
+<div id="match3RewardPanel">
+    <button id="match3RewardButton">Забрать очки из Три Бобра</button>
+    <div id="match3RewardStatus" class="save-status idle">Три Бобра пока работает локально.</div>
 </div>
 </div>
 <button id="shopExit" onclick="shopClose()">Выход</button>
@@ -7987,6 +8024,7 @@ let skin = getDefaultSkinState();
 let energyTimer = null;
 let currentLogin = localStorage.getItem('login') || '';
 let flyBeaverState = getDefaultFlyBeaverState();
+let match3State = getDefaultMatch3State();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
 let recentActivity = getDefaultRecentActivity();
@@ -9128,6 +9166,7 @@ async function performAuthoritativePurchase(requestBody, options = {}) {
         }
         if (response && response.flyBeaver) {
             flyBeaverState = normalizeFlyBeaverState(response.flyBeaver);
+            match3State = normalizeMatch3State(response.match3);
             updateFlyRewardUI();
         }
 
@@ -9235,6 +9274,7 @@ async function claimQuestReward(rawQuest, options = {}) {
         }
         if (response && response.flyBeaver) {
             flyBeaverState = normalizeFlyBeaverState(response.flyBeaver);
+            match3State = normalizeMatch3State(response.match3);
             updateFlyRewardUI();
         }
 
@@ -12940,6 +12980,18 @@ function getDefaultFlyBeaverState() {
     };
 }
 
+function getDefaultMatch3State() {
+    return {
+        bestScore: 0,
+        lastScore: 0,
+        gamesPlayed: 0,
+        totalScore: 0,
+        pendingTransferScore: 0,
+        transferredTotalScore: 0,
+        lastPlayedAt: null
+    };
+}
+
 function getDefaultUpgradePurchaseCounts() {
     return {
         tapSmall: 0,
@@ -14832,6 +14884,23 @@ function normalizeFlyBeaverState(rawState) {
     };
 }
 
+function normalizeMatch3State(rawState) {
+    const defaults = getDefaultMatch3State();
+    if (!rawState || typeof rawState !== 'object') {
+        return defaults;
+    }
+
+    return {
+        bestScore: Math.max(0, Number(rawState.bestScore) || 0),
+        lastScore: Math.max(0, Number(rawState.lastScore) || 0),
+        gamesPlayed: Math.max(0, Number(rawState.gamesPlayed) || 0),
+        totalScore: Math.max(0, Number(rawState.totalScore) || 0),
+        pendingTransferScore: Math.max(0, Number(rawState.pendingTransferScore) || 0),
+        transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
+        lastPlayedAt: rawState.lastPlayedAt || null
+    };
+}
+
 function normalizeUpgradePurchaseCounts(rawCounts, options = {}) {
     const normalized = getDefaultUpgradePurchaseCounts();
     if (rawCounts && typeof rawCounts === 'object') {
@@ -15038,6 +15107,51 @@ function updateFlyRewardUI() {
     rewardButton.style.display = 'none';
     rewardStatus.className = 'save-status saved';
     rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}. Начисление от 10 очков, вывод от 30.`;
+}
+
+function updateMatch3RewardUI() {
+    const rewardButton = document.getElementById('match3RewardButton');
+    const rewardStatus = document.getElementById('match3RewardStatus');
+    const bestScoreLabel = document.getElementById('match3BestScoreLabel');
+    const isAuthenticated = Boolean(userId);
+
+    if (!rewardButton || !rewardStatus) {
+        return;
+    }
+
+    const best = Math.max(0, Number(match3State.bestScore) || 0);
+    if (bestScoreLabel) {
+        bestScoreLabel.textContent = `Ваш рекорд: ${formatCompactNumber(best)}`;
+    }
+
+    if (!isAuthenticated) {
+        rewardButton.style.display = 'none';
+        rewardStatus.className = 'save-status idle';
+        rewardStatus.textContent = 'Три Бобра без входа работает локально.';
+        return;
+    }
+
+    const pending = Math.max(0, Number(match3State.pendingTransferScore) || 0);
+    const rewardCoins = calculateFlyRewardCoins(pending);
+
+    if (pending >= 30) {
+        rewardButton.style.display = 'inline-block';
+        rewardButton.textContent = `Забрать из Три Бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
+        rewardStatus.className = 'save-status draft';
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 1 = 500 коинов. Лимит: 250000 коинов в час.`;
+        return;
+    }
+
+    if (pending > 0) {
+        rewardButton.style.display = 'none';
+        rewardStatus.className = 'save-status idle';
+        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(30 - pending)} очк. В зачет идут только забеги от 10 очков, а меньший забег очищает очередь.`;
+        return;
+    }
+
+    rewardButton.style.display = 'none';
+    rewardStatus.className = 'save-status saved';
+    rewardStatus.textContent = `Три Бобра синхронизировано. Рекорд: ${formatCompactNumber(best)}. Начисление от 10 очков, вывод от 30.`;
 }
 
 function normalizeBanInfoObject(rawBanInfo) {
@@ -16526,6 +16640,13 @@ if (flyBeaverOpenButton) {
     });
 }
 
+const match3OpenButton = document.getElementById('match3OpenButton');
+if (match3OpenButton) {
+    match3OpenButton.addEventListener('click', () => {
+        openMatch3Game();
+    });
+}
+
 function formatSaveTime(timestamp) {
     if (!timestamp) {
         return '';
@@ -16899,6 +17020,7 @@ function applyAuthenticatedState(data) {
     });
     updateRegenRate();
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    match3State = normalizeMatch3State(data.match3);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     recentActivity = Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')
         ? normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity)
@@ -17721,6 +17843,7 @@ function applySynchronizedAccountState(data) {
     }
 
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
+    match3State = normalizeMatch3State(data.match3);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
     if (Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')) {
         recentActivity = normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity);
@@ -18704,6 +18827,15 @@ document.addEventListener('keydown', function(event) {
                     showNotification(error.message || 'Не удалось открыть Летающего бобра.', 'error');
                 });
             }
+        },
+        KeyT: {
+            label: 'match3',
+            handler: () => {
+                openMatch3Game().catch((error) => {
+                    console.error('Не удалось открыть match3 по горячей клавише:', error);
+                    showNotification(error.message || 'Не удалось открыть Три Бобра.', 'error');
+                });
+            }
         }
     };
 
@@ -18958,6 +19090,42 @@ async function openFlyBeaverGame() {
         }
 
         window.location.href = '/games/fly-beaver/';
+    } finally {
+        if (trigger) {
+            trigger.disabled = false;
+        }
+        window.setTimeout(() => {
+            setLoadingOverlay(false);
+        }, 300);
+    }
+}
+
+async function openMatch3Game() {
+    const trigger = document.getElementById('match3OpenButton');
+    if (trigger) {
+        trigger.disabled = true;
+    }
+
+    setLoadingOverlay(true, 'Три Бобра', userId
+        ? 'Сначала сохраняем ваш прогресс, потом откроем мини-игру...'
+        : 'Открываем мини-игру...');
+    logClientEvent('ui', 'open_match3', {
+        authenticated: Boolean(userId)
+    }, {
+        source: 'match3_button',
+        description: 'Игрок открыл мини-игру Три Бобра.'
+    });
+
+    try {
+        if (userId) {
+            markProgressDirty({ delayMs: 0 });
+            const saved = await flushAutosave({ reason: 'navigate', silent: true });
+            if (!saved && hasPendingAutosave()) {
+                flushAutosaveWithBeacon();
+            }
+        }
+
+        window.location.href = '/games/match3/';
     } finally {
         if (trigger) {
             trigger.disabled = false;
@@ -19331,6 +19499,51 @@ document.getElementById('flyRewardButton').onclick = async function() {
 
         console.error('Ошибка перевода очков из fly-beaver:', error);
         showNotification(error.message || 'Не удалось перевести очки из Летающего бобра.', 'error');
+    } finally {
+        rewardButton.disabled = false;
+    }
+};
+
+document.getElementById('match3RewardButton').onclick = async function() {
+    const rewardButton = document.getElementById('match3RewardButton');
+
+    if (!requestAuthModal('login', {
+        text: 'Войдите в аккаунт, чтобы переводить очки из Три Бобра в основной кликер.'
+    })) {
+        return;
+    }
+
+    if (rewardButton.disabled) {
+        return;
+    }
+
+    rewardButton.disabled = true;
+
+    try {
+        const data = await requestJson('/api/match3/claim-reward.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: '{}'
+        });
+
+        score = Number.isFinite(Number(data.mainScore)) ? Number(data.mainScore) : score;
+        match3State = normalizeMatch3State(data.match3);
+        updateScoreUI();
+        updateMatch3RewardUI();
+        showNotification(data.message || 'Награда переведена в основной кликер.', Number(data.awardedCoins) > 0 ? 'success' : 'error');
+    } catch (error) {
+        if (tryHandleSessionEndedError(error)) {
+            return;
+        }
+        if (tryHandleBanError(error)) {
+            resetUserState();
+            return;
+        }
+
+        console.error('Ошибка перевода очков из match3:', error);
+        showNotification(error.message || 'Не удалось перевести очки из Три Бобра.', 'error');
     } finally {
         rewardButton.disabled = false;
     }
