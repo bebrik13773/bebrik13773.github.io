@@ -722,7 +722,8 @@ Owner decisions:
 		#sessionsButton:active,
 		#registerButton:active,
 		#loginButton:active,
-		#flyRewardButton:active {
+		#flyRewardButton:active,
+		#match3RewardButton:active {
 			transform: scale(0.9);
 		}
 		#save {
@@ -734,7 +735,8 @@ Owner decisions:
 			padding: 8px 16px;
 			font-size: 16px;
 		}
-		#flyRewardButton {
+		#flyRewardButton,
+		#match3RewardButton {
 			appearance: none;
 			border: 0;
 			border-radius: 5px;
@@ -2655,6 +2657,7 @@ Owner decisions:
     #loginButton,
     #save,
     #flyRewardButton,
+    #match3RewardButton,
     #shopButton,
     #shopExit,
     .shop-action-btn,
@@ -2712,6 +2715,7 @@ Owner decisions:
     #loginButton:hover,
     #save:hover,
     #flyRewardButton:hover,
+    #match3RewardButton:hover,
     #shopButton:hover,
     #shopExit:hover,
     .shop-action-btn:hover,
@@ -2745,6 +2749,7 @@ Owner decisions:
     #loginButton:active,
     #save:active,
     #flyRewardButton:active,
+    #match3RewardButton:active,
     #shopButton:active,
     #shopExit:active,
     .shop-action-btn:active,
@@ -2995,9 +3000,9 @@ Owner decisions:
 
     .game-mode-action-stack #flyBeaverOpenButton {
         background:
-            linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
+            linear-gradient(180deg, rgba(168, 230, 128, 0.92), rgba(70, 173, 90, 0.96)),
             rgba(255, 255, 255, 0.06);
-        color: #062035;
+        color: #0d2b12;
     }
 
     .game-mode-action-stack #flyBeaverOpenButton:hover {
@@ -3008,9 +3013,9 @@ Owner decisions:
 
     .game-mode-action-stack #match3OpenButton {
         background:
-            linear-gradient(180deg, rgba(168, 230, 128, 0.92), rgba(70, 173, 90, 0.96)),
+            linear-gradient(180deg, rgba(126, 241, 255, 0.92), rgba(39, 148, 255, 0.96)),
             rgba(255, 255, 255, 0.06);
-        color: #0d2b12;
+        color: #062035;
     }
 
     .game-mode-action-stack #match3OpenButton:hover {
@@ -5883,12 +5888,12 @@ function showNotification(message, type = 'success', duration = 3000) {
 </div>
 <button id="shopButton" onclick="shopShow()" title="Магазин (M)">Магазин</button>
 <div id="flyRewardPanel">
-    <button id="flyRewardButton">Забрать очки из Летающего бобра</button>
-    <div id="flyRewardStatus" class="save-status idle">Летающий бобер пока работает локально.</div>
+    <button id="flyRewardButton" style="display:none;">Забрать очки из Летающего бобра</button>
+    <div id="flyRewardStatus" class="save-status idle" style="display:none;"></div>
 </div>
 <div id="match3RewardPanel">
-    <button id="match3RewardButton">Забрать очки из Три Бобра</button>
-    <div id="match3RewardStatus" class="save-status idle">Три Бобра пока работает локально.</div>
+    <button id="match3RewardButton" style="display:none;">Забрать очки из Три Бобра</button>
+    <div id="match3RewardStatus" class="save-status idle" style="display:none;"></div>
 </div>
 </div>
 <button id="shopExit" onclick="shopClose()">Выход</button>
@@ -15070,8 +15075,13 @@ function updateFlyRewardUI() {
     const bestScoreLabel = document.getElementById('flyBeaverBestScoreLabel');
     const isAuthenticated = Boolean(userId);
 
-    if (!rewardButton || !rewardStatus) {
+    if (!rewardButton) {
         return;
+    }
+
+    if (rewardStatus) {
+        rewardStatus.style.display = 'none';
+        rewardStatus.textContent = '';
     }
 
     const best = Math.max(0, Number(flyBeaverState.bestScore) || 0);
@@ -15081,8 +15091,6 @@ function updateFlyRewardUI() {
 
     if (!isAuthenticated) {
         rewardButton.style.display = 'none';
-        rewardStatus.className = 'save-status idle';
-        rewardStatus.textContent = 'Летающий бобер без входа работает локально.';
         return;
     }
 
@@ -15092,21 +15100,10 @@ function updateFlyRewardUI() {
     if (pending >= 30) {
         rewardButton.style.display = 'inline-block';
         rewardButton.textContent = `Забрать из Летающего бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
-        rewardStatus.className = 'save-status draft';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 1 = 500 коинов. Лимит: 250000 коинов в час.`;
-        return;
-    }
-
-    if (pending > 0) {
-        rewardButton.style.display = 'none';
-        rewardStatus.className = 'save-status idle';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(30 - pending)} очк. В зачет идут только забеги от 10 очков, а меньший забег очищает очередь.`;
         return;
     }
 
     rewardButton.style.display = 'none';
-    rewardStatus.className = 'save-status saved';
-    rewardStatus.textContent = `Летающий бобер синхронизирован. Рекорд: ${formatCompactNumber(best)}. Начисление от 10 очков, вывод от 30.`;
 }
 
 function updateMatch3RewardUI() {
@@ -15115,8 +15112,13 @@ function updateMatch3RewardUI() {
     const bestScoreLabel = document.getElementById('match3BestScoreLabel');
     const isAuthenticated = Boolean(userId);
 
-    if (!rewardButton || !rewardStatus) {
+    if (!rewardButton) {
         return;
+    }
+
+    if (rewardStatus) {
+        rewardStatus.style.display = 'none';
+        rewardStatus.textContent = '';
     }
 
     const best = Math.max(0, Number(match3State.bestScore) || 0);
@@ -15126,8 +15128,6 @@ function updateMatch3RewardUI() {
 
     if (!isAuthenticated) {
         rewardButton.style.display = 'none';
-        rewardStatus.className = 'save-status idle';
-        rewardStatus.textContent = 'Три Бобра без входа работает локально.';
         return;
     }
 
@@ -15137,21 +15137,10 @@ function updateMatch3RewardUI() {
     if (pending >= 30) {
         rewardButton.style.display = 'inline-block';
         rewardButton.textContent = `Забрать из Три Бобра (+${formatCompactNumber(rewardCoins)} коинов)`;
-        rewardStatus.className = 'save-status draft';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Ждет перевода: ${formatCompactNumber(pending)} очк. по курсу 1 = 500 коинов. Лимит: 250000 коинов в час.`;
-        return;
-    }
-
-    if (pending > 0) {
-        rewardButton.style.display = 'none';
-        rewardStatus.className = 'save-status idle';
-        rewardStatus.textContent = `Рекорд: ${formatCompactNumber(best)}. Для перевода нужно еще ${formatCompactNumber(30 - pending)} очк. В зачет идут только забеги от 10 очков, а меньший забег очищает очередь.`;
         return;
     }
 
     rewardButton.style.display = 'none';
-    rewardStatus.className = 'save-status saved';
-    rewardStatus.textContent = `Три Бобра синхронизировано. Рекорд: ${formatCompactNumber(best)}. Начисление от 10 очков, вывод от 30.`;
 }
 
 function normalizeBanInfoObject(rawBanInfo) {
