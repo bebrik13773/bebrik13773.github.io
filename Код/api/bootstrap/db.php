@@ -4708,6 +4708,7 @@ function bober_fetch_match3_progress($conn, $userId)
 }
 
 
+function bober_fetch_user_settings_record($conn, $userId)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
