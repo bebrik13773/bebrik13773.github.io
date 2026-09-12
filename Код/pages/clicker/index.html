@@ -15063,10 +15063,10 @@ function formatCompactNumber(value) {
     return Number(value || 0).toLocaleString('ru-RU').replace(/[\u00A0\u202F]/g, ' ');
 }
 
-function calculateFlyRewardCoins(scoreValue) {
+function calculateFlyRewardCoins(scoreValue, coinsPerScore) {
     return SHARED_CLIENT.calculateFlyRewardCoins
-        ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue)
-        : Math.max(0, Number(scoreValue) || 0) * 500;
+        ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, coinsPerScore)
+        : Math.max(0, Number(scoreValue) || 0) * Math.max(0, Number(coinsPerScore) || 500);
 }
 
 function updateFlyRewardUI() {
@@ -15132,7 +15132,9 @@ function updateMatch3RewardUI() {
     }
 
     const pending = Math.max(0, Number(match3State.pendingTransferScore) || 0);
-    const rewardCoins = calculateFlyRewardCoins(pending);
+    const match3Multiplier = Math.max(1, Number(getCurrentEconomyProfile()?.multiplier) || 1);
+    const MATCH3_COINS_PER_SCORE = 0.6 * match3Multiplier;
+    const rewardCoins = Math.round(calculateFlyRewardCoins(pending, MATCH3_COINS_PER_SCORE));
 
     if (pending >= 30) {
         rewardButton.style.display = 'inline-block';

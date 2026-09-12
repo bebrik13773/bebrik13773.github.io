@@ -23,6 +23,7 @@ try {
         'login' => (string) ($snapshot['login'] ?? ''),
         'mainScore' => max(0, (int) ($snapshot['score'] ?? 0)),
         'match3' => $snapshot['match3'] ?? bober_default_match3_progress(),
+        'economy' => is_array($snapshot['economy'] ?? null) ? $snapshot['economy'] : ['index' => 0, 'multiplier' => 1.0, 'factors' => []],
         'settings' => $snapshot['settings'] ?? bober_default_user_settings(),
         'achievementUnlocks' => $snapshot['achievementUnlocks'] ?? [],
     ]);

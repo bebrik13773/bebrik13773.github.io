@@ -200,6 +200,128 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             pointer-events: auto;
         }
 
+        .booster-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 8px;
+            pointer-events: auto;
+        }
+
+        .booster-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            padding: 8px 10px;
+            margin-top: 0;
+            border-radius: 14px;
+            background: rgba(8, 22, 24, 0.6);
+            border: 1px solid rgba(126, 220, 241, 0.28);
+            color: #d1f0f8;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: none;
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+            min-width: unset;
+        }
+
+        .booster-btn:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: rgba(126, 220, 241, 0.5);
+        }
+
+        .booster-btn:active {
+            transform: scale(0.97);
+            box-shadow: none;
+        }
+
+        .booster-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .booster-btn-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .booster-btn-label {
+            flex: 1;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .booster-btn-price {
+            font-size: 11px;
+            color: #ffe391;
+            white-space: nowrap;
+        }
+
+        .booster-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 10, 16, 0.72);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 60;
+            padding: 20px;
+        }
+
+        .booster-modal-overlay.show {
+            display: flex;
+        }
+
+        .booster-modal-card {
+            background: linear-gradient(180deg, #16323d 0%, #0c1e26 100%);
+            border: 1px solid rgba(126, 220, 241, 0.3);
+            border-radius: 18px;
+            padding: 22px;
+            max-width: 320px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+        }
+
+        .booster-modal-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .booster-modal-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #d1f0f8;
+            margin-bottom: 8px;
+        }
+
+        .booster-modal-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.82);
+            margin-bottom: 16px;
+        }
+
+        .booster-modal-price {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffe391;
+            margin-bottom: 18px;
+        }
+
+        .booster-modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .booster-modal-actions button {
+            flex: 1;
+            margin-top: 0;
+            min-width: 0;
+        }
+
         #score {
             grid-area: score;
             position: static;
@@ -904,18 +1026,21 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <path d="M27 4 L12 27 L21 27 L19 44 L37 20 L27 20 Z" fill="#ffd447" stroke="#c98f0a" stroke-width="1.6" stroke-linejoin="round"/>
             </symbol>
             <symbol id="match3-icon-beaver" viewBox="0 0 48 48">
-                <ellipse cx="24" cy="26" rx="15" ry="13" fill="#a9713c"/>
-                <circle cx="14" cy="15" r="6" fill="#a9713c"/>
-                <circle cx="34" cy="15" r="6" fill="#a9713c"/>
-                <circle cx="14" cy="15" r="3.2" fill="#7a4d28"/>
-                <circle cx="34" cy="15" r="3.2" fill="#7a4d28"/>
-                <ellipse cx="24" cy="30" rx="7" ry="6" fill="#e8c99a"/>
-                <circle cx="19" cy="22" r="2.4" fill="#2b1c10"/>
-                <circle cx="29" cy="22" r="2.4" fill="#2b1c10"/>
-                <ellipse cx="24" cy="29" rx="2.6" ry="2" fill="#5c3d21"/>
-                <path d="M20 34 L22 37 M28 34 L26 37" stroke="#7a4d28" stroke-width="1.6" stroke-linecap="round"/>
-                <rect x="21" y="30" width="2.4" height="5" rx="1" fill="#fff" opacity="0.9"/>
-                <rect x="24.6" y="30" width="2.4" height="5" rx="1" fill="#fff" opacity="0.9"/>
+                <path d="M14 38 C10 40 8 44 12 45 C18 46 30 46 36 45 C40 44 38 40 34 38 Z" fill="#7a4d28"/>
+                <path d="M18 40 L18 44 M24 40.5 L24 45 M30 40 L30 44" stroke="#5c3a1c" stroke-width="1" opacity="0.7"/>
+                <ellipse cx="24" cy="23" rx="15.5" ry="14.5" fill="#a9713c"/>
+                <circle cx="13" cy="12" r="3.4" fill="#8a5a2e"/>
+                <circle cx="35" cy="12" r="3.4" fill="#8a5a2e"/>
+                <circle cx="13" cy="12" r="1.7" fill="#5c3a1c"/>
+                <circle cx="35" cy="12" r="1.7" fill="#5c3a1c"/>
+                <ellipse cx="24" cy="30" rx="11" ry="8.5" fill="#e0bd8f"/>
+                <circle cx="17" cy="20" r="2.6" fill="#2b1c10"/>
+                <circle cx="31" cy="20" r="2.6" fill="#2b1c10"/>
+                <circle cx="17.8" cy="19.2" r="0.8" fill="#fff"/>
+                <circle cx="31.8" cy="19.2" r="0.8" fill="#fff"/>
+                <ellipse cx="24" cy="26.5" rx="3.2" ry="2.4" fill="#3a2412"/>
+                <rect x="20" y="32.5" width="3.6" height="6.5" rx="1" fill="#fff8e8" stroke="#c9a227" stroke-width="0.6"/>
+                <rect x="24.4" y="32.5" width="3.6" height="6.5" rx="1" fill="#fff8e8" stroke="#c9a227" stroke-width="0.6"/>
             </symbol>
             <symbol id="match3-icon-trophy" viewBox="0 0 48 48">
                 <path d="M15 8 H33 V20 C33 27 29 31 24 31 C19 31 15 27 15 20 Z" fill="#f2c94c" stroke="#b8860b" stroke-width="1.6"/>
@@ -956,6 +1081,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <div id="score">0</div>
                 <div id="high-score">Рекорд: 0</div>
                 <div id="level-indicator">60 сек</div>
+            </div>
+            <div class="booster-bar">
+                <button id="booster-free-move" class="booster-btn" type="button" title="Свободный ход - переставь любую фишку без отката">
+                    <span class="booster-btn-icon">🖐️</span>
+                    <span class="booster-btn-label">Свободный ход</span>
+                    <span class="booster-btn-price" id="booster-free-move-price">15 000</span>
+                </button>
+                <button id="booster-extra-time" class="booster-btn" type="button" title="Добавить 30 секунд к таймеру">
+                    <span class="booster-btn-icon">⏱️</span>
+                    <span class="booster-btn-label">+30 секунд</span>
+                    <span class="booster-btn-price" id="booster-extra-time-price">15 000</span>
+                </button>
             </div>
             <div id="cloud-panel" class="cloud-panel compact">
                 <div class="cloud-header">
@@ -1024,6 +1161,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <div style="font-size: 42px; margin-bottom: 10px;">📱</div>
                 <div style="font-size: 22px; font-weight: 800; color: #e6fbff; margin-bottom: 8px;">Поверните телефон</div>
                 <div style="font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.82);">Три Бобра работает только в портретной ориентации. В альбомной игра ставится на паузу.</div>
+            </div>
+        </div>
+        <div class="booster-modal-overlay" id="boosterModalOverlay" aria-hidden="true">
+            <div class="booster-modal-card" role="dialog" aria-modal="true" aria-labelledby="boosterModalTitle">
+                <div class="booster-modal-icon" id="boosterModalIcon">🖐️</div>
+                <div class="booster-modal-title" id="boosterModalTitle">Купить бустер?</div>
+                <div class="booster-modal-text" id="boosterModalText">Описание бустера.</div>
+                <div class="booster-modal-price" id="boosterModalPrice">15 000 коинов</div>
+                <div class="booster-modal-actions">
+                    <button id="boosterModalCancel" type="button" style="background: linear-gradient(180deg, #6b7280 0%, #374151 100%); box-shadow: 0 6px 0 #1f2937, 0 10px 14px rgba(0,0,0,0.3);">Отмена</button>
+                    <button id="boosterModalConfirm" type="button">Купить</button>
+                </div>
             </div>
         </div>
         <div class="fly-achievement-overlay" id="flyAchievementOverlay" aria-hidden="true">
@@ -1147,8 +1296,17 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY = 'bober_match3_seen_achievement_unlocks';
         const FLY_TRANSFER_MIN_SCORE = 30;
         const FLY_CREDIT_MIN_SCORE = 10;
-        const FLY_COINS_PER_SCORE = SHARED_CLIENT.FLY_COINS_PER_SCORE || 500;
-        const FLY_HOURLY_COINS_LIMIT = 250000;
+        const MATCH3_BASE_COINS_PER_SCORE = 0.6;
+        const MATCH3_BASE_HOURLY_COINS_LIMIT = 100000;
+        function getMatch3EconomyMultiplier() {
+            return Math.max(1, Number(accountState.economy?.multiplier) || 1);
+        }
+        function getFlyCoinsPerScore() {
+            return MATCH3_BASE_COINS_PER_SCORE * getMatch3EconomyMultiplier();
+        }
+        function getFlyHourlyCoinsLimit() {
+            return Math.round(MATCH3_BASE_HOURLY_COINS_LIMIT * getMatch3EconomyMultiplier());
+        }
         const KEYBOARD_RESTART_GUARD_MS = 900;
         let accountState = {
             userId: null,
@@ -1171,7 +1329,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 pendingTransferScore: 0,
                 transferredTotalScore: 0,
                 lastPlayedAt: null
-            }
+            },
+            economy: { index: 0, multiplier: 1.0, factors: {} }
         };
         let pendingFlyRunQueue = [];
         const flyAchievementState = {
@@ -1651,7 +1810,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             if (gameOverClaimFlyScoreButton) {
                 const pending = Math.max(0, Number(accountState.match3.pendingTransferScore) || 0);
-                const rewardCoins = calculateFlyRewardCoins(pending);
+                const rewardCoins = Math.round(calculateFlyRewardCoins(pending));
                 const canClaim = Boolean(accountState.userId) && pending >= FLY_TRANSFER_MIN_SCORE;
                 gameOverClaimFlyScoreButton.style.display = canClaim ? 'block' : 'none';
                 gameOverClaimFlyScoreButton.disabled = !canClaim;
@@ -1739,8 +1898,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
         function calculateFlyRewardCoins(scoreValue) {
             return SHARED_CLIENT.calculateFlyRewardCoins
-                ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, FLY_COINS_PER_SCORE)
-                : Math.max(0, Number(scoreValue) || 0) * FLY_COINS_PER_SCORE;
+                ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, getFlyCoinsPerScore())
+                : Math.max(0, Number(scoreValue) || 0) * getFlyCoinsPerScore();
         }
 
         function setFlyLoadingOverlay(visible, title = 'Загрузка', text = 'Подготавливаем игру...') {
@@ -1778,11 +1937,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             cloudTitleElement.textContent = accountState.login || 'Аккаунт';
 
             if (pending >= FLY_TRANSFER_MIN_SCORE) {
+                const roundedRewardCoins = Math.round(rewardCoins);
                 claimFlyScoreButton.style.display = 'block';
-                claimFlyScoreButton.textContent = `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`;
+                claimFlyScoreButton.textContent = `Перевести в кликер (+${roundedRewardCoins.toLocaleString('ru-RU')} коинов)`;
                 cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Готово к переводу: ${pending.toLocaleString('ru-RU')} очк. (${FLY_COINS_PER_SCORE} коинов за очко, до ${FLY_HOURLY_COINS_LIMIT.toLocaleString('ru-RU')} коинов в час).`;
-                setCloudSummary(`К выдаче: +${rewardCoins.toLocaleString('ru-RU')} коинов`);
+                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Готово к переводу: ${pending.toLocaleString('ru-RU')} очк. (${getFlyCoinsPerScore().toFixed(2)} коинов за очко, до ${getFlyHourlyCoinsLimit().toLocaleString("ru-RU")} коинов в час).`;
+                setCloudSummary(`К выдаче: +${roundedRewardCoins.toLocaleString('ru-RU')} коинов`);
                 setCloudPanelExpanded(true);
                 syncGameOverCloudCard();
                 return;
@@ -1863,8 +2023,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 accountState.login = data.login || '';
                 accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
                 accountState.match3 = normalizeCloudFlyState(data.match3);
+                accountState.economy = (data.economy && typeof data.economy === 'object')
+                    ? { index: Number(data.economy.index) || 0, multiplier: Math.max(1, Number(data.economy.multiplier) || 1), factors: data.economy.factors || {} }
+                    : { index: 0, multiplier: 1.0, factors: {} };
                 applyFlySettings(data.settings || accountState.settings);
                 enqueueAchievementUnlocks(data.achievementUnlocks);
+                updateBoosterButtonsAvailability();
 
                 highScore = Math.max(highScore, accountState.match3.bestScore);
                 setCloudStatus('connected', accountState.login || 'Аккаунт', 'Сессия подключена. Забеги сохраняются в облако.');
@@ -2093,6 +2257,22 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let boardBusy = false; // блокируем ввод во время анимации/проверки
         let dragState = null; // { row, col, startX, startY }
         let runTimerHandle = null;
+        const boosterState = {
+            freeMoveActive: false,
+            pendingPurchaseType: null
+        };
+        const BOOSTER_DEFINITIONS = {
+            freeMove: {
+                icon: '🖐️',
+                title: 'Свободный ход',
+                description: 'Следующий свайп соседних фишек засчитается, даже если он не создаст совпадение.'
+            },
+            extraTime: {
+                icon: '⏱️',
+                title: '+30 секунд',
+                description: 'Сразу добавляет 30 секунд к оставшемуся времени забега.'
+            }
+        };
 
         function randomTileType(excludeTypes) {
             const pool = MATCH3_TILE_TYPES.filter((t) => !excludeTypes || !excludeTypes.includes(t.id));
@@ -2335,6 +2515,116 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             rerollRow(secondRerollRow);
         }
 
+        function getBoosterPrice() {
+            const multiplier = getMatch3EconomyMultiplier();
+            return Math.round(15000 * multiplier);
+        }
+
+        function updateBoosterButtonsAvailability() {
+            const priceLabel = getBoosterPrice().toLocaleString('ru-RU');
+            const freeMoveBtn = document.getElementById('booster-free-move');
+            const extraTimeBtn = document.getElementById('booster-extra-time');
+            const freeMovePriceEl = document.getElementById('booster-free-move-price');
+            const extraTimePriceEl = document.getElementById('booster-extra-time-price');
+
+            if (freeMovePriceEl) freeMovePriceEl.textContent = priceLabel;
+            if (extraTimePriceEl) extraTimePriceEl.textContent = priceLabel;
+
+            const canUseNow = gameRunning && !gamePaused;
+            if (freeMoveBtn) {
+                freeMoveBtn.disabled = !canUseNow || boosterState.freeMoveActive;
+                freeMoveBtn.classList.toggle('active', boosterState.freeMoveActive);
+            }
+            if (extraTimeBtn) {
+                extraTimeBtn.disabled = !canUseNow;
+            }
+        }
+
+        function openBoosterModal(boosterType) {
+            if (!gameRunning || gamePaused || boardBusy) return;
+            if (boosterType === 'freeMove' && boosterState.freeMoveActive) return;
+
+            const def = BOOSTER_DEFINITIONS[boosterType];
+            if (!def) return;
+
+            boosterState.pendingPurchaseType = boosterType;
+            const price = getBoosterPrice();
+
+            document.getElementById('boosterModalIcon').textContent = def.icon;
+            document.getElementById('boosterModalTitle').textContent = `Купить бустер «${def.title}»?`;
+            document.getElementById('boosterModalText').textContent = def.description;
+            document.getElementById('boosterModalPrice').textContent = `${price.toLocaleString('ru-RU')} коинов`;
+
+            const overlay = document.getElementById('boosterModalOverlay');
+            overlay.classList.add('show');
+            overlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeBoosterModal() {
+            const overlay = document.getElementById('boosterModalOverlay');
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden', 'true');
+            boosterState.pendingPurchaseType = null;
+        }
+
+        async function confirmBoosterPurchase() {
+            const boosterType = boosterState.pendingPurchaseType;
+            if (!boosterType) return;
+
+            if (!accountState.userId) {
+                showFlyNotification('Войдите в аккаунт, чтобы покупать бустеры.');
+                closeBoosterModal();
+                return;
+            }
+
+            const confirmBtn = document.getElementById('boosterModalConfirm');
+            confirmBtn.disabled = true;
+
+            try {
+                const data = await requestJson('/api/match3/buy-booster.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ boosterType })
+                });
+
+                if (!data.success) {
+                    showFlyNotification(data.message || 'Не удалось купить бустер.');
+                    closeBoosterModal();
+                    return;
+                }
+
+                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                applyBoosterEffect(boosterType);
+                closeBoosterModal();
+            } catch (error) {
+                console.error('Ошибка покупки бустера match3:', error);
+                showFlyNotification(error.message || 'Не удалось купить бустер.');
+                closeBoosterModal();
+            } finally {
+                confirmBtn.disabled = false;
+            }
+        }
+
+        function applyBoosterEffect(boosterType) {
+            if (boosterType === 'freeMove') {
+                boosterState.freeMoveActive = true;
+                updateBoosterButtonsAvailability();
+                return;
+            }
+
+            if (boosterType === 'extraTime') {
+                runTimeLeftMs += 30000;
+                levelIndicator.textContent = formatRunTime(runTimeLeftMs);
+                return;
+            }
+        }
+
+        function showFlyNotification(message) {
+            if (typeof window.alert === 'function') {
+                window.alert(message);
+            }
+        }
+
         function areAdjacent(a, b) {
             const dRow = Math.abs(a.row - b.row);
             const dCol = Math.abs(a.col - b.col);
@@ -2358,11 +2648,25 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             const matched = findMatches();
             if (matched.size === 0) {
+                if (boosterState.freeMoveActive) {
+                    boosterState.freeMoveActive = false;
+                    updateBoosterButtonsAvailability();
+                    playSound(swapSound);
+                    ensurePlayableBoard();
+                    boardBusy = false;
+                    return;
+                }
+
                 playSound(invalidSwapSound);
                 await new Promise((resolve) => setTimeout(resolve, 120));
                 swapCells(a, b); // откатываем
                 boardBusy = false;
                 return;
+            }
+
+            if (boosterState.freeMoveActive) {
+                boosterState.freeMoveActive = false;
+                updateBoosterButtonsAvailability();
             }
 
             playSound(swapSound);
@@ -2472,6 +2776,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             score = 0;
             runTimeLeftMs = MATCH3_RUN_DURATION_MS;
             currentRunToken = createRunToken();
+            boosterState.freeMoveActive = false;
             setCloudPanelExpanded(true);
             scheduleCloudAutoCollapse();
             scoreElement.textContent = score;
@@ -2487,6 +2792,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             });
 
             buildBoardDom();
+            updateBoosterButtonsAvailability();
 
             if (runTimerHandle) clearInterval(runTimerHandle);
             runTimerHandle = setInterval(tickRunTimer, 250);
@@ -2506,6 +2812,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             } else {
                 pauseScreen.style.display = 'none';
             }
+            updateBoosterButtonsAvailability();
         }
 
         // Функция завершения игры
@@ -2515,6 +2822,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             orientationPausedRun = false;
             clearCloudAutoCollapseTimer();
             keyboardRestartAllowedAt = performance.now() + KEYBOARD_RESTART_GUARD_MS;
+            updateBoosterButtonsAvailability();
 
             if (runTimerHandle) {
                 clearInterval(runTimerHandle);
@@ -2620,6 +2928,20 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
         cloudToggleButton.addEventListener('click', function() {
             setCloudPanelExpanded(!isCloudPanelExpanded);
+        });
+
+        document.getElementById('booster-free-move').addEventListener('click', function() {
+            openBoosterModal('freeMove');
+        });
+        document.getElementById('booster-extra-time').addEventListener('click', function() {
+            openBoosterModal('extraTime');
+        });
+        document.getElementById('boosterModalConfirm').addEventListener('click', confirmBoosterPurchase);
+        document.getElementById('boosterModalCancel').addEventListener('click', closeBoosterModal);
+        document.getElementById('boosterModalOverlay').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeBoosterModal();
+            }
         });
 
         pauseBtn.addEventListener('click', togglePause);

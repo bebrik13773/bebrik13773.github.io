@@ -15,6 +15,11 @@ try {
     $conn->begin_transaction();
     bober_ensure_match3_progress_row($conn, $userId);
 
+    $accountSnapshotForEconomy = bober_fetch_account_snapshot($conn, $userId);
+    $economyMultiplier = is_array($accountSnapshotForEconomy['economy'] ?? null)
+        ? max(1.0, (float) ($accountSnapshotForEconomy['economy']['multiplier'] ?? 1.0))
+        : 1.0;
+
     $selectStmt = $conn->prepare('SELECT pending_transfer_score, transfer_window_started_at, transfer_window_coins FROM match3_progress WHERE user_id = ? LIMIT 1 FOR UPDATE');
     if (!$selectStmt) {
         throw new RuntimeException('Не удалось подготовить получение награды Три Бобра.');
@@ -34,8 +39,9 @@ try {
     $selectStmt->close();
 
     $minimumTransferScore = 30;
-    $coinsPerScore = 500;
-    $hourlyCoinsLimit = 250000;
+    $baseCoinsPerScore = 0.6;
+    $coinsPerScoreEffective = $baseCoinsPerScore * $economyMultiplier;
+    $hourlyCoinsLimit = (int) round(100000 * $economyMultiplier);
     $hourlyWindowSeconds = 60 * 60;
     $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
     $windowStartedAtRaw = isset($row['transfer_window_started_at']) ? trim((string) $row['transfer_window_started_at']) : '';
@@ -52,11 +58,11 @@ try {
 
     $remainingCoins = max(0, $hourlyCoinsLimit - $windowUsedCoins);
     $requestedScore = $pendingScore >= $minimumTransferScore ? $pendingScore : 0;
-    $maxScoreByHourlyLimit = intdiv($remainingCoins, $coinsPerScore);
+    $maxScoreByHourlyLimit = $coinsPerScoreEffective > 0 ? (int) floor($remainingCoins / $coinsPerScoreEffective) : 0;
     $awardedScore = ($requestedScore > 0 && $maxScoreByHourlyLimit >= $minimumTransferScore)
         ? min($requestedScore, $maxScoreByHourlyLimit)
         : 0;
-    $awardedCoins = $awardedScore * $coinsPerScore;
+    $awardedCoins = (int) round($awardedScore * $coinsPerScoreEffective);
     $currentWindowStartedAt = $windowStartedAtRaw;
     $currentWindowCoins = $windowUsedCoins;
 
@@ -147,14 +153,14 @@ try {
 
     if ($awardedCoins > 0) {
         if ($awardedScore < $requestedScore) {
-            $message = 'Переведена часть очков из Три Бобра. Достигнут лимит вывода: максимум 250000 коинов в час, остаток остался в очереди.';
+            $message = "Переведена часть очков из Три Бобра. Достигнут лимит вывода: максимум {$hourlyCoinsLimit} коинов в час, остаток остался в очереди.";
         } else {
-            $message = 'Очки из Три Бобра переведены в основной кликер по курсу 1 очко = 500 коинов.';
+            $message = sprintf('Очки из Три Бобра переведены в основной кликер по курсу 1 очко = %s коинов.', rtrim(rtrim(number_format($coinsPerScoreEffective, 2, '.', ''), '0'), '.'));
         }
     } elseif ($requestedScore < $minimumTransferScore) {
         $message = 'Для перевода нужно минимум 30 очков из Три Бобра.';
-    } elseif ($remainingCoins < ($minimumTransferScore * $coinsPerScore)) {
-        $message = 'Сейчас достигнут лимит вывода: максимум 250000 коинов в час. Попробуйте позже.';
+    } elseif ($remainingCoins < ($minimumTransferScore * $coinsPerScoreEffective)) {
+        $message = "Сейчас достигнут лимит вывода: максимум {$hourlyCoinsLimit} коинов в час. Попробуйте позже.";
     } else {
         $message = 'Перевод сейчас недоступен. Попробуйте позже.';
     }
@@ -165,6 +171,7 @@ try {
         'awardedScore' => $awardedScore,
         'awardedCoins' => $awardedCoins,
         'minimumTransferScore' => $minimumTransferScore,
+        'coinsPerScore' => round($coinsPerScoreEffective, 4),
         'hourlyCoinsLimit' => $hourlyCoinsLimit,
         'hourlyCoinsUsed' => $currentWindowCoins,
         'hourlyCoinsRemaining' => $hourlyRemainingCoins,
