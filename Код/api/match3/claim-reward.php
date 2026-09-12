@@ -39,9 +39,9 @@ try {
     $selectStmt->close();
 
     $minimumTransferScore = 30;
-    $baseCoinsPerScore = 0.6;
+    $baseCoinsPerScore = 15.0;
     $coinsPerScoreEffective = $baseCoinsPerScore * $economyMultiplier;
-    $hourlyCoinsLimit = (int) round(100000 * $economyMultiplier);
+    $hourlyCoinsLimit = (int) round(20000 * $economyMultiplier);
     $hourlyWindowSeconds = 60 * 60;
     $pendingScore = max(0, (int) ($row['pending_transfer_score'] ?? 0));
     $windowStartedAtRaw = isset($row['transfer_window_started_at']) ? trim((string) $row['transfer_window_started_at']) : '';
