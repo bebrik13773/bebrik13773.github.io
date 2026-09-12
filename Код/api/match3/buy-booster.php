@@ -52,7 +52,7 @@ try {
         ? max(1.0, (float) ($accountSnapshotForEconomy['economy']['multiplier'] ?? 1.0))
         : 1.0;
 
-    $baseBoosterPrice = 15000;
+    $baseBoosterPrice = 1500;
     $boosterPrice = (int) round($baseBoosterPrice * $economyMultiplier);
 
     if ($currentScore < $boosterPrice) {
