@@ -201,40 +201,46 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .booster-bar {
+            position: absolute;
+            left: var(--safe-left);
+            right: var(--safe-right);
+            bottom: calc(var(--safe-bottom) + 46px);
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 8px;
+            flex-direction: row;
+            gap: 8px;
+            z-index: 18;
             pointer-events: auto;
         }
 
         .booster-btn {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            gap: 2px;
+            flex: 1;
             min-width: 0;
-            padding: 8px 10px;
+            padding: 8px 6px;
             margin-top: 0;
             border-radius: 14px;
-            background: rgba(8, 22, 24, 0.6);
+            background: rgba(8, 22, 24, 0.72);
             border: 1px solid rgba(126, 220, 241, 0.28);
             color: #d1f0f8;
             font-size: 12px;
             font-weight: 600;
-            box-shadow: none;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(var(--fly-ui-blur, 10px));
-            min-width: unset;
         }
 
         .booster-btn:hover {
             transform: none;
-            box-shadow: none;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
             border-color: rgba(126, 220, 241, 0.5);
         }
 
         .booster-btn:active {
             transform: scale(0.97);
-            box-shadow: none;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
         }
 
         .booster-btn:disabled {
@@ -243,14 +249,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         .booster-btn-icon {
-            font-size: 16px;
+            font-size: 18px;
             flex-shrink: 0;
         }
 
         .booster-btn-label {
-            flex: 1;
-            text-align: left;
+            text-align: center;
             white-space: nowrap;
+            font-size: 11px;
         }
 
         .booster-btn-price {
@@ -1082,18 +1088,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <div id="high-score">Рекорд: 0</div>
                 <div id="level-indicator">60 сек</div>
             </div>
-            <div class="booster-bar">
-                <button id="booster-free-move" class="booster-btn" type="button" title="Свободный ход - переставь любую фишку без отката">
-                    <span class="booster-btn-icon">🖐️</span>
-                    <span class="booster-btn-label">Свободный ход</span>
-                    <span class="booster-btn-price" id="booster-free-move-price">15 000</span>
-                </button>
-                <button id="booster-extra-time" class="booster-btn" type="button" title="Добавить 30 секунд к таймеру">
-                    <span class="booster-btn-icon">⏱️</span>
-                    <span class="booster-btn-label">+30 секунд</span>
-                    <span class="booster-btn-price" id="booster-extra-time-price">15 000</span>
-                </button>
-            </div>
             <div id="cloud-panel" class="cloud-panel compact">
                 <div class="cloud-header">
                     <div class="cloud-head-copy">
@@ -1149,6 +1143,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         <div id="mute-btn">🔊</div>
         <div id="exit-btn">←</div>
         <div id="pause-btn">⏸️</div>
+        <div class="booster-bar">
+            <button id="booster-free-move" class="booster-btn" type="button" title="Свободный ход - переставь любую фишку без отката">
+                <span class="booster-btn-icon">🖐️</span>
+                <span class="booster-btn-label">Свободный ход</span>
+                <span class="booster-btn-price" id="booster-free-move-price">15 000</span>
+            </button>
+            <button id="booster-extra-time" class="booster-btn" type="button" title="Добавить 30 секунд к таймеру">
+                <span class="booster-btn-icon">⏱️</span>
+                <span class="booster-btn-label">+30 секунд</span>
+                <span class="booster-btn-price" id="booster-extra-time-price">15 000</span>
+            </button>
+        </div>
         <div class="fly-loading-overlay" id="flyLoadingOverlay" aria-hidden="true">
             <div class="fly-loading-card">
                 <div class="fly-loading-spinner"></div>
