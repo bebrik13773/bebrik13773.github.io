@@ -1,0 +1,12 @@
+<?php
+
+return [
+    // RouterAI (OpenAI-совместимый API)
+    'ai_api_key' => 'your_routerai_api_key',
+    'ai_base_url' => 'https://routerai.ru/api/v1',
+    'ai_model' => '~deepseek/deepseek-v4-flash-latest',
+
+    // Telegram-бот для уведомлений о жалобах на игроков
+    'tg_bot_token' => 'your_telegram_bot_token',
+    'tg_chat_id' => 'your_telegram_chat_id',
+];
