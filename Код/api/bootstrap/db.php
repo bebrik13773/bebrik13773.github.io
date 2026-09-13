@@ -3996,6 +3996,10 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу прогресса Три Бобра.');
     }
 
+    if (!bober_column_exists($conn, 'match3_progress', 'current_level') && !$conn->query("ALTER TABLE `match3_progress` ADD COLUMN `current_level` INT NOT NULL DEFAULT 1 AFTER `last_played_at`")) {
+        throw new RuntimeException('Не удалось обновить структуру таблицы прогресса Три Бобра.');
+    }
+
     $createMatch3RunsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `match3_runs` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -4640,6 +4644,7 @@ function bober_default_match3_progress()
         'pendingTransferScore' => 0,
         'transferredTotalScore' => 0,
         'lastPlayedAt' => null,
+        'currentLevel' => 1,
     ];
 }
 
@@ -4659,6 +4664,7 @@ function bober_normalize_match3_progress_row($row)
         'pendingTransferScore' => max(0, (int) ($row['pending_transfer_score'] ?? $row['pendingTransferScore'] ?? 0)),
         'transferredTotalScore' => max(0, (int) ($row['transferred_total_score'] ?? $row['transferredTotalScore'] ?? 0)),
         'lastPlayedAt' => isset($row['last_played_at']) ? (string) $row['last_played_at'] : ($row['lastPlayedAt'] ?? null),
+        'currentLevel' => max(1, (int) ($row['current_level'] ?? $row['currentLevel'] ?? 1)),
     ];
 }
 
@@ -4686,7 +4692,7 @@ function bober_fetch_match3_progress($conn, $userId)
         return bober_default_match3_progress();
     }
 
-    $stmt = $conn->prepare('SELECT best_score, last_score, games_played, total_score, pending_transfer_score, transferred_total_score, last_played_at FROM match3_progress WHERE user_id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT best_score, last_score, games_played, total_score, pending_transfer_score, transferred_total_score, last_played_at, current_level FROM match3_progress WHERE user_id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось подготовить получение прогресса Три Бобра.');
     }
@@ -4705,6 +4711,36 @@ function bober_fetch_match3_progress($conn, $userId)
     $stmt->close();
 
     return bober_normalize_match3_progress_row($row);
+}
+
+function bober_advance_match3_level($conn, $userId, $completedLevel, $totalLevels)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $completedLevel = max(1, (int) $completedLevel);
+    $totalLevels = max(1, (int) $totalLevels);
+
+    bober_ensure_match3_progress_row($conn, $userId);
+
+    // Разрешаем продвинуть прогресс, только если игрок только что прошел ИМЕННО текущий
+    // уровень по счету на сервере (защита от накрутки/пропуска уровней через консоль).
+    $nextLevel = min($totalLevels, $completedLevel + 1);
+    $stmt = $conn->prepare('UPDATE match3_progress SET current_level = ? WHERE user_id = ? AND current_level = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить обновление уровня Три Бобра.');
+    }
+
+    $stmt->bind_param('iii', $nextLevel, $userId, $completedLevel);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось обновить уровень Три Бобра.');
+    }
+    $stmt->close();
+
+    return bober_fetch_match3_progress($conn, $userId);
 }
 
 

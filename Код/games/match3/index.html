@@ -170,6 +170,12 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             transition: transform 0.22s ease;
         }
 
+        .match3-tile.empty-cell {
+            background: transparent;
+            cursor: default;
+            pointer-events: none;
+        }
+
         .match3-tile svg {
             width: 76%;
             height: 76%;
@@ -194,7 +200,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             grid-template-columns: auto auto;
             grid-template-areas:
                 "score high"
-                "score level";
+                "score level"
+                "score moves";
             gap: 8px;
             min-width: 0;
             pointer-events: auto;
@@ -375,6 +382,24 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             background: rgba(8, 22, 24, 0.48);
             border: 1px solid rgba(206, 255, 221, 0.14);
             backdrop-filter: blur(var(--fly-ui-blur, 10px));
+        }
+
+        #moves-indicator {
+            grid-area: moves;
+            position: static;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffe6b4;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+            padding: 7px 10px;
+            border-radius: 13px;
+            background: rgba(8, 22, 24, 0.48);
+            border: 1px solid rgba(206, 255, 221, 0.14);
+            backdrop-filter: blur(var(--fly-ui-blur, 10px));
+        }
+
+        #moves-indicator.moves-low {
+            color: #ffb4b4;
         }
         
         .screen {
@@ -915,6 +940,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+
+            #moves-indicator {
+                font-size: 12px;
+                max-width: 122px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
             
             .controls {
                 font-size: 14px;
@@ -1086,7 +1119,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             <div class="hud-stats">
                 <div id="score">0</div>
                 <div id="high-score">Рекорд: 0</div>
-                <div id="level-indicator">60 сек</div>
+                <div id="level-indicator">Уровень 1</div>
+                <div id="moves-indicator">Ходов: 0</div>
             </div>
             <div id="cloud-panel" class="cloud-panel compact">
                 <div class="cloud-header">
@@ -1104,21 +1138,21 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         </div>
         
         <div id="start-screen" class="screen">
-            <h1>ТРИ БОБРА</h1>
-            <div class="subtitle">Собирай ряды из 3+ одинаковых фишек за 60 секунд!</div>
+            <h1 id="start-screen-title">ТРИ БОБРА</h1>
+            <div class="subtitle" id="start-screen-subtitle">Убери все фишки с поля за ограниченное число ходов!</div>
             <button id="start-button">НАЧАТЬ</button>
             <button id="start-back-button" class="menu-secondary-btn">ВЕРНУТЬСЯ</button>
             <div class="controls">
                 Управление: <span class="icon">👆</span> ПЕРЕТАЩИ СОСЕДНЮЮ ФИШКУ
-                <div class="difficulty-info">Забег идёт 60 секунд, поле само пополняется!</div>
+                <div class="difficulty-info" id="start-screen-difficulty">Уровень 1 · ходов не хватит — не переживай, попробуй ещё раз!</div>
             </div>
             <div class="instructions">
-                Меняй местами соседние фишки, чтобы собрать 3 и больше одинаковых в ряд.<br>Чем длиннее ряд — тем больше очков!
+                Меняй местами соседние фишки, чтобы собрать 3 и больше одинаковых в ряд.<br>Цель — убрать <b>все</b> фишки с поля до того, как закончатся ходы!
             </div>
         </div>
         
         <div id="game-over" class="screen">
-            <h1>ВРЕМЯ ВЫШЛО</h1>
+            <h1 id="game-over-title">ХОДЫ ЗАКОНЧИЛИСЬ</h1>
             <div class="subtitle">Твой счёт: <span id="final-score">0</span></div>
             <div class="subtitle">Рекорд: <span id="final-high-score">0</span></div>
             <div class="game-over-cloud-card">
@@ -1134,7 +1168,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         <div id="pause-screen" class="screen">
             <h1>ПАУЗА</h1>
             <div class="subtitle">Счёт: <span id="pause-score">0</span></div>
-            <div class="subtitle">Осталось: <span id="pause-level">60</span> сек</div>
+            <div class="subtitle">Осталось ходов: <span id="pause-level">0</span></div>
             <button id="resume-button">ПРОДОЛЖИТЬ</button>
             <button id="restart-from-pause">ЗАНОВО</button>
             <button id="exit-from-pause" style="background: linear-gradient(to bottom, #ff6b6b, #c44); box-shadow: 0 6px 0 #a33, 0 8px 10px rgba(0,0,0,0.4);">ВЫЙТИ</button>
@@ -1149,9 +1183,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 <span class="booster-btn-label">Свободный ход</span>
                 <span class="booster-btn-price" id="booster-free-move-price">15 000</span>
             </button>
-            <button id="booster-extra-time" class="booster-btn" type="button" title="Добавить 30 секунд к таймеру">
+            <button id="booster-extra-time" class="booster-btn" type="button" title="Добавить 5 ходов">
                 <span class="booster-btn-icon">⏱️</span>
-                <span class="booster-btn-label">+30 секунд</span>
+                <span class="booster-btn-label">+5 ходов</span>
                 <span class="booster-btn-price" id="booster-extra-time-price">15 000</span>
             </button>
         </div>
@@ -1201,6 +1235,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const scoreElement = document.getElementById('score');
         const highScoreElement = document.getElementById('high-score');
         const levelIndicator = document.getElementById('level-indicator');
+        const movesIndicator = document.getElementById('moves-indicator');
         const finalScoreElement = document.getElementById('final-score');
         const finalHighScoreElement = document.getElementById('final-high-score');
         const gameOverCloudStatusElement = document.getElementById('game-over-cloud-status');
@@ -1255,7 +1290,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const USER_SETTINGS_CACHE_KEY = 'bober_user_settings_cache';
         const SETTINGS_PENDING_SYNC_STORAGE_KEY = 'bober_pending_settings_sync';
         const MATCH3_GRID_SIZE = 7;
-        const MATCH3_RUN_DURATION_MS = 60 * 1000;
         const MATCH3_TILE_TYPES = Object.freeze([
             { id: 'coin', label: 'Коин', color: '#f2c94c' },
             { id: 'bolt', label: 'Энергия', color: '#ffd447' },
@@ -1265,6 +1299,36 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             { id: 'gem', label: 'Кристалл', color: '#5fd0e8' },
             { id: 'crown', label: 'Корона', color: '#f2c94c' }
         ]);
+        // Заготовленные уровни: гарантированно решаемые раскладки поля.
+        // board — сетка 7x7 (null = пустая клетка), moves — лимит ходов на уровень.
+        const MATCH3_LEVELS = Object.freeze([
+    { level: 1, moves: 9, types: 3, board: [[null,'bolt',null,null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'bolt','beaver',null,null,'coin',null],[null,'beaver','coin','coin','bolt','bolt',null],['coin','coin','beaver','bolt','coin','coin','bolt'],['bolt','beaver','bolt','bolt','coin','coin','bolt']] },
+    { level: 2, moves: 9, types: 3, board: [[null,null,null,'beaver',null,'beaver',null],[null,null,null,'beaver',null,'beaver',null],[null,'coin',null,'coin',null,'coin',null],[null,'bolt',null,'coin',null,'bolt',null],[null,'bolt',null,'bolt',null,'coin','bolt'],['bolt','beaver','coin','beaver','bolt','bolt','coin'],['coin','beaver','beaver','coin','bolt','bolt','beaver']] },
+    { level: 3, moves: 10, types: 3, board: [[null,null,'beaver',null,null,null,null],['beaver',null,'coin','beaver',null,null,null],['beaver','coin','bolt','bolt',null,'beaver',null],['coin','coin','bolt','beaver',null,'coin','bolt'],['coin','beaver','beaver','coin','bolt','coin','beaver'],['beaver','bolt','bolt','beaver','coin','bolt','coin'],['bolt','coin','bolt','coin','bolt','beaver','bolt']] },
+    { level: 4, moves: 9, types: 3, board: [[null,null,null,null,null,'beaver',null],[null,null,null,null,null,'coin','bolt'],[null,null,'beaver',null,null,'bolt','beaver'],[null,null,'bolt','bolt',null,'beaver','bolt'],[null,null,'coin','coin',null,'bolt','coin'],['bolt','bolt','coin','bolt','coin','coin','bolt'],['beaver','coin','beaver','bolt','coin','coin','bolt']] },
+    { level: 5, moves: 8, types: 3, board: [[null,'bolt',null,null,null,null,'bolt'],[null,'beaver',null,null,null,null,'beaver'],[null,'beaver',null,null,null,null,'coin'],[null,'bolt',null,'bolt',null,null,'bolt'],[null,'beaver',null,'coin',null,null,'coin'],['bolt','coin','bolt','bolt','coin','beaver','coin'],['coin','bolt','coin','bolt','coin','beaver','bolt']] },
+    { level: 6, moves: 8, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'coin',null,null,null],['bolt',null,null,'bolt',null,null,null],['coin',null,null,'coin',null,null,null],['coin',null,null,'beaver','coin','coin','bolt'],['beaver','beaver','bolt','bolt','beaver','coin','bolt'],['bolt','coin','beaver','bolt','beaver','bolt','coin']] },
+    { level: 7, moves: 8, types: 4, board: [[null,null,null,null,'beaver',null,null],[null,'coin',null,null,'bolt',null,null],[null,'bolt',null,null,'beaver',null,null],[null,'bolt',null,null,'coin',null,null],['trophy','beaver','coin',null,'beaver','coin','bolt'],['trophy','bolt','beaver','bolt','coin','coin','bolt'],['trophy','coin','beaver','bolt','coin','bolt','coin']] },
+    { level: 8, moves: 10, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'beaver',null,null,null],[null,null,null,'coin',null,null,'beaver'],['trophy','coin','bolt','bolt',null,'bolt','coin'],['beaver','trophy','coin','bolt','coin','coin','beaver'],['bolt','beaver','coin','coin','beaver','bolt','coin'],['trophy','beaver','bolt','bolt','beaver','bolt','beaver']] },
+    { level: 9, moves: 8, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,null],[null,null,null,null,null,null,'beaver'],[null,null,null,null,'bolt','beaver','coin'],['coin','bolt','beaver',null,'coin','beaver','bolt'],['beaver','coin','bolt','coin','bolt','bolt','coin'],['coin','beaver','bolt','coin','bolt','bolt','coin']] },
+    { level: 10, moves: 8, types: 4, board: [[null,null,null,null,null,null,'coin'],[null,null,null,'coin',null,null,'bolt'],[null,null,null,'bolt',null,null,'coin'],[null,null,null,'coin',null,null,'coin'],[null,null,null,'bolt','beaver',null,'beaver'],['coin','bolt','coin','beaver','coin','beaver','bolt'],['bolt','coin','bolt','beaver','bolt','beaver','bolt']] },
+    { level: 11, moves: 10, types: 5, board: [[null,null,null,'coin',null,null,null],[null,null,'trophy','beaver',null,'beaver',null],[null,null,'coin','coin','bolt','coin',null],[null,null,'beaver','beaver','trophy','bolt',null],['bolt','beaver','coin','bolt','trophy','bolt','coin'],['bolt','trophy','beaver','beaver','bolt','beaver','bolt'],['bolt','coin','trophy','coin','trophy','beaver','coin']] },
+    { level: 12, moves: 7, types: 5, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,null],[null,'bolt',null,null,null,null,null],[null,'beaver',null,null,null,null,'bolt'],[null,'coin',null,'bolt','coin',null,'coin'],['coin','bolt','beaver','coin','bolt','coin','bolt'],['coin','bolt','beaver','coin','bolt','coin','bolt']] },
+    { level: 13, moves: 8, types: 5, board: [[null,null,null,null,'beaver',null,null],[null,null,null,null,'beaver',null,'coin'],[null,null,null,null,'bolt',null,'bolt'],['bolt',null,null,'bolt','beaver',null,'coin'],['coin',null,null,'coin','coin',null,'coin'],['bolt','coin','coin','bolt','bolt','coin','bolt'],['bolt','coin','coin','bolt','bolt','coin','bolt']] },
+    { level: 14, moves: 8, types: 5, board: [[null,null,null,null,null,null,null],['bolt','coin',null,null,null,null,'bolt'],['beaver','coin',null,null,null,null,'coin'],['trophy','bolt',null,null,null,null,'bolt'],['beaver','trophy','bolt','coin','bolt','coin','bolt'],['trophy','bolt','bolt','coin','bolt','coin','coin'],['beaver','coin','coin','bolt','coin','bolt','coin']] },
+    { level: 15, moves: 9, types: 5, board: [[null,'coin',null,null,null,null,null],[null,'beaver','coin','trophy',null,null,'bolt'],[null,'beaver','beaver','coin',null,null,'coin'],[null,'bolt','bolt','trophy',null,null,'bolt'],[null,'beaver','bolt','beaver','bolt','coin','bolt'],['bolt','coin','bolt','coin','coin','bolt','coin'],['bolt','coin','beaver','trophy','coin','bolt','coin']] },
+    { level: 16, moves: 10, types: 6, board: [[null,null,'bolt',null,null,null,null],['coin',null,'beaver',null,null,null,'coin'],['coin',null,'bolt',null,null,'beaver','bolt'],['beaver',null,'beaver',null,'coin','bolt','coin'],['bolt','beaver','coin',null,'bolt','beaver','bolt'],['coin','bolt','beaver','coin','coin','bolt','bolt'],['beaver','bolt','bolt','coin','coin','beaver','coin']] },
+    { level: 17, moves: 10, types: 6, board: [['coin',null,null,null,null,null,null],['beaver',null,'bolt','beaver',null,null,'bolt'],['bolt',null,'coin','coin',null,null,'coin'],['bolt',null,'coin','trophy',null,null,'bolt'],['coin',null,'trophy','bolt','coin','bolt','coin'],['bolt','beaver','beaver','trophy','bolt','coin','coin'],['coin','beaver','bolt','beaver','coin','bolt','bolt']] },
+    { level: 18, moves: 9, types: 6, board: [['trophy',null,null,null,null,null,null],['trophy',null,null,null,null,null,'coin'],['coin','beaver',null,null,null,null,'coin'],['coin','beaver',null,null,'coin',null,'bolt'],['bolt','bolt','coin','bolt','bolt',null,'bolt'],['trophy','beaver','bolt','coin','coin','bolt','coin'],['coin','bolt','bolt','coin','coin','bolt','bolt']] },
+    { level: 19, moves: 10, types: 6, board: [[null,null,'coin',null,null,null,null],['beaver','coin','beaver',null,'coin','trophy','coin'],['beaver','bolt','beaver',null,'bolt','coin','bolt'],['trophy','bolt','coin',null,'bolt','trophy','bolt'],['trophy','bolt','bolt',null,'trophy','beaver','coin'],['coin','trophy','beaver','bolt','bolt','beaver','bolt'],['beaver','coin','coin','bolt','beaver','coin','coin']] },
+    { level: 20, moves: 8, types: 6, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,'coin'],['coin',null,null,null,null,null,'coin'],['beaver','coin',null,null,null,null,'bolt'],['coin','bolt','bolt','coin','bolt','coin','coin'],['bolt','beaver','coin','bolt','bolt','coin','bolt'],['bolt','beaver','coin','bolt','coin','bolt','bolt']] },
+    { level: 21, moves: 8, types: 7, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,'coin'],[null,null,null,null,'bolt',null,'bolt'],['coin',null,null,null,'coin','beaver','coin'],['bolt',null,'bolt','coin','bolt','coin','coin'],['coin','bolt','coin','bolt','bolt','beaver','bolt'],['coin','bolt','coin','bolt','coin','beaver','bolt']] },
+    { level: 22, moves: 9, types: 7, board: [[null,null,null,null,null,null,null],[null,null,'coin','trophy',null,null,'coin'],[null,null,'coin','bolt',null,'bolt','coin'],[null,null,'trophy','coin','coin','beaver','bolt'],['coin','bolt','bolt','beaver','bolt','bolt','coin'],['bolt','coin','trophy','beaver','coin','beaver','bolt'],['coin','bolt','bolt','beaver','coin','beaver','bolt']] },
+    { level: 23, moves: 10, types: 7, board: [[null,null,null,null,null,null,null],['beaver',null,'bolt','coin',null,null,'bolt'],['beaver',null,'beaver','trophy','coin',null,'bolt'],['bolt',null,'trophy','beaver','bolt','coin','coin'],['bolt','coin','trophy','beaver','beaver','coin','coin'],['coin','beaver','coin','bolt','bolt','beaver','bolt'],['bolt','coin','coin','bolt','bolt','beaver','coin']] },
+    { level: 24, moves: 7, types: 7, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,'coin'],[null,null,null,null,null,null,'bolt'],[null,null,null,'coin','coin',null,'coin'],['coin','bolt',null,'bolt','bolt',null,'coin'],['coin','bolt','bolt','coin','coin','bolt','bolt'],['bolt','coin','bolt','coin','coin','bolt','bolt']] },
+    { level: 25, moves: 10, types: 7, board: [[null,'coin',null,null,null,null,null],[null,'beaver','trophy','bolt',null,null,'coin'],[null,'coin','beaver','bolt',null,null,'bolt'],[null,'bolt','beaver','coin',null,null,'coin'],[null,'bolt','coin','bolt','bolt','coin','coin'],['beaver','coin','coin','trophy','coin','bolt','bolt'],['beaver','bolt','beaver','trophy','bolt','coin','bolt']] },
+]);
+        const MATCH3_TOTAL_LEVELS = MATCH3_LEVELS.length;
         
         // Установка размеров canvas
         function updateBoardScale() {
@@ -1283,7 +1347,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         let gamePaused = false;
         let score = 0;
         let highScore = Number(localStorage.getItem('match3HighScore') || 0);
-        let runTimeLeftMs = MATCH3_RUN_DURATION_MS;
+        let currentLevelNumber = 1;
+        let movesLeft = 0;
         let isMuted = false;
         let currentRunToken = '';
         let cloudSaveInFlight = false;
@@ -1334,7 +1399,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 totalScore: 0,
                 pendingTransferScore: 0,
                 transferredTotalScore: 0,
-                lastPlayedAt: null
+                lastPlayedAt: null,
+                currentLevel: 1
             },
             economy: { index: 0, multiplier: 1.0, factors: {} }
         };
@@ -1346,7 +1412,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         };
         
         highScoreElement.textContent = `Рекорд: ${highScore}`;
-        levelIndicator.textContent = '60 сек';
+        levelIndicator.textContent = 'Уровень 1';
         pendingFlyRunQueue = readPendingFlyRunQueue();
         try {
             const rawSeenAchievements = localStorage.getItem(SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY);
@@ -1518,7 +1584,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     totalScore: 0,
                     pendingTransferScore: 0,
                     transferredTotalScore: 0,
-                    lastPlayedAt: null
+                    lastPlayedAt: null,
+                    currentLevel: 1
                 };
             }
 
@@ -1529,7 +1596,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 totalScore: Math.max(0, Number(rawState.totalScore) || 0),
                 pendingTransferScore: Math.max(0, Number(rawState.pendingTransferScore) || 0),
                 transferredTotalScore: Math.max(0, Number(rawState.transferredTotalScore) || 0),
-                lastPlayedAt: rawState.lastPlayedAt || null
+                lastPlayedAt: rawState.lastPlayedAt || null,
+                currentLevel: Math.max(1, Math.min(MATCH3_TOTAL_LEVELS, Number(rawState.currentLevel) || 1))
             };
         }
 
@@ -2029,6 +2097,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 accountState.login = data.login || '';
                 accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
                 accountState.match3 = normalizeCloudFlyState(data.match3);
+                currentLevelNumber = accountState.match3.currentLevel;
+                updateLevelIndicator();
                 accountState.economy = (data.economy && typeof data.economy === 'object')
                     ? { index: Number(data.economy.index) || 0, multiplier: Math.max(1, Number(data.economy.multiplier) || 1), factors: data.economy.factors || {} }
                     : { index: 0, multiplier: 1.0, factors: {} };
@@ -2156,6 +2226,24 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
         }
 
+        async function syncMatch3LevelProgress(completedLevel) {
+            try {
+                const data = await requestJson('/api/match3/complete-level.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completedLevel: completedLevel })
+                });
+
+                if (data && data.success && data.match3) {
+                    accountState.match3 = normalizeCloudFlyState(data.match3);
+                    currentLevelNumber = accountState.match3.currentLevel;
+                    updateLevelIndicator();
+                }
+            } catch (error) {
+                console.warn('Не удалось синхронизировать прогресс по уровням Три Бобра:', error);
+            }
+        }
+
         async function claimFlyReward() {
             if (!accountState.userId || claimFlyScoreButton.disabled) {
                 return;
@@ -2259,10 +2347,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         // ===== Игровое поле Три Бобра =====
-        let board = []; // board[row][col] = { type, el }
+        let board = []; // board[row][col] = { type, el } | type может быть null (пустая клетка)
         let boardBusy = false; // блокируем ввод во время анимации/проверки
         let dragState = null; // { row, col, startX, startY }
-        let runTimerHandle = null;
         const boosterState = {
             freeMoveActive: false,
             pendingPurchaseType: null
@@ -2275,14 +2362,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             },
             extraTime: {
                 icon: '⏱️',
-                title: '+30 секунд',
-                description: 'Сразу добавляет 30 секунд к оставшемуся времени забега.'
+                title: '+5 ходов',
+                description: 'Сразу добавляет 5 ходов к текущему уровню.'
             }
         };
 
-        function randomTileType(excludeTypes) {
-            const pool = MATCH3_TILE_TYPES.filter((t) => !excludeTypes || !excludeTypes.includes(t.id));
-            return pool[Math.floor(Math.random() * pool.length)].id;
+        function getLevelDefinition(levelNumber) {
+            const index = Math.max(1, Math.min(MATCH3_TOTAL_LEVELS, levelNumber)) - 1;
+            return MATCH3_LEVELS[index];
         }
 
         function tileTypeAt(row, col) {
@@ -2291,41 +2378,47 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             return cell ? cell.type : null;
         }
 
-        function wouldCreateMatch(row, col, type) {
-            // горизонталь: два слева одного типа
-            if (col >= 2 && tileTypeAt(row, col - 1) === type && tileTypeAt(row, col - 2) === type) return true;
-            // вертикаль: два сверху одного типа
-            if (row >= 2 && tileTypeAt(row - 1, col) === type && tileTypeAt(row - 2, col) === type) return true;
-            return false;
-        }
-
         function tileSvgMarkup(typeId) {
             return `<svg viewBox="0 0 48 48" aria-hidden="true"><use href="#match3-icon-${typeId}"></use></svg>`;
         }
 
+        function countRemainingTiles() {
+            let count = 0;
+            for (let row = 0; row < MATCH3_GRID_SIZE; row++) {
+                for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
+                    if (board[row][col].type !== null) count++;
+                }
+            }
+            return count;
+        }
+
         function buildBoardDom() {
+            const levelDef = getLevelDefinition(currentLevelNumber);
             boardElement.innerHTML = '';
             board = [];
             for (let row = 0; row < MATCH3_GRID_SIZE; row++) {
                 const rowCells = [];
                 for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
-                    let type;
-                    do {
-                        type = randomTileType();
-                    } while (wouldCreateMatch(row, col, type));
+                    const type = levelDef.board[row][col];
 
                     const el = document.createElement('div');
                     el.className = 'match3-tile';
                     el.dataset.row = String(row);
                     el.dataset.col = String(col);
-                    el.innerHTML = tileSvgMarkup(type);
+                    if (type === null) {
+                        el.classList.add('empty-cell');
+                    } else {
+                        el.innerHTML = tileSvgMarkup(type);
+                    }
                     boardElement.appendChild(el);
                     rowCells.push({ type, el });
                 }
                 board.push(rowCells);
             }
 
-            ensurePlayableBoard();
+            // Заготовленные уровни могут содержать уже готовые совпадения в исходной раскладке -
+            // они автоматически разрешаются при загрузке, как и в обычной игре.
+            resolveMatches();
         }
 
         function findMatches() {
@@ -2335,9 +2428,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             for (let row = 0; row < MATCH3_GRID_SIZE; row++) {
                 let runStart = 0;
                 for (let col = 1; col <= MATCH3_GRID_SIZE; col++) {
-                    const sameAsPrev = col < MATCH3_GRID_SIZE && tileTypeAt(row, col) === tileTypeAt(row, runStart);
+                    const startType = tileTypeAt(row, runStart);
+                    const sameAsPrev = col < MATCH3_GRID_SIZE && startType !== null && tileTypeAt(row, col) === startType;
                     if (!sameAsPrev) {
-                        if (col - runStart >= 3) {
+                        if (col - runStart >= 3 && startType !== null) {
                             for (let k = runStart; k < col; k++) matched.add(`${row},${k}`);
                         }
                         runStart = col;
@@ -2349,9 +2443,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
                 let runStart = 0;
                 for (let row = 1; row <= MATCH3_GRID_SIZE; row++) {
-                    const sameAsPrev = row < MATCH3_GRID_SIZE && tileTypeAt(row, col) === tileTypeAt(runStart, col);
+                    const startType = tileTypeAt(runStart, col);
+                    const sameAsPrev = row < MATCH3_GRID_SIZE && startType !== null && tileTypeAt(row, col) === startType;
                     if (!sameAsPrev) {
-                        if (row - runStart >= 3) {
+                        if (row - runStart >= 3 && startType !== null) {
                             for (let k = runStart; k < row; k++) matched.add(`${k},${col}`);
                         }
                         runStart = row;
@@ -2395,7 +2490,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
                 applyGravity();
                 await new Promise((resolve) => setTimeout(resolve, 320));
-                ensurePlayableBoard();
 
                 cascadeMultiplier += 0.5;
             }
@@ -2409,6 +2503,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function applyGravity() {
+            // Фишки падают вниз внутри своего столбца, но поле НЕ пополняется новыми -
+            // освободившиеся клетки сверху остаются пустыми (null). Цель уровня - опустошить поле целиком.
             const tileSize = boardElement.clientWidth / MATCH3_GRID_SIZE;
 
             for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
@@ -2421,26 +2517,37 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 }
 
                 const missing = MATCH3_GRID_SIZE - survivorsWithOffset.length;
-                const newOnes = [];
+                const emptyOnes = [];
                 for (let i = 0; i < missing; i++) {
-                    newOnes.push({ type: randomTileType(), fromRow: -(missing - i) });
+                    emptyOnes.push({ type: null, fromRow: -1 });
                 }
 
-                const finalOrder = [...survivorsWithOffset, ...newOnes]; // снизу вверх
+                const finalOrder = [...survivorsWithOffset, ...emptyOnes]; // снизу вверх
 
                 for (let row = MATCH3_GRID_SIZE - 1; row >= 0; row--) {
                     const item = finalOrder[MATCH3_GRID_SIZE - 1 - row];
                     const cell = board[row][col];
-                    const dropRows = row - item.fromRow;
+                    const dropRows = item.fromRow >= 0 ? row - item.fromRow : 0;
 
                     cell.type = item.type;
                     cell.el.classList.remove('matched');
+
+                    if (item.type === null) {
+                        cell.el.innerHTML = '';
+                        cell.el.classList.add('empty-cell');
+                        cell.el.style.transition = 'none';
+                        cell.el.style.transform = 'translateY(0)';
+                        cell.el.style.opacity = '1';
+                        continue;
+                    }
+
+                    cell.el.classList.remove('empty-cell');
                     cell.el.innerHTML = tileSvgMarkup(item.type);
 
                     // Ставим фишку визуально выше её итоговой позиции, без анимации
                     cell.el.style.transition = 'none';
                     cell.el.style.transform = `translateY(${-dropRows * tileSize}px)`;
-                    cell.el.style.opacity = item.fromRow < 0 ? '0' : '1';
+                    cell.el.style.opacity = '1';
                 }
             }
 
@@ -2450,6 +2557,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     for (let row = 0; row < MATCH3_GRID_SIZE; row++) {
                         for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
                             const el = board[row][col].el;
+                            if (board[row][col].type === null) continue;
                             el.style.transition = 'transform 0.26s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.2s ease';
                             el.style.transform = 'translateY(0)';
                             el.style.opacity = '1';
@@ -2488,38 +2596,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             return false;
         }
 
-        function rerollRow(row) {
-            for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
-                let type;
-                do {
-                    type = randomTileType();
-                    board[row][col].type = type;
-                } while (findMatches().size > 0);
-                board[row][col].el.innerHTML = tileSvgMarkup(type);
-            }
-        }
-
-        function ensurePlayableBoard() {
-            if (hasAnyPossibleMove()) {
-                return;
-            }
-
-            // Нет доступных ходов - реролл случайного ряда
-            const firstRerollRow = Math.floor(Math.random() * MATCH3_GRID_SIZE);
-            rerollRow(firstRerollRow);
-            playSound(levelupSound);
-
-            if (hasAnyPossibleMove()) {
-                return;
-            }
-
-            // Всё ещё нет ходов - реролл ещё одного ряда снизу
-            let secondRerollRow = MATCH3_GRID_SIZE - 1;
-            while (secondRerollRow === firstRerollRow && secondRerollRow > 0) {
-                secondRerollRow -= 1;
-            }
-            rerollRow(secondRerollRow);
-        }
+        // Уровни заранее сгенерированы и проверены решателем как гарантированно проходимые
+        // в пределах лимита ходов - реролл рядов больше не нужен. hasAnyPossibleMove() ниже
+        // используется только как защитная проверка на случай непредвиденного тупика.
 
         function getBoosterPrice() {
             const multiplier = getMatch3EconomyMultiplier();
@@ -2619,8 +2698,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             if (boosterType === 'extraTime') {
-                runTimeLeftMs += 30000;
-                levelIndicator.textContent = formatRunTime(runTimeLeftMs);
+                movesLeft += 5;
+                updateMovesIndicator();
                 return;
             }
         }
@@ -2658,8 +2737,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     boosterState.freeMoveActive = false;
                     updateBoosterButtonsAvailability();
                     playSound(swapSound);
-                    ensurePlayableBoard();
+                    consumeMove();
                     boardBusy = false;
+                    checkLevelOutcome();
                     return;
                 }
 
@@ -2676,8 +2756,35 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             playSound(swapSound);
+            consumeMove();
             await resolveMatches();
             boardBusy = false;
+            checkLevelOutcome();
+        }
+
+        function consumeMove() {
+            movesLeft = Math.max(0, movesLeft - 1);
+            updateMovesIndicator();
+        }
+
+        function checkLevelOutcome() {
+            if (!gameRunning) return;
+
+            if (countRemainingTiles() === 0) {
+                levelComplete();
+                return;
+            }
+
+            if (movesLeft <= 0) {
+                gameOver();
+                return;
+            }
+
+            if (!hasAnyPossibleMove()) {
+                // Подстраховка: заготовленные уровни проверены решателем, но если игрок
+                // случайно попал в тупик - завершаем забег, а не оставляем зависшее поле.
+                gameOver();
+            }
         }
 
         function clearTileSelection() {
@@ -2750,22 +2857,13 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             });
         }
 
-        function formatRunTime(msLeft) {
-            const totalSeconds = Math.max(0, Math.ceil(msLeft / 1000));
-            return `${totalSeconds} сек`;
+        function updateMovesIndicator() {
+            movesIndicator.textContent = `Ходов: ${movesLeft}`;
+            movesIndicator.classList.toggle('moves-low', movesLeft > 0 && movesLeft <= 3);
         }
 
-        function tickRunTimer() {
-            runTimeLeftMs -= 250;
-            if (runTimeLeftMs <= 0) {
-                runTimeLeftMs = 0;
-                levelIndicator.textContent = formatRunTime(runTimeLeftMs);
-                clearInterval(runTimerHandle);
-                runTimerHandle = null;
-                gameOver();
-                return;
-            }
-            levelIndicator.textContent = formatRunTime(runTimeLeftMs);
+        function updateLevelIndicator() {
+            levelIndicator.textContent = `Уровень ${currentLevelNumber} из ${MATCH3_TOTAL_LEVELS}`;
         }
 
         function startGame() {
@@ -2774,19 +2872,22 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 return;
             }
 
+            const levelDef = getLevelDefinition(currentLevelNumber);
+
             gameRunning = true;
             gamePaused = false;
             orientationPausedRun = false;
             boardBusy = false;
             dragState = null;
             score = 0;
-            runTimeLeftMs = MATCH3_RUN_DURATION_MS;
+            movesLeft = levelDef.moves;
             currentRunToken = createRunToken();
             boosterState.freeMoveActive = false;
             setCloudPanelExpanded(true);
             scheduleCloudAutoCollapse();
             scoreElement.textContent = score;
-            levelIndicator.textContent = formatRunTime(runTimeLeftMs);
+            updateLevelIndicator();
+            updateMovesIndicator();
 
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
@@ -2799,9 +2900,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             buildBoardDom();
             updateBoosterButtonsAvailability();
-
-            if (runTimerHandle) clearInterval(runTimerHandle);
-            runTimerHandle = setInterval(tickRunTimer, 250);
         }
 
         // Функция паузы игры
@@ -2813,7 +2911,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             if (gamePaused) {
                 pauseScoreElement.textContent = score;
-                pauseLevelElement.textContent = Math.max(0, Math.ceil(runTimeLeftMs / 1000));
+                pauseLevelElement.textContent = movesLeft;
                 pauseScreen.style.display = 'flex';
             } else {
                 pauseScreen.style.display = 'none';
@@ -2821,7 +2919,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             updateBoosterButtonsAvailability();
         }
 
-        // Функция завершения игры
+        // Функция завершения игры (ходы закончились, поле не очищено)
         function gameOver() {
             gameRunning = false;
             gamePaused = false;
@@ -2829,11 +2927,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             clearCloudAutoCollapseTimer();
             keyboardRestartAllowedAt = performance.now() + KEYBOARD_RESTART_GUARD_MS;
             updateBoosterButtonsAvailability();
-
-            if (runTimerHandle) {
-                clearInterval(runTimerHandle);
-                runTimerHandle = null;
-            }
 
             if (score > highScore) {
                 highScore = score;
@@ -2844,6 +2937,48 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             saveFlyRunToCloud();
 
+            document.getElementById('game-over-title').textContent = 'ХОДЫ ЗАКОНЧИЛИСЬ';
+            finalScoreElement.textContent = score;
+            finalHighScoreElement.textContent = highScore;
+            updateGameOverCloudStatus(accountState.userId
+                ? 'Смотрим, что происходит с облаком и переводом очков...'
+                : 'Локальный режим: забег не отправляется в облако без входа.');
+            setCloudPanelExpanded(true);
+            gameOverScreen.style.display = 'flex';
+            showNextAchievementUnlock();
+        }
+
+        // Функция успешного завершения уровня (все фишки убраны с поля)
+        async function levelComplete() {
+            gameRunning = false;
+            gamePaused = false;
+            orientationPausedRun = false;
+            clearCloudAutoCollapseTimer();
+            keyboardRestartAllowedAt = performance.now() + KEYBOARD_RESTART_GUARD_MS;
+            updateBoosterButtonsAvailability();
+            playSound(levelupSound);
+            vibrate(120);
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('match3HighScore', highScore);
+                highScoreElement.textContent = `Рекорд: ${highScore}`;
+            }
+
+            const completedLevel = currentLevelNumber;
+            const hasNextLevel = completedLevel < MATCH3_TOTAL_LEVELS;
+            if (hasNextLevel) {
+                currentLevelNumber = completedLevel + 1;
+            }
+
+            await saveFlyRunToCloud();
+            if (accountState.userId) {
+                await syncMatch3LevelProgress(completedLevel);
+            }
+
+            document.getElementById('game-over-title').textContent = hasNextLevel
+                ? `УРОВЕНЬ ${completedLevel} ПРОЙДЕН!`
+                : 'ВСЕ УРОВНИ ПРОЙДЕНЫ!';
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
             updateGameOverCloudStatus(accountState.userId
@@ -2857,10 +2992,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         // Функция выхода из игры
         function exitGame() {
             vibrate(100);
-            if (runTimerHandle) {
-                clearInterval(runTimerHandle);
-                runTimerHandle = null;
-            }
             window.location.href = '/pages/clicker/';
         }
 
@@ -3014,10 +3145,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             // Адаптация под устройства
-            if (isMobile) {
-                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">👆</span> ПЕРЕТАЩИ ФИШКУ';
-            } else {
-                document.querySelector('.controls').innerHTML = 'Управление: <span class="icon">🖱</span> ПЕРЕТАЩИ ФИШКУ<br>Пауза: P или ESC';
+            const controlsHint = isMobile
+                ? 'Управление: <span class="icon">👆</span> ПЕРЕТАЩИ ФИШКУ'
+                : 'Управление: <span class="icon">🖱</span> ПЕРЕТАЩИ ФИШКУ<br>Пауза: P или ESC';
+            document.querySelector('.controls').innerHTML = `${controlsHint}<div class="difficulty-info" id="start-screen-difficulty"></div>`;
+            updateStartScreenInfo();
+        }
+
+        function updateStartScreenInfo() {
+            const levelDef = getLevelDefinition(currentLevelNumber);
+            const difficultyEl = document.getElementById('start-screen-difficulty');
+            if (difficultyEl) {
+                difficultyEl.textContent = `Уровень ${currentLevelNumber} из ${MATCH3_TOTAL_LEVELS} · ходов: ${levelDef.moves}`;
             }
         }
 
