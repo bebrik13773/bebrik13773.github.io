@@ -5632,7 +5632,7 @@ Owner decisions:
     }
 </style>
 <style id="aiChatWidgetStyles">
-    .ai-chat-fab {
+    .chats-fab {
         position: fixed;
         right: calc(var(--safe-right, 0px) + 16px);
         bottom: calc(var(--safe-bottom, 0px) + 86px);
@@ -5647,21 +5647,43 @@ Owner decisions:
         justify-content: center;
         cursor: pointer;
         z-index: 9500;
-        font-size: 28px;
+        font-size: 26px;
         line-height: 1;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
         animation: aiChatFabPulse 2.6s ease-in-out infinite;
     }
 
-    .ai-chat-fab:hover {
+    .chats-fab:hover {
         transform: translateY(-2px) scale(1.04);
     }
 
-    .ai-chat-fab:active {
+    .chats-fab:active {
         transform: scale(0.96);
     }
 
-    .ai-chat-fab.hidden-fab {
+    .chats-fab.hidden-fab {
+        display: none;
+    }
+
+    .chats-fab-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ff7a7a, #e13c3c);
+        border: 2px solid rgba(16, 10, 34, 0.98);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .chats-fab-badge[hidden] {
         display: none;
     }
 
@@ -5689,8 +5711,11 @@ Owner decisions:
     .ai-chat-title {
         display: flex;
         align-items: center;
-        gap: 10px;
-        font-size: 17px;
+        justify-content: center;
+        flex: 1;
+        min-width: 0;
+        gap: 8px;
+        font-size: 16px;
         font-weight: 800;
     }
 
@@ -5831,11 +5856,141 @@ Owner decisions:
         cursor: not-allowed;
     }
 
+    /* Список чатов (закреплённые: Поддержка, ИИ Бобёр) */
+    .chats-list-modal .skin-action-modal {
+        width: min(100%, 460px);
+        padding: 18px 14px 14px;
+    }
+
+    .chats-list-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 0 4px;
+    }
+
+    .chats-list-title {
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .chats-list-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 10px;
+    }
+
+    .chats-list-close:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .chats-list-items {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .chat-list-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .chat-list-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(126, 241, 255, 0.32);
+    }
+
+    .chat-list-item:active {
+        transform: scale(0.99);
+    }
+
+    .chat-list-item-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, rgba(86, 245, 224, 0.28), rgba(27, 166, 196, 0.22));
+        border: 1px solid rgba(171, 255, 246, 0.28);
+    }
+
+    .chat-list-item-icon.support {
+        background: linear-gradient(180deg, rgba(255, 176, 91, 0.28), rgba(214, 118, 34, 0.22));
+        border-color: rgba(255, 200, 130, 0.3);
+    }
+
+    .chat-list-item-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .chat-list-item-top-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .chat-list-item-name {
+        font-size: 14.5px;
+        font-weight: 700;
+        color: #f7feff;
+    }
+
+    .chat-list-item-time {
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.5);
+        flex-shrink: 0;
+    }
+
+    .chat-list-item-preview {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.65);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+    }
+
+    .chat-list-item-unread {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #56f5e0, #1ba6c4);
+        color: #071822;
+        font-size: 11px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
     @media (max-width: 480px) {
-        .ai-chat-fab {
+        .chats-fab {
             width: 52px;
             height: 52px;
-            font-size: 24px;
+            font-size: 22px;
             bottom: calc(var(--safe-bottom, 0px) + 78px);
         }
 
@@ -6664,13 +6819,46 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
     </div>
 </div>
-<button type="button" class="ai-chat-fab" id="aiChatFab" aria-label="Спросить бобра-помощника" title="Спросить бобра">
-    🦫
+<button type="button" class="chats-fab" id="chatsFab" aria-label="Чаты" title="Чаты">
+    💬<span class="chats-fab-badge" id="chatsFabBadge" hidden>0</span>
 </button>
+<div class="modal-backdrop chats-list-modal" id="chatsListModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="chatsListModalTitle">
+        <div class="chats-list-header">
+            <div class="chats-list-title" id="chatsListModalTitle">Чаты</div>
+            <button type="button" class="chats-list-close" id="chatsListClose" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="chats-list-items">
+            <button type="button" class="chat-list-item" id="chatsListSupportItem">
+                <div class="chat-list-item-icon support">🛟</div>
+                <div class="chat-list-item-body">
+                    <div class="chat-list-item-top-row">
+                        <div class="chat-list-item-name">Поддержка</div>
+                        <div class="chat-list-item-time" id="chatsListSupportTime"></div>
+                    </div>
+                    <div class="chat-list-item-preview" id="chatsListSupportPreview">Вопросы, баги, обращения</div>
+                </div>
+                <div class="chat-list-item-unread" id="chatsListSupportUnread" hidden>0</div>
+            </button>
+            <button type="button" class="chat-list-item" id="chatsListAiItem">
+                <div class="chat-list-item-icon">🦫</div>
+                <div class="chat-list-item-body">
+                    <div class="chat-list-item-top-row">
+                        <div class="chat-list-item-name">ИИ Бобёр</div>
+                        <div class="chat-list-item-time" id="chatsListAiTime"></div>
+                    </div>
+                    <div class="chat-list-item-preview" id="chatsListAiPreview">Спроси что-нибудь про игру</div>
+                </div>
+                <div class="chat-list-item-unread" id="chatsListAiUnread" hidden>0</div>
+            </button>
+        </div>
+    </div>
+</div>
 <div class="modal-backdrop ai-chat-modal" id="aiChatModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="aiChatModalTitle">
         <div class="ai-chat-header">
-            <div class="ai-chat-title" id="aiChatModalTitle"><span class="ai-chat-title-emoji">🦫</span> Бобёр-помощник</div>
+            <button type="button" class="ai-chat-close" id="aiChatBack" aria-label="Назад к списку чатов" title="Назад">←</button>
+            <div class="ai-chat-title" id="aiChatModalTitle"><span class="ai-chat-title-emoji">🦫</span> ИИ Бобёр</div>
             <button type="button" class="ai-chat-close" id="aiChatClose" aria-label="Закрыть">✕</button>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages"></div>
@@ -9566,6 +9754,7 @@ function syncGlobalOverlayState() {
         document.getElementById('supportModal'),
         document.getElementById('supportUnreadAlertModal'),
         document.getElementById('aiChatModal'),
+        document.getElementById('chatsListModal'),
         document.getElementById('achievementUnlockModal'),
         document.getElementById('questUnlockModal')
     ].some((node) => node && node.classList.contains('show'));
@@ -21182,28 +21371,157 @@ window.clickDetector = clickDetector;
 console.log('Анти-чит система активирована. Мобильное устройство:', clickDetector.isMobile);
 console.log('Настройки античита:', clickDetector.config);
 
-// ===== ИИ-помощник (бобёр-чат) =====
-(function initAiChatWidget() {
-    const fab = document.getElementById('aiChatFab');
-    const modal = document.getElementById('aiChatModal');
-    const closeBtn = document.getElementById('aiChatClose');
-    const messagesBox = document.getElementById('aiChatMessages');
-    const input = document.getElementById('aiChatInput');
-    const sendBtn = document.getElementById('aiChatSend');
+// ===== Чаты (список: Поддержка, ИИ Бобёр) =====
+(function initChatsWidget() {
+    const fab = document.getElementById('chatsFab');
+    const fabBadge = document.getElementById('chatsFabBadge');
+    const listModal = document.getElementById('chatsListModal');
+    const listClose = document.getElementById('chatsListClose');
+    const supportItem = document.getElementById('chatsListSupportItem');
+    const supportPreview = document.getElementById('chatsListSupportPreview');
+    const supportTime = document.getElementById('chatsListSupportTime');
+    const supportUnreadBadge = document.getElementById('chatsListSupportUnread');
+    const aiItem = document.getElementById('chatsListAiItem');
+    const aiPreview = document.getElementById('chatsListAiPreview');
+    const aiTime = document.getElementById('chatsListAiTime');
+    const aiUnreadBadge = document.getElementById('chatsListAiUnread');
 
-    if (!fab || !modal || !messagesBox || !input || !sendBtn) {
+    const aiModal = document.getElementById('aiChatModal');
+    const aiClose = document.getElementById('aiChatClose');
+    const aiBack = document.getElementById('aiChatBack');
+    const aiMessagesBox = document.getElementById('aiChatMessages');
+    const aiInput = document.getElementById('aiChatInput');
+    const aiSendBtn = document.getElementById('aiChatSend');
+
+    if (!fab || !listModal || !aiModal || !aiMessagesBox || !aiInput || !aiSendBtn) {
         return;
     }
 
+    const AI_CHAT_LOCAL_KEY = 'boberAiChatLastPreview';
     let isSending = false;
     let hasGreeted = false;
 
+    function readAiChatPreview() {
+        try {
+            const raw = window.localStorage.getItem(AI_CHAT_LOCAL_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeAiChatPreview(text, timestamp) {
+        try {
+            window.localStorage.setItem(AI_CHAT_LOCAL_KEY, JSON.stringify({ text: text, at: timestamp }));
+        } catch (error) {
+            // localStorage может быть недоступен (приватный режим) — не критично для функциональности
+        }
+    }
+
+    function formatChatListTime(timestampOrIso) {
+        if (!timestampOrIso) {
+            return '';
+        }
+
+        const date = typeof timestampOrIso === 'number' ? new Date(timestampOrIso) : new Date(timestampOrIso);
+        if (Number.isNaN(date.getTime())) {
+            return '';
+        }
+
+        const now = new Date();
+        const isSameDay = date.toDateString() === now.toDateString();
+        if (isSameDay) {
+            return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        }
+        return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+    }
+
+    function refreshChatsListPreview() {
+        // Поддержка: берём из уже существующего глобального supportSummary/supportState,
+        // если они определены на странице (они объявлены в основном скрипте кликера).
+        try {
+            const summary = (typeof supportSummary !== 'undefined' && supportSummary) ? supportSummary : null;
+            const unread = summary ? Math.max(0, Number(summary.unreadReplies) || 0) : 0;
+
+            if (supportUnreadBadge) {
+                supportUnreadBadge.hidden = unread < 1;
+                supportUnreadBadge.textContent = unread > 99 ? '99+' : String(unread);
+            }
+
+            const tickets = (typeof supportState !== 'undefined' && supportState && Array.isArray(supportState.tickets))
+                ? supportState.tickets
+                : [];
+            if (tickets.length > 0) {
+                const latestTicket = tickets.slice().sort((a, b) => {
+                    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                    return bTime - aTime;
+                })[0];
+
+                if (supportPreview) {
+                    supportPreview.textContent = latestTicket.lastMessagePreview || 'Сообщений пока нет.';
+                }
+                if (supportTime) {
+                    supportTime.textContent = formatChatListTime(latestTicket.updatedAt || latestTicket.createdAt);
+                }
+            } else if (supportPreview) {
+                supportPreview.textContent = 'Вопросы, баги, обращения';
+            }
+        } catch (error) {
+            // supportSummary/supportState ещё не инициализированы на момент вызова — не страшно, обновится позже
+        }
+
+        // ИИ Бобёр: берём последнее сообщение из localStorage (переживает перезагрузку страницы)
+        const aiPreviewData = readAiChatPreview();
+        if (aiPreviewData && aiPreviewData.text) {
+            if (aiPreview) {
+                aiPreview.textContent = aiPreviewData.text;
+            }
+            if (aiTime) {
+                aiTime.textContent = formatChatListTime(aiPreviewData.at);
+            }
+        }
+    }
+
+    function openChatsList() {
+        refreshChatsListPreview();
+        listModal.classList.add('show');
+        listModal.setAttribute('aria-hidden', 'false');
+        if (typeof syncGlobalOverlayState === 'function') {
+            syncGlobalOverlayState();
+        }
+    }
+
+    function closeChatsList() {
+        listModal.classList.remove('show');
+        listModal.setAttribute('aria-hidden', 'true');
+        if (typeof syncGlobalOverlayState === 'function') {
+            syncGlobalOverlayState();
+        }
+    }
+
+    function refreshFabBadge() {
+        let unread = 0;
+        try {
+            const summary = (typeof supportSummary !== 'undefined' && supportSummary) ? supportSummary : null;
+            unread += summary ? Math.max(0, Number(summary.unreadReplies) || 0) : 0;
+        } catch (error) {
+            // ignore
+        }
+
+        if (fabBadge) {
+            fabBadge.hidden = unread < 1;
+            fabBadge.textContent = unread > 99 ? '99+' : String(unread);
+        }
+    }
+
+    // --- Экран ИИ-чата ---
     function addBubble(role, text) {
         const bubble = document.createElement('div');
         bubble.className = 'ai-chat-bubble ' + role;
         bubble.textContent = text;
-        messagesBox.appendChild(bubble);
-        messagesBox.scrollTop = messagesBox.scrollHeight;
+        aiMessagesBox.appendChild(bubble);
+        aiMessagesBox.scrollTop = aiMessagesBox.scrollHeight;
         return bubble;
     }
 
@@ -21212,8 +21530,8 @@ console.log('Настройки античита:', clickDetector.config);
         typing.className = 'ai-chat-typing';
         typing.id = 'aiChatTypingIndicator';
         typing.innerHTML = '<span></span><span></span><span></span>';
-        messagesBox.appendChild(typing);
-        messagesBox.scrollTop = messagesBox.scrollHeight;
+        aiMessagesBox.appendChild(typing);
+        aiMessagesBox.scrollTop = aiMessagesBox.scrollHeight;
     }
 
     function hideTyping() {
@@ -21223,9 +21541,10 @@ console.log('Настройки античита:', clickDetector.config);
         }
     }
 
-    function openChat() {
-        modal.classList.add('show');
-        modal.setAttribute('aria-hidden', 'false');
+    function openAiChat() {
+        closeChatsList();
+        aiModal.classList.add('show');
+        aiModal.setAttribute('aria-hidden', 'false');
         if (typeof syncGlobalOverlayState === 'function') {
             syncGlobalOverlayState();
         }
@@ -21233,29 +21552,33 @@ console.log('Настройки античита:', clickDetector.config);
             hasGreeted = true;
             addBubble('assistant', 'Привет! Я бобёр-помощник 🦫 Спроси что-нибудь про игру: что выгодно купить, сколько нужно накопить, или просто поболтаем.');
         }
-        window.setTimeout(() => input.focus(), 150);
+        window.setTimeout(() => aiInput.focus(), 150);
     }
 
-    function closeChat() {
-        modal.classList.remove('show');
-        modal.setAttribute('aria-hidden', 'true');
+    function closeAiChat(backToList) {
+        aiModal.classList.remove('show');
+        aiModal.setAttribute('aria-hidden', 'true');
         if (typeof syncGlobalOverlayState === 'function') {
             syncGlobalOverlayState();
         }
+        if (backToList) {
+            openChatsList();
+        }
     }
 
-    async function sendMessage() {
-        const text = input.value.trim();
+    async function sendAiMessage() {
+        const text = aiInput.value.trim();
         if (!text || isSending) {
             return;
         }
 
         isSending = true;
-        sendBtn.disabled = true;
-        input.value = '';
-        input.style.height = 'auto';
+        aiSendBtn.disabled = true;
+        aiInput.value = '';
+        aiInput.style.height = 'auto';
 
         addBubble('user', text);
+        writeAiChatPreview(text, Date.now());
         showTyping();
 
         try {
@@ -21288,35 +21611,67 @@ console.log('Настройки античита:', clickDetector.config);
                 return;
             }
 
-            addBubble('assistant', data.reply || '...');
+            const replyText = data.reply || '...';
+            addBubble('assistant', replyText);
+            writeAiChatPreview(replyText, Date.now());
         } catch (networkError) {
             hideTyping();
             addBubble('system-note', 'Не удалось связаться с сервером. Проверь соединение и попробуй снова.');
         } finally {
             isSending = false;
-            sendBtn.disabled = false;
+            aiSendBtn.disabled = false;
         }
     }
 
-    fab.addEventListener('click', openChat);
-    closeBtn.addEventListener('click', closeChat);
-    modal.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            closeChat();
+    // --- Обработчики ---
+    fab.addEventListener('click', openChatsList);
+    listClose.addEventListener('click', closeChatsList);
+    listModal.addEventListener('click', (event) => {
+        if (event.target === listModal) {
+            closeChatsList();
         }
     });
 
-    sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            sendMessage();
+    if (supportItem) {
+        supportItem.addEventListener('click', () => {
+            closeChatsList();
+            if (typeof openSupportCenterFromEntry === 'function') {
+                openSupportCenterFromEntry('chats_list');
+            } else if (typeof openSupportCenter === 'function') {
+                openSupportCenter({ tab: 'inbox' });
+            }
+        });
+    }
+
+    if (aiItem) {
+        aiItem.addEventListener('click', openAiChat);
+    }
+
+    aiClose.addEventListener('click', () => closeAiChat(false));
+    if (aiBack) {
+        aiBack.addEventListener('click', () => closeAiChat(true));
+    }
+    aiModal.addEventListener('click', (event) => {
+        if (event.target === aiModal) {
+            closeAiChat(false);
         }
     });
-    input.addEventListener('input', () => {
-        input.style.height = 'auto';
-        input.style.height = Math.min(110, input.scrollHeight) + 'px';
+
+    aiSendBtn.addEventListener('click', sendAiMessage);
+    aiInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendAiMessage();
+        }
     });
+    aiInput.addEventListener('input', () => {
+        aiInput.style.height = 'auto';
+        aiInput.style.height = Math.min(110, aiInput.scrollHeight) + 'px';
+    });
+
+    // Периодически обновляем бейдж непрочитанных на самой FAB-кнопке
+    refreshFabBadge();
+    window.setInterval(refreshFabBadge, 15000);
 })();
 </script>
 	
