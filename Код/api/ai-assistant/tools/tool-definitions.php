@@ -55,6 +55,7 @@ function bober_ai_tool_definitions()
                 ],
             ],
         ],
+/*
         [
             'type' => 'function',
             'function' => [
@@ -76,6 +77,7 @@ function bober_ai_tool_definitions()
                 ],
             ],
         ],
+*/
         [
             'type' => 'function',
             'function' => [
