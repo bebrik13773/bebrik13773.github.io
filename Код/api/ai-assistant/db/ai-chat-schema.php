@@ -201,34 +201,36 @@ function bober_ai_check_and_bump_generic_rate_limit($conn, $table, $counterColum
  * Сессия считается "активной", если последнее сообщение было не более
  * 30 минут назад — иначе открываем новую (короткая память, без раздувания).
  */
-function bober_ai_get_or_create_session($conn, $userId)
+function bober_ai_get_or_create_session($conn, $userId, $forceNew = false)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
         throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
 
-    $stmt = $conn->prepare('SELECT id, last_message_at FROM ai_chat_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
-    if (!$stmt) {
-        throw new RuntimeException('Не удалось найти сессию чата.');
-    }
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result ? $result->fetch_assoc() : null;
-    if ($result instanceof mysqli_result) {
-        $result->free();
-    }
-    $stmt->close();
+    if (!$forceNew) {
+        $stmt = $conn->prepare('SELECT id, last_message_at FROM ai_chat_sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось найти сессию чата.');
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
 
-    $isFresh = false;
-    if (is_array($row) && !empty($row['last_message_at'])) {
-        $lastMessageAt = strtotime((string) $row['last_message_at']);
-        $isFresh = ($lastMessageAt !== false) && ((time() - $lastMessageAt) < 1800);
-    }
+        $isFresh = false;
+        if (is_array($row) && !empty($row['last_message_at'])) {
+            $lastMessageAt = strtotime((string) $row['last_message_at']);
+            $isFresh = ($lastMessageAt !== false) && ((time() - $lastMessageAt) < 1800);
+        }
 
-    if (is_array($row) && $isFresh) {
-        return (int) $row['id'];
+        if (is_array($row) && $isFresh) {
+            return (int) $row['id'];
+        }
     }
 
     $insertStmt = $conn->prepare('INSERT INTO ai_chat_sessions (user_id, started_at, last_message_at) VALUES (?, NOW(), NOW())');

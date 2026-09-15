@@ -118,7 +118,9 @@ try {
     }
 
     $userMessage = trim((string) ($data['message'] ?? ''));
-    if ($userMessage === '') {
+    $forceNewSession = !empty($data['newSession']);
+
+    if ($userMessage === '' && !$forceNewSession) {
         bober_json_response(['success' => false, 'message' => 'Сообщение не может быть пустым.'], 400);
     }
 
@@ -147,6 +149,14 @@ try {
 
     bober_enforce_runtime_access_rules($conn, $sessionUserId);
 
+    // Если это просто запрос на новый чат без текста — создаём новую сессию
+    // и выходим сразу, не тратя обращение к RouterAI.
+    if ($userMessage === '' && $forceNewSession) {
+        bober_ai_get_or_create_session($conn, $sessionUserId, true);
+        $conn->close();
+        bober_json_response(['success' => true, 'reply' => '', 'newSessionStarted' => true]);
+    }
+
     // Общий rate-limit на сообщения чата — щедрый лимит, чтобы не мешать
     // нормальному общению, но защищающий бюджет API от накрутки/спама.
     if (!bober_ai_check_and_bump_rate_limit($conn, $sessionUserId, 15)) {
@@ -158,7 +168,7 @@ try {
         ]);
     }
 
-    $chatSessionId = bober_ai_get_or_create_session($conn, $sessionUserId);
+    $chatSessionId = bober_ai_get_or_create_session($conn, $sessionUserId, $forceNewSession);
     $userContext = bober_ai_build_user_context($conn, $sessionUserId);
     $login = (string) ($userContext['login'] ?? '');
 
