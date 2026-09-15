@@ -4197,6 +4197,24 @@ Owner decisions:
         margin-bottom: 12px;
     }
 
+    .support-panel-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .support-panel-title-row .support-panel-title {
+        margin-bottom: 0;
+    }
+
+    .support-new-thread-button {
+        white-space: nowrap;
+        padding: 8px 14px;
+        font-size: 12.5px;
+    }
+
     .support-summary-row {
         display: flex;
         flex-wrap: wrap;
@@ -5650,7 +5668,7 @@ Owner decisions:
         font-size: 26px;
         line-height: 1;
         transition: transform 0.15s ease, box-shadow 0.15s ease;
-        animation: aiChatFabPulse 2.6s ease-in-out infinite;
+        animation: aiChatFabPulse 4.2s ease-in-out infinite;
     }
 
     .chats-fab:hover {
@@ -5688,8 +5706,8 @@ Owner decisions:
     }
 
     @keyframes aiChatFabPulse {
-        0%, 100% { box-shadow: 0 12px 26px rgba(4, 8, 22, 0.4), 0 0 0 0 rgba(126, 241, 255, 0.32); }
-        50% { box-shadow: 0 12px 26px rgba(4, 8, 22, 0.4), 0 0 0 10px rgba(126, 241, 255, 0); }
+        0%, 100% { box-shadow: 0 12px 26px rgba(4, 8, 22, 0.4), 0 0 0 0 rgba(126, 241, 255, 0.28); }
+        50% { box-shadow: 0 12px 26px rgba(4, 8, 22, 0.4), 0 0 0 8px rgba(126, 241, 255, 0); }
     }
 
     .ai-chat-modal .skin-action-modal {
@@ -5798,15 +5816,15 @@ Owner decisions:
         height: 6px;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.7);
-        animation: aiChatTypingDot 1.1s ease-in-out infinite;
+        animation: aiChatTypingDot 1.6s ease-in-out infinite;
     }
 
-    .ai-chat-typing span:nth-child(2) { animation-delay: 0.15s; }
-    .ai-chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+    .ai-chat-typing span:nth-child(2) { animation-delay: 0.22s; }
+    .ai-chat-typing span:nth-child(3) { animation-delay: 0.44s; }
 
     @keyframes aiChatTypingDot {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
-        30% { transform: translateY(-4px); opacity: 1; }
+        0%, 70%, 100% { transform: translateY(0); opacity: 0.6; }
+        35% { transform: translateY(-4px); opacity: 1; }
     }
 
     .ai-chat-input-row {
@@ -5976,14 +5994,18 @@ Owner decisions:
         height: 20px;
         padding: 0 5px;
         border-radius: 999px;
-        background: linear-gradient(180deg, #56f5e0, #1ba6c4);
-        color: #071822;
+        background: linear-gradient(180deg, #ff7a7a, #e13c3c);
+        color: #fff;
         font-size: 11px;
         font-weight: 800;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
+    }
+
+    .chat-list-item-unread[hidden] {
+        display: none;
     }
 
     @media (max-width: 480px) {
@@ -6727,15 +6749,14 @@ function showNotification(message, type = 'success', duration = 3000) {
 </div>
 <div class="modal-backdrop" id="supportModal" aria-hidden="true" data-palette="modal">
     <div class="skin-action-modal support-modal" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
-        <div class="skin-action-modal-title" id="supportModalTitle">Поддержка</div>
-        <div class="skin-action-modal-text" id="supportModalText">Здесь находятся ваши тикеты, ответы поддержки и новая заявка.</div>
-        <div class="support-modal-tabs" id="supportModalTabs">
-            <button type="button" class="support-modal-tab active" data-tab="inbox">Мои тикеты</button>
-            <button type="button" class="support-modal-tab" data-tab="create">Новый тикет</button>
-        </div>
+        <div class="skin-action-modal-title" id="supportModalTitle">Чат поддержки</div>
+        <div class="skin-action-modal-text" id="supportModalText">Здесь отвечает реальный человек, а не ИИ. Обычно ответ приходит в течение дня.</div>
         <div class="support-modal-layout">
             <div class="support-modal-panel support-ticket-list-panel" id="supportTicketListPanel">
-                <div class="support-panel-title">Входящие</div>
+                <div class="support-panel-title-row">
+                    <div class="support-panel-title">Обращения</div>
+                    <button type="button" class="settings-action-button primary support-new-thread-button" id="supportNewThreadButton">Написать в поддержку</button>
+                </div>
                 <div class="support-summary-row">
                     <span class="support-summary-chip" id="supportSummaryUnreadChip">Непрочитано: 0</span>
                     <span class="support-summary-chip" id="supportSummaryOpenChip">Открыто: 0</span>
@@ -6744,7 +6765,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
             <div class="support-modal-panel support-ticket-thread-panel" id="supportTicketThreadPanel">
                 <div class="support-panel-title">Переписка</div>
-                <div class="support-ticket-thread-empty" id="supportTicketThreadEmpty">Выберите тикет слева или создайте новый.</div>
+                <div class="support-ticket-thread-empty" id="supportTicketThreadEmpty">Выберите обращение слева или напишите новое.</div>
                 <div id="supportTicketThreadContent" hidden>
                     <div class="support-ticket-thread-head">
                         <div>
@@ -6769,25 +6790,15 @@ function showNotification(message, type = 'success', duration = 3000) {
                 </div>
             </div>
             <div class="support-modal-panel support-ticket-create-panel" id="supportTicketCreatePanel" hidden>
-                <div class="support-panel-title">Новый тикет</div>
-                <div class="support-form-card">
-                    <div class="support-form-card-title">Вопрос 1</div>
-                    <div class="settings-field support-field">
-                        <label for="supportTicketTopic">Тема обращения</label>
-                        <select id="supportTicketTopic">
-                            <option value="feedback">Отзыв</option>
-                            <option value="question">Вопрос</option>
-                            <option value="bug_report">Сообщение об ошибке</option>
-                            <option value="feature_request">Запрос новой функциональности</option>
-                            <option value="ban_appeal">Меня забанили!</option>
-                        </select>
-                    </div>
+                <div class="support-panel-title-row">
+                    <button type="button" class="ai-chat-close" id="supportCreateBackButton" aria-label="Назад" title="Назад к обращениям">←</button>
+                    <div class="support-panel-title">Написать в поддержку</div>
                 </div>
+                <input type="hidden" id="supportTicketTopic" value="question">
                 <div class="support-form-card">
-                    <div class="support-form-card-title">Вопрос 2</div>
                     <div class="settings-field support-field support-field-column">
                         <label for="supportTicketMessage">Сообщение</label>
-                        <textarea id="supportTicketMessage" placeholder="Подробно опишите вопрос или проблему."></textarea>
+                        <textarea id="supportTicketMessage" placeholder="Опишите вопрос или проблему — мы ответим как можно скорее."></textarea>
                     </div>
                     <input type="file" id="supportTicketImages" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
                     <div class="support-upload-toolbar">
@@ -6795,10 +6806,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                         <div class="support-upload-hint">До 3 фото в тикете</div>
                     </div>
                     <div class="support-attachment-draft-list" id="supportTicketAttachmentDraftList"></div>
-                    <div class="support-compose-note" id="supportComposeNote">Тикет будет привязан к текущему аккаунту и появится во входящих поддержки.</div>
+                    <div class="support-compose-note" id="supportComposeNote">Обращение будет привязано к текущему аккаунту.</div>
                 </div>
                 <div class="support-ticket-actions">
-                    <button type="button" class="settings-action-button primary" id="supportCreateTicketButton">Создать тикет</button>
+                    <button type="button" class="settings-action-button primary" id="supportCreateTicketButton">Отправить</button>
                 </div>
             </div>
         </div>
@@ -6859,6 +6870,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="ai-chat-header">
             <button type="button" class="ai-chat-close" id="aiChatBack" aria-label="Назад к списку чатов" title="Назад">←</button>
             <div class="ai-chat-title" id="aiChatModalTitle"><span class="ai-chat-title-emoji">🦫</span> ИИ Бобёр</div>
+            <button type="button" class="ai-chat-close" id="aiChatNewSession" aria-label="Новый чат" title="Начать новый чат">✚</button>
             <button type="button" class="ai-chat-close" id="aiChatClose" aria-label="Закрыть">✕</button>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages"></div>
@@ -12471,18 +12483,9 @@ function updateSupportComposeFormState() {
 function setSupportModalTab(tab) {
     const nextTab = tab === 'create' ? 'create' : 'inbox';
     supportState.activeTab = nextTab;
-    const tabsShell = document.getElementById('supportModalTabs');
     const listPanel = document.getElementById('supportTicketListPanel');
     const threadPanel = document.getElementById('supportTicketThreadPanel');
     const createPanel = document.getElementById('supportTicketCreatePanel');
-
-    if (tabsShell) {
-        tabsShell.style.setProperty('--support-tab-offset', nextTab === 'create' ? 'calc(100% + 8px)' : '0px');
-    }
-
-    document.querySelectorAll('.support-modal-tab').forEach((node) => {
-        node.classList.toggle('active', node.dataset.tab === nextTab);
-    });
 
     if (listPanel) {
         listPanel.hidden = nextTab !== 'inbox';
@@ -16574,15 +16577,17 @@ if (supportReplyImagesInput) {
     });
 }
 
-const supportModalTabsNode = document.getElementById('supportModalTabs');
-if (supportModalTabsNode) {
-    supportModalTabsNode.addEventListener('click', (event) => {
-        const tabButton = event.target.closest('.support-modal-tab');
-        if (!tabButton) {
-            return;
-        }
+const supportNewThreadButtonNode = document.getElementById('supportNewThreadButton');
+if (supportNewThreadButtonNode) {
+    supportNewThreadButtonNode.addEventListener('click', () => {
+        setSupportModalTab('create');
+    });
+}
 
-        setSupportModalTab(tabButton.dataset.tab || 'inbox');
+const supportCreateBackButtonNode = document.getElementById('supportCreateBackButton');
+if (supportCreateBackButtonNode) {
+    supportCreateBackButtonNode.addEventListener('click', () => {
+        setSupportModalTab('inbox');
     });
 }
 
@@ -21389,6 +21394,7 @@ console.log('Настройки античита:', clickDetector.config);
     const aiModal = document.getElementById('aiChatModal');
     const aiClose = document.getElementById('aiChatClose');
     const aiBack = document.getElementById('aiChatBack');
+    const aiNewSessionBtn = document.getElementById('aiChatNewSession');
     const aiMessagesBox = document.getElementById('aiChatMessages');
     const aiInput = document.getElementById('aiChatInput');
     const aiSendBtn = document.getElementById('aiChatSend');
@@ -21623,6 +21629,39 @@ console.log('Настройки античита:', clickDetector.config);
         }
     }
 
+    async function startNewAiChat() {
+        if (isSending) {
+            return;
+        }
+
+        aiMessagesBox.innerHTML = '';
+        hasGreeted = false;
+        writeAiChatPreview('', 0);
+        if (aiPreview) {
+            aiPreview.textContent = 'Спроси что-нибудь про игру';
+        }
+        if (aiTime) {
+            aiTime.textContent = '';
+        }
+
+        addBubble('assistant', 'Начинаем новый разговор! О чём поболтаем на этот раз? 🦫');
+        hasGreeted = true;
+
+        try {
+            await fetch(resolveRuntimeUrl('/api/ai-assistant/ai-assistant.php'), {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ newSession: true })
+            });
+        } catch (networkError) {
+            // Не критично: даже если запрос не дойдёт, следующее сообщение
+            // всё равно попытается создать новую сессию на сервере через параметр newSession.
+        }
+    }
+
     // --- Обработчики ---
     fab.addEventListener('click', openChatsList);
     listClose.addEventListener('click', closeChatsList);
@@ -21650,6 +21689,9 @@ console.log('Настройки античита:', clickDetector.config);
     aiClose.addEventListener('click', () => closeAiChat(false));
     if (aiBack) {
         aiBack.addEventListener('click', () => closeAiChat(true));
+    }
+    if (aiNewSessionBtn) {
+        aiNewSessionBtn.addEventListener('click', startNewAiChat);
     }
     aiModal.addEventListener('click', (event) => {
         if (event.target === aiModal) {
