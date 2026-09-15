@@ -52,7 +52,7 @@ function bober_ai_call_router(array $messages, array $tools)
         'messages' => $messages,
         'tools' => $tools,
         'tool_choice' => 'auto',
-        'max_tokens' => 800,
+        'max_tokens' => 1500,
     ];
 
     $ch = curl_init($baseUrl . '/chat/completions');
