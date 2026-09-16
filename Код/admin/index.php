@@ -14,6 +14,7 @@ ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
 require_once dirname(__DIR__) . '/api/bootstrap/db.php';
+require_once dirname(__DIR__) . '/api/ai-assistant/db/ai-chat-schema.php';
 
 $bootstrapError = null;
 
@@ -1925,6 +1926,172 @@ SQL;
             }
         }
 
+        /* ==================== ИИ-помощник: чаты, доступ, лимиты ==================== */
+
+        if ($action === 'get_ai_chat_sessions') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                bober_ai_ensure_schema($conn);
+
+                $response['success'] = true;
+                $response['sessions'] = bober_ai_admin_fetch_sessions($conn, [
+                    'search' => (string) ($_POST['search'] ?? ''),
+                    'limit' => (int) ($_POST['limit'] ?? 60),
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_ai_chat_session') {
+            if (requireAdminAuth($response)) {
+                $sessionId = max(0, (int) ($_POST['session_id'] ?? 0));
+                if ($sessionId < 1) {
+                    $response['message'] = 'Не удалось определить сессию чата.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+                    bober_ai_ensure_schema($conn);
+
+                    $session = bober_ai_admin_fetch_session_full($conn, $sessionId);
+                    if ($session === null) {
+                        $response['message'] = 'Сессия чата не найдена.';
+                    } else {
+                        $response['success'] = true;
+                        $response['session'] = $session;
+                    }
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'get_ai_chat_settings') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                bober_ai_ensure_schema($conn);
+
+                $response['success'] = true;
+                $response['globalSettings'] = bober_ai_get_global_settings($conn);
+                $response['userSettingsList'] = bober_ai_admin_fetch_user_settings_list($conn, [
+                    'limit' => (int) ($_POST['limit'] ?? 100),
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'save_ai_global_settings') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                bober_ai_ensure_schema($conn);
+
+                $updated = bober_ai_update_global_settings($conn, [
+                    'accessMode' => (string) ($_POST['access_mode'] ?? 'free'),
+                    'defaultMessageLimitPerHour' => (int) ($_POST['default_message_limit_per_hour'] ?? 15),
+                    'defaultActionLimitPerHour' => (int) ($_POST['default_action_limit_per_hour'] ?? 5),
+                    'paidPriceCoins' => (int) ($_POST['paid_price_coins'] ?? 0),
+                    'paidDurationDays' => (int) ($_POST['paid_duration_days'] ?? 30),
+                ]);
+
+                $response['success'] = true;
+                $response['message'] = 'Глобальные настройки ИИ-помощника обновлены.';
+                $response['globalSettings'] = $updated;
+
+                bober_admin_log_action($conn, 'save_ai_global_settings', [
+                    'target_table' => 'ai_chat_global_settings',
+                    'query_text' => 'UPDATE AI GLOBAL SETTINGS',
+                    'affected_rows' => 1,
+                    'meta' => $updated,
+                ]);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'save_ai_user_settings') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $login = trim((string) ($_POST['login'] ?? ''));
+
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                bober_ai_ensure_schema($conn);
+
+                if ($userId < 1 && $login !== '') {
+                    $userId = (int) (bober_ai_admin_find_user_id_by_login($conn, $login) ?? 0);
+                }
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока (укажите user_id или существующий логин).';
+                } else {
+                    $customMessageLimitRaw = $_POST['custom_message_limit_per_hour'] ?? '';
+                    $customActionLimitRaw = $_POST['custom_action_limit_per_hour'] ?? '';
+
+                    $settings = bober_ai_set_user_settings($conn, $userId, [
+                        'isBlocked' => !empty($_POST['is_blocked']),
+                        'isPaidUnlocked' => !empty($_POST['is_paid_unlocked']),
+                        'paidUntil' => (string) ($_POST['paid_until'] ?? '') !== '' ? (string) $_POST['paid_until'] : null,
+                        'customMessageLimitPerHour' => $customMessageLimitRaw === '' ? null : (int) $customMessageLimitRaw,
+                        'customActionLimitPerHour' => $customActionLimitRaw === '' ? null : (int) $customActionLimitRaw,
+                        'adminNote' => (string) ($_POST['admin_note'] ?? ''),
+                    ]);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Настройки доступа игрока к ИИ обновлены.';
+                    $response['userSettings'] = $settings;
+
+                    bober_admin_log_action($conn, 'save_ai_user_settings', [
+                        'target_table' => 'ai_chat_user_settings',
+                        'query_text' => 'UPDATE AI USER SETTINGS FOR USER #' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => $settings,
+                    ]);
+                }
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'grant_ai_paid_access') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $login = trim((string) ($_POST['login'] ?? ''));
+                $durationDays = max(1, (int) ($_POST['duration_days'] ?? 30));
+
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+                bober_ai_ensure_schema($conn);
+
+                if ($userId < 1 && $login !== '') {
+                    $userId = (int) (bober_ai_admin_find_user_id_by_login($conn, $login) ?? 0);
+                }
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока (укажите user_id или существующий логин).';
+                } else {
+                    $settings = bober_ai_grant_paid_access($conn, $userId, $durationDays);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Платный доступ к ИИ выдан на ' . $durationDays . ' дн.';
+                    $response['userSettings'] = $settings;
+
+                    bober_admin_log_action($conn, 'grant_ai_paid_access', [
+                        'target_table' => 'ai_chat_user_settings',
+                        'query_text' => 'GRANT AI PAID ACCESS FOR USER #' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => [
+                            'user_id' => $userId,
+                            'duration_days' => $durationDays,
+                            'paid_until' => $settings['paidUntil'] ?? null,
+                        ],
+                    ]);
+                }
+
+                $conn->close();
+            }
+        }
+
         if ($action === 'assign_user_quest') {
             if (requireAdminAuth($response)) {
                 $userId = max(0, (int) ($_POST['user_id'] ?? 0));
@@ -3374,6 +3541,18 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         .sidebar-item.active {
             background-color: var(--primary-color);
             color: var(--on-primary);
+        }
+
+        .ai-subtab {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 16px;
+            min-height: auto;
+        }
+
+        .ai-subtab.active {
+            border-color: rgba(59, 177, 255, 0.52);
         }
         
         /* Основной контент */
@@ -5781,6 +5960,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span>Поддержка</span>
         </div>
 
+        <div class="sidebar-item" id="aiAssistantBtn">
+            <span class="material-icons">smart_toy</span>
+            <span>ИИ-помощник</span>
+        </div>
+
         <div class="sidebar-item" id="maintenanceBtn">
             <span class="material-icons">build_circle</span>
             <span>Обслуживание</span>
@@ -6300,7 +6484,163 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Раздел ИИ-помощника: чаты, доступ, лимиты -->
+            <div class="animated fadeIn" id="aiAssistantView" style="display: none;">
+                <div class="card maintenance-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">smart_toy</span>
+                                ИИ-помощник
+                            </h2>
+                            <div class="card-subtitle">Переписки с бобром-помощником, доступ, лимиты и платная подписка.</div>
+                        </div>
+                        <button class="btn btn-outline" id="refreshAiAssistantBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="support-toolbar">
+                        <div class="sidebar-item ai-subtab active" id="aiSubtabChatsBtn" style="flex: 0 0 auto;">
+                            <span class="material-icons">forum</span>
+                            <span>Чаты</span>
+                        </div>
+                        <div class="sidebar-item ai-subtab" id="aiSubtabAccessBtn" style="flex: 0 0 auto;">
+                            <span class="material-icons">tune</span>
+                            <span>Доступ и лимиты</span>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Чаты -->
+                    <div id="aiSubtabChats">
+                        <div class="support-toolbar">
+                            <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                                <span class="material-icons search-icon">search</span>
+                                <input type="text" id="aiChatSearchInput" class="search-input" placeholder="Найти по логину игрока">
+                            </div>
+                        </div>
+
+                        <div class="support-shell">
+                            <section class="card account-list-panel" style="margin-bottom: 0;">
+                                <div class="card-subtitle" id="aiChatSessionsMeta">Загрузка сессий чата...</div>
+                                <div class="support-list" id="aiChatSessionsList"></div>
+                            </section>
+
+                            <section class="card account-detail-panel" style="margin-bottom: 0;">
+                                <div class="account-empty" id="aiChatSessionDetailEmpty">
+                                    <span class="material-icons" style="font-size: 42px; margin-bottom: 12px;">chat</span>
+                                    <div style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">Выберите чат</div>
+                                    <div style="font-size: 14px; line-height: 1.55; color: var(--muted-text); max-width: 340px;">Здесь откроется вся переписка игрока с ИИ-помощником (только просмотр).</div>
+                                </div>
+                                <div id="aiChatSessionDetailContent" style="display: none;">
+                                    <div class="support-ticket-detail-head">
+                                        <div>
+                                            <div class="card-title" id="aiChatSessionDetailTitle" style="margin-bottom: 6px;">Чат</div>
+                                            <div class="card-subtitle" id="aiChatSessionDetailMeta">Метаданные сессии</div>
+                                        </div>
+                                        <button class="btn btn-outline btn-small" id="aiChatOpenProfileBtn" type="button">
+                                            <span class="material-icons">person_search</span>
+                                            Открыть профиль
+                                        </button>
+                                    </div>
+                                    <div class="support-ticket-thread-messages" id="aiChatSessionMessages" style="max-height: 480px; overflow-y: auto;"></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Доступ и лимиты -->
+                    <div id="aiSubtabAccess" style="display: none;">
+                        <div class="card" style="margin-bottom: 16px;">
+                            <div class="card-title" style="margin-bottom: 12px;">Глобальные настройки</div>
+                            <div class="detail-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Режим доступа</label>
+                                    <select class="form-control" id="aiGlobalAccessMode">
+                                        <option value="free">Свободный (все игроки)</option>
+                                        <option value="paid_only">Только платный доступ</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Лимит сообщений/час (по умолчанию)</label>
+                                    <input type="number" class="form-control" id="aiGlobalMessageLimit" min="1" value="15">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Лимит действий/час (покупки, тикеты)</label>
+                                    <input type="number" class="form-control" id="aiGlobalActionLimit" min="1" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Цена платного доступа (монеты)</label>
+                                    <input type="number" class="form-control" id="aiGlobalPaidPrice" min="0" value="0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Длительность платного доступа (дней)</label>
+                                    <input type="number" class="form-control" id="aiGlobalPaidDuration" min="1" value="30">
+                                </div>
+                            </div>
+                            <div class="inline-actions">
+                                <button class="btn btn-primary" id="saveAiGlobalSettingsBtn">
+                                    <span class="material-icons">save</span>
+                                    Сохранить глобальные настройки
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title" style="margin-bottom: 12px;">Индивидуальные настройки игрока</div>
+                            <div class="detail-form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Логин игрока</label>
+                                    <input type="text" class="form-control" id="aiUserSettingsLogin" placeholder="Например, bebrik13773">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Свой лимит сообщений/час</label>
+                                    <input type="number" class="form-control" id="aiUserMessageLimit" min="0" placeholder="Пусто — как у всех">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Свой лимит действий/час</label>
+                                    <input type="number" class="form-control" id="aiUserActionLimit" min="0" placeholder="Пусто — как у всех">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 8px;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                                    <input type="checkbox" id="aiUserIsBlocked" style="width: auto;">
+                                    Заблокировать доступ к ИИ для этого игрока
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                                    <input type="checkbox" id="aiUserIsPaidUnlocked" style="width: auto;">
+                                    Платный доступ активен (для режима "Только платный доступ")
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Заметка администратора</label>
+                                <input type="text" class="form-control" id="aiUserAdminNote" placeholder="Необязательно, для внутреннего использования">
+                            </div>
+                            <div class="inline-actions">
+                                <button class="btn btn-primary" id="saveAiUserSettingsBtn">
+                                    <span class="material-icons">save</span>
+                                    Сохранить настройки игрока
+                                </button>
+                                <button class="btn btn-outline" id="grantAiPaidAccessBtn">
+                                    <span class="material-icons">workspace_premium</span>
+                                    Выдать платный доступ (дней): <input type="number" id="grantAiPaidDays" min="1" value="30" style="width: 60px; margin-left: 6px;">
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 16px;">
+                            <div class="card-title" style="margin-bottom: 12px;">Игроки с индивидуальными настройками</div>
+                            <div class="card-subtitle" id="aiUserSettingsListMeta">Загрузка...</div>
+                            <div id="aiUserSettingsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Карточка SQL редактора -->
             <div class="card animated fadeIn" id="sqlEditorCard" style="display: none;">
                 <div class="card-header">
@@ -8219,6 +8559,74 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 supportBtn.addEventListener('click', function() {
                     showSupportView();
                     closeSidebarForCompactViewport();
+                });
+            }
+
+            const aiAssistantBtn = document.getElementById('aiAssistantBtn');
+            if (aiAssistantBtn) {
+                aiAssistantBtn.addEventListener('click', function() {
+                    showAiAssistantView();
+                    closeSidebarForCompactViewport();
+                });
+            }
+
+            const aiSubtabChatsBtn = document.getElementById('aiSubtabChatsBtn');
+            if (aiSubtabChatsBtn) {
+                aiSubtabChatsBtn.addEventListener('click', function() {
+                    switchAiAssistantSubtab('chats');
+                });
+            }
+
+            const aiSubtabAccessBtn = document.getElementById('aiSubtabAccessBtn');
+            if (aiSubtabAccessBtn) {
+                aiSubtabAccessBtn.addEventListener('click', function() {
+                    switchAiAssistantSubtab('access');
+                });
+            }
+
+            const refreshAiAssistantBtn = document.getElementById('refreshAiAssistantBtn');
+            if (refreshAiAssistantBtn) {
+                refreshAiAssistantBtn.addEventListener('click', function() {
+                    if (document.getElementById('aiSubtabAccess').style.display === 'none') {
+                        loadAiChatSessionsAdmin();
+                    } else {
+                        loadAiAccessSettingsAdmin();
+                    }
+                });
+            }
+
+            const aiChatSearchInput = document.getElementById('aiChatSearchInput');
+            if (aiChatSearchInput) {
+                let aiChatSearchTimer = null;
+                aiChatSearchInput.addEventListener('input', function() {
+                    clearTimeout(aiChatSearchTimer);
+                    aiChatSearchTimer = setTimeout(loadAiChatSessionsAdmin, 350);
+                });
+            }
+
+            const saveAiGlobalSettingsBtn = document.getElementById('saveAiGlobalSettingsBtn');
+            if (saveAiGlobalSettingsBtn) {
+                saveAiGlobalSettingsBtn.addEventListener('click', saveAiGlobalSettingsAdmin);
+            }
+
+            const saveAiUserSettingsBtn = document.getElementById('saveAiUserSettingsBtn');
+            if (saveAiUserSettingsBtn) {
+                saveAiUserSettingsBtn.addEventListener('click', saveAiUserSettingsAdmin);
+            }
+
+            const grantAiPaidAccessBtn = document.getElementById('grantAiPaidAccessBtn');
+            if (grantAiPaidAccessBtn) {
+                grantAiPaidAccessBtn.addEventListener('click', grantAiPaidAccessAdmin);
+            }
+
+            const aiChatOpenProfileBtn = document.getElementById('aiChatOpenProfileBtn');
+            if (aiChatOpenProfileBtn) {
+                aiChatOpenProfileBtn.addEventListener('click', function() {
+                    if (currentAiChatSessionUserId > 0) {
+                        showAccountsView({ preferredUserId: currentAiChatSessionUserId });
+                    } else {
+                        showNotification('У этой сессии нет привязки к аккаунту игрока.', 'warning');
+                    }
                 });
             }
 
@@ -10558,6 +10966,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'block';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -10578,6 +10987,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -10597,6 +11007,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -10617,6 +11028,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'block';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -11476,6 +11888,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -11487,6 +11900,357 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             loadSupportTicketsAdmin().finally(() => {
                 scheduleSupportLiveRefreshAdmin(ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
             });
+        }
+
+        function showAiAssistantView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'ai_assistant';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'block';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'none';
+            updateActiveMenuItem('aiAssistantBtn');
+            loadAiChatSessionsAdmin();
+        }
+
+        function switchAiAssistantSubtab(subtab) {
+            const isChats = subtab !== 'access';
+            document.getElementById('aiSubtabChats').style.display = isChats ? 'block' : 'none';
+            document.getElementById('aiSubtabAccess').style.display = isChats ? 'none' : 'block';
+            document.getElementById('aiSubtabChatsBtn').classList.toggle('active', isChats);
+            document.getElementById('aiSubtabAccessBtn').classList.toggle('active', !isChats);
+
+            if (isChats) {
+                loadAiChatSessionsAdmin();
+            } else {
+                loadAiAccessSettingsAdmin();
+            }
+        }
+
+        function normalizeAiChatSession(raw) {
+            if (!raw || typeof raw !== 'object') {
+                return null;
+            }
+
+            return {
+                sessionId: Number(raw.sessionId) || 0,
+                userId: Number(raw.userId) || 0,
+                login: String(raw.login || 'без логина'),
+                startedAt: raw.startedAt || null,
+                lastMessageAt: raw.lastMessageAt || null,
+                messageCount: Number(raw.messageCount) || 0,
+                lastMessagePreview: String(raw.lastMessagePreview || '')
+            };
+        }
+
+        function formatAdminDateTime(value) {
+            if (!value) {
+                return '—';
+            }
+            const date = new Date(String(value).replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) {
+                return '—';
+            }
+            return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        async function loadAiChatSessionsAdmin() {
+            const metaNode = document.getElementById('aiChatSessionsMeta');
+            const listNode = document.getElementById('aiChatSessionsList');
+            const search = (document.getElementById('aiChatSearchInput') || {}).value || '';
+
+            if (metaNode) {
+                metaNode.textContent = 'Загрузка сессий чата...';
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_ai_chat_sessions');
+                formData.append('search', search);
+                formData.append('limit', '60');
+
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (!data.success) {
+                    if (metaNode) {
+                        metaNode.textContent = data.message || 'Не удалось загрузить сессии чата.';
+                    }
+                    return;
+                }
+
+                const sessions = (data.sessions || []).map(normalizeAiChatSession).filter(Boolean);
+
+                if (metaNode) {
+                    metaNode.textContent = sessions.length > 0
+                        ? `Всего сессий: ${sessions.length}`
+                        : 'Пока нет ни одной переписки с ИИ-помощником.';
+                }
+
+                if (listNode) {
+                    listNode.innerHTML = sessions.map((session) => `
+                        <div class="support-ticket-admin-card" data-session-id="${session.sessionId}" style="cursor: pointer;">
+                            <div style="display: flex; justify-content: space-between; gap: 8px;">
+                                <strong>${escapeHtml(session.login)}</strong>
+                                <span style="font-size: 12px; color: var(--muted-text);">${formatAdminDateTime(session.lastMessageAt)}</span>
+                            </div>
+                            <div style="font-size: 13px; color: var(--muted-text); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${escapeHtml(session.lastMessagePreview) || 'Сообщений пока нет.'}
+                            </div>
+                            <div style="font-size: 11.5px; color: var(--muted-text); margin-top: 4px;">Сообщений: ${session.messageCount}</div>
+                        </div>
+                    `).join('');
+
+                    listNode.querySelectorAll('[data-session-id]').forEach((node) => {
+                        node.addEventListener('click', () => {
+                            openAiChatSessionAdmin(Number(node.dataset.sessionId));
+                        });
+                    });
+                }
+            } catch (error) {
+                if (metaNode) {
+                    metaNode.textContent = 'Ошибка загрузки: ' + (error && error.message ? error.message : 'неизвестная ошибка');
+                }
+            }
+        }
+
+        let currentAiChatSessionUserId = 0;
+
+        async function openAiChatSessionAdmin(sessionId) {
+            if (!sessionId) {
+                return;
+            }
+
+            const emptyNode = document.getElementById('aiChatSessionDetailEmpty');
+            const contentNode = document.getElementById('aiChatSessionDetailContent');
+            const titleNode = document.getElementById('aiChatSessionDetailTitle');
+            const metaNode = document.getElementById('aiChatSessionDetailMeta');
+            const messagesNode = document.getElementById('aiChatSessionMessages');
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_ai_chat_session');
+                formData.append('session_id', String(sessionId));
+
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (!data.success || !data.session) {
+                    showNotification(data.message || 'Не удалось загрузить переписку.', 'error');
+                    return;
+                }
+
+                const session = data.session;
+                currentAiChatSessionUserId = Number(session.userId) || 0;
+
+                if (emptyNode) emptyNode.style.display = 'none';
+                if (contentNode) contentNode.style.display = 'block';
+                if (titleNode) titleNode.textContent = `Чат с ${session.login || 'игроком'}`;
+                if (metaNode) metaNode.textContent = `Начат: ${formatAdminDateTime(session.startedAt)} · Последнее сообщение: ${formatAdminDateTime(session.lastMessageAt)}`;
+
+                if (messagesNode) {
+                    const roleLabels = { user: 'Игрок', assistant: 'ИИ Бобёр', tool: 'Действие' };
+                    messagesNode.innerHTML = (session.messages || []).map((msg) => {
+                        const roleLabel = roleLabels[msg.role] || msg.role;
+                        const isUser = msg.role === 'user';
+                        const bubbleStyle = isUser
+                            ? 'background: rgba(86,245,224,0.12); margin-left: 40px;'
+                            : 'background: rgba(255,255,255,0.05); margin-right: 40px;';
+                        return `
+                            <div style="padding: 10px 14px; border-radius: 14px; margin-bottom: 8px; ${bubbleStyle}">
+                                <div style="font-size: 11px; color: var(--muted-text); margin-bottom: 4px; display: flex; justify-content: space-between;">
+                                    <span>${escapeHtml(roleLabel)}${msg.toolName ? ' · ' + escapeHtml(msg.toolName) : ''}</span>
+                                    <span>${formatAdminDateTime(msg.createdAt)}</span>
+                                </div>
+                                <div style="white-space: pre-wrap; font-size: 14px;">${escapeHtml(msg.content)}</div>
+                            </div>
+                        `;
+                    }).join('') || '<div style="color: var(--muted-text);">Сообщений нет.</div>';
+                }
+            } catch (error) {
+                showNotification('Ошибка загрузки переписки: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
+            }
+        }
+
+        function normalizeAiUserSettings(raw) {
+            if (!raw || typeof raw !== 'object') {
+                return null;
+            }
+
+            return {
+                userId: Number(raw.userId) || 0,
+                login: String(raw.login || 'без логина'),
+                isBlocked: Boolean(raw.isBlocked),
+                isPaidUnlocked: Boolean(raw.isPaidUnlocked),
+                paidUntil: raw.paidUntil || null,
+                customMessageLimitPerHour: raw.customMessageLimitPerHour,
+                customActionLimitPerHour: raw.customActionLimitPerHour,
+                adminNote: String(raw.adminNote || ''),
+                updatedAt: raw.updatedAt || null
+            };
+        }
+
+        async function loadAiAccessSettingsAdmin() {
+            const listMetaNode = document.getElementById('aiUserSettingsListMeta');
+            const listNode = document.getElementById('aiUserSettingsList');
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_ai_chat_settings');
+                formData.append('limit', '100');
+
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (!data.success) {
+                    if (listMetaNode) {
+                        listMetaNode.textContent = data.message || 'Не удалось загрузить настройки.';
+                    }
+                    return;
+                }
+
+                const globalSettings = data.globalSettings || {};
+                const accessModeSelect = document.getElementById('aiGlobalAccessMode');
+                if (accessModeSelect) accessModeSelect.value = globalSettings.accessMode || 'free';
+                const setValue = (id, value) => {
+                    const node = document.getElementById(id);
+                    if (node) node.value = value;
+                };
+                setValue('aiGlobalMessageLimit', globalSettings.defaultMessageLimitPerHour ?? 15);
+                setValue('aiGlobalActionLimit', globalSettings.defaultActionLimitPerHour ?? 5);
+                setValue('aiGlobalPaidPrice', globalSettings.paidPriceCoins ?? 0);
+                setValue('aiGlobalPaidDuration', globalSettings.paidDurationDays ?? 30);
+
+                const usersList = (data.userSettingsList || []).map(normalizeAiUserSettings).filter(Boolean);
+
+                if (listMetaNode) {
+                    listMetaNode.textContent = usersList.length > 0
+                        ? `Игроков с индивидуальными настройками: ${usersList.length}`
+                        : 'Пока нет игроков с индивидуальными настройками.';
+                }
+
+                if (listNode) {
+                    listNode.innerHTML = usersList.map((u) => {
+                        const badges = [];
+                        if (u.isBlocked) badges.push('<span style="color: #ff8a8a;">заблокирован</span>');
+                        if (u.isPaidUnlocked) badges.push(`<span style="color: #56f5e0;">платный до ${formatAdminDateTime(u.paidUntil)}</span>`);
+                        if (u.customMessageLimitPerHour !== null && u.customMessageLimitPerHour !== undefined) badges.push(`сообщ.: ${u.customMessageLimitPerHour}/ч`);
+                        if (u.customActionLimitPerHour !== null && u.customActionLimitPerHour !== undefined) badges.push(`действ.: ${u.customActionLimitPerHour}/ч`);
+
+                        return `
+                            <div class="support-ticket-admin-card" data-login="${escapeHtml(u.login)}" style="cursor: pointer;">
+                                <div style="display: flex; justify-content: space-between; gap: 8px;">
+                                    <strong>${escapeHtml(u.login)}</strong>
+                                    <span style="font-size: 11.5px; color: var(--muted-text);">${formatAdminDateTime(u.updatedAt)}</span>
+                                </div>
+                                <div style="font-size: 12.5px; margin-top: 4px;">${badges.join(' · ') || 'без отклонений'}</div>
+                                ${u.adminNote ? `<div style="font-size: 12px; color: var(--muted-text); margin-top: 4px;">${escapeHtml(u.adminNote)}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
+
+                    listNode.querySelectorAll('[data-login]').forEach((node) => {
+                        node.addEventListener('click', () => {
+                            const login = node.dataset.login;
+                            const user = usersList.find((u) => u.login === login);
+                            if (!user) return;
+                            document.getElementById('aiUserSettingsLogin').value = user.login;
+                            document.getElementById('aiUserMessageLimit').value = user.customMessageLimitPerHour ?? '';
+                            document.getElementById('aiUserActionLimit').value = user.customActionLimitPerHour ?? '';
+                            document.getElementById('aiUserIsBlocked').checked = user.isBlocked;
+                            document.getElementById('aiUserIsPaidUnlocked').checked = user.isPaidUnlocked;
+                            document.getElementById('aiUserAdminNote').value = user.adminNote || '';
+                        });
+                    });
+                }
+            } catch (error) {
+                if (listMetaNode) {
+                    listMetaNode.textContent = 'Ошибка загрузки: ' + (error && error.message ? error.message : 'неизвестная ошибка');
+                }
+            }
+        }
+
+        async function saveAiGlobalSettingsAdmin() {
+            const formData = new FormData();
+            formData.append('action', 'save_ai_global_settings');
+            formData.append('access_mode', document.getElementById('aiGlobalAccessMode').value);
+            formData.append('default_message_limit_per_hour', document.getElementById('aiGlobalMessageLimit').value);
+            formData.append('default_action_limit_per_hour', document.getElementById('aiGlobalActionLimit').value);
+            formData.append('paid_price_coins', document.getElementById('aiGlobalPaidPrice').value);
+            formData.append('paid_duration_days', document.getElementById('aiGlobalPaidDuration').value);
+
+            try {
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+                showNotification(data.message || (data.success ? 'Сохранено.' : 'Не удалось сохранить.'), data.success ? 'success' : 'error');
+                if (data.success) {
+                    loadAiAccessSettingsAdmin();
+                }
+            } catch (error) {
+                showNotification('Ошибка сохранения: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
+            }
+        }
+
+        async function saveAiUserSettingsAdmin() {
+            const login = document.getElementById('aiUserSettingsLogin').value.trim();
+            if (!login) {
+                showNotification('Укажите логин игрока.', 'warning');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'save_ai_user_settings');
+            formData.append('login', login);
+            formData.append('custom_message_limit_per_hour', document.getElementById('aiUserMessageLimit').value);
+            formData.append('custom_action_limit_per_hour', document.getElementById('aiUserActionLimit').value);
+            formData.append('is_blocked', document.getElementById('aiUserIsBlocked').checked ? '1' : '');
+            formData.append('is_paid_unlocked', document.getElementById('aiUserIsPaidUnlocked').checked ? '1' : '');
+            formData.append('admin_note', document.getElementById('aiUserAdminNote').value);
+
+            try {
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+                showNotification(data.message || (data.success ? 'Сохранено.' : 'Не удалось сохранить.'), data.success ? 'success' : 'error');
+                if (data.success) {
+                    loadAiAccessSettingsAdmin();
+                }
+            } catch (error) {
+                showNotification('Ошибка сохранения: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
+            }
+        }
+
+        async function grantAiPaidAccessAdmin() {
+            const login = document.getElementById('aiUserSettingsLogin').value.trim();
+            const days = document.getElementById('grantAiPaidDays').value;
+            if (!login) {
+                showNotification('Укажите логин игрока.', 'warning');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'grant_ai_paid_access');
+            formData.append('login', login);
+            formData.append('duration_days', days);
+
+            try {
+                const response = await fetch('', { method: 'POST', body: formData });
+                const data = await response.json();
+                showNotification(data.message || (data.success ? 'Готово.' : 'Не удалось выдать доступ.'), data.success ? 'success' : 'error');
+                if (data.success) {
+                    loadAiAccessSettingsAdmin();
+                }
+            } catch (error) {
+                showNotification('Ошибка: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
+            }
         }
 
         function updateAddSkinPreview() {
@@ -11857,6 +12621,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -11886,6 +12651,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -11907,6 +12673,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'none';
@@ -11927,6 +12694,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
             document.getElementById('sqlEditorCard').style.display = 'block';
@@ -14332,6 +15100,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
             document.getElementById('sqlEditorCard').style.display = 'none';

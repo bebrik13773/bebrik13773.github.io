@@ -1302,16 +1302,16 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         // Заготовленные уровни: гарантированно решаемые раскладки поля.
         // board — сетка 7x7 (null = пустая клетка), moves — лимит ходов на уровень.
         const MATCH3_LEVELS = Object.freeze([
-    { level: 1, moves: 9, types: 3, board: [[null,'bolt',null,null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'bolt','beaver',null,null,'coin',null],[null,'beaver','coin','coin','bolt','bolt',null],['coin','coin','beaver','bolt','coin','coin','bolt'],['bolt','beaver','bolt','bolt','coin','coin','bolt']] },
-    { level: 2, moves: 9, types: 3, board: [[null,null,null,'beaver',null,'beaver',null],[null,null,null,'beaver',null,'beaver',null],[null,'coin',null,'coin',null,'coin',null],[null,'bolt',null,'coin',null,'bolt',null],[null,'bolt',null,'bolt',null,'coin','bolt'],['bolt','beaver','coin','beaver','bolt','bolt','coin'],['coin','beaver','beaver','coin','bolt','bolt','beaver']] },
-    { level: 3, moves: 10, types: 3, board: [[null,null,'beaver',null,null,null,null],['beaver',null,'coin','beaver',null,null,null],['beaver','coin','bolt','bolt',null,'beaver',null],['coin','coin','bolt','beaver',null,'coin','bolt'],['coin','beaver','beaver','coin','bolt','coin','beaver'],['beaver','bolt','bolt','beaver','coin','bolt','coin'],['bolt','coin','bolt','coin','bolt','beaver','bolt']] },
-    { level: 4, moves: 9, types: 3, board: [[null,null,null,null,null,'beaver',null],[null,null,null,null,null,'coin','bolt'],[null,null,'beaver',null,null,'bolt','beaver'],[null,null,'bolt','bolt',null,'beaver','bolt'],[null,null,'coin','coin',null,'bolt','coin'],['bolt','bolt','coin','bolt','coin','coin','bolt'],['beaver','coin','beaver','bolt','coin','coin','bolt']] },
-    { level: 5, moves: 8, types: 3, board: [[null,'bolt',null,null,null,null,'bolt'],[null,'beaver',null,null,null,null,'beaver'],[null,'beaver',null,null,null,null,'coin'],[null,'bolt',null,'bolt',null,null,'bolt'],[null,'beaver',null,'coin',null,null,'coin'],['bolt','coin','bolt','bolt','coin','beaver','coin'],['coin','bolt','coin','bolt','coin','beaver','bolt']] },
-    { level: 6, moves: 8, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'coin',null,null,null],['bolt',null,null,'bolt',null,null,null],['coin',null,null,'coin',null,null,null],['coin',null,null,'beaver','coin','coin','bolt'],['beaver','beaver','bolt','bolt','beaver','coin','bolt'],['bolt','coin','beaver','bolt','beaver','bolt','coin']] },
-    { level: 7, moves: 8, types: 4, board: [[null,null,null,null,'beaver',null,null],[null,'coin',null,null,'bolt',null,null],[null,'bolt',null,null,'beaver',null,null],[null,'bolt',null,null,'coin',null,null],['trophy','beaver','coin',null,'beaver','coin','bolt'],['trophy','bolt','beaver','bolt','coin','coin','bolt'],['trophy','coin','beaver','bolt','coin','bolt','coin']] },
-    { level: 8, moves: 10, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'beaver',null,null,null],[null,null,null,'coin',null,null,'beaver'],['trophy','coin','bolt','bolt',null,'bolt','coin'],['beaver','trophy','coin','bolt','coin','coin','beaver'],['bolt','beaver','coin','coin','beaver','bolt','coin'],['trophy','beaver','bolt','bolt','beaver','bolt','beaver']] },
-    { level: 9, moves: 8, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,null],[null,null,null,null,null,null,'beaver'],[null,null,null,null,'bolt','beaver','coin'],['coin','bolt','beaver',null,'coin','beaver','bolt'],['beaver','coin','bolt','coin','bolt','bolt','coin'],['coin','beaver','bolt','coin','bolt','bolt','coin']] },
-    { level: 10, moves: 8, types: 4, board: [[null,null,null,null,null,null,'coin'],[null,null,null,'coin',null,null,'bolt'],[null,null,null,'bolt',null,null,'coin'],[null,null,null,'coin',null,null,'coin'],[null,null,null,'bolt','beaver',null,'beaver'],['coin','bolt','coin','beaver','coin','beaver','bolt'],['bolt','coin','bolt','beaver','bolt','beaver','bolt']] },
+    { level: 1, moves: 14, types: 3, board: [[null,'bolt',null,null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'beaver','bolt',null,null,null,null],[null,'bolt','beaver',null,null,'coin',null],[null,'beaver','coin','coin','bolt','bolt',null],['coin','coin','beaver','bolt','coin','coin','bolt'],['bolt','beaver','bolt','bolt','coin','coin','bolt']] },
+    { level: 2, moves: 14, types: 3, board: [[null,null,null,'beaver',null,'beaver',null],[null,null,null,'beaver',null,'beaver',null],[null,'coin',null,'coin',null,'coin',null],[null,'bolt',null,'coin',null,'bolt',null],[null,'bolt',null,'bolt',null,'coin','bolt'],['bolt','beaver','coin','beaver','bolt','bolt','coin'],['coin','beaver','beaver','coin','bolt','bolt','beaver']] },
+    { level: 3, moves: 15, types: 3, board: [[null,null,'beaver',null,null,null,null],['beaver',null,'coin','beaver',null,null,null],['beaver','coin','bolt','bolt',null,'beaver',null],['coin','coin','bolt','beaver',null,'coin','bolt'],['coin','beaver','beaver','coin','bolt','coin','beaver'],['beaver','bolt','bolt','beaver','coin','bolt','coin'],['bolt','coin','bolt','coin','bolt','beaver','bolt']] },
+    { level: 4, moves: 14, types: 3, board: [[null,null,null,null,null,'beaver',null],[null,null,null,null,null,'coin','bolt'],[null,null,'beaver',null,null,'bolt','beaver'],[null,null,'bolt','bolt',null,'beaver','bolt'],[null,null,'coin','coin',null,'bolt','coin'],['bolt','bolt','coin','bolt','coin','coin','bolt'],['beaver','coin','beaver','bolt','coin','coin','bolt']] },
+    { level: 5, moves: 13, types: 3, board: [[null,'bolt',null,null,null,null,'bolt'],[null,'beaver',null,null,null,null,'beaver'],[null,'beaver',null,null,null,null,'coin'],[null,'bolt',null,'bolt',null,null,'bolt'],[null,'beaver',null,'coin',null,null,'coin'],['bolt','coin','bolt','bolt','coin','beaver','coin'],['coin','bolt','coin','bolt','coin','beaver','bolt']] },
+    { level: 6, moves: 10, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'coin',null,null,null],['bolt',null,null,'bolt',null,null,null],['coin',null,null,'coin',null,null,null],['coin',null,null,'beaver','coin','coin','bolt'],['beaver','beaver','bolt','bolt','beaver','coin','bolt'],['bolt','coin','beaver','bolt','beaver','bolt','coin']] },
+    { level: 7, moves: 10, types: 4, board: [[null,null,null,null,'beaver',null,null],[null,'coin',null,null,'bolt',null,null],[null,'bolt',null,null,'beaver',null,null],[null,'bolt',null,null,'coin',null,null],['trophy','beaver','coin',null,'beaver','coin','bolt'],['trophy','bolt','beaver','bolt','coin','coin','bolt'],['trophy','coin','beaver','bolt','coin','bolt','coin']] },
+    { level: 8, moves: 12, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,'beaver',null,null,null],[null,null,null,'coin',null,null,'beaver'],['trophy','coin','bolt','bolt',null,'bolt','coin'],['beaver','trophy','coin','bolt','coin','coin','beaver'],['bolt','beaver','coin','coin','beaver','bolt','coin'],['trophy','beaver','bolt','bolt','beaver','bolt','beaver']] },
+    { level: 9, moves: 10, types: 4, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,null],[null,null,null,null,null,null,'beaver'],[null,null,null,null,'bolt','beaver','coin'],['coin','bolt','beaver',null,'coin','beaver','bolt'],['beaver','coin','bolt','coin','bolt','bolt','coin'],['coin','beaver','bolt','coin','bolt','bolt','coin']] },
+    { level: 10, moves: 10, types: 4, board: [[null,null,null,null,null,null,'coin'],[null,null,null,'coin',null,null,'bolt'],[null,null,null,'bolt',null,null,'coin'],[null,null,null,'coin',null,null,'coin'],[null,null,null,'bolt','beaver',null,'beaver'],['coin','bolt','coin','beaver','coin','beaver','bolt'],['bolt','coin','bolt','beaver','bolt','beaver','bolt']] },
     { level: 11, moves: 10, types: 5, board: [[null,null,null,'coin',null,null,null],[null,null,'trophy','beaver',null,'beaver',null],[null,null,'coin','coin','bolt','coin',null],[null,null,'beaver','beaver','trophy','bolt',null],['bolt','beaver','coin','bolt','trophy','bolt','coin'],['bolt','trophy','beaver','beaver','bolt','beaver','bolt'],['bolt','coin','trophy','coin','trophy','beaver','coin']] },
     { level: 12, moves: 7, types: 5, board: [[null,null,null,null,null,null,null],[null,null,null,null,null,null,null],[null,'bolt',null,null,null,null,null],[null,'beaver',null,null,null,null,'bolt'],[null,'coin',null,'bolt','coin',null,'coin'],['coin','bolt','beaver','coin','bolt','coin','bolt'],['coin','bolt','beaver','coin','bolt','coin','bolt']] },
     { level: 13, moves: 8, types: 5, board: [[null,null,null,null,'beaver',null,null],[null,null,null,null,'beaver',null,'coin'],[null,null,null,null,'bolt',null,'bolt'],['bolt',null,null,'bolt','beaver',null,'coin'],['coin',null,null,'coin','coin',null,'coin'],['bolt','coin','coin','bolt','bolt','coin','bolt'],['bolt','coin','coin','bolt','bolt','coin','bolt']] },
@@ -1365,18 +1365,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         const DEVICE_BAN_STORAGE_KEY = SHARED_CLIENT.DEVICE_BAN_STORAGE_KEY || 'bober_device_ban_info';
         const PENDING_FLY_RUNS_STORAGE_KEY = 'bober_match3_pending_runs';
         const SEEN_FLY_ACHIEVEMENTS_STORAGE_KEY = 'bober_match3_seen_achievement_unlocks';
-        const FLY_TRANSFER_MIN_SCORE = 30;
-        const FLY_CREDIT_MIN_SCORE = 10;
-        const MATCH3_BASE_COINS_PER_SCORE = 15.0;
-        const MATCH3_BASE_HOURLY_COINS_LIMIT = 20000;
         function getMatch3EconomyMultiplier() {
             return Math.max(1, Number(accountState.economy?.multiplier) || 1);
-        }
-        function getFlyCoinsPerScore() {
-            return MATCH3_BASE_COINS_PER_SCORE * getMatch3EconomyMultiplier();
-        }
-        function getFlyHourlyCoinsLimit() {
-            return Math.round(MATCH3_BASE_HOURLY_COINS_LIMIT * getMatch3EconomyMultiplier());
         }
         const KEYBOARD_RESTART_GUARD_MS = 900;
         let accountState = {
@@ -1883,14 +1873,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
 
             if (gameOverClaimFlyScoreButton) {
-                const pending = Math.max(0, Number(accountState.match3.pendingTransferScore) || 0);
-                const rewardCoins = Math.round(calculateFlyRewardCoins(pending));
-                const canClaim = Boolean(accountState.userId) && pending >= FLY_TRANSFER_MIN_SCORE;
-                gameOverClaimFlyScoreButton.style.display = canClaim ? 'block' : 'none';
-                gameOverClaimFlyScoreButton.disabled = !canClaim;
-                gameOverClaimFlyScoreButton.textContent = canClaim
-                    ? `Перевести в кликер (+${rewardCoins.toLocaleString('ru-RU')} коинов)`
-                    : 'Перевод пока недоступен';
+                gameOverClaimFlyScoreButton.style.display = 'none';
             }
         }
 
@@ -1970,12 +1953,6 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             }
         }
 
-        function calculateFlyRewardCoins(scoreValue) {
-            return SHARED_CLIENT.calculateFlyRewardCoins
-                ? SHARED_CLIENT.calculateFlyRewardCoins(scoreValue, getFlyCoinsPerScore())
-                : Math.max(0, Number(scoreValue) || 0) * getFlyCoinsPerScore();
-        }
-
         function setFlyLoadingOverlay(visible, title = 'Загрузка', text = 'Подготавливаем игру...') {
             if (!flyLoadingOverlay) {
                 return;
@@ -1994,47 +1971,25 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         }
 
         function updateCloudPanel() {
-            const pending = accountState.match3.pendingTransferScore || 0;
             const best = Math.max(highScore, accountState.match3.bestScore || 0);
-            const rewardCoins = calculateFlyRewardCoins(pending);
             highScore = best;
             highScoreElement.textContent = `Рекорд: ${best}`;
             localStorage.setItem('match3HighScore', String(best));
 
-            if (!accountState.userId) {
+            if (claimFlyScoreButton) {
                 claimFlyScoreButton.style.display = 'none';
+            }
+
+            if (!accountState.userId) {
                 setCloudSummary('Локально: облако отключено');
                 syncGameOverCloudCard();
                 return;
             }
 
             cloudTitleElement.textContent = accountState.login || 'Аккаунт';
-
-            if (pending >= FLY_TRANSFER_MIN_SCORE) {
-                const roundedRewardCoins = Math.round(rewardCoins);
-                claimFlyScoreButton.style.display = 'block';
-                claimFlyScoreButton.textContent = `Перевести в кликер (+${roundedRewardCoins.toLocaleString('ru-RU')} коинов)`;
-                cloudStatusElement.className = 'cloud-status pending';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Готово к переводу: ${pending.toLocaleString('ru-RU')} очк. (${getFlyCoinsPerScore().toFixed(2)} коинов за очко, до ${getFlyHourlyCoinsLimit().toLocaleString("ru-RU")} коинов в час).`;
-                setCloudSummary(`К выдаче: +${roundedRewardCoins.toLocaleString('ru-RU')} коинов`);
-                setCloudPanelExpanded(true);
-                syncGameOverCloudCard();
-                return;
-            }
-
-            if (pending > 0) {
-                claimFlyScoreButton.style.display = 'none';
-                cloudStatusElement.className = 'cloud-status local';
-                cloudStatusElement.textContent = `Облачный рекорд: ${best}. Нужно еще ${(FLY_TRANSFER_MIN_SCORE - pending).toLocaleString('ru-RU')} очк. для перевода в кликер. Забег меньше ${FLY_CREDIT_MIN_SCORE} очков очередь обнулит — старайся не размениваться на слабые попытки.`;
-                setCloudSummary(`В очереди: ${pending.toLocaleString('ru-RU')} очк.`);
-                syncGameOverCloudCard();
-                return;
-            }
-
-            claimFlyScoreButton.style.display = 'none';
             cloudStatusElement.className = 'cloud-status connected';
-            cloudStatusElement.textContent = `Рекорд: ${best}`;
-            setCloudSummary(`Рекорд: ${best.toLocaleString('ru-RU')}`);
+            cloudStatusElement.textContent = `Рекорд: ${best}. Уровень: ${accountState.match3.currentLevel} из ${MATCH3_TOTAL_LEVELS}.`;
+            setCloudSummary(`Уровень ${accountState.match3.currentLevel} из ${MATCH3_TOTAL_LEVELS}`);
             syncGameOverCloudCard();
         }
 
@@ -2182,9 +2137,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 highScore = Math.max(highScore, accountState.match3.bestScore);
                 enqueueAchievementUnlocks(data.achievementUnlocks);
                 updateCloudPanel();
-                const saveStatusType = data.duplicate
-                    ? 'connected'
-                    : (Number(data.creditedScore) >= FLY_CREDIT_MIN_SCORE ? 'pending' : 'local');
+                const saveStatusType = data.duplicate ? 'connected' : 'pending';
                 setCloudStatus(saveStatusType, accountState.login || 'Аккаунт', data.message || 'Забег сохранен.');
                 updateGameOverCloudStatus(data.message || 'Забег сохранен в облако.');
             } catch (error) {
@@ -2238,72 +2191,20 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     accountState.match3 = normalizeCloudFlyState(data.match3);
                     currentLevelNumber = accountState.match3.currentLevel;
                     updateLevelIndicator();
+                    if (Number(data.mainScore) >= 0) {
+                        accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
+                    }
+                    return {
+                        awardedCoins: Math.max(0, Number(data.awardedCoins) || 0),
+                        isFirstClear: Boolean(data.isFirstClear)
+                    };
                 }
             } catch (error) {
                 console.warn('Не удалось синхронизировать прогресс по уровням Три Бобра:', error);
             }
+            return { awardedCoins: 0, isFirstClear: false };
         }
 
-        async function claimFlyReward() {
-            if (!accountState.userId || claimFlyScoreButton.disabled) {
-                return;
-            }
-
-            claimFlyScoreButton.disabled = true;
-            setFlyLoadingOverlay(true, 'Перевод очков', 'Переводим награду из мини-игры в основной кликер...');
-            setCloudStatus('pending', accountState.login || 'Аккаунт', 'Переводим очки в основной кликер...');
-            setCloudSummary('Переводим награду...');
-            updateGameOverCloudStatus('Переводим очки из мини-игры в основной кликер...');
-
-            try {
-                const data = await requestJson('/api/match3/claim-reward.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: '{}'
-                });
-
-                accountState.mainScore = Math.max(0, Number(data.mainScore) || 0);
-                accountState.match3 = normalizeCloudFlyState(data.match3);
-                updateCloudPanel();
-                setCloudStatus(Number(data.awardedCoins) > 0 ? 'connected' : 'local', accountState.login || 'Аккаунт', data.message || 'Перевод завершен.');
-                updateGameOverCloudStatus(data.message || 'Перевод очков завершен.');
-            } catch (error) {
-                const sessionEnded = extractCloudSessionEndedPayload(error);
-                if (sessionEnded) {
-                    accountState.userId = null;
-                    accountState.login = '';
-                    accountState.match3 = normalizeCloudFlyState(null);
-                    setCloudStatus('local', 'Сессия завершена', `${sessionEnded.message} Перевод очков отключен, пока вы не войдете снова.`);
-                    setCloudSummary('Сессия завершена');
-                    setCloudPanelExpanded(true);
-                    updateCloudPanel();
-                    updateGameOverCloudStatus('Сессия завершена. Перевод очков временно недоступен.');
-                    return;
-                }
-
-                const ban = extractCloudBanPayload(error);
-                if (ban) {
-                    persistStoredDeviceBan(ban);
-                    accountState.userId = null;
-                    accountState.login = '';
-                    accountState.match3 = normalizeCloudFlyState(null);
-                    showStoredDeviceBanOverlay(ban);
-                    return;
-                }
-
-                console.error('Не удалось перевести очки match3:', error);
-                setCloudStatus('error', 'Ошибка перевода', error.message || 'Не удалось перевести очки в кликер.');
-                setCloudSummary('Перевод не удался');
-                setCloudPanelExpanded(true);
-                updateGameOverCloudStatus(error.message || 'Не удалось перевести очки в основной кликер.');
-            } finally {
-                claimFlyScoreButton.disabled = false;
-                setFlyLoadingOverlay(false);
-            }
-        }
-        
         // Функция вибрации для мобильных устройств
         function vibrate(pattern) {
             if (!isMobile || !('vibrate' in navigator)) {
@@ -2409,6 +2310,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                         el.classList.add('empty-cell');
                     } else {
                         el.innerHTML = tileSvgMarkup(type);
+                        el.dataset.tileType = type;
                     }
                     boardElement.appendChild(el);
                     rowCells.push({ type, el });
@@ -2482,14 +2384,14 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 vibrate(30);
 
                 // ждём анимацию исчезновения
-                await new Promise((resolve) => setTimeout(resolve, 160));
+                await new Promise((resolve) => setTimeout(resolve, 140));
 
                 cells.forEach(([row, col]) => {
                     board[row][col].type = null;
                 });
 
                 applyGravity();
-                await new Promise((resolve) => setTimeout(resolve, 320));
+                await new Promise((resolve) => setTimeout(resolve, 230));
 
                 cascadeMultiplier += 0.5;
             }
@@ -2506,6 +2408,7 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             // Фишки падают вниз внутри своего столбца, но поле НЕ пополняется новыми -
             // освободившиеся клетки сверху остаются пустыми (null). Цель уровня - опустошить поле целиком.
             const tileSize = boardElement.clientWidth / MATCH3_GRID_SIZE;
+            const animatedEls = [];
 
             for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
                 // Собираем выживших (сверху вниз, сохраняя порядок) вместе с тем, откуда они падают
@@ -2533,7 +2436,10 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     cell.el.classList.remove('matched');
 
                     if (item.type === null) {
-                        cell.el.innerHTML = '';
+                        if (cell.el.dataset.tileType) {
+                            cell.el.innerHTML = '';
+                            delete cell.el.dataset.tileType;
+                        }
                         cell.el.classList.add('empty-cell');
                         cell.el.style.transition = 'none';
                         cell.el.style.transform = 'translateY(0)';
@@ -2542,26 +2448,38 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                     }
 
                     cell.el.classList.remove('empty-cell');
-                    cell.el.innerHTML = tileSvgMarkup(item.type);
+                    // Перерисовываем innerHTML только если тип фишки реально поменялся -
+                    // фишки, которые просто падают на новое место (тот же тип), не требуют
+                    // пересоздания SVG-разметки. Это и было основным источником лагов при
+                    // длинных каскадах на слабых устройствах.
+                    if (cell.el.dataset.tileType !== item.type) {
+                        cell.el.innerHTML = tileSvgMarkup(item.type);
+                        cell.el.dataset.tileType = item.type;
+                    }
 
-                    // Ставим фишку визуально выше её итоговой позиции, без анимации
-                    cell.el.style.transition = 'none';
-                    cell.el.style.transform = `translateY(${-dropRows * tileSize}px)`;
-                    cell.el.style.opacity = '1';
+                    if (dropRows !== 0) {
+                        // Ставим фишку визуально выше её итоговой позиции, без анимации
+                        cell.el.style.transition = 'none';
+                        cell.el.style.transform = `translateY(${-dropRows * tileSize}px)`;
+                        cell.el.style.opacity = '1';
+                        animatedEls.push(cell.el);
+                    } else {
+                        cell.el.style.transition = 'none';
+                        cell.el.style.transform = 'translateY(0)';
+                        cell.el.style.opacity = '1';
+                    }
                 }
             }
 
-            // В следующем кадре включаем анимацию и убираем смещение - фишки "падают" на место
+            if (animatedEls.length === 0) return;
+
+            // В следующем кадре включаем анимацию и убираем смещение - фишки "падают" на место.
+            // Анимируем только те клетки, которые реально сдвинулись - остальные не трогаем.
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                    for (let row = 0; row < MATCH3_GRID_SIZE; row++) {
-                        for (let col = 0; col < MATCH3_GRID_SIZE; col++) {
-                            const el = board[row][col].el;
-                            if (board[row][col].type === null) continue;
-                            el.style.transition = 'transform 0.26s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.2s ease';
-                            el.style.transform = 'translateY(0)';
-                            el.style.opacity = '1';
-                        }
+                    for (const el of animatedEls) {
+                        el.style.transition = 'transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1)';
+                        el.style.transform = 'translateY(0)';
                     }
                 });
             });
@@ -2721,7 +2639,9 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
             board[a.row][a.col].type = board[b.row][b.col].type;
             board[b.row][b.col].type = temp;
             board[a.row][a.col].el.innerHTML = tileSvgMarkup(board[a.row][a.col].type);
+            board[a.row][a.col].el.dataset.tileType = board[a.row][a.col].type;
             board[b.row][b.col].el.innerHTML = tileSvgMarkup(board[b.row][b.col].type);
+            board[b.row][b.col].el.dataset.tileType = board[b.row][b.col].type;
         }
 
         async function trySwap(a, b) {
@@ -2967,13 +2887,15 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
 
             const completedLevel = currentLevelNumber;
             const hasNextLevel = completedLevel < MATCH3_TOTAL_LEVELS;
-            if (hasNextLevel) {
-                currentLevelNumber = completedLevel + 1;
-            }
 
+            let reward = { awardedCoins: 0, isFirstClear: false };
             await saveFlyRunToCloud();
             if (accountState.userId) {
-                await syncMatch3LevelProgress(completedLevel);
+                reward = await syncMatch3LevelProgress(completedLevel);
+            } else if (hasNextLevel) {
+                // Локальный режим без входа - прогресс не сохраняется на сервере,
+                // продвигаем уровень только для текущей сессии в браузере.
+                currentLevelNumber = completedLevel + 1;
             }
 
             document.getElementById('game-over-title').textContent = hasNextLevel
@@ -2981,9 +2903,18 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
                 : 'ВСЕ УРОВНИ ПРОЙДЕНЫ!';
             finalScoreElement.textContent = score;
             finalHighScoreElement.textContent = highScore;
-            updateGameOverCloudStatus(accountState.userId
-                ? 'Смотрим, что происходит с облаком и переводом очков...'
-                : 'Локальный режим: забег не отправляется в облако без входа.');
+
+            if (accountState.userId && reward.awardedCoins > 0) {
+                const rewardNote = reward.isFirstClear
+                    ? `Уровень пройден впервые: +${reward.awardedCoins.toLocaleString('ru-RU')} коинов в кликер!`
+                    : `Уровень пройден повторно: +${reward.awardedCoins.toLocaleString('ru-RU')} коинов в кликер.`;
+                updateGameOverCloudStatus(rewardNote);
+                setCloudSummary(`+${reward.awardedCoins.toLocaleString('ru-RU')} коинов`);
+            } else {
+                updateGameOverCloudStatus(accountState.userId
+                    ? 'Награда не начислена.'
+                    : 'Локальный режим: войдите в аккаунт, чтобы получать коины за уровни.');
+            }
             setCloudPanelExpanded(true);
             gameOverScreen.style.display = 'flex';
             showNextAchievementUnlock();
@@ -3049,10 +2980,8 @@ keeps separate cloud saves, and can transfer pending score into the main game. -
         exitButton.addEventListener('click', exitGame);
         exitFromPauseButton.addEventListener('click', exitGame);
         exitBtn.addEventListener('click', exitGame);
-        claimFlyScoreButton.addEventListener('click', claimFlyReward);
-        if (gameOverClaimFlyScoreButton) {
-            gameOverClaimFlyScoreButton.addEventListener('click', claimFlyReward);
-        }
+        // Кнопка перевода очков в кликер убрана вместе с механикой "очки → монеты":
+        // теперь монеты начисляются за прохождение уровней (см. syncMatch3LevelProgress).
         if (flyAchievementAcknowledge) {
             flyAchievementAcknowledge.addEventListener('click', closeAchievementUnlockOverlay);
         }

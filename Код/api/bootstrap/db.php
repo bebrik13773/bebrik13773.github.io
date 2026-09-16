@@ -4713,7 +4713,17 @@ function bober_fetch_match3_progress($conn, $userId)
     return bober_normalize_match3_progress_row($row);
 }
 
-function bober_advance_match3_level($conn, $userId, $completedLevel, $totalLevels)
+function bober_match3_level_reward_coins($level)
+{
+    $level = max(1, (int) $level);
+    $base = 200.0;
+    $growth = 1.15;
+    $reward = $base * ($level ** $growth);
+    // округляем до десятков для аккуратного числа
+    return (int) (round($reward / 10) * 10);
+}
+
+function bober_advance_match3_level($conn, $userId, $completedLevel, $totalLevels, $economyMultiplier = 1.0)
 {
     $userId = max(0, (int) $userId);
     if ($userId < 1) {
@@ -4722,25 +4732,60 @@ function bober_advance_match3_level($conn, $userId, $completedLevel, $totalLevel
 
     $completedLevel = max(1, (int) $completedLevel);
     $totalLevels = max(1, (int) $totalLevels);
+    $economyMultiplier = max(1.0, (float) $economyMultiplier);
 
     bober_ensure_match3_progress_row($conn, $userId);
 
-    // Разрешаем продвинуть прогресс, только если игрок только что прошел ИМЕННО текущий
-    // уровень по счету на сервере (защита от накрутки/пропуска уровней через консоль).
-    $nextLevel = min($totalLevels, $completedLevel + 1);
-    $stmt = $conn->prepare('UPDATE match3_progress SET current_level = ? WHERE user_id = ? AND current_level = ?');
-    if (!$stmt) {
-        throw new RuntimeException('Не удалось подготовить обновление уровня Три Бобра.');
+    $progressBefore = bober_fetch_match3_progress($conn, $userId);
+
+    // Нельзя "пройти" уровень, до которого игрок ещё не дошёл по прогрессу на сервере -
+    // защита от попытки заявить прохождение уровня, пропустив предыдущие.
+    if ($completedLevel > $progressBefore['currentLevel']) {
+        throw new InvalidArgumentException('Нельзя засчитать прохождение уровня, который ещё не открыт.');
     }
 
-    $stmt->bind_param('iii', $nextLevel, $userId, $completedLevel);
-    if (!$stmt->execute()) {
+    $isFirstClear = $completedLevel >= $progressBefore['currentLevel'];
+
+    $baseReward = bober_match3_level_reward_coins($completedLevel);
+    // Повторное прохождение уже пройденного уровня даёт вдвое меньше монет.
+    $rewardMultiplier = $isFirstClear ? 1.0 : 0.5;
+    $awardedCoins = (int) round($baseReward * $economyMultiplier * $rewardMultiplier);
+
+    if ($isFirstClear) {
+        // Разрешаем продвинуть прогресс, только если игрок только что прошел ИМЕННО текущий
+        // уровень по счету на сервере (защита от накрутки/пропуска уровней через консоль).
+        $nextLevel = min($totalLevels, $completedLevel + 1);
+        $stmt = $conn->prepare('UPDATE match3_progress SET current_level = ? WHERE user_id = ? AND current_level = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить обновление уровня Три Бобра.');
+        }
+
+        $stmt->bind_param('iii', $nextLevel, $userId, $completedLevel);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Не удалось обновить уровень Три Бобра.');
+        }
         $stmt->close();
-        throw new RuntimeException('Не удалось обновить уровень Три Бобра.');
     }
-    $stmt->close();
 
-    return bober_fetch_match3_progress($conn, $userId);
+    if ($awardedCoins > 0) {
+        $updateScoreStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
+        if (!$updateScoreStmt) {
+            throw new RuntimeException('Не удалось подготовить начисление награды за уровень.');
+        }
+        $updateScoreStmt->bind_param('ii', $awardedCoins, $userId);
+        if (!$updateScoreStmt->execute()) {
+            $updateScoreStmt->close();
+            throw new RuntimeException('Не удалось начислить награду за уровень.');
+        }
+        $updateScoreStmt->close();
+    }
+
+    return [
+        'progress' => bober_fetch_match3_progress($conn, $userId),
+        'awardedCoins' => $awardedCoins,
+        'isFirstClear' => $isFirstClear,
+    ];
 }
 
 

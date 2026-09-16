@@ -19,9 +19,6 @@ try {
     }
 
     $score = max(0, (int) ($data['score'] ?? 0));
-    $minimumCreditedScore = 10;
-    $creditedScore = $score >= $minimumCreditedScore ? $score : 0;
-    $pendingTransferReset = $score < $minimumCreditedScore;
 
     $conn = bober_db_connect();
     bober_ensure_gameplay_schema($conn);
@@ -46,12 +43,14 @@ try {
     $insertRunStmt->close();
 
     if (!$isDuplicate) {
-        $updateStmt = $conn->prepare('UPDATE match3_progress SET best_score = GREATEST(best_score, ?), last_score = ?, games_played = games_played + 1, total_score = total_score + ?, pending_transfer_score = CASE WHEN ? > 0 THEN pending_transfer_score + ? ELSE 0 END, last_played_at = CURRENT_TIMESTAMP WHERE user_id = ?');
+        // Монеты за Три Бобра теперь начисляются только за прохождение уровней
+        // (см. complete-level.php) - здесь просто копим статистику забега (рекорд, счетчики).
+        $updateStmt = $conn->prepare('UPDATE match3_progress SET best_score = GREATEST(best_score, ?), last_score = ?, games_played = games_played + 1, total_score = total_score + ?, last_played_at = CURRENT_TIMESTAMP WHERE user_id = ?');
         if (!$updateStmt) {
             throw new RuntimeException('Не удалось подготовить обновление прогресса Три Бобра.');
         }
 
-        $updateStmt->bind_param('iiiiii', $score, $score, $score, $creditedScore, $creditedScore, $userId);
+        $updateStmt->bind_param('iiii', $score, $score, $score, $userId);
         if (!$updateStmt->execute()) {
             $updateStmt->close();
             throw new RuntimeException('Не удалось обновить прогресс Три Бобра.');
@@ -69,13 +68,10 @@ try {
         'description' => $isDuplicate
             ? 'Повторная отправка уже сохраненного забега Три Бобра.'
             : 'Сохранен забег Три Бобра.',
-        'score_delta' => $creditedScore,
+        'score_delta' => $score,
         'meta' => [
             'run_token' => $runToken,
             'score' => $score,
-            'credited_score' => $creditedScore,
-            'minimum_credited_score' => $minimumCreditedScore,
-            'pending_transfer_reset' => $pendingTransferReset,
         ],
     ]);
     if (!$isDuplicate) {
@@ -91,12 +87,8 @@ try {
         'success' => true,
         'message' => $isDuplicate
             ? 'Этот забег уже сохранен.'
-            : ($creditedScore > 0
-                ? 'Забег сохранен и засчитан в облачный счет.'
-                : "Забег сохранен. Нужно минимум {$minimumCreditedScore} очков за забег, чтобы он пошел в зачет."),
+            : 'Забег сохранен.',
         'duplicate' => $isDuplicate,
-        'creditedScore' => $creditedScore,
-        'minimumCreditedScore' => $minimumCreditedScore,
         'match3' => $match3,
         'mainScore' => max(0, (int) ($accountSnapshot['score'] ?? 0)),
         'achievementUnlocks' => is_array($accountSnapshot['achievementUnlocks'] ?? null) ? $accountSnapshot['achievementUnlocks'] : [],

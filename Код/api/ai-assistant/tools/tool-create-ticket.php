@@ -8,9 +8,9 @@ require_once dirname(__DIR__) . '/db/ai-chat-schema.php';
  * логику тикетов поддержки (bober_create_support_ticket), просто вызванную
  * из чата вместо формы в интерфейсе.
  */
-function bober_ai_tool_create_support_ticket($conn, $userId, array $args)
+function bober_ai_tool_create_support_ticket($conn, $userId, array $args, $actionLimitPerHour = 5)
 {
-    if (!bober_ai_check_and_bump_action_rate_limit($conn, $userId, 5)) {
+    if (!bober_ai_check_and_bump_action_rate_limit($conn, $userId, max(1, (int) $actionLimitPerHour))) {
         return [
             'success' => false,
             'message' => 'Слишком много действий через чат за последний час. Попробуй создать тикет напрямую в поддержке или чуть позже.',
