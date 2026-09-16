@@ -1138,12 +1138,17 @@ function bober_build_user_economy_profile(array $state)
     $totalUpgradePurchases = array_sum($upgradeCounts);
     $purchasedShopSkinCount = bober_count_purchased_shop_skins($catalog, $ownedSkinIds);
 
-    $scoreFactorRaw = (log10(max($score, 1)) - log10(500000)) / 4;
-    $plusFactorRaw = (log10(max($plus, 1)) - 2) / 3;
-    $upgradeFactorRaw = $totalUpgradePurchases / 140;
-    $shopSkinFactorRaw = $purchasedShopSkinCount / 28;
-    $energyFactorRaw = ($energyMax - 5000) / 45000;
-    $flyFactorRaw = (log10(max($flyBest, 1)) - 3) / 3;
+    $clickRateCount = max(0, (int) ($upgradeCounts['clickRate'] ?? 0));
+
+    // Пороги нормализации заметно снижены относительно прежних значений -
+    // индекс теперь набирается быстрее при том же прогрессе игрока.
+    $scoreFactorRaw = (log10(max($score, 1)) - log10(500000)) / 3.2;
+    $plusFactorRaw = (log10(max($plus, 1)) - 2) / 2.4;
+    $upgradeFactorRaw = $totalUpgradePurchases / 105;
+    $shopSkinFactorRaw = $purchasedShopSkinCount / 20;
+    $energyFactorRaw = ($energyMax - 5000) / 34000;
+    $flyFactorRaw = (log10(max($flyBest, 1)) - 3) / 2.3;
+    $clickRateFactorRaw = $clickRateCount / 18;
 
     $scoreFactor = bober_clamp_float($scoreFactorRaw, 0, 1);
     $plusFactor = bober_clamp_float($plusFactorRaw, 0, 1);
@@ -1151,6 +1156,7 @@ function bober_build_user_economy_profile(array $state)
     $shopSkinFactor = bober_clamp_float($shopSkinFactorRaw, 0, 1);
     $energyFactor = bober_clamp_float($energyFactorRaw, 0, 1);
     $flyFactor = bober_clamp_float($flyFactorRaw, 0, 1);
+    $clickRateFactor = bober_clamp_float($clickRateFactorRaw, 0, 1);
 
     // "Избыточный" прогресс сверх обычных порогов факторов (не зажимается в 1) -
     // нужен, чтобы у сильно прокачанных аккаунтов множитель продолжал плавно расти
@@ -1161,6 +1167,7 @@ function bober_build_user_economy_profile(array $state)
     $overShopSkinFactor = max(0, $shopSkinFactorRaw - 1);
     $overEnergyFactor = max(0, $energyFactorRaw - 1);
     $overFlyFactor = max(0, $flyFactorRaw - 1);
+    $overClickRateFactor = max(0, $clickRateFactorRaw - 1);
 
     $factors = [
         [
@@ -1169,7 +1176,7 @@ function bober_build_user_economy_profile(array $state)
             'value' => $score,
             'valueLabel' => number_format($score, 0, '.', ' '),
             'normalized' => round($scoreFactor, 4),
-            'contribution' => round($scoreFactor * 0.30 * 100, 2),
+            'contribution' => round($scoreFactor * 0.26 * 100, 2),
         ],
         [
             'key' => 'plusFactor',
@@ -1177,7 +1184,7 @@ function bober_build_user_economy_profile(array $state)
             'value' => $plus,
             'valueLabel' => '+' . number_format($plus, 0, '.', ' '),
             'normalized' => round($plusFactor, 4),
-            'contribution' => round($plusFactor * 0.22 * 100, 2),
+            'contribution' => round($plusFactor * 0.19 * 100, 2),
         ],
         [
             'key' => 'upgradeFactor',
@@ -1185,7 +1192,7 @@ function bober_build_user_economy_profile(array $state)
             'value' => $totalUpgradePurchases,
             'valueLabel' => number_format($totalUpgradePurchases, 0, '.', ' '),
             'normalized' => round($upgradeFactor, 4),
-            'contribution' => round($upgradeFactor * 0.22 * 100, 2),
+            'contribution' => round($upgradeFactor * 0.19 * 100, 2),
         ],
         [
             'key' => 'shopSkinFactor',
@@ -1193,7 +1200,15 @@ function bober_build_user_economy_profile(array $state)
             'value' => $purchasedShopSkinCount,
             'valueLabel' => number_format($purchasedShopSkinCount, 0, '.', ' '),
             'normalized' => round($shopSkinFactor, 4),
-            'contribution' => round($shopSkinFactor * 0.16 * 100, 2),
+            'contribution' => round($shopSkinFactor * 0.14 * 100, 2),
+        ],
+        [
+            'key' => 'clickRateFactor',
+            'label' => 'Предел CPS',
+            'value' => $clickRateCount,
+            'valueLabel' => number_format($clickRateCount, 0, '.', ' '),
+            'normalized' => round($clickRateFactor, 4),
+            'contribution' => round($clickRateFactor * 0.10 * 100, 2),
         ],
         [
             'key' => 'energyFactor',
@@ -1201,7 +1216,7 @@ function bober_build_user_economy_profile(array $state)
             'value' => $energyMax,
             'valueLabel' => number_format($energyMax, 0, '.', ' '),
             'normalized' => round($energyFactor, 4),
-            'contribution' => round($energyFactor * 0.06 * 100, 2),
+            'contribution' => round($energyFactor * 0.07 * 100, 2),
         ],
         [
             'key' => 'flyFactor',
@@ -1209,7 +1224,7 @@ function bober_build_user_economy_profile(array $state)
             'value' => $flyBest,
             'valueLabel' => number_format($flyBest, 0, '.', ' '),
             'normalized' => round($flyFactor, 4),
-            'contribution' => round($flyFactor * 0.04 * 100, 2),
+            'contribution' => round($flyFactor * 0.05 * 100, 2),
         ],
     ];
 
@@ -1217,39 +1232,40 @@ function bober_build_user_economy_profile(array $state)
         return ($right['contribution'] <=> $left['contribution']) ?: strcmp((string) $left['label'], (string) $right['label']);
     });
 
-    $weightedSum = ($scoreFactor * 0.30)
-        + ($plusFactor * 0.22)
-        + ($upgradeFactor * 0.22)
-        + ($shopSkinFactor * 0.16)
-        + ($energyFactor * 0.06)
-        + ($flyFactor * 0.04);
+    $weightedSum = ($scoreFactor * 0.26)
+        + ($plusFactor * 0.19)
+        + ($upgradeFactor * 0.19)
+        + ($shopSkinFactor * 0.14)
+        + ($clickRateFactor * 0.10)
+        + ($energyFactor * 0.07)
+        + ($flyFactor * 0.05);
     $index = max(0, min(100, (int) round($weightedSum * 100)));
 
-    $overWeightedSum = ($overScoreFactor * 0.30)
-        + ($overPlusFactor * 0.22)
-        + ($overUpgradeFactor * 0.22)
-        + ($overShopSkinFactor * 0.16)
-        + ($overEnergyFactor * 0.06)
-        + ($overFlyFactor * 0.04);
+    $overWeightedSum = ($overScoreFactor * 0.26)
+        + ($overPlusFactor * 0.19)
+        + ($overUpgradeFactor * 0.19)
+        + ($overShopSkinFactor * 0.14)
+        + ($overClickRateFactor * 0.10)
+        + ($overEnergyFactor * 0.07)
+        + ($overFlyFactor * 0.05);
 
     if ($index <= 10) {
         $multiplier = 1.0;
     } else {
-        // Степень 0.3 (вместо sqrt/0.5) даёт заметно более крутой рост уже в начале
-        // диапазона (индекс 20-40), при этом насыщение к потолку 1.45 на индексе 100
-        // остаётся прежним.
-        $multiplier = 1.0 + pow(($index - 10) / 90, 0.3) * 0.45;
+        // Степень 0.25 (вместо 0.3) - рост множителя ещё круче в начале диапазона
+        // (индекс 15-40), потолок на индексе 100 поднят с 1.45 до 1.85.
+        $multiplier = 1.0 + pow(($index - 10) / 90, 0.25) * 0.85;
     }
 
     // Для аккаунтов, уже упершихся в индекс 100, даём множителю расти и дальше -
-    // медленно (sqrt, с существенно меньшим весом), без верхнего предела.
+    // вес "избыточного" прогресса увеличен, потолок поднят с 2.0 до 2.6.
     if ($overWeightedSum > 0) {
-        $multiplier += sqrt($overWeightedSum) * 0.15;
+        $multiplier += sqrt($overWeightedSum) * 0.28;
     }
 
     return [
         'index' => $index,
-        'multiplier' => round(max(1.0, min(2.0, $multiplier)), 4),
+        'multiplier' => round(max(1.0, min(2.6, $multiplier)), 4),
         'factors' => $factors,
     ];
 }
