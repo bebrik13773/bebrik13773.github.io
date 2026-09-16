@@ -95,15 +95,15 @@ function bober_ai_call_router(array $messages, array $tools)
  * Выполняет вызванный моделью tool и возвращает результат в виде строки
  * (JSON), которую нужно положить обратно в историю сообщений с role=tool.
  */
-function bober_ai_execute_tool_call($conn, $userId, $login, array $userContext, $toolName, array $toolArgs)
+function bober_ai_execute_tool_call($conn, $userId, $login, array $userContext, $toolName, array $toolArgs, $actionLimitPerHour = 5)
 {
     switch ($toolName) {
         case 'get_advice':
             return bober_ai_tool_get_advice($userContext, $toolArgs);
         case 'buy_upgrade':
-            return bober_ai_tool_buy_upgrade($conn, $userId, $toolArgs);
+            return bober_ai_tool_buy_upgrade($conn, $userId, $toolArgs, $actionLimitPerHour);
         case 'create_support_ticket':
-            return bober_ai_tool_create_support_ticket($conn, $userId, $toolArgs);
+            return bober_ai_tool_create_support_ticket($conn, $userId, $toolArgs, $actionLimitPerHour);
         case 'report_player':
             return bober_ai_tool_report_player($conn, $userId, $login, $toolArgs);
         default:
@@ -149,6 +149,27 @@ try {
 
     bober_enforce_runtime_access_rules($conn, $sessionUserId);
 
+    // Проверка доступа к ИИ: блокировка администратором или платный режим.
+    $accessInfo = bober_ai_resolve_access($conn, $sessionUserId);
+    if (empty($accessInfo['allowed'])) {
+        $conn->close();
+        if ($accessInfo['reason'] === 'blocked') {
+            bober_json_response([
+                'success' => false,
+                'message' => 'Доступ к ИИ-помощнику для твоего аккаунта ограничен. Обратись в поддержку, если считаешь, что это ошибка.',
+                'accessBlocked' => true,
+            ], 403);
+        }
+
+        bober_json_response([
+            'success' => false,
+            'message' => 'ИИ-помощник сейчас доступен только по платной подписке.',
+            'paidOnly' => true,
+            'paidPriceCoins' => $accessInfo['paidPriceCoins'] ?? 0,
+            'paidDurationDays' => $accessInfo['paidDurationDays'] ?? 30,
+        ], 402);
+    }
+
     // Если это просто запрос на новый чат без текста — создаём новую сессию
     // и выходим сразу, не тратя обращение к RouterAI.
     if ($userMessage === '' && $forceNewSession) {
@@ -157,9 +178,9 @@ try {
         bober_json_response(['success' => true, 'reply' => '', 'newSessionStarted' => true]);
     }
 
-    // Общий rate-limit на сообщения чата — щедрый лимит, чтобы не мешать
-    // нормальному общению, но защищающий бюджет API от накрутки/спама.
-    if (!bober_ai_check_and_bump_rate_limit($conn, $sessionUserId, 15)) {
+    // Rate-limit на сообщения чата — лимит зависит от глобальных настроек
+    // и индивидуальных отклонений (заданных администратором для конкретного игрока).
+    if (!bober_ai_check_and_bump_rate_limit($conn, $sessionUserId, $accessInfo['messageLimitPerHour'])) {
         $conn->close();
         bober_json_response([
             'success' => true,
@@ -219,7 +240,7 @@ try {
                 $parsedArgs = [];
             }
 
-            $toolResult = bober_ai_execute_tool_call($conn, $sessionUserId, $login, $userContext, $functionName, $parsedArgs);
+            $toolResult = bober_ai_execute_tool_call($conn, $sessionUserId, $login, $userContext, $functionName, $parsedArgs, $accessInfo['actionLimitPerHour']);
 
             // Если купили апгрейд — обновляем контекст игрока для следующего витка,
             // чтобы модель видела актуальный баланс при финальном ответе.
