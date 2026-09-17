@@ -6008,6 +6008,106 @@ Owner decisions:
         display: none;
     }
 
+    .chats-list-find {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 10px;
+        margin-left: auto;
+    }
+
+    .chats-list-find:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .chats-list-items-dm {
+        margin-top: 10px;
+    }
+
+    .chats-list-items-dm:empty {
+        display: none;
+    }
+
+    .chats-list-dm-empty-hint {
+        font-size: 12.5px;
+        color: rgba(255, 255, 255, 0.45);
+        text-align: center;
+        padding: 10px 4px 2px;
+    }
+
+    .chat-list-item-icon.dm {
+        background: linear-gradient(180deg, rgba(160, 150, 255, 0.28), rgba(96, 76, 214, 0.22));
+        border-color: rgba(198, 190, 255, 0.3);
+        font-size: 16px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .chat-list-item-blocked-tag {
+        font-size: 10.5px;
+        color: rgba(255, 255, 255, 0.45);
+        font-weight: 600;
+    }
+
+    .dm-chat-menu {
+        position: absolute;
+        top: 52px;
+        right: 12px;
+        z-index: 5;
+        background: rgba(20, 24, 34, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .dm-chat-menu[hidden] {
+        display: none;
+    }
+
+    .dm-chat-menu-item {
+        background: none;
+        border: none;
+        color: #f0f5ff;
+        font-size: 13.5px;
+        text-align: left;
+        padding: 9px 12px;
+        border-radius: 9px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .dm-chat-menu-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .dm-chat-menu-item.danger {
+        color: #ff9d9d;
+    }
+
+    .dm-chat-blocked-note {
+        font-size: 12px;
+        color: rgba(255, 200, 130, 0.9);
+        background: rgba(255, 176, 91, 0.12);
+        border: 1px solid rgba(255, 176, 91, 0.25);
+        border-radius: 12px;
+        padding: 8px 12px;
+        margin: 0 4px 8px;
+        text-align: center;
+    }
+
+    .dm-chat-blocked-note[hidden] {
+        display: none;
+    }
+
     @media (max-width: 480px) {
         .chats-fab {
             width: 52px;
@@ -6698,6 +6798,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 	        <div class="skin-action-modal-text">Публичная карточка игрока из таблицы лидеров.</div>
 	        <div class="profile-modal-top-actions">
 	            <button type="button" class="settings-action-button primary" id="leaderboardProfileModalCopyLink">Скопировать ссылку</button>
+	            <button type="button" class="settings-action-button secondary" id="leaderboardProfileModalMessage">Написать</button>
 	        </div>
         <div id="leaderboardProfileContent">
             <div class="public-profile-loading">Загружаю профиль игрока...</div>
@@ -6837,6 +6938,7 @@ function showNotification(message, type = 'success', duration = 3000) {
     <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="chatsListModalTitle">
         <div class="chats-list-header">
             <div class="chats-list-title" id="chatsListModalTitle">Чаты</div>
+            <button type="button" class="chats-list-find" id="chatsListFindPlayer" aria-label="Написать игроку" title="Написать игроку">✎</button>
             <button type="button" class="chats-list-close" id="chatsListClose" aria-label="Закрыть">✕</button>
         </div>
         <div class="chats-list-items">
@@ -6862,6 +6964,53 @@ function showNotification(message, type = 'success', duration = 3000) {
                 </div>
                 <div class="chat-list-item-unread" id="chatsListAiUnread" hidden>0</div>
             </button>
+        </div>
+        <div class="chats-list-items chats-list-items-dm" id="chatsListDmItems"></div>
+    </div>
+</div>
+<div class="modal-backdrop" id="dmFindPlayerModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal public-profile-lookup-modal" role="dialog" aria-modal="true" aria-labelledby="dmFindPlayerModalTitle">
+        <div class="skin-action-modal-title" id="dmFindPlayerModalTitle">Написать игроку</div>
+        <div class="skin-action-modal-text">Введите логин игрока, чтобы открыть или начать с ним переписку.</div>
+        <div class="public-profile-lookup-form">
+            <label class="public-profile-lookup-label" for="dmFindPlayerInput">Логин игрока</label>
+            <input type="text" id="dmFindPlayerInput" class="public-profile-lookup-input" maxlength="32" placeholder="Введите логин" autocomplete="off" spellcheck="false">
+            <div class="public-profile-lookup-note" id="dmFindPlayerNote">Поиск выполняется по точному логину игрока.</div>
+        </div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="dmFindPlayerCancel">Отмена</button>
+            <button type="button" class="settings-action-button primary" id="dmFindPlayerSubmit">Найти и написать</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop ai-chat-modal" id="dmChatModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="dmChatModalTitle">
+        <div class="ai-chat-header">
+            <button type="button" class="ai-chat-close" id="dmChatBack" aria-label="Назад к списку чатов" title="Назад">←</button>
+            <div class="ai-chat-title" id="dmChatModalTitle"><span class="ai-chat-title-emoji">👤</span> <span id="dmChatOtherLogin">Игрок</span></div>
+            <button type="button" class="ai-chat-close" id="dmChatMenuButton" aria-label="Ещё" title="Ещё">⋮</button>
+            <button type="button" class="ai-chat-close" id="dmChatClose" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="dm-chat-menu" id="dmChatMenu" hidden>
+            <button type="button" class="dm-chat-menu-item" id="dmChatBlockToggle">Заблокировать</button>
+            <button type="button" class="dm-chat-menu-item" id="dmChatReportButton">Пожаловаться</button>
+        </div>
+        <div class="dm-chat-blocked-note" id="dmChatBlockedNote" hidden></div>
+        <div class="ai-chat-messages" id="dmChatMessages"></div>
+        <div class="ai-chat-input-row">
+            <textarea class="ai-chat-input" id="dmChatInput" placeholder="Написать сообщение..." rows="1"></textarea>
+            <button type="button" class="ai-chat-send" id="dmChatSend" aria-label="Отправить">➤</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="dmReportModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal" role="dialog" aria-modal="true" aria-labelledby="dmReportModalTitle">
+        <div class="skin-action-modal-title" id="dmReportModalTitle">Пожаловаться на сообщение</div>
+        <div class="skin-action-modal-text">Опишите, что не так с этим сообщением. Мы рассмотрим переписку.</div>
+        <textarea class="ai-chat-input" id="dmReportReasonInput" placeholder="Причина жалобы..." rows="3" style="width:100%;"></textarea>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="dmReportCancel">Отмена</button>
+            <button type="button" class="settings-action-button primary" id="dmReportSubmit">Отправить жалобу</button>
         </div>
     </div>
 </div>
@@ -21399,6 +21548,18 @@ console.log('Настройки античита:', clickDetector.config);
     const aiInput = document.getElementById('aiChatInput');
     const aiSendBtn = document.getElementById('aiChatSend');
 
+    const dmState = {
+        conversations: [],
+        totalUnread: 0,
+        activeConversationId: 0,
+        activeOtherUserId: 0,
+        activeOtherLogin: '',
+        activeBlockedByMe: false,
+        activeBlockedByOther: false,
+        pollTimer: null,
+        sending: false
+    };
+
     if (!fab || !listModal || !aiModal || !aiMessagesBox || !aiInput || !aiSendBtn) {
         return;
     }
@@ -21491,6 +21652,7 @@ console.log('Настройки античита:', clickDetector.config);
 
     function openChatsList() {
         refreshChatsListPreview();
+        refreshDmConversationsList();
         listModal.classList.add('show');
         listModal.setAttribute('aria-hidden', 'false');
         if (typeof syncGlobalOverlayState === 'function') {
@@ -21514,6 +21676,7 @@ console.log('Настройки античита:', clickDetector.config);
         } catch (error) {
             // ignore
         }
+        unread += dmState.totalUnread || 0;
 
         if (fabBadge) {
             fabBadge.hidden = unread < 1;
@@ -21714,6 +21877,439 @@ console.log('Настройки античита:', clickDetector.config);
     // Периодически обновляем бейдж непрочитанных на самой FAB-кнопке
     refreshFabBadge();
     window.setInterval(refreshFabBadge, 15000);
+
+    // --- Личные переписки между игроками ---
+    const dmFindPlayerModal = document.getElementById('dmFindPlayerModal');
+    const dmFindPlayerInput = document.getElementById('dmFindPlayerInput');
+    const dmFindPlayerNote = document.getElementById('dmFindPlayerNote');
+    const dmFindPlayerCancel = document.getElementById('dmFindPlayerCancel');
+    const dmFindPlayerSubmit = document.getElementById('dmFindPlayerSubmit');
+    const chatsListFindPlayerBtn = document.getElementById('chatsListFindPlayer');
+    const chatsListDmItemsBox = document.getElementById('chatsListDmItems');
+
+    const dmChatModal = document.getElementById('dmChatModal');
+    const dmChatBack = document.getElementById('dmChatBack');
+    const dmChatClose = document.getElementById('dmChatClose');
+    const dmChatOtherLoginEl = document.getElementById('dmChatOtherLogin');
+    const dmChatMenuButton = document.getElementById('dmChatMenuButton');
+    const dmChatMenu = document.getElementById('dmChatMenu');
+    const dmChatBlockToggle = document.getElementById('dmChatBlockToggle');
+    const dmChatReportButton = document.getElementById('dmChatReportButton');
+    const dmChatBlockedNote = document.getElementById('dmChatBlockedNote');
+    const dmChatMessagesBox = document.getElementById('dmChatMessages');
+    const dmChatInput = document.getElementById('dmChatInput');
+    const dmChatSendBtn = document.getElementById('dmChatSend');
+
+    const dmReportModal = document.getElementById('dmReportModal');
+    const dmReportReasonInput = document.getElementById('dmReportReasonInput');
+    const dmReportCancel = document.getElementById('dmReportCancel');
+    const dmReportSubmit = document.getElementById('dmReportSubmit');
+
+    if (!dmFindPlayerModal || !dmChatModal || !chatsListDmItemsBox) {
+        // Разметка личных чатов недоступна на этой странице — тихо выходим,
+        // остальной виджет чатов (поддержка/ИИ) продолжает работать как раньше.
+        return;
+    }
+
+    async function dmApiCall(action, payload) {
+        const response = await fetch(resolveRuntimeUrl('/api/messages/direct-messages.php'), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ action: action }, payload || {}))
+        });
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
+
+        if (!data) {
+            throw new Error('Не удалось связаться с сервером.');
+        }
+        if (data.success === false) {
+            throw new Error(data.message || 'Что-то пошло не так.');
+        }
+        return data;
+    }
+
+    function dmInitial(login) {
+        const trimmed = String(login || '?').trim();
+        return trimmed ? trimmed.charAt(0).toUpperCase() : '?';
+    }
+
+    function showDmFindPlayerModal() {
+        closeChatsList();
+        dmFindPlayerInput.value = '';
+        dmFindPlayerNote.textContent = 'Поиск выполняется по точному логину игрока.';
+        dmFindPlayerNote.style.color = '';
+        dmFindPlayerModal.classList.add('show');
+        dmFindPlayerModal.setAttribute('aria-hidden', 'false');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+        window.setTimeout(() => dmFindPlayerInput.focus(), 60);
+    }
+
+    function closeDmFindPlayerModal() {
+        dmFindPlayerModal.classList.remove('show');
+        dmFindPlayerModal.setAttribute('aria-hidden', 'true');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+    }
+
+    async function submitDmFindPlayer() {
+        const login = dmFindPlayerInput.value.trim();
+        if (!login) {
+            dmFindPlayerNote.textContent = 'Введите логин игрока.';
+            dmFindPlayerNote.style.color = '#ff9d9d';
+            return;
+        }
+
+        dmFindPlayerSubmit.disabled = true;
+        try {
+            const data = await dmApiCall('find_user', { login: login });
+            closeDmFindPlayerModal();
+            openDmConversation({ otherUserId: data.user.userId, otherLogin: data.user.login });
+        } catch (error) {
+            dmFindPlayerNote.textContent = error.message || 'Игрок не найден.';
+            dmFindPlayerNote.style.color = '#ff9d9d';
+        } finally {
+            dmFindPlayerSubmit.disabled = false;
+        }
+    }
+
+    function renderDmConversationsList() {
+        chatsListDmItemsBox.innerHTML = '';
+        let totalUnread = 0;
+
+        if (!dmState.conversations.length) {
+            const hint = document.createElement('div');
+            hint.className = 'chats-list-dm-empty-hint';
+            hint.textContent = 'Пока нет личных переписок — нажмите ✎, чтобы написать игроку.';
+            chatsListDmItemsBox.appendChild(hint);
+        }
+
+        dmState.conversations.forEach((conv) => {
+            totalUnread += conv.unreadCount || 0;
+
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'chat-list-item';
+
+            const icon = document.createElement('div');
+            icon.className = 'chat-list-item-icon dm';
+            icon.textContent = dmInitial(conv.otherLogin);
+            item.appendChild(icon);
+
+            const body = document.createElement('div');
+            body.className = 'chat-list-item-body';
+
+            const topRow = document.createElement('div');
+            topRow.className = 'chat-list-item-top-row';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'chat-list-item-name';
+            nameEl.textContent = conv.otherLogin;
+            const timeEl = document.createElement('div');
+            timeEl.className = 'chat-list-item-time';
+            timeEl.textContent = formatChatListTime(conv.lastMessageAt);
+            topRow.appendChild(nameEl);
+            topRow.appendChild(timeEl);
+            body.appendChild(topRow);
+
+            const previewEl = document.createElement('div');
+            previewEl.className = 'chat-list-item-preview';
+            previewEl.textContent = conv.blockedByMe
+                ? 'Вы заблокировали этого игрока'
+                : (conv.lastMessagePreview || 'Нет сообщений');
+            body.appendChild(previewEl);
+
+            item.appendChild(body);
+
+            if (conv.unreadCount > 0) {
+                const badge = document.createElement('div');
+                badge.className = 'chat-list-item-unread';
+                badge.textContent = conv.unreadCount > 99 ? '99+' : String(conv.unreadCount);
+                item.appendChild(badge);
+            }
+
+            item.addEventListener('click', () => {
+                openDmConversation({
+                    conversationId: conv.conversationId,
+                    otherUserId: conv.otherUserId,
+                    otherLogin: conv.otherLogin
+                });
+            });
+
+            chatsListDmItemsBox.appendChild(item);
+        });
+
+        dmState.totalUnread = totalUnread;
+        refreshFabBadge();
+    }
+
+    async function refreshDmConversationsList() {
+        try {
+            const data = await dmApiCall('list_conversations', {});
+            dmState.conversations = Array.isArray(data.conversations) ? data.conversations : [];
+            renderDmConversationsList();
+        } catch (error) {
+            // тихо игнорируем — список чатов не критичен, попробуем при следующем открытии
+        }
+    }
+
+    function addDmBubble(isMine, text, systemNote) {
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-chat-bubble ' + (systemNote ? 'system-note' : (isMine ? 'user' : 'assistant'));
+        bubble.textContent = text;
+        dmChatMessagesBox.appendChild(bubble);
+        dmChatMessagesBox.scrollTop = dmChatMessagesBox.scrollHeight;
+        return bubble;
+    }
+
+    function renderDmConversation(conversation) {
+        dmChatMessagesBox.innerHTML = '';
+        conversation.messages.forEach((msg) => {
+            addDmBubble(msg.senderId === userId, msg.text, false);
+        });
+
+        dmState.activeBlockedByMe = !!conversation.blockedByMe;
+        dmState.activeBlockedByOther = !!conversation.blockedByOther;
+
+        dmChatBlockToggle.textContent = dmState.activeBlockedByMe ? 'Разблокировать' : 'Заблокировать';
+
+        if (dmState.activeBlockedByMe) {
+            dmChatBlockedNote.hidden = false;
+            dmChatBlockedNote.textContent = 'Вы заблокировали этого игрока. Его новые сообщения не будут приходить.';
+        } else if (dmState.activeBlockedByOther) {
+            dmChatBlockedNote.hidden = false;
+            dmChatBlockedNote.textContent = 'Сообщение не может быть доставлено этому игроку.';
+        } else {
+            dmChatBlockedNote.hidden = true;
+        }
+    }
+
+    function stopDmPolling() {
+        if (dmState.pollTimer) {
+            window.clearInterval(dmState.pollTimer);
+            dmState.pollTimer = null;
+        }
+    }
+
+    function startDmPolling() {
+        stopDmPolling();
+        dmState.pollTimer = window.setInterval(async () => {
+            if (!dmChatModal.classList.contains('show') || !dmState.activeConversationId) {
+                return;
+            }
+            try {
+                const data = await dmApiCall('get_conversation', { conversationId: dmState.activeConversationId });
+                if (data.conversation) {
+                    renderDmConversation(data.conversation);
+                }
+            } catch (error) {
+                // тихо игнорируем сбой одного тика поллинга
+            }
+        }, 4000);
+    }
+
+    async function openDmConversation(target) {
+        dmChatMenu.hidden = true;
+        dmState.activeOtherUserId = target.otherUserId;
+        dmState.activeOtherLogin = target.otherLogin || 'Игрок';
+        dmChatOtherLoginEl.textContent = dmState.activeOtherLogin;
+        dmChatMessagesBox.innerHTML = '<div class="public-profile-loading">Загружаю переписку...</div>';
+        dmChatBlockedNote.hidden = true;
+
+        dmChatModal.classList.add('show');
+        dmChatModal.setAttribute('aria-hidden', 'false');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+
+        try {
+            const payload = target.conversationId
+                ? { conversationId: target.conversationId }
+                : { withUserId: target.otherUserId };
+            const data = await dmApiCall('get_conversation', payload);
+
+            if (data.conversation) {
+                dmState.activeConversationId = data.conversation.conversationId;
+                renderDmConversation(data.conversation);
+            } else {
+                dmState.activeConversationId = 0;
+                dmChatMessagesBox.innerHTML = '';
+                addDmBubble(false, 'Переписки пока нет — напишите первое сообщение.', true);
+                dmChatBlockedNote.hidden = true;
+                dmChatBlockToggle.textContent = 'Заблокировать';
+            }
+            startDmPolling();
+            refreshDmConversationsList();
+        } catch (error) {
+            dmChatMessagesBox.innerHTML = '';
+            addDmBubble(false, error.message || 'Не удалось открыть переписку.', true);
+        }
+    }
+
+    function closeDmChat() {
+        stopDmPolling();
+        dmChatMenu.hidden = true;
+        dmChatModal.classList.remove('show');
+        dmChatModal.setAttribute('aria-hidden', 'true');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+        refreshDmConversationsList();
+    }
+
+    function backToChatsListFromDm() {
+        closeDmChat();
+        openChatsList();
+    }
+
+    async function sendDmMessage() {
+        const text = dmChatInput.value.trim();
+        if (!text || dmState.sending || !dmState.activeOtherUserId) {
+            return;
+        }
+        if (dmState.activeBlockedByOther) {
+            return;
+        }
+
+        dmState.sending = true;
+        dmChatSendBtn.disabled = true;
+        dmChatInput.value = '';
+        dmChatInput.style.height = 'auto';
+
+        addDmBubble(true, text, false);
+
+        try {
+            const data = await dmApiCall('send_message', {
+                recipientUserId: dmState.activeOtherUserId,
+                message: text
+            });
+            if (data.conversation) {
+                dmState.activeConversationId = data.conversation.conversationId;
+                renderDmConversation(data.conversation);
+            }
+            refreshDmConversationsList();
+        } catch (error) {
+            addDmBubble(false, error.message || 'Не удалось отправить сообщение.', true);
+        } finally {
+            dmState.sending = false;
+            dmChatSendBtn.disabled = false;
+        }
+    }
+
+    async function toggleDmBlock() {
+        if (!dmState.activeConversationId) {
+            return;
+        }
+        dmChatMenu.hidden = true;
+        try {
+            const data = await dmApiCall('set_block', {
+                conversationId: dmState.activeConversationId,
+                blocked: !dmState.activeBlockedByMe
+            });
+            if (data.conversation) {
+                renderDmConversation(data.conversation);
+            }
+            refreshDmConversationsList();
+        } catch (error) {
+            addDmBubble(false, error.message || 'Не удалось изменить блокировку.', true);
+        }
+    }
+
+    function openDmReportModal() {
+        dmChatMenu.hidden = true;
+        dmReportReasonInput.value = '';
+        dmReportModal.classList.add('show');
+        dmReportModal.setAttribute('aria-hidden', 'false');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+    }
+
+    function closeDmReportModal() {
+        dmReportModal.classList.remove('show');
+        dmReportModal.setAttribute('aria-hidden', 'true');
+        if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+    }
+
+    async function submitDmReport() {
+        if (!dmState.activeConversationId) {
+            closeDmReportModal();
+            return;
+        }
+        dmReportSubmit.disabled = true;
+        try {
+            await dmApiCall('report_message', {
+                conversationId: dmState.activeConversationId,
+                reason: dmReportReasonInput.value.trim()
+            });
+            closeDmReportModal();
+            addDmBubble(false, 'Жалоба отправлена. Спасибо, мы рассмотрим переписку.', true);
+        } catch (error) {
+            addDmBubble(false, error.message || 'Не удалось отправить жалобу.', true);
+            closeDmReportModal();
+        } finally {
+            dmReportSubmit.disabled = false;
+        }
+    }
+
+    chatsListFindPlayerBtn.addEventListener('click', showDmFindPlayerModal);
+    dmFindPlayerCancel.addEventListener('click', closeDmFindPlayerModal);
+    dmFindPlayerSubmit.addEventListener('click', submitDmFindPlayer);
+    dmFindPlayerInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitDmFindPlayer();
+        }
+    });
+
+    dmChatClose.addEventListener('click', closeDmChat);
+    dmChatBack.addEventListener('click', backToChatsListFromDm);
+    dmChatMenuButton.addEventListener('click', () => {
+        dmChatMenu.hidden = !dmChatMenu.hidden;
+    });
+    dmChatBlockToggle.addEventListener('click', toggleDmBlock);
+    dmChatReportButton.addEventListener('click', openDmReportModal);
+
+    dmChatSendBtn.addEventListener('click', sendDmMessage);
+    dmChatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendDmMessage();
+        }
+    });
+    dmChatInput.addEventListener('input', () => {
+        dmChatInput.style.height = 'auto';
+        dmChatInput.style.height = Math.min(110, dmChatInput.scrollHeight) + 'px';
+    });
+
+    dmReportCancel.addEventListener('click', closeDmReportModal);
+    dmReportSubmit.addEventListener('click', submitDmReport);
+
+    const leaderboardProfileMessageButton = document.getElementById('leaderboardProfileModalMessage');
+    if (leaderboardProfileMessageButton) {
+        leaderboardProfileMessageButton.addEventListener('click', () => {
+            const targetUserId = (typeof leaderboardProfileState !== 'undefined' && leaderboardProfileState)
+                ? Number(leaderboardProfileState.openUserId) || 0
+                : 0;
+            const targetLogin = (typeof leaderboardProfileState !== 'undefined' && leaderboardProfileState && leaderboardProfileState.data)
+                ? String(leaderboardProfileState.data.login || leaderboardProfileState.fallbackLogin || 'Игрок')
+                : (leaderboardProfileState.fallbackLogin || 'Игрок');
+
+            if (!targetUserId || targetUserId === userId) {
+                return;
+            }
+
+            const profileModalEl = document.getElementById('leaderboardProfileModal');
+            if (profileModalEl) {
+                profileModalEl.classList.remove('show');
+                profileModalEl.setAttribute('aria-hidden', 'true');
+            }
+            if (typeof syncGlobalOverlayState === 'function') syncGlobalOverlayState();
+
+            openDmConversation({ otherUserId: targetUserId, otherLogin: targetLogin });
+        });
+    }
+
+    // Периодически обновляем список личных переписок (непрочитанные/новые сообщения)
+    window.setInterval(refreshDmConversationsList, 20000);
 })();
 </script>
 	
