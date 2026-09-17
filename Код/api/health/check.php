@@ -163,21 +163,6 @@ try {
             'api/fly/claim-reward.php',
             'api/logs/client-log.php',
             'api/logs/anti-cheat-report.php',
-            'sync-state.php',
-            'save-state.php',
-            'leaderboard.php',
-            'support-tickets.php',
-            'game-sessions.php',
-            'fly-session.php',
-            'fly-save-run.php',
-            'fly-claim-reward.php',
-            'login-t.php',
-            'register-t.php',
-            'logout-t.php',
-            'session-t.php',
-            'client-log.php',
-            'anti-cheat-report.php',
-            'skin-catalog.php',
         ];
         $missingFiles = [];
 
