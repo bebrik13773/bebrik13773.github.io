@@ -9,6 +9,8 @@ require_once __DIR__ . '/tools/tool-get-advice.php';
 require_once __DIR__ . '/tools/tool-buy-upgrade.php';
 require_once __DIR__ . '/tools/tool-create-ticket.php';
 require_once __DIR__ . '/tools/tool-report-player.php';
+require_once __DIR__ . '/tools/tool-get-quests.php';
+require_once __DIR__ . '/tools/tool-get-achievements.php';
 
 /**
  * Собирает системный промпт из отдельных .md файлов (личность, тон,
@@ -106,6 +108,10 @@ function bober_ai_execute_tool_call($conn, $userId, $login, array $userContext, 
             return bober_ai_tool_create_support_ticket($conn, $userId, $toolArgs, $actionLimitPerHour);
         case 'report_player':
             return bober_ai_tool_report_player($conn, $userId, $login, $toolArgs);
+        case 'get_quests_full':
+            return bober_ai_tool_get_quests_full($conn, $userId);
+        case 'get_achievements_full':
+            return bober_ai_tool_get_achievements_full($conn, $userId);
         default:
             return ['error' => 'Неизвестный tool: ' . $toolName];
     }

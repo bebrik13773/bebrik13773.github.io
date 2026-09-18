@@ -151,6 +151,45 @@ function bober_ai_build_user_context($conn, $userId)
 
     $leaderboardPosition = bober_ai_fetch_leaderboard_position($conn, $userId, $score);
 
+    // Последние тикеты поддержки (включая закрытые/архивные) — компактно,
+    // чтобы бобёр мог сориентироваться "писал ли игрок уже об этом" без
+    // отдельного вызова tool. Полная переписка тикета сюда не тащим — дорого.
+    $recentTickets = [];
+    try {
+        $ticketRows = bober_fetch_user_support_tickets($conn, $userId, [
+            'limit' => 5,
+            'includeArchived' => true,
+        ]);
+        foreach ($ticketRows as $ticketRow) {
+            $recentTickets[] = [
+                'id' => (int) ($ticketRow['id'] ?? 0),
+                'category' => (string) ($ticketRow['category'] ?? ''),
+                'subject' => (string) ($ticketRow['subject'] ?? ''),
+                'status' => (string) ($ticketRow['status'] ?? ''),
+                'createdAt' => (string) ($ticketRow['createdAt'] ?? ''),
+                'updatedAt' => (string) ($ticketRow['updatedAt'] ?? ''),
+            ];
+        }
+    } catch (Throwable $ignored) {
+        $recentTickets = [];
+    }
+
+    // Последние новости/объявления — компактно (заголовки), чтобы бобёр знал
+    // об актуальных ивентах/изменениях без отдельного запроса.
+    $recentNews = [];
+    try {
+        $announcementRows = bober_fetch_user_announcement_feed($conn, $userId, ['limit' => 5]);
+        foreach ($announcementRows as $announcementRow) {
+            $recentNews[] = [
+                'title' => (string) ($announcementRow['title'] ?? ''),
+                'publishedAt' => (string) ($announcementRow['publishedAt'] ?? ($announcementRow['createdAt'] ?? '')),
+                'isRead' => !empty($announcementRow['isRead']),
+            ];
+        }
+    } catch (Throwable $ignored) {
+        $recentNews = [];
+    }
+
     return [
         'login' => $login,
         'balance' => $score,
@@ -164,6 +203,8 @@ function bober_ai_build_user_context($conn, $userId)
         'ownedSkinIds' => $ownedSkinIds,
         'equippedSkinId' => $equippedSkinId,
         'leaderboard' => $leaderboardPosition,
+        'recentSupportTickets' => $recentTickets,
+        'recentNews' => $recentNews,
     ];
 }
 
