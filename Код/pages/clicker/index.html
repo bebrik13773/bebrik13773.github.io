@@ -2223,7 +2223,7 @@ Owner decisions:
     #shop,
     #leaderboard,
     .footer,
-    .ai-chat-fab {
+    .chats-fab {
         transition: filter 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
     }
 
@@ -2231,10 +2231,11 @@ Owner decisions:
     body.modal-open #shop,
     body.modal-open #leaderboard,
     body.modal-open .footer,
-    body.modal-open .ai-chat-fab {
+    body.modal-open .chats-fab {
         pointer-events: none;
         user-select: none;
         filter: blur(4px) saturate(0.82) brightness(0.82);
+        animation-play-state: paused;
     }
 
     .loading-overlay {
