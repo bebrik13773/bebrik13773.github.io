@@ -179,6 +179,19 @@ try {
         ]);
     }
 
+    if ($action === 'clear_conversation') {
+        $conversationId = (int) ($data['conversationId'] ?? 0);
+
+        bober_dm_clear_conversation($conn, $sessionUserId, $conversationId);
+        $conversation = bober_dm_fetch_conversation_messages($conn, $sessionUserId, $conversationId);
+        $conn->close();
+
+        bober_json_response([
+            'success' => true,
+            'conversation' => $conversation,
+        ]);
+    }
+
     if ($action === 'report_message') {
         $conversationId = (int) ($data['conversationId'] ?? 0);
         $messageId = (int) ($data['messageId'] ?? 0);

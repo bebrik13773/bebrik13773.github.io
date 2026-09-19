@@ -653,6 +653,58 @@ function bober_dm_delete_own_message($conn, $userId, $conversationId, $messageId
 }
 
 /**
+ * Очистка чата: помечает удалёнными ВСЕ сообщения переписки (доступно
+ * любому из двух участников, не только отправителю каждого сообщения —
+ * это отличает очистку от точечного самоудаления). Видно обеим сторонам,
+ * как и одиночное удаление: собеседник увидит плейсхолдер на каждом
+ * сообщении. Текст в БД не трогаем — та же логика мягкого удаления.
+ */
+function bober_dm_clear_conversation($conn, $userId, $conversationId)
+{
+    $userId = max(0, (int) $userId);
+    $conversationId = max(0, (int) $conversationId);
+    if ($conversationId < 1) {
+        throw new InvalidArgumentException('Некорректная переписка.');
+    }
+
+    $stmt = $conn->prepare('SELECT user_low_id, user_high_id FROM player_conversations WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось найти переписку.');
+    }
+    $stmt->bind_param('i', $conversationId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Переписка не найдена.');
+    }
+    if ((int) $row['user_low_id'] !== $userId && (int) $row['user_high_id'] !== $userId) {
+        throw new RuntimeException('У вас нет доступа к этой переписке.');
+    }
+
+    $clearStmt = $conn->prepare('UPDATE player_direct_messages SET deleted_at = NOW() WHERE conversation_id = ? AND deleted_at IS NULL');
+    if (!$clearStmt) {
+        throw new RuntimeException('Не удалось очистить чат.');
+    }
+    $clearStmt->bind_param('i', $conversationId);
+    $clearStmt->execute();
+    $clearStmt->close();
+
+    $previewPlaceholder = bober_encrypt_text(BOBER_DM_DELETED_MESSAGE_PLACEHOLDER);
+    $previewStmt = $conn->prepare('UPDATE player_conversations SET last_message_preview = ? WHERE id = ?');
+    if ($previewStmt) {
+        $previewStmt->bind_param('si', $previewPlaceholder, $conversationId);
+        $previewStmt->execute();
+        $previewStmt->close();
+    }
+}
+
+/**
  * Список тредов переписки пользователя (для списка чатов), отсортирован
  * по времени последнего сообщения. Каждый элемент содержит собеседника,
  * превью, время и флаг непрочитанного/блокировки.

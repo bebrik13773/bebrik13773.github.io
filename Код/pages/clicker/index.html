@@ -7058,6 +7058,7 @@ function showNotification(message, type = 'success', duration = 3000) {
         </div>
         <div class="dm-chat-menu" id="dmChatMenu" hidden>
             <button type="button" class="dm-chat-menu-item" id="dmChatBlockToggle">Заблокировать</button>
+            <button type="button" class="dm-chat-menu-item" id="dmChatClearButton">Очистить чат</button>
             <button type="button" class="dm-chat-menu-item" id="dmChatReportButton">Пожаловаться</button>
         </div>
         <div class="dm-chat-blocked-note" id="dmChatBlockedNote" hidden></div>
@@ -21959,6 +21960,7 @@ console.log('Настройки античита:', clickDetector.config);
     const dmChatOtherLoginEl = document.getElementById('dmChatOtherLogin');
     const dmChatMenuButton = document.getElementById('dmChatMenuButton');
     const dmChatMenu = document.getElementById('dmChatMenu');
+    const dmChatClearButton = document.getElementById('dmChatClearButton');
     const dmChatBlockToggle = document.getElementById('dmChatBlockToggle');
     const dmChatReportButton = document.getElementById('dmChatReportButton');
     const dmChatBlockedNote = document.getElementById('dmChatBlockedNote');
@@ -22355,6 +22357,27 @@ console.log('Настройки античита:', clickDetector.config);
         }
     }
 
+    async function clearDmConversation() {
+        dmChatMenu.hidden = true;
+        if (!dmState.activeConversationId) {
+            return;
+        }
+        if (!window.confirm('Очистить чат? Все сообщения будут удалены — и у вас, и у собеседника. Действие необратимо.')) {
+            return;
+        }
+        try {
+            const data = await dmApiCall('clear_conversation', {
+                conversationId: dmState.activeConversationId
+            });
+            if (data.conversation) {
+                renderDmConversation(data.conversation);
+            }
+            refreshDmConversationsList();
+        } catch (error) {
+            addDmBubble(false, error.message || 'Не удалось очистить чат.', true);
+        }
+    }
+
     function openDmReportModal() {
         dmChatMenu.hidden = true;
         dmReportReasonInput.value = '';
@@ -22406,6 +22429,7 @@ console.log('Настройки античита:', clickDetector.config);
         dmChatMenu.hidden = !dmChatMenu.hidden;
     });
     dmChatBlockToggle.addEventListener('click', toggleDmBlock);
+    dmChatClearButton.addEventListener('click', clearDmConversation);
     dmChatReportButton.addEventListener('click', openDmReportModal);
 
     dmChatSendBtn.addEventListener('click', sendDmMessage);
