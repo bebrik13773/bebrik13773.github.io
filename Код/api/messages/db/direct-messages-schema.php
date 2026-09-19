@@ -120,7 +120,149 @@ SQL;
         throw new RuntimeException('Не удалось создать индекс жалоб на сообщения по переписке.');
     }
 
+    // Отметка о том, что сообщение из жалобы было удалено админом. Текст
+    // самого сообщения при этом не читается и не сохраняется отдельно —
+    // видно только то, что игрок сам процитировал в жалобе (см. get_dm_reports).
+    if (!bober_column_exists($conn, 'player_message_reports', 'message_deleted_at')) {
+        if (!$conn->query('ALTER TABLE `player_message_reports` ADD COLUMN `message_deleted_at` TIMESTAMP NULL DEFAULT NULL AFTER `status`')) {
+            throw new RuntimeException('Не удалось добавить колонку удаления сообщения в жалобах.');
+        }
+    }
+
+    // Цитата сообщения на момент подачи жалобы — единственное место, где
+    // расшифрованный текст вообще где-либо хранится, и то лишь то, что сам
+    // игрок явно приложил к жалобе. Используется для отображения в очереди
+    // модерации без общего доступа к переписке.
+    if (!bober_column_exists($conn, 'player_message_reports', 'message_quote')) {
+        if (!$conn->query('ALTER TABLE `player_message_reports` ADD COLUMN `message_quote` TEXT NULL DEFAULT NULL AFTER `reason`')) {
+            throw new RuntimeException('Не удалось добавить колонку цитаты сообщения в жалобах.');
+        }
+    }
+
+    // Админский мут — принципиально отдельная сущность от игрок-игрок
+    // блокировки (`blocked_by_low/high`). scope: 'all' — запрет писать
+    // всем, 'pair' — запрет писать конкретному собеседнику (target_user_id).
+    $createAdminMutesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `player_dm_admin_mutes` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `scope` VARCHAR(8) NOT NULL DEFAULT 'all',
+    `target_user_id` INT NULL DEFAULT NULL,
+    `reason` VARCHAR(500) NOT NULL DEFAULT '',
+    `created_by` VARCHAR(64) NOT NULL DEFAULT '',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `expires_at` TIMESTAMP NULL DEFAULT NULL,
+    KEY `idx_player_dm_admin_mutes_user` (`user_id`, `scope`, `target_user_id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createAdminMutesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу админских мутов переписок.');
+    }
+
+    if (!bober_index_exists($conn, 'player_dm_admin_mutes', 'idx_player_dm_admin_mutes_user') && !$conn->query("CREATE INDEX `idx_player_dm_admin_mutes_user` ON `player_dm_admin_mutes` (`user_id`, `scope`, `target_user_id`)")) {
+        throw new RuntimeException('Не удалось создать индекс админских мутов по пользователю.');
+    }
+
+    // Полная блокировка функции личных сообщений у аккаунта админом —
+    // отдельный флаг на пользователе, а не в player_dm_admin_mutes, т.к.
+    // это отключение фичи целиком, а не мут конкретной переписки.
+    if (!bober_column_exists($conn, 'users', 'dm_disabled_at')) {
+        if (!$conn->query('ALTER TABLE `users` ADD COLUMN `dm_disabled_at` TIMESTAMP NULL DEFAULT NULL')) {
+            throw new RuntimeException('Не удалось добавить колонку отключения личных сообщений у пользователя.');
+        }
+    }
+
+    // Список слов автомодерации (замена мата) — редактируется из админки,
+    // структура повторяет prежний захардкоженный массив bober_moderation_word_map().
+    $createModerationWordsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `dm_moderation_words` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `pattern` VARCHAR(255) NOT NULL,
+    `replacement` VARCHAR(255) NOT NULL,
+    `enabled` TINYINT(1) NOT NULL DEFAULT 1,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uniq_dm_moderation_words_pattern` (`pattern`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createModerationWordsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу слов автомодерации.');
+    }
+
+    bober_dm_seed_moderation_words_if_empty($conn);
+
     $schemaEnsured = true;
+}
+
+/**
+ * Засевает таблицу слов автомодерации значениями из прежнего захардкоженного
+ * массива — но только один раз, если таблица пуста (первый деплой после
+ * миграции). После этого список полностью управляется из админки.
+ */
+function bober_dm_seed_moderation_words_if_empty($conn)
+{
+    $countResult = $conn->query('SELECT COUNT(*) AS cnt FROM dm_moderation_words');
+    $countRow = $countResult ? $countResult->fetch_assoc() : null;
+    if ($countResult instanceof mysqli_result) {
+        $countResult->free();
+    }
+    if (!is_array($countRow) || (int) $countRow['cnt'] > 0) {
+        return;
+    }
+
+    $defaults = [
+        'бляд\S*' => 'блин',
+        'бля' => 'блин',
+        'сук[аи]\S*' => 'вот незадача',
+        'хуй\S*' => 'ерунда',
+        'хуе\S*' => 'ерунда',
+        'хуё\S*' => 'ерунда',
+        'пизд\S*' => 'фигня',
+        'еба\S*' => 'блин',
+        'ёб\S*' => 'блин',
+        'выеб\S*' => 'обыграл',
+        'долбо[её]б\S*' => 'чудак',
+        'мудак\S*' => 'вредина',
+        'муд[ои]л\S*' => 'вредина',
+        'гандон\S*' => 'вредина',
+        'ублюдок\S*' => 'негодник',
+        'ублюдк\S*' => 'негодник',
+        'уёб\S*' => 'негодник',
+        'скотин\S*' => 'вредина',
+        'сволоч\S*' => 'вредина',
+        'дебил\S*' => 'чудак',
+        'идиот\S*' => 'чудак',
+        'кретин\S*' => 'чудак',
+        'урод\S*' => 'непохожий на других',
+        'тварь\S*' => 'вредина',
+        'жоп\S*' => 'мягкое место',
+        'залуп\S*' => 'ерунда',
+        'придурок\S*' => 'чудак',
+        'придурк\S*' => 'чудак',
+        'говн\S*' => 'ерунда',
+        'дерьм\S*' => 'ерунда',
+        'хер\S*' => 'ерунда',
+        'нахуй' => 'куда подальше',
+        'похуй' => 'всё равно',
+        'заебал\S*' => 'надоел',
+        'наебал\S*' => 'обманул',
+        'ебан\S*' => 'странный',
+    ];
+
+    $insertStmt = $conn->prepare('INSERT IGNORE INTO dm_moderation_words (pattern, replacement, sort_order) VALUES (?, ?, ?)');
+    if (!$insertStmt) {
+        return;
+    }
+
+    $order = 0;
+    foreach ($defaults as $pattern => $replacement) {
+        $insertStmt->bind_param('ssi', $pattern, $replacement, $order);
+        $insertStmt->execute();
+        $order++;
+    }
+    $insertStmt->close();
 }
 
 /**
@@ -366,6 +508,14 @@ function bober_dm_send_message($conn, $senderId, $recipientId, $messageText)
         $messageText = mb_substr($messageText, 0, 2000);
     }
 
+    if (bober_dm_admin_is_feature_disabled($conn, $senderId)) {
+        throw new RuntimeException('Личные сообщения для вашего аккаунта отключены администрацией.');
+    }
+
+    if (bober_dm_admin_is_muted($conn, $senderId, $recipientId)) {
+        throw new RuntimeException('Администрация ограничила вам возможность писать личные сообщения.');
+    }
+
     $conversation = bober_dm_get_or_create_conversation($conn, $senderId, $recipientId);
 
     if (bober_dm_is_blocked_for_sender($conversation, $senderId, $recipientId)) {
@@ -374,7 +524,7 @@ function bober_dm_send_message($conn, $senderId, $recipientId, $messageText)
 
     // Базовая модерация (замена мата) применяется до шифрования — работаем
     // с открытым текстом, шифруем уже смягчённый результат.
-    $messageText = bober_moderate_text($messageText);
+    $messageText = bober_moderate_text($messageText, $conn);
 
     $encryptedText = bober_encrypt_text($messageText);
 
@@ -697,12 +847,37 @@ function bober_dm_report_message($conn, $reporterUserId, $conversationId, $messa
         ? $conversation['userHighId']
         : $conversation['userLowId'];
 
+    // Цитата сохраняется здесь и только здесь: жалующийся сам раскрывает
+    // текст конкретного сообщения, приложив его к жалобе. Это единственный
+    // расшифрованный текст, который когда-либо попадает в поле зрения
+    // админа — вся остальная переписка остаётся недоступной для чтения.
+    $messageQuote = null;
     if ($messageId > 0) {
-        $insertStmt = $conn->prepare('INSERT INTO player_message_reports (reporter_user_id, reported_user_id, conversation_id, message_id, reason) VALUES (?, ?, ?, ?, ?)');
+        $quoteStmt = $conn->prepare('SELECT message_text FROM player_direct_messages WHERE id = ? AND conversation_id = ? LIMIT 1');
+        if ($quoteStmt) {
+            $quoteStmt->bind_param('ii', $messageId, $conversationId);
+            $quoteStmt->execute();
+            $quoteResult = $quoteStmt->get_result();
+            $quoteRow = $quoteResult ? $quoteResult->fetch_assoc() : null;
+            if ($quoteResult instanceof mysqli_result) {
+                $quoteResult->free();
+            }
+            $quoteStmt->close();
+            if (is_array($quoteRow)) {
+                $messageQuote = bober_decrypt_text((string) $quoteRow['message_text']);
+                if (mb_strlen($messageQuote) > 2000) {
+                    $messageQuote = mb_substr($messageQuote, 0, 2000);
+                }
+            }
+        }
+    }
+
+    if ($messageId > 0) {
+        $insertStmt = $conn->prepare('INSERT INTO player_message_reports (reporter_user_id, reported_user_id, conversation_id, message_id, reason, message_quote) VALUES (?, ?, ?, ?, ?, ?)');
         if (!$insertStmt) {
             throw new RuntimeException('Не удалось создать жалобу.');
         }
-        $insertStmt->bind_param('iiiis', $reporterUserId, $reportedUserId, $conversationId, $messageId, $reason);
+        $insertStmt->bind_param('iiiiss', $reporterUserId, $reportedUserId, $conversationId, $messageId, $reason, $messageQuote);
     } else {
         $insertStmt = $conn->prepare('INSERT INTO player_message_reports (reporter_user_id, reported_user_id, conversation_id, message_id, reason) VALUES (?, ?, ?, NULL, ?)');
         if (!$insertStmt) {
@@ -715,4 +890,613 @@ function bober_dm_report_message($conn, $reporterUserId, $conversationId, $messa
     $insertStmt->close();
 
     return $newReportId;
+}
+
+/* =========================================================================
+ * Ниже — функции для АДМИНКИ. Принципиальное ограничение: ни одна из них
+ * не расшифровывает и не возвращает произвольный текст сообщений. Админ
+ * видит только:
+ *   - метаданные (кто, когда, сколько сообщений) в списке диалогов;
+ *   - цитату из жалобы (message_quote), которую сам игрок раскрыл добровольно.
+ * Полный текст переписки (`bober_dm_fetch_conversation_messages`) отсюда
+ * НЕ вызывается и вызываться не должен.
+ * ========================================================================= */
+
+/**
+ * Список активных диалогов для админки — без текста сообщений, только факт
+ * переписки: участники, время последнего сообщения, счётчик сообщений.
+ * Поддерживает поиск по логину одного из участников.
+ */
+function bober_dm_admin_fetch_conversations($conn, array $options = [])
+{
+    $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
+    $search = trim((string) ($options['search'] ?? ''));
+
+    $sql = "
+        SELECT
+            c.id,
+            c.user_low_id,
+            c.user_high_id,
+            c.last_message_at,
+            c.created_at,
+            ulow.login AS low_login,
+            uhigh.login AS high_login,
+            (SELECT COUNT(*) FROM player_direct_messages m WHERE m.conversation_id = c.id) AS message_count
+        FROM player_conversations c
+        LEFT JOIN users ulow ON ulow.id = c.user_low_id
+        LEFT JOIN users uhigh ON uhigh.id = c.user_high_id
+    ";
+
+    $params = [];
+    $types = '';
+    if ($search !== '') {
+        $sql .= ' WHERE ulow.login LIKE ? OR uhigh.login LIKE ?';
+        $likeTerm = '%' . $search . '%';
+        $params[] = $likeTerm;
+        $params[] = $likeTerm;
+        $types .= 'ss';
+    }
+
+    $sql .= ' ORDER BY c.last_message_at DESC LIMIT ?';
+    $params[] = $limit;
+    $types .= 'i';
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить список переписок.');
+    }
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $rows[] = [
+            'conversationId' => (int) $row['id'],
+            'userLowId' => (int) $row['user_low_id'],
+            'userHighId' => (int) $row['user_high_id'],
+            'lowLogin' => (string) ($row['low_login'] ?? '—'),
+            'highLogin' => (string) ($row['high_login'] ?? '—'),
+            'lastMessageAt' => $row['last_message_at'],
+            'createdAt' => $row['created_at'],
+            'messageCount' => (int) $row['message_count'],
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $rows;
+}
+
+/**
+ * Очередь жалоб на сообщения переписок для админки. Возвращает цитату,
+ * которую сам жалующийся приложил к жалобе (см. bober_dm_report_message) —
+ * никакого дополнительного чтения переписки здесь не происходит.
+ */
+function bober_dm_admin_fetch_reports($conn, array $options = [])
+{
+    $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
+    $status = trim((string) ($options['status'] ?? ''));
+
+    $sql = "
+        SELECT
+            r.id,
+            r.reporter_user_id,
+            r.reported_user_id,
+            r.conversation_id,
+            r.message_id,
+            r.reason,
+            r.message_quote,
+            r.status,
+            r.message_deleted_at,
+            r.created_at,
+            reporter.login AS reporter_login,
+            reported.login AS reported_login
+        FROM player_message_reports r
+        LEFT JOIN users reporter ON reporter.id = r.reporter_user_id
+        LEFT JOIN users reported ON reported.id = r.reported_user_id
+    ";
+
+    $params = [];
+    $types = '';
+    if ($status !== '' && $status !== 'all') {
+        $sql .= ' WHERE r.status = ?';
+        $params[] = $status;
+        $types .= 's';
+    }
+
+    $sql .= ' ORDER BY r.created_at DESC LIMIT ?';
+    $params[] = $limit;
+    $types .= 'i';
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить список жалоб.');
+    }
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $rows[] = [
+            'reportId' => (int) $row['id'],
+            'reporterUserId' => (int) $row['reporter_user_id'],
+            'reporterLogin' => (string) ($row['reporter_login'] ?? '—'),
+            'reportedUserId' => (int) $row['reported_user_id'],
+            'reportedLogin' => (string) ($row['reported_login'] ?? '—'),
+            'conversationId' => (int) $row['conversation_id'],
+            'messageId' => $row['message_id'] !== null ? (int) $row['message_id'] : null,
+            'reason' => (string) $row['reason'],
+            'messageQuote' => $row['message_quote'] !== null ? (string) $row['message_quote'] : null,
+            'status' => (string) $row['status'],
+            'messageDeletedAt' => $row['message_deleted_at'],
+            'createdAt' => $row['created_at'],
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $rows;
+}
+
+/**
+ * Удаляет сообщение, на которое пришла жалоба (только это сообщение — не
+ * произвольное, admin не выбирает id вручную вне контекста жалобы).
+ * Помечает жалобу как обработанную. Сама переписка/остальные сообщения
+ * не читаются.
+ */
+function bober_dm_admin_delete_reported_message($conn, $reportId, $adminLabel = 'admin')
+{
+    $reportId = max(0, (int) $reportId);
+    if ($reportId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор жалобы.');
+    }
+
+    $stmt = $conn->prepare('SELECT message_id, conversation_id FROM player_message_reports WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось найти жалобу.');
+    }
+    $stmt->bind_param('i', $reportId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Жалоба не найдена.');
+    }
+
+    $messageId = $row['message_id'] !== null ? (int) $row['message_id'] : 0;
+    if ($messageId > 0) {
+        $deleteStmt = $conn->prepare('DELETE FROM player_direct_messages WHERE id = ? AND conversation_id = ?');
+        if (!$deleteStmt) {
+            throw new RuntimeException('Не удалось удалить сообщение.');
+        }
+        $conversationId = (int) $row['conversation_id'];
+        $deleteStmt->bind_param('ii', $messageId, $conversationId);
+        $deleteStmt->execute();
+        $deleteStmt->close();
+    }
+
+    $updateStmt = $conn->prepare("UPDATE player_message_reports SET status = 'resolved', message_deleted_at = NOW() WHERE id = ?");
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось обновить жалобу.');
+    }
+    $updateStmt->bind_param('i', $reportId);
+    $updateStmt->execute();
+    $updateStmt->close();
+}
+
+/**
+ * Отклоняет жалобу без удаления сообщения (например, если жалоба
+ * необоснованна).
+ */
+function bober_dm_admin_dismiss_report($conn, $reportId)
+{
+    $reportId = max(0, (int) $reportId);
+    if ($reportId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор жалобы.');
+    }
+
+    $updateStmt = $conn->prepare("UPDATE player_message_reports SET status = 'dismissed' WHERE id = ?");
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось обновить жалобу.');
+    }
+    $updateStmt->bind_param('i', $reportId);
+    $updateStmt->execute();
+    $updateStmt->close();
+}
+
+/**
+ * Ставит админский мут игроку: 'all' — запрет писать кому-либо, 'pair' —
+ * запрет писать конкретному собеседнику (targetUserId обязателен для pair).
+ */
+function bober_dm_admin_mute_user($conn, $userId, $scope, $targetUserId, $reason, $adminLabel = 'admin')
+{
+    $userId = max(0, (int) $userId);
+    $scope = ($scope === 'pair') ? 'pair' : 'all';
+    $targetUserId = max(0, (int) $targetUserId);
+    $reason = trim((string) $reason);
+    if (mb_strlen($reason) > 500) {
+        $reason = mb_substr($reason, 0, 500);
+    }
+
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор игрока.');
+    }
+    if ($scope === 'pair' && $targetUserId < 1) {
+        throw new InvalidArgumentException('Для мута по собеседнику нужно указать его id.');
+    }
+
+    $insertStmt = $conn->prepare('INSERT INTO player_dm_admin_mutes (user_id, scope, target_user_id, reason, created_by) VALUES (?, ?, ?, ?, ?)');
+    if (!$insertStmt) {
+        throw new RuntimeException('Не удалось создать мут.');
+    }
+    $targetParam = ($scope === 'pair') ? $targetUserId : null;
+    $insertStmt->bind_param('isiss', $userId, $scope, $targetParam, $reason, $adminLabel);
+    $insertStmt->execute();
+    $newId = (int) $conn->insert_id;
+    $insertStmt->close();
+
+    return $newId;
+}
+
+/**
+ * Снимает все админские муты игрока (опционально только по заданному scope).
+ */
+function bober_dm_admin_unmute_user($conn, $userId, $scope = null)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор игрока.');
+    }
+
+    if ($scope === 'all' || $scope === 'pair') {
+        $stmt = $conn->prepare('DELETE FROM player_dm_admin_mutes WHERE user_id = ? AND scope = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось снять мут.');
+        }
+        $stmt->bind_param('is', $userId, $scope);
+    } else {
+        $stmt = $conn->prepare('DELETE FROM player_dm_admin_mutes WHERE user_id = ?');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось снять мут.');
+        }
+        $stmt->bind_param('i', $userId);
+    }
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Список активных админских мутов игрока (для отображения в его профиле
+ * в админке).
+ */
+function bober_dm_admin_fetch_mutes_for_user($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [];
+    }
+
+    $stmt = $conn->prepare('
+        SELECT m.id, m.scope, m.target_user_id, m.reason, m.created_by, m.created_at, t.login AS target_login
+        FROM player_dm_admin_mutes m
+        LEFT JOIN users t ON t.id = m.target_user_id
+        WHERE m.user_id = ?
+        ORDER BY m.created_at DESC
+    ');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось получить муты игрока.');
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $rows[] = [
+            'id' => (int) $row['id'],
+            'scope' => (string) $row['scope'],
+            'targetUserId' => $row['target_user_id'] !== null ? (int) $row['target_user_id'] : null,
+            'targetLogin' => $row['target_login'] !== null ? (string) $row['target_login'] : null,
+            'reason' => (string) $row['reason'],
+            'createdBy' => (string) $row['created_by'],
+            'createdAt' => $row['created_at'],
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return $rows;
+}
+
+/**
+ * Проверяет, замучен ли пользователь админом для отправки сообщения
+ * конкретному получателю (учитывает и scope 'all', и 'pair'). Вызывается
+ * из bober_dm_send_message перед отправкой.
+ */
+function bober_dm_admin_is_muted($conn, $userId, $recipientId)
+{
+    $userId = max(0, (int) $userId);
+    $recipientId = max(0, (int) $recipientId);
+
+    $stmt = $conn->prepare("SELECT scope, target_user_id FROM player_dm_admin_mutes WHERE user_id = ? AND (scope = 'all' OR (scope = 'pair' AND target_user_id = ?)) LIMIT 1");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('ii', $userId, $recipientId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return is_array($row);
+}
+
+/**
+ * Полностью включает/отключает функцию личных сообщений у аккаунта.
+ */
+function bober_dm_admin_set_feature_disabled($conn, $userId, $disabled)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор игрока.');
+    }
+
+    $sql = $disabled
+        ? 'UPDATE users SET dm_disabled_at = NOW() WHERE id = ?'
+        : 'UPDATE users SET dm_disabled_at = NULL WHERE id = ?';
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось обновить доступ к личным сообщениям.');
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Проверяет, отключена ли функция личных сообщений у аккаунта админом.
+ */
+function bober_dm_admin_is_feature_disabled($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    $stmt = $conn->prepare('SELECT dm_disabled_at FROM users WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    return is_array($row) && $row['dm_disabled_at'] !== null;
+}
+
+/**
+ * Общая статистика по P2P-чатам для дашборда админки: кол-во активных
+ * диалогов, сообщений за всё время, новых жалоб за период (по умолчанию 7 дней).
+ */
+function bober_dm_admin_fetch_stats($conn, $reportDays = 7)
+{
+    $reportDays = max(1, (int) $reportDays);
+
+    $stats = [
+        'totalConversations' => 0,
+        'totalMessages' => 0,
+        'reportsPeriod' => 0,
+        'reportsPending' => 0,
+        'reportDays' => $reportDays,
+    ];
+
+    $result = $conn->query('SELECT COUNT(*) AS cnt FROM player_conversations');
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stats['totalConversations'] = is_array($row) ? (int) $row['cnt'] : 0;
+
+    $result = $conn->query('SELECT COUNT(*) AS cnt FROM player_direct_messages');
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stats['totalMessages'] = is_array($row) ? (int) $row['cnt'] : 0;
+
+    $stmt = $conn->prepare('SELECT COUNT(*) AS cnt FROM player_message_reports WHERE created_at >= (NOW() - INTERVAL ? DAY)');
+    if ($stmt) {
+        $stmt->bind_param('i', $reportDays);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+        $stats['reportsPeriod'] = is_array($row) ? (int) $row['cnt'] : 0;
+    }
+
+    $result = $conn->query("SELECT COUNT(*) AS cnt FROM player_message_reports WHERE status = 'new'");
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stats['reportsPending'] = is_array($row) ? (int) $row['cnt'] : 0;
+
+    return $stats;
+}
+
+/**
+ * Личная статистика игрока по его переписке (для отображения ему самому
+ * в профиле) — сколько у него диалогов и сколько сообщений он отправил.
+ */
+function bober_dm_fetch_own_stats($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stats = ['conversationCount' => 0, 'messagesSent' => 0];
+
+    $stmt = $conn->prepare('SELECT COUNT(*) AS cnt FROM player_conversations WHERE user_low_id = ? OR user_high_id = ?');
+    if ($stmt) {
+        $stmt->bind_param('ii', $userId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+        $stats['conversationCount'] = is_array($row) ? (int) $row['cnt'] : 0;
+    }
+
+    $stmt = $conn->prepare('SELECT COUNT(*) AS cnt FROM player_direct_messages WHERE sender_id = ?');
+    if ($stmt) {
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+        $stats['messagesSent'] = is_array($row) ? (int) $row['cnt'] : 0;
+    }
+
+    return $stats;
+}
+
+/* ===================== Слова автомодерации (управление из админки) ===================== */
+
+/**
+ * Список всех слов автомодерации для админки (включая выключенные).
+ */
+function bober_dm_admin_fetch_moderation_words($conn)
+{
+    $result = $conn->query('SELECT id, pattern, replacement, enabled, sort_order, created_at FROM dm_moderation_words ORDER BY sort_order ASC, id ASC');
+    $rows = [];
+    while ($result && ($row = $result->fetch_assoc())) {
+        $rows[] = [
+            'id' => (int) $row['id'],
+            'pattern' => (string) $row['pattern'],
+            'replacement' => (string) $row['replacement'],
+            'enabled' => (bool) $row['enabled'],
+            'sortOrder' => (int) $row['sort_order'],
+            'createdAt' => $row['created_at'],
+        ];
+    }
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+
+    return $rows;
+}
+
+/**
+ * Добавляет новое слово (паттерн) автомодерации. Паттерн — регулярка без
+ * разделителей (тот же формат, что был в прежнем захардкоженном массиве),
+ * например 'дебил\S*'. Простое слово без \S* тоже допустимо для точного
+ * совпадения.
+ */
+function bober_dm_admin_add_moderation_word($conn, $pattern, $replacement)
+{
+    $pattern = trim((string) $pattern);
+    $replacement = trim((string) $replacement);
+
+    if ($pattern === '') {
+        throw new InvalidArgumentException('Укажите слово или паттерн.');
+    }
+    if ($replacement === '') {
+        throw new InvalidArgumentException('Укажите вежливый аналог замены.');
+    }
+    if (mb_strlen($pattern) > 255 || mb_strlen($replacement) > 255) {
+        throw new InvalidArgumentException('Слишком длинное слово или замена.');
+    }
+
+    // Проверяем, что регулярка вообще валидна, чтобы не сломать
+    // bober_moderate_text() при следующей отправке сообщения.
+    if (@preg_match('/(' . $pattern . ')/iu', '') === false) {
+        throw new InvalidArgumentException('Некорректный паттерн — проверьте синтаксис регулярного выражения.');
+    }
+
+    $maxOrderResult = $conn->query('SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM dm_moderation_words');
+    $maxOrderRow = $maxOrderResult ? $maxOrderResult->fetch_assoc() : null;
+    if ($maxOrderResult instanceof mysqli_result) {
+        $maxOrderResult->free();
+    }
+    $nextOrder = (is_array($maxOrderRow) ? (int) $maxOrderRow['maxOrder'] : 0) + 1;
+
+    $stmt = $conn->prepare('INSERT INTO dm_moderation_words (pattern, replacement, sort_order) VALUES (?, ?, ?)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось добавить слово.');
+    }
+    $stmt->bind_param('ssi', $pattern, $replacement, $nextOrder);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        if ($conn->errno === 1062) {
+            throw new RuntimeException('Такое слово/паттерн уже есть в списке.');
+        }
+        throw new RuntimeException('Не удалось добавить слово.');
+    }
+    $newId = (int) $conn->insert_id;
+    $stmt->close();
+
+    return $newId;
+}
+
+/**
+ * Включает/выключает слово без удаления (например, временно отключить
+ * замену, если она вызывает ложные срабатывания).
+ */
+function bober_dm_admin_set_moderation_word_enabled($conn, $wordId, $enabled)
+{
+    $wordId = max(0, (int) $wordId);
+    if ($wordId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор слова.');
+    }
+
+    $enabledValue = $enabled ? 1 : 0;
+    $stmt = $conn->prepare('UPDATE dm_moderation_words SET enabled = ? WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось обновить слово.');
+    }
+    $stmt->bind_param('ii', $enabledValue, $wordId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/**
+ * Удаляет слово автомодерации целиком.
+ */
+function bober_dm_admin_delete_moderation_word($conn, $wordId)
+{
+    $wordId = max(0, (int) $wordId);
+    if ($wordId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор слова.');
+    }
+
+    $stmt = $conn->prepare('DELETE FROM dm_moderation_words WHERE id = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось удалить слово.');
+    }
+    $stmt->bind_param('i', $wordId);
+    $stmt->execute();
+    $stmt->close();
 }

@@ -180,6 +180,16 @@ try {
         ]);
     }
 
+    if ($action === 'get_own_stats') {
+        $stats = bober_dm_fetch_own_stats($conn, $sessionUserId);
+        $conn->close();
+
+        bober_json_response([
+            'success' => true,
+            'stats' => $stats,
+        ]);
+    }
+
     $conn->close();
     bober_json_response(['success' => false, 'message' => 'Неизвестное действие.'], 400);
 } catch (Throwable $error) {

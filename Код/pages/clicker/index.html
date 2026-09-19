@@ -5896,6 +5896,13 @@ Owner decisions:
         font-weight: 800;
     }
 
+    .chats-list-dm-stats {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+        padding: 0 4px 10px;
+        margin-top: -6px;
+    }
+
     .chats-list-close {
         background: none;
         border: none;
@@ -6943,6 +6950,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             <button type="button" class="chats-list-find" id="chatsListFindPlayer" aria-label="Написать игроку" title="Написать игроку">✎</button>
             <button type="button" class="chats-list-close" id="chatsListClose" aria-label="Закрыть">✕</button>
         </div>
+        <div class="chats-list-dm-stats" id="chatsListDmStats" hidden></div>
         <div class="chats-list-items">
             <button type="button" class="chat-list-item" id="chatsListSupportItem">
                 <div class="chat-list-item-icon support">🛟</div>
@@ -21655,6 +21663,7 @@ console.log('Настройки античита:', clickDetector.config);
     function openChatsList() {
         refreshChatsListPreview();
         refreshDmConversationsList();
+        refreshDmOwnStats();
         listModal.classList.add('show');
         listModal.setAttribute('aria-hidden', 'false');
         if (typeof syncGlobalOverlayState === 'function') {
@@ -22056,6 +22065,25 @@ console.log('Настройки античита:', clickDetector.config);
             renderDmConversationsList();
         } catch (error) {
             // тихо игнорируем — список чатов не критичен, попробуем при следующем открытии
+        }
+    }
+
+    async function refreshDmOwnStats() {
+        const statsBox = document.getElementById('chatsListDmStats');
+        if (!statsBox) return;
+        try {
+            const data = await dmApiCall('get_own_stats', {});
+            const stats = data.stats || {};
+            const conversationCount = Number(stats.conversationCount || 0);
+            const messagesSent = Number(stats.messagesSent || 0);
+            if (conversationCount < 1 && messagesSent < 1) {
+                statsBox.hidden = true;
+                return;
+            }
+            statsBox.textContent = `Диалогов: ${conversationCount} · Отправлено сообщений: ${messagesSent}`;
+            statsBox.hidden = false;
+        } catch (error) {
+            statsBox.hidden = true;
         }
     }
 

@@ -15,6 +15,7 @@ error_reporting(E_ALL);
 
 require_once dirname(__DIR__) . '/api/bootstrap/db.php';
 require_once dirname(__DIR__) . '/api/ai-assistant/db/ai-chat-schema.php';
+require_once dirname(__DIR__) . '/api/messages/db/direct-messages-schema.php';
 
 $bootstrapError = null;
 
@@ -1919,6 +1920,282 @@ SQL;
                             'ticket_id' => $ticketId,
                             'status' => $ticket['status'] ?? '',
                         ],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        /* ==================== Личные сообщения игроков (P2P): модерация без чтения текста ====================
+         * Принципиально: ни один из этих экшенов не возвращает произвольный расшифрованный
+         * текст переписки. Единственное исключение — messageQuote в жалобах, это текст,
+         * который сам игрок добровольно приложил к своей жалобе.
+         */
+
+        if ($action === 'get_dm_conversations') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $response['success'] = true;
+                $response['conversations'] = bober_dm_admin_fetch_conversations($conn, [
+                    'search' => (string) ($_POST['search'] ?? ''),
+                    'limit' => (int) ($_POST['limit'] ?? 100),
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'get_dm_reports') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $response['success'] = true;
+                $response['reports'] = bober_dm_admin_fetch_reports($conn, [
+                    'status' => (string) ($_POST['status'] ?? 'new'),
+                    'limit' => (int) ($_POST['limit'] ?? 100),
+                ]);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'delete_reported_dm_message') {
+            if (requireAdminAuth($response)) {
+                $reportId = max(0, (int) ($_POST['report_id'] ?? 0));
+                if ($reportId < 1) {
+                    $response['message'] = 'Не удалось определить жалобу.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_delete_reported_message($conn, $reportId, 'admin');
+
+                    $response['success'] = true;
+                    $response['message'] = 'Сообщение удалено, жалоба закрыта.';
+
+                    bober_admin_log_action($conn, 'delete_reported_dm_message', [
+                        'target_table' => 'player_direct_messages',
+                        'query_text' => 'DELETE MESSAGE FROM DM REPORT #' . $reportId,
+                        'affected_rows' => 1,
+                        'meta' => ['report_id' => $reportId],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'dismiss_dm_report') {
+            if (requireAdminAuth($response)) {
+                $reportId = max(0, (int) ($_POST['report_id'] ?? 0));
+                if ($reportId < 1) {
+                    $response['message'] = 'Не удалось определить жалобу.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_dismiss_report($conn, $reportId);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Жалоба отклонена.';
+
+                    bober_admin_log_action($conn, 'dismiss_dm_report', [
+                        'target_table' => 'player_message_reports',
+                        'query_text' => 'DISMISS DM REPORT #' . $reportId,
+                        'affected_rows' => 1,
+                        'meta' => ['report_id' => $reportId],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'mute_dm_player') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $scope = ((string) ($_POST['scope'] ?? 'all')) === 'pair' ? 'pair' : 'all';
+                $targetUserId = max(0, (int) ($_POST['target_user_id'] ?? 0));
+                $reason = (string) ($_POST['reason'] ?? '');
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    $muteId = bober_dm_admin_mute_user($conn, $userId, $scope, $targetUserId, $reason, 'admin');
+
+                    $response['success'] = true;
+                    $response['message'] = 'Игроку ограничена отправка личных сообщений.';
+                    $response['muteId'] = $muteId;
+
+                    bober_admin_log_action($conn, 'mute_dm_player', [
+                        'target_table' => 'player_dm_admin_mutes',
+                        'query_text' => 'MUTE DM PLAYER #' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => ['user_id' => $userId, 'scope' => $scope, 'target_user_id' => $targetUserId, 'reason' => $reason],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'unmute_dm_player') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $scope = (string) ($_POST['scope'] ?? '');
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_unmute_user($conn, $userId, $scope !== '' ? $scope : null);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Ограничение снято.';
+
+                    bober_admin_log_action($conn, 'unmute_dm_player', [
+                        'target_table' => 'player_dm_admin_mutes',
+                        'query_text' => 'UNMUTE DM PLAYER #' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => ['user_id' => $userId, 'scope' => $scope],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'get_dm_mutes_for_user') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $response['success'] = true;
+                $response['mutes'] = bober_dm_admin_fetch_mutes_for_user($conn, $userId);
+                $response['featureDisabled'] = bober_dm_admin_is_feature_disabled($conn, $userId);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'set_dm_feature_disabled') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+                $disabled = postBooleanFlag($_POST['disabled'] ?? false);
+
+                if ($userId < 1) {
+                    $response['message'] = 'Не удалось определить игрока.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_set_feature_disabled($conn, $userId, $disabled);
+
+                    $response['success'] = true;
+                    $response['message'] = $disabled ? 'Личные сообщения отключены у игрока.' : 'Личные сообщения снова доступны игроку.';
+
+                    bober_admin_log_action($conn, 'set_dm_feature_disabled', [
+                        'target_table' => 'users',
+                        'query_text' => 'SET DM DISABLED FOR USER #' . $userId,
+                        'affected_rows' => 1,
+                        'meta' => ['user_id' => $userId, 'disabled' => $disabled],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'get_dm_stats') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $response['success'] = true;
+                $response['stats'] = bober_dm_admin_fetch_stats($conn, (int) ($_POST['report_days'] ?? 7));
+                $conn->close();
+            }
+        }
+
+        /* ==================== Список слов автомодерации (замена мата) ==================== */
+
+        if ($action === 'get_moderation_words') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $response['success'] = true;
+                $response['words'] = bober_dm_admin_fetch_moderation_words($conn);
+                $conn->close();
+            }
+        }
+
+        if ($action === 'add_moderation_word') {
+            if (requireAdminAuth($response)) {
+                $pattern = (string) ($_POST['pattern'] ?? '');
+                $replacement = (string) ($_POST['replacement'] ?? '');
+
+                $conn = connectDB();
+                bober_dm_ensure_schema($conn);
+                $wordId = bober_dm_admin_add_moderation_word($conn, $pattern, $replacement);
+
+                $response['success'] = true;
+                $response['message'] = 'Слово добавлено в автомодерацию.';
+                $response['wordId'] = $wordId;
+
+                bober_admin_log_action($conn, 'add_moderation_word', [
+                    'target_table' => 'dm_moderation_words',
+                    'query_text' => 'ADD MODERATION WORD',
+                    'affected_rows' => 1,
+                    'meta' => ['pattern' => $pattern, 'replacement' => $replacement],
+                ]);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'set_moderation_word_enabled') {
+            if (requireAdminAuth($response)) {
+                $wordId = max(0, (int) ($_POST['word_id'] ?? 0));
+                $enabled = postBooleanFlag($_POST['enabled'] ?? true);
+
+                if ($wordId < 1) {
+                    $response['message'] = 'Не удалось определить слово.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_set_moderation_word_enabled($conn, $wordId, $enabled);
+
+                    $response['success'] = true;
+                    $response['message'] = $enabled ? 'Слово включено.' : 'Слово выключено.';
+
+                    bober_admin_log_action($conn, 'set_moderation_word_enabled', [
+                        'target_table' => 'dm_moderation_words',
+                        'query_text' => 'SET MODERATION WORD ENABLED #' . $wordId,
+                        'affected_rows' => 1,
+                        'meta' => ['word_id' => $wordId, 'enabled' => $enabled],
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'delete_moderation_word') {
+            if (requireAdminAuth($response)) {
+                $wordId = max(0, (int) ($_POST['word_id'] ?? 0));
+                if ($wordId < 1) {
+                    $response['message'] = 'Не удалось определить слово.';
+                } else {
+                    $conn = connectDB();
+                    bober_dm_ensure_schema($conn);
+                    bober_dm_admin_delete_moderation_word($conn, $wordId);
+
+                    $response['success'] = true;
+                    $response['message'] = 'Слово удалено из автомодерации.';
+
+                    bober_admin_log_action($conn, 'delete_moderation_word', [
+                        'target_table' => 'dm_moderation_words',
+                        'query_text' => 'DELETE MODERATION WORD #' . $wordId,
+                        'affected_rows' => 1,
+                        'meta' => ['word_id' => $wordId],
                     ]);
 
                     $conn->close();
@@ -5960,6 +6237,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span>Поддержка</span>
         </div>
 
+        <div class="sidebar-item" id="dmModerationBtn">
+            <span class="material-icons">forum</span>
+            <span>Личные сообщения</span>
+        </div>
+
         <div class="sidebar-item" id="aiAssistantBtn">
             <span class="material-icons">smart_toy</span>
             <span>ИИ-помощник</span>
@@ -6481,6 +6763,133 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 </div>
                             </div>
                         </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Раздел личных сообщений игроков: модерация без чтения текста переписки -->
+            <div class="animated fadeIn" id="dmModerationView" style="display: none;">
+                <div class="card maintenance-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">forum</span>
+                                Личные сообщения игроков
+                            </h2>
+                            <div class="card-subtitle">Переписка между игроками зашифрована и недоступна для чтения — здесь только метаданные, жалобы с добровольно приложенной цитатой и действия модерации.</div>
+                        </div>
+                        <button class="btn btn-outline" id="refreshDmModerationBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="stats-grid" id="dmStatsGrid" style="margin-bottom: 16px;">
+                        <div class="stat-card">
+                            <div class="stat-label">Активных диалогов</div>
+                            <div class="stat-value" id="dmStatConversations">—</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Сообщений всего</div>
+                            <div class="stat-value" id="dmStatMessages">—</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Жалоб за 7 дней</div>
+                            <div class="stat-value" id="dmStatReportsPeriod">—</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Новых жалоб</div>
+                            <div class="stat-value" id="dmStatReportsPending">—</div>
+                        </div>
+                    </div>
+
+                    <div class="support-toolbar">
+                        <div class="sidebar-item ai-subtab active" id="dmSubtabBtnConversations" style="flex: 0 0 auto;">
+                            <span class="material-icons">chat</span>
+                            <span>Диалоги</span>
+                        </div>
+                        <div class="sidebar-item ai-subtab" id="dmSubtabBtnReports" style="flex: 0 0 auto;">
+                            <span class="material-icons">flag</span>
+                            <span>Жалобы</span>
+                        </div>
+                        <div class="sidebar-item ai-subtab" id="dmSubtabBtnWords" style="flex: 0 0 auto;">
+                            <span class="material-icons">spellcheck</span>
+                            <span>Автомодерация (мат)</span>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Диалоги -->
+                    <div id="dmSubtabConversations">
+                        <div class="support-toolbar">
+                            <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                                <span class="material-icons search-icon">search</span>
+                                <input type="text" id="dmConversationsSearchInput" class="search-input" placeholder="Найти по логину игрока">
+                            </div>
+                        </div>
+                        <div class="card-subtitle" id="dmConversationsMeta">Загрузка диалогов...</div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Игрок A</th>
+                                        <th>Игрок B</th>
+                                        <th>Сообщений</th>
+                                        <th>Последнее сообщение</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dmConversationsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Жалобы -->
+                    <div id="dmSubtabReports" style="display: none;">
+                        <div class="support-toolbar">
+                            <select class="form-control account-sort-select" id="dmReportsStatusFilter" aria-label="Фильтр по статусу жалобы">
+                                <option value="new">Новые</option>
+                                <option value="resolved">Обработанные (удалено)</option>
+                                <option value="dismissed">Отклонённые</option>
+                                <option value="all">Все</option>
+                            </select>
+                        </div>
+                        <div class="card-subtitle" id="dmReportsMeta">Загрузка жалоб...</div>
+                        <div class="support-list" id="dmReportsList"></div>
+                    </div>
+
+                    <!-- Подвкладка: Автомодерация (список слов) -->
+                    <div id="dmSubtabWords" style="display: none;">
+                        <div class="card-subtitle" style="margin-bottom: 12px;">
+                            Список слов и их вежливых замен для автоматической мягкой модерации личных сообщений. Паттерн — слово или начало слова; <code>\S*</code> в конце означает «и любое окончание» (например <code>дебил\S*</code> поймает «дебил», «дебила», «дебилы»).
+                        </div>
+                        <div class="inline-actions" style="margin-bottom: 16px; align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 160px;">
+                                <label class="form-label" for="moderationWordPatternInput">Слово / паттерн</label>
+                                <input type="text" id="moderationWordPatternInput" class="form-control" placeholder="например: дебил\S*">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 160px;">
+                                <label class="form-label" for="moderationWordReplacementInput">Вежливый аналог</label>
+                                <input type="text" id="moderationWordReplacementInput" class="form-control" placeholder="например: чудак">
+                            </div>
+                            <button class="btn btn-primary" id="addModerationWordBtn">
+                                <span class="material-icons">add</span>
+                                Добавить
+                            </button>
+                        </div>
+                        <div class="card-subtitle" id="moderationWordsMeta">Загрузка списка...</div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Паттерн</th>
+                                        <th>Замена</th>
+                                        <th>Статус</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="moderationWordsTableBody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -7408,6 +7817,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let currentSupportSearch = '';
         let currentSupportArchiveMode = 'active';
         let supportTickets = [];
+        let currentDmModerationSubtab = 'conversations';
+        let dmConversationsSearchDebounce = null;
+        let dmReportsStatusFilter = 'new';
+        let dmMuteTargetUserId = null;
         let selectedSupportTicketId = 0;
         let selectedSupportTicket = null;
         let supportReplyDraftAttachments = [];
@@ -8560,6 +8973,62 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     showSupportView();
                     closeSidebarForCompactViewport();
                 });
+            }
+
+            const dmModerationBtn = document.getElementById('dmModerationBtn');
+            if (dmModerationBtn) {
+                dmModerationBtn.addEventListener('click', function() {
+                    showDmModerationView();
+                    closeSidebarForCompactViewport();
+                });
+            }
+
+            const dmSubtabBtnConversations = document.getElementById('dmSubtabBtnConversations');
+            if (dmSubtabBtnConversations) {
+                dmSubtabBtnConversations.addEventListener('click', function() {
+                    switchDmModerationSubtab('conversations');
+                });
+            }
+            const dmSubtabBtnReports = document.getElementById('dmSubtabBtnReports');
+            if (dmSubtabBtnReports) {
+                dmSubtabBtnReports.addEventListener('click', function() {
+                    switchDmModerationSubtab('reports');
+                });
+            }
+            const dmSubtabBtnWords = document.getElementById('dmSubtabBtnWords');
+            if (dmSubtabBtnWords) {
+                dmSubtabBtnWords.addEventListener('click', function() {
+                    switchDmModerationSubtab('words');
+                });
+            }
+
+            const refreshDmModerationBtn = document.getElementById('refreshDmModerationBtn');
+            if (refreshDmModerationBtn) {
+                refreshDmModerationBtn.addEventListener('click', function() {
+                    switchDmModerationSubtab(currentDmModerationSubtab);
+                });
+            }
+
+            const dmConversationsSearchInput = document.getElementById('dmConversationsSearchInput');
+            if (dmConversationsSearchInput) {
+                dmConversationsSearchInput.addEventListener('input', function() {
+                    clearTimeout(dmConversationsSearchDebounce);
+                    dmConversationsSearchDebounce = setTimeout(loadDmConversationsAdmin, 350);
+                });
+            }
+
+            const dmReportsStatusFilterEl = document.getElementById('dmReportsStatusFilter');
+            if (dmReportsStatusFilterEl) {
+                dmReportsStatusFilterEl.value = dmReportsStatusFilter;
+                dmReportsStatusFilterEl.addEventListener('change', function() {
+                    dmReportsStatusFilter = this.value;
+                    loadDmReportsAdmin();
+                });
+            }
+
+            const addModerationWordBtn = document.getElementById('addModerationWordBtn');
+            if (addModerationWordBtn) {
+                addModerationWordBtn.addEventListener('click', addModerationWord);
             }
 
             const aiAssistantBtn = document.getElementById('aiAssistantBtn');
@@ -10966,6 +11435,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'block';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -10987,6 +11457,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -11007,6 +11478,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -11028,6 +11500,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'block';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -11888,6 +12361,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -11902,6 +12376,337 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             });
         }
 
+        function showDmModerationView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'dm_moderation';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'block';
+            document.getElementById('aiAssistantView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'none';
+            document.getElementById('statsGrid').style.display = 'none';
+            updateActiveMenuItem('dmModerationBtn');
+            switchDmModerationSubtab('conversations');
+        }
+
+        function switchDmModerationSubtab(subtab) {
+            currentDmModerationSubtab = subtab;
+            const tabs = ['conversations', 'reports', 'words'];
+            tabs.forEach(function(t) {
+                const panel = document.getElementById('dmSubtab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const btn = document.getElementById('dmSubtabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (panel) panel.style.display = (t === subtab) ? 'block' : 'none';
+                if (btn) btn.classList.toggle('active', t === subtab);
+            });
+
+            if (subtab === 'conversations') {
+                loadDmConversationsAdmin();
+            } else if (subtab === 'reports') {
+                loadDmReportsAdmin();
+            } else if (subtab === 'words') {
+                loadModerationWordsAdmin();
+            }
+            loadDmStatsAdmin();
+        }
+
+        /* ==================== Личные сообщения игроков: JS-логика админки ==================== */
+
+        function loadDmStatsAdmin() {
+            postAction({ action: 'get_dm_stats', report_days: 7 })
+                .then(data => {
+                    if (!data.success) return;
+                    const s = data.stats || {};
+                    document.getElementById('dmStatConversations').textContent = Number(s.totalConversations || 0).toLocaleString('ru-RU');
+                    document.getElementById('dmStatMessages').textContent = Number(s.totalMessages || 0).toLocaleString('ru-RU');
+                    document.getElementById('dmStatReportsPeriod').textContent = Number(s.reportsPeriod || 0).toLocaleString('ru-RU');
+                    document.getElementById('dmStatReportsPending').textContent = Number(s.reportsPending || 0).toLocaleString('ru-RU');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function loadDmConversationsAdmin() {
+            const metaNode = document.getElementById('dmConversationsMeta');
+            const bodyNode = document.getElementById('dmConversationsTableBody');
+            if (metaNode) metaNode.textContent = 'Загрузка диалогов...';
+            if (bodyNode) bodyNode.innerHTML = '';
+
+            const search = document.getElementById('dmConversationsSearchInput').value.trim();
+
+            postAction({ action: 'get_dm_conversations', search: search, limit: 150 })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось загрузить диалоги');
+                    }
+                    const conversations = Array.isArray(data.conversations) ? data.conversations : [];
+                    if (metaNode) {
+                        metaNode.textContent = conversations.length > 0
+                            ? `Диалогов: ${conversations.length}`
+                            : 'Активных диалогов не найдено';
+                    }
+                    if (!bodyNode) return;
+                    bodyNode.innerHTML = conversations.map(c => `
+                        <tr>
+                            <td>${escapeHtml(c.lowLogin)} <span style="opacity:.6;">#${c.userLowId}</span></td>
+                            <td>${escapeHtml(c.highLogin)} <span style="opacity:.6;">#${c.userHighId}</span></td>
+                            <td>${Number(c.messageCount || 0).toLocaleString('ru-RU')}</td>
+                            <td>${formatAdminDateTime(c.lastMessageAt)}</td>
+                            <td>
+                                <button class="btn btn-outline btn-small" onclick="openDmMuteDialog(${c.userLowId}, ${c.userHighId}, '${escapeHtml(c.lowLogin)}')">Ограничить А</button>
+                                <button class="btn btn-outline btn-small" onclick="openDmMuteDialog(${c.userHighId}, ${c.userLowId}, '${escapeHtml(c.highLogin)}')">Ограничить Б</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (metaNode) metaNode.textContent = 'Не удалось загрузить диалоги';
+                });
+        }
+
+        function loadDmReportsAdmin() {
+            const metaNode = document.getElementById('dmReportsMeta');
+            const listNode = document.getElementById('dmReportsList');
+            if (metaNode) metaNode.textContent = 'Загрузка жалоб...';
+            if (listNode) listNode.innerHTML = '';
+
+            postAction({ action: 'get_dm_reports', status: dmReportsStatusFilter, limit: 150 })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось загрузить жалобы');
+                    }
+                    const reports = Array.isArray(data.reports) ? data.reports : [];
+                    if (metaNode) {
+                        metaNode.textContent = reports.length > 0
+                            ? `Жалоб: ${reports.length}`
+                            : 'Жалоб не найдено';
+                    }
+                    if (!listNode) return;
+
+                    if (reports.length < 1) {
+                        listNode.innerHTML = '<div class="empty-list">Жалоб по выбранному фильтру нет.</div>';
+                        return;
+                    }
+
+                    listNode.innerHTML = reports.map(r => {
+                        const quote = r.messageQuote
+                            ? `<div class="card-subtitle" style="margin-top:6px; padding:8px 10px; background: rgba(255,255,255,.04); border-radius:8px;">«${escapeHtml(r.messageQuote)}»</div>`
+                            : '<div class="card-subtitle" style="margin-top:6px; opacity:.6;">Игрок пожаловался без цитаты конкретного сообщения</div>';
+
+                        const statusLabel = r.status === 'new' ? 'Новая' : (r.status === 'resolved' ? 'Обработана' : 'Отклонена');
+                        const actions = r.status === 'new'
+                            ? `
+                                <button class="btn btn-primary btn-small" onclick="deleteReportedDmMessage(${r.reportId})" ${r.messageId ? '' : 'disabled title="К жалобе не приложено конкретное сообщение"'}>
+                                    <span class="material-icons" style="font-size:16px;">delete</span> Удалить сообщение
+                                </button>
+                                <button class="btn btn-outline btn-small" onclick="dismissDmReport(${r.reportId})">Отклонить жалобу</button>
+                                <button class="btn btn-outline btn-small" onclick="openDmMuteDialog(${r.reportedUserId}, ${r.reporterUserId}, '${escapeHtml(r.reportedLogin)}')">Ограничить игрока</button>
+                            `
+                            : '';
+
+                        return `
+                            <div class="support-ticket-item">
+                                <div class="card-title" style="font-size:15px;">
+                                    ${escapeHtml(r.reporterLogin)} → жалоба на ${escapeHtml(r.reportedLogin)}
+                                    <span class="status-pill ${r.status === 'new' ? 'active' : ''}" style="margin-left:8px;">${statusLabel}</span>
+                                </div>
+                                <div class="card-subtitle">${formatAdminDateTime(r.createdAt)} · Причина: ${escapeHtml(r.reason || '—')}</div>
+                                ${quote}
+                                <div class="inline-actions" style="margin-top:10px;">${actions}</div>
+                            </div>
+                        `;
+                    }).join('');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (metaNode) metaNode.textContent = 'Не удалось загрузить жалобы';
+                });
+        }
+
+        function deleteReportedDmMessage(reportId) {
+            if (!confirm('Удалить сообщение из этой жалобы? Действие необратимо.')) return;
+            postAction({ action: 'delete_reported_dm_message', report_id: reportId })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось удалить сообщение');
+                    }
+                    loadDmReportsAdmin();
+                    loadDmStatsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось удалить сообщение');
+                });
+        }
+
+        function dismissDmReport(reportId) {
+            postAction({ action: 'dismiss_dm_report', report_id: reportId })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось отклонить жалобу');
+                    }
+                    loadDmReportsAdmin();
+                    loadDmStatsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось отклонить жалобу');
+                });
+        }
+
+        function openDmMuteDialog(userId, targetUserId, login) {
+            dmMuteTargetUserId = targetUserId;
+            const scopeChoice = confirm(
+                `Ограничить игрока ${login || ('#' + userId)}?\n\nOK — запретить писать вообще всем.\nОтмена — выбрать другое действие (запрет только этому собеседнику или полное отключение личных сообщений).`
+            );
+            if (scopeChoice) {
+                muteDmPlayer(userId, 'all', 0);
+                return;
+            }
+            const pairChoice = confirm(
+                `Запретить писать только конкретному собеседнику (#${targetUserId})?\n\nOK — да, замутить только эту пару.\nОтмена — вместо этого полностью отключить личные сообщения у игрока.`
+            );
+            if (pairChoice) {
+                muteDmPlayer(userId, 'pair', targetUserId);
+            } else if (confirm('Полностью отключить функцию личных сообщений у этого игрока?')) {
+                setDmFeatureDisabled(userId, true);
+            }
+        }
+
+        function muteDmPlayer(userId, scope, targetUserId) {
+            const reason = prompt('Причина ограничения (необязательно):', '') || '';
+            postAction({
+                action: 'mute_dm_player',
+                user_id: userId,
+                scope: scope,
+                target_user_id: targetUserId || 0,
+                reason: reason
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось ограничить игрока');
+                    }
+                    alert(data.message || 'Готово');
+                    if (currentDmModerationSubtab === 'reports') loadDmReportsAdmin();
+                    if (currentDmModerationSubtab === 'conversations') loadDmConversationsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось ограничить игрока');
+                });
+        }
+
+        function setDmFeatureDisabled(userId, disabled) {
+            postAction({ action: 'set_dm_feature_disabled', user_id: userId, disabled: disabled ? '1' : '' })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось изменить доступ');
+                    }
+                    alert(data.message || 'Готово');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось изменить доступ');
+                });
+        }
+
+        function loadModerationWordsAdmin() {
+            const metaNode = document.getElementById('moderationWordsMeta');
+            const bodyNode = document.getElementById('moderationWordsTableBody');
+            if (metaNode) metaNode.textContent = 'Загрузка списка...';
+
+            postAction({ action: 'get_moderation_words' })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось загрузить список слов');
+                    }
+                    const words = Array.isArray(data.words) ? data.words : [];
+                    if (metaNode) metaNode.textContent = `Слов в списке: ${words.length}`;
+                    if (!bodyNode) return;
+                    bodyNode.innerHTML = words.map(w => `
+                        <tr>
+                            <td><code>${escapeHtml(w.pattern)}</code></td>
+                            <td>${escapeHtml(w.replacement)}</td>
+                            <td>
+                                <span class="status-pill ${w.enabled ? 'active' : ''}">${w.enabled ? 'Включено' : 'Выключено'}</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-outline btn-small" onclick="toggleModerationWord(${w.id}, ${w.enabled ? 'false' : 'true'})">
+                                    ${w.enabled ? 'Выключить' : 'Включить'}
+                                </button>
+                                <button class="btn btn-outline btn-small" onclick="deleteModerationWord(${w.id})">Удалить</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (metaNode) metaNode.textContent = 'Не удалось загрузить список слов';
+                });
+        }
+
+        function addModerationWord() {
+            const patternInput = document.getElementById('moderationWordPatternInput');
+            const replacementInput = document.getElementById('moderationWordReplacementInput');
+            const pattern = patternInput.value.trim();
+            const replacement = replacementInput.value.trim();
+
+            if (!pattern || !replacement) {
+                alert('Укажите и слово/паттерн, и вежливый аналог замены.');
+                return;
+            }
+
+            postAction({ action: 'add_moderation_word', pattern: pattern, replacement: replacement })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось добавить слово');
+                    }
+                    patternInput.value = '';
+                    replacementInput.value = '';
+                    loadModerationWordsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось добавить слово');
+                });
+        }
+
+        function toggleModerationWord(wordId, enabled) {
+            postAction({ action: 'set_moderation_word_enabled', word_id: wordId, enabled: enabled ? '1' : '' })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось обновить слово');
+                    }
+                    loadModerationWordsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось обновить слово');
+                });
+        }
+
+        function deleteModerationWord(wordId) {
+            if (!confirm('Удалить это слово из списка автомодерации?')) return;
+            postAction({ action: 'delete_moderation_word', word_id: wordId })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось удалить слово');
+                    }
+                    loadModerationWordsAdmin();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Не удалось удалить слово');
+                });
+        }
+
         function showAiAssistantView() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'ai_assistant';
@@ -11912,6 +12717,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'block';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -12621,6 +13427,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -12651,6 +13458,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -12673,6 +13481,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'block';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -12694,6 +13503,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'none';
@@ -15100,6 +15910,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
             document.getElementById('maintenanceView').style.display = 'none';
             document.getElementById('tableDataCard').style.display = 'block';
