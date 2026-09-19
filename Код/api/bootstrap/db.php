@@ -16,6 +16,101 @@ if (!defined('BOBER_APP_TIMEZONE_OFFSET')) {
 
 date_default_timezone_set(BOBER_APP_TIMEZONE);
 
+/**
+ * Ключ для шифрования текста в БД (сейчас используется для личных
+ * сообщений игроков — player_direct_messages / last_message_preview),
+ * чтобы содержимое переписки не лежало в таблице открытым текстом при
+ * утечке дампа БД. Не защищает от чтения тем, у кого есть доступ к
+ * самому серверу/коду (ключ живёт рядом, в конфиге) — это защита
+ * "от утечки таблицы", а не полноценное E2E.
+ *
+ * Источник ключа — GitHub Secret BOBER_DM_ENCRYPTION_KEY, попадает в
+ * Код/config/ai_config.php при деплое (см. main.yml), либо переменная
+ * окружения BOBER_DM_ENCRYPTION_KEY напрямую.
+ */
+function bober_encryption_key()
+{
+    static $key = null;
+    if ($key !== null) {
+        return $key;
+    }
+
+    $raw = getenv('BOBER_DM_ENCRYPTION_KEY');
+    if ($raw === false || $raw === '') {
+        $configFile = dirname(__DIR__, 2) . '/config/ai_config.php';
+        if (is_file($configFile)) {
+            $loaded = require $configFile;
+            if (is_array($loaded) && !empty($loaded['dm_encryption_key'])) {
+                $raw = (string) $loaded['dm_encryption_key'];
+            }
+        }
+    }
+
+    if ($raw === false || $raw === '') {
+        // Резервный ключ для локальной разработки/окружений без секрета —
+        // в проде всегда должен быть переопределён секретом деплоя.
+        $raw = 'bober-clicker-dev-fallback-key';
+    }
+
+    // Приводим произвольную строку ключа к 32 байтам (AES-256).
+    $key = hash('sha256', $raw, true);
+
+    return $key;
+}
+
+/**
+ * Шифрует произвольный текст (AES-256-CBC, случайный IV на каждое
+ * сообщение). Возвращает строку вида base64(iv) . ':' . base64(ciphertext),
+ * готовую для хранения в TEXT-колонке.
+ */
+function bober_encrypt_text($plainText)
+{
+    $plainText = (string) $plainText;
+    if ($plainText === '') {
+        return '';
+    }
+
+    $iv = random_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+    $cipherText = openssl_encrypt($plainText, 'aes-256-cbc', bober_encryption_key(), OPENSSL_RAW_DATA, $iv);
+    if ($cipherText === false) {
+        throw new RuntimeException('Не удалось зашифровать текст.');
+    }
+
+    return base64_encode($iv) . ':' . base64_encode($cipherText);
+}
+
+/**
+ * Расшифровывает текст, зашифрованный bober_encrypt_text(). Если строка
+ * не похожа на шифротекст (например, старые записи до включения
+ * шифрования), возвращает её как есть — без падения.
+ */
+function bober_decrypt_text($storedValue)
+{
+    $storedValue = (string) $storedValue;
+    if ($storedValue === '') {
+        return '';
+    }
+
+    $parts = explode(':', $storedValue, 2);
+    if (count($parts) !== 2) {
+        // Не наш формат — скорее всего, старая незашифрованная запись.
+        return $storedValue;
+    }
+
+    $iv = base64_decode($parts[0], true);
+    $cipherText = base64_decode($parts[1], true);
+    if ($iv === false || $cipherText === false) {
+        return $storedValue;
+    }
+
+    $plainText = openssl_decrypt($cipherText, 'aes-256-cbc', bober_encryption_key(), OPENSSL_RAW_DATA, $iv);
+    if ($plainText === false) {
+        return $storedValue;
+    }
+
+    return $plainText;
+}
+
 function bober_load_config()
 {
     static $config = null;

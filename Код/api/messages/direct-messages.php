@@ -2,6 +2,7 @@
 
 require_once dirname(__DIR__) . '/bootstrap/db.php';
 require_once __DIR__ . '/db/direct-messages-schema.php';
+require_once __DIR__ . '/moderation.php';
 
 try {
     $data = bober_read_json_request();

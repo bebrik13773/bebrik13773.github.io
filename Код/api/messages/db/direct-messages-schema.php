@@ -1,6 +1,7 @@
 <?php
 
 require_once dirname(__DIR__, 2) . '/bootstrap/db.php';
+require_once dirname(__DIR__) . '/moderation.php';
 
 /**
  * Создаёт/обновляет таблицы личных переписок между игроками: треды
@@ -25,7 +26,7 @@ CREATE TABLE IF NOT EXISTS `player_conversations` (
     `user_low_id` INT NOT NULL,
     `user_high_id` INT NOT NULL,
     `last_message_at` TIMESTAMP NULL DEFAULT NULL,
-    `last_message_preview` VARCHAR(200) NOT NULL DEFAULT '',
+    `last_message_preview` TEXT NOT NULL,
     `unread_by_low` INT NOT NULL DEFAULT 0,
     `unread_by_high` INT NOT NULL DEFAULT 0,
     `blocked_by_low` TINYINT(1) NOT NULL DEFAULT 0,
@@ -54,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `player_direct_messages` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `conversation_id` BIGINT UNSIGNED NOT NULL,
     `sender_id` INT NOT NULL,
-    `message_text` VARCHAR(2000) NOT NULL,
+    `message_text` TEXT NOT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY `idx_player_direct_messages_conversation` (`conversation_id`, `created_at`)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
@@ -67,6 +68,12 @@ SQL;
     if (!bober_index_exists($conn, 'player_direct_messages', 'idx_player_direct_messages_conversation') && !$conn->query("CREATE INDEX `idx_player_direct_messages_conversation` ON `player_direct_messages` (`conversation_id`, `created_at`)")) {
         throw new RuntimeException('Не удалось создать индекс сообщений личных переписок.');
     }
+
+    // Миграция для БД, созданных до включения шифрования: старые таблицы
+    // имели VARCHAR-колонки, а шифротекст (base64 IV + base64 ciphertext)
+    // заметно длиннее исходного текста и в них не влезет.
+    $conn->query("ALTER TABLE `player_direct_messages` MODIFY COLUMN `message_text` TEXT NOT NULL");
+    $conn->query("ALTER TABLE `player_conversations` MODIFY COLUMN `last_message_preview` TEXT NOT NULL");
 
     // Rate-limit на отправку личных сообщений — короткое (минутное) окно,
     // в отличие от часового окна ai_chat_rate_limit: спам между игроками
@@ -365,12 +372,18 @@ function bober_dm_send_message($conn, $senderId, $recipientId, $messageText)
         throw new RuntimeException('Этот игрок ограничил вам возможность писать ему.');
     }
 
+    // Базовая модерация (замена мата) применяется до шифрования — работаем
+    // с открытым текстом, шифруем уже смягчённый результат.
+    $messageText = bober_moderate_text($messageText);
+
+    $encryptedText = bober_encrypt_text($messageText);
+
     $insertStmt = $conn->prepare('INSERT INTO player_direct_messages (conversation_id, sender_id, message_text) VALUES (?, ?, ?)');
     if (!$insertStmt) {
         throw new RuntimeException('Не удалось отправить сообщение.');
     }
     $conversationId = $conversation['id'];
-    $insertStmt->bind_param('iis', $conversationId, $senderId, $messageText);
+    $insertStmt->bind_param('iis', $conversationId, $senderId, $encryptedText);
     if (!$insertStmt->execute()) {
         $insertStmt->close();
         throw new RuntimeException('Не удалось отправить сообщение.');
@@ -378,7 +391,7 @@ function bober_dm_send_message($conn, $senderId, $recipientId, $messageText)
     $newMessageId = (int) $conn->insert_id;
     $insertStmt->close();
 
-    $preview = mb_substr($messageText, 0, 180);
+    $preview = bober_encrypt_text(mb_substr($messageText, 0, 180));
     $isSenderLow = ($conversation['userLowId'] === $senderId);
 
     $updateSql = $isSenderLow
@@ -446,7 +459,7 @@ function bober_dm_fetch_conversations_for_user($conn, $userId, array $options = 
             'otherUserId' => $isLow ? (int) $row['user_high_id'] : (int) $row['user_low_id'],
             'otherLogin' => (string) ($row['other_login'] ?? 'Игрок'),
             'lastMessageAt' => $row['last_message_at'],
-            'lastMessagePreview' => (string) $row['last_message_preview'],
+            'lastMessagePreview' => bober_decrypt_text((string) $row['last_message_preview']),
             'unreadCount' => $isLow ? (int) $row['unread_by_low'] : (int) $row['unread_by_high'],
             'blockedByMe' => $isLow ? (bool) $row['blocked_by_low'] : (bool) $row['blocked_by_high'],
             'blockedByOther' => $isLow ? (bool) $row['blocked_by_high'] : (bool) $row['blocked_by_low'],
@@ -531,7 +544,7 @@ function bober_dm_fetch_conversation_messages($conn, $userId, $conversationId)
         $messages[] = [
             'id' => (int) $msgRow['id'],
             'senderId' => (int) $msgRow['sender_id'],
-            'text' => (string) $msgRow['message_text'],
+            'text' => bober_decrypt_text((string) $msgRow['message_text']),
             'createdAt' => $msgRow['created_at'],
         ];
     }

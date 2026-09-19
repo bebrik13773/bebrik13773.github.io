@@ -99,6 +99,7 @@ jobs:
         AI_API_KEY: ${{ secrets.BOBER_AI_API_KEY }}
         TG_BOT_TOKEN: ${{ secrets.BOBER_TG_BOT_TOKEN }}
         TG_CHAT_ID: ${{ secrets.BOBER_TG_CHAT_ID }}
+        DM_ENCRYPTION_KEY: ${{ secrets.BOBER_DM_ENCRYPTION_KEY }}
       run: |
         php_escape() {
           python3 -c "import sys; value = sys.stdin.read(); print(value.replace('\\\\', '\\\\\\\\').replace(\"'\", \"\\\\'\").replace('\\r', '').replace('\\n', '\\\\n'), end='')"
@@ -107,6 +108,7 @@ jobs:
         AI_API_KEY_ESCAPED="$(printf '%s' "$AI_API_KEY" | php_escape)"
         TG_BOT_TOKEN_ESCAPED="$(printf '%s' "$TG_BOT_TOKEN" | php_escape)"
         TG_CHAT_ID_ESCAPED="$(printf '%s' "$TG_CHAT_ID" | php_escape)"
+        DM_ENCRYPTION_KEY_ESCAPED="$(printf '%s' "$DM_ENCRYPTION_KEY" | php_escape)"
 
         cat > ./Код/config/ai_config.php <<EOF
         <?php
@@ -117,6 +119,7 @@ jobs:
             'ai_model' => '~deepseek/deepseek-v4-flash-latest',
             'tg_bot_token' => '${TG_BOT_TOKEN_ESCAPED}',
             'tg_chat_id' => '${TG_CHAT_ID_ESCAPED}',
+            'dm_encryption_key' => '${DM_ENCRYPTION_KEY_ESCAPED}',
         ];
         EOF
 
