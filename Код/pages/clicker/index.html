@@ -5803,6 +5803,61 @@ Owner decisions:
         text-align: center;
     }
 
+    .ai-chat-bubble.dm-deleted {
+        font-style: italic;
+        opacity: 0.6;
+    }
+
+    .dm-bubble-wrap {
+        display: flex;
+        flex-direction: column;
+        max-width: 84%;
+    }
+
+    .dm-bubble-wrap.mine {
+        align-self: flex-end;
+        align-items: flex-end;
+    }
+
+    .dm-bubble-wrap.theirs {
+        align-self: flex-start;
+        align-items: flex-start;
+    }
+
+    .dm-bubble-wrap .ai-chat-bubble {
+        max-width: 100%;
+    }
+
+    .dm-bubble-delete-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transition: max-height 0.18s ease-out, opacity 0.18s ease-out;
+    }
+
+    .dm-bubble-delete-row.show {
+        max-height: 40px;
+        opacity: 1;
+        transition: max-height 0.18s ease-in, opacity 0.18s ease-in;
+    }
+
+    .dm-bubble-delete-btn {
+        border: none;
+        background: rgba(255, 120, 120, 0.16);
+        color: #ffb3b3;
+        border-radius: 10px;
+        padding: 4px 10px;
+        font-size: 11.5px;
+        cursor: pointer;
+    }
+
+    .dm-bubble-delete-btn:active {
+        background: rgba(255, 120, 120, 0.28);
+    }
+
     .ai-chat-typing {
         align-self: flex-start;
         display: flex;
@@ -22096,10 +22151,65 @@ console.log('Настройки античита:', clickDetector.config);
         return bubble;
     }
 
+    async function deleteDmMessage(messageId) {
+        if (!dmState.activeConversationId || !messageId) return;
+        if (!window.confirm('Удалить это сообщение? Вместо него собеседник увидит «Сообщение удалено».')) {
+            return;
+        }
+        try {
+            const data = await dmApiCall('delete_message', {
+                conversationId: dmState.activeConversationId,
+                messageId: messageId
+            });
+            if (data.conversation) {
+                renderDmConversation(data.conversation);
+            }
+            refreshDmConversationsList();
+        } catch (error) {
+            addDmBubble(false, error.message || 'Не удалось удалить сообщение.', true);
+        }
+    }
+
+    function addDmMessageBubble(msg) {
+        const isMine = msg.senderId === userId;
+        const isDeleted = !!msg.deleted;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'dm-bubble-wrap ' + (isMine ? 'mine' : 'theirs');
+
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-chat-bubble ' + (isMine ? 'user' : 'assistant') + (isDeleted ? ' dm-deleted' : '');
+        bubble.textContent = msg.text;
+        wrap.appendChild(bubble);
+
+        if (isMine && !isDeleted && msg.id) {
+            const deleteRow = document.createElement('div');
+            deleteRow.className = 'dm-bubble-delete-row';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'dm-bubble-delete-btn';
+            deleteBtn.textContent = 'Удалить';
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                deleteDmMessage(msg.id);
+            });
+            deleteRow.appendChild(deleteBtn);
+            wrap.appendChild(deleteRow);
+
+            bubble.addEventListener('click', () => {
+                deleteRow.classList.toggle('show');
+            });
+        }
+
+        dmChatMessagesBox.appendChild(wrap);
+        dmChatMessagesBox.scrollTop = dmChatMessagesBox.scrollHeight;
+        return wrap;
+    }
+
     function renderDmConversation(conversation) {
         dmChatMessagesBox.innerHTML = '';
         conversation.messages.forEach((msg) => {
-            addDmBubble(msg.senderId === userId, msg.text, false);
+            addDmMessageBubble(msg);
         });
 
         dmState.activeBlockedByMe = !!conversation.blockedByMe;
@@ -22206,7 +22316,7 @@ console.log('Настройки античита:', clickDetector.config);
         dmChatInput.value = '';
         dmChatInput.style.height = 'auto';
 
-        addDmBubble(true, text, false);
+        addDmMessageBubble({ senderId: userId, text: text, id: 0, deleted: false });
 
         try {
             const data = await dmApiCall('send_message', {

@@ -165,6 +165,20 @@ try {
         ]);
     }
 
+    if ($action === 'delete_message') {
+        $conversationId = (int) ($data['conversationId'] ?? 0);
+        $messageId = (int) ($data['messageId'] ?? 0);
+
+        bober_dm_delete_own_message($conn, $sessionUserId, $conversationId, $messageId);
+        $conversation = bober_dm_fetch_conversation_messages($conn, $sessionUserId, $conversationId);
+        $conn->close();
+
+        bober_json_response([
+            'success' => true,
+            'conversation' => $conversation,
+        ]);
+    }
+
     if ($action === 'report_message') {
         $conversationId = (int) ($data['conversationId'] ?? 0);
         $messageId = (int) ($data['messageId'] ?? 0);

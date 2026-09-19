@@ -75,6 +75,17 @@ SQL;
     $conn->query("ALTER TABLE `player_direct_messages` MODIFY COLUMN `message_text` TEXT NOT NULL");
     $conn->query("ALTER TABLE `player_conversations` MODIFY COLUMN `last_message_preview` TEXT NOT NULL");
 
+    // Самоудаление сообщения игроком (не путать с админским удалением по
+    // жалобе — это `bober_dm_admin_delete_reported_message`, физический
+    // DELETE). Здесь мягкое удаление: текст остаётся в БД для возможного
+    // аудита по будущей жалобе, но при чтении переписки отдаётся плейсхолдер
+    // вместо расшифрованного текста — как отправителю, так и собеседнику.
+    if (!bober_column_exists($conn, 'player_direct_messages', 'deleted_at')) {
+        if (!$conn->query('ALTER TABLE `player_direct_messages` ADD COLUMN `deleted_at` TIMESTAMP NULL DEFAULT NULL AFTER `message_text`')) {
+            throw new RuntimeException('Не удалось добавить колонку удаления сообщения.');
+        }
+    }
+
     // Rate-limit на отправку личных сообщений — короткое (минутное) окно,
     // в отличие от часового окна ai_chat_rate_limit: спам между игроками
     // происходит намного "плотнее", чем спам в чат с ИИ.
@@ -563,6 +574,85 @@ function bober_dm_send_message($conn, $senderId, $recipientId, $messageText)
 }
 
 /**
+ * Текст-плейсхолдер, который видит собеседник вместо удалённого сообщения.
+ */
+const BOBER_DM_DELETED_MESSAGE_PLACEHOLDER = 'Сообщение удалено';
+
+/**
+ * Самоудаление игроком собственного сообщения (в любое время). Мягкое
+ * удаление — ставим deleted_at, текст в БД не трогаем (остаётся для
+ * возможного будущего разбора жалобы), но при чтении переписки отдаём
+ * плейсхолдер вместо расшифрованного текста. Если удалённое сообщение было
+ * последним в треде, обновляем и last_message_preview, чтобы список чатов
+ * тоже показывал плейсхолдер, а не старый текст.
+ */
+function bober_dm_delete_own_message($conn, $userId, $conversationId, $messageId)
+{
+    $userId = max(0, (int) $userId);
+    $conversationId = max(0, (int) $conversationId);
+    $messageId = max(0, (int) $messageId);
+    if ($conversationId < 1 || $messageId < 1) {
+        throw new InvalidArgumentException('Некорректное сообщение.');
+    }
+
+    $stmt = $conn->prepare('SELECT id, conversation_id, sender_id, deleted_at FROM player_direct_messages WHERE id = ? AND conversation_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось найти сообщение.');
+    }
+    $stmt->bind_param('ii', $messageId, $conversationId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        throw new RuntimeException('Сообщение не найдено.');
+    }
+    if ((int) $row['sender_id'] !== $userId) {
+        throw new RuntimeException('Можно удалять только свои сообщения.');
+    }
+    if ($row['deleted_at'] !== null) {
+        // Уже удалено — тихо считаем успехом (идемпотентность).
+        return;
+    }
+
+    $deleteStmt = $conn->prepare('UPDATE player_direct_messages SET deleted_at = NOW() WHERE id = ? AND conversation_id = ?');
+    if (!$deleteStmt) {
+        throw new RuntimeException('Не удалось удалить сообщение.');
+    }
+    $deleteStmt->bind_param('ii', $messageId, $conversationId);
+    $deleteStmt->execute();
+    $deleteStmt->close();
+
+    // Если это было последнее сообщение треда — обновить превью в списке
+    // чатов, иначе там ещё долго будет виден текст, которого уже нет.
+    $lastIdStmt = $conn->prepare('SELECT id FROM player_direct_messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1');
+    if ($lastIdStmt) {
+        $lastIdStmt->bind_param('i', $conversationId);
+        $lastIdStmt->execute();
+        $lastIdResult = $lastIdStmt->get_result();
+        $lastIdRow = $lastIdResult ? $lastIdResult->fetch_assoc() : null;
+        if ($lastIdResult instanceof mysqli_result) {
+            $lastIdResult->free();
+        }
+        $lastIdStmt->close();
+
+        if (is_array($lastIdRow) && (int) $lastIdRow['id'] === $messageId) {
+            $previewPlaceholder = bober_encrypt_text(BOBER_DM_DELETED_MESSAGE_PLACEHOLDER);
+            $previewStmt = $conn->prepare('UPDATE player_conversations SET last_message_preview = ? WHERE id = ?');
+            if ($previewStmt) {
+                $previewStmt->bind_param('si', $previewPlaceholder, $conversationId);
+                $previewStmt->execute();
+                $previewStmt->close();
+            }
+        }
+    }
+}
+
+/**
  * Список тредов переписки пользователя (для списка чатов), отсортирован
  * по времени последнего сообщения. Каждый элемент содержит собеседника,
  * превью, время и флаг непрочитанного/блокировки.
@@ -682,7 +772,7 @@ function bober_dm_fetch_conversation_messages($conn, $userId, $conversationId)
         }
     }
 
-    $messagesStmt = $conn->prepare('SELECT id, sender_id, message_text, created_at FROM player_direct_messages WHERE conversation_id = ? ORDER BY id ASC');
+    $messagesStmt = $conn->prepare('SELECT id, sender_id, message_text, created_at, deleted_at FROM player_direct_messages WHERE conversation_id = ? ORDER BY id ASC');
     if (!$messagesStmt) {
         throw new RuntimeException('Не удалось получить сообщения переписки.');
     }
@@ -691,11 +781,13 @@ function bober_dm_fetch_conversation_messages($conn, $userId, $conversationId)
     $messagesResult = $messagesStmt->get_result();
     $messages = [];
     while ($messagesResult && ($msgRow = $messagesResult->fetch_assoc())) {
+        $isDeleted = $msgRow['deleted_at'] !== null;
         $messages[] = [
             'id' => (int) $msgRow['id'],
             'senderId' => (int) $msgRow['sender_id'],
-            'text' => bober_decrypt_text((string) $msgRow['message_text']),
+            'text' => $isDeleted ? BOBER_DM_DELETED_MESSAGE_PLACEHOLDER : bober_decrypt_text((string) $msgRow['message_text']),
             'createdAt' => $msgRow['created_at'],
+            'deleted' => $isDeleted,
         ];
     }
     if ($messagesResult instanceof mysqli_result) {
