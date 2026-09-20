@@ -3323,6 +3323,45 @@ Owner decisions:
         margin-bottom: 18px;
     }
 
+    .profile-referral-section,
+    .profile-promocode-section {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(13, 18, 39, 0.72), rgba(8, 10, 24, 0.86));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 18px;
+    }
+
+    .profile-referral-hint {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.64);
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+
+    .profile-referral-code-row,
+    .profile-promocode-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .profile-referral-code-row input,
+    .profile-promocode-row input {
+        flex: 1 1 180px;
+        min-width: 0;
+    }
+
+    .profile-referral-stats {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #f3fbff;
+    }
+
     .profile-stat-card {
         padding: 14px;
         border-radius: 18px;
@@ -6837,6 +6876,27 @@ function showNotification(message, type = 'success', duration = 3000) {
 	        <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
+        <div class="profile-achievements-title">Пригласить друга</div>
+        <div class="profile-referral-section" id="profileReferralSection">
+            <div class="profile-referral-info">
+                <div class="profile-referral-hint">Отправь другу ссылку. Пока его счёт не достигнет 100 000 — ты получаешь 5% с его прогресса, а когда он наберёт 100 000, вы оба получите разовый бонус.</div>
+                <div class="profile-referral-code-row">
+                    <input type="text" id="profileReferralCodeInput" class="form-control" readonly>
+                    <button type="button" class="settings-action-button primary" id="profileReferralCopyBtn">Скопировать ссылку</button>
+                </div>
+                <div class="profile-referral-stats">
+                    <span id="profileReferralInvitedCount">Приглашено: 0</span>
+                    <span id="profileReferralEarnedCoins">Заработано: 0</span>
+                </div>
+            </div>
+        </div>
+        <div class="profile-achievements-title">Промокод</div>
+        <div class="profile-promocode-section" id="profilePromocodeSection">
+            <div class="profile-promocode-row">
+                <input type="text" id="profilePromocodeInput" class="form-control" placeholder="Введите промокод" maxlength="64" autocomplete="off" autocapitalize="characters">
+                <button type="button" class="settings-action-button primary" id="profilePromocodeRedeemBtn">Активировать</button>
+            </div>
+        </div>
         <div class="profile-achievements-title">Последние события</div>
         <div class="profile-activity-section" id="profileModalActivity"></div>
         <div class="profile-achievements-title">Достижения</div>
@@ -7389,6 +7449,14 @@ const testm = false;
 const urlParams = new URLSearchParams(queryString);
 const test = urlParams.get('test');
 const sharedProfileLoginFromUrl = String(urlParams.get('profile') || '').trim();
+const referralCodeFromUrl = String(urlParams.get('ref') || '').trim().toUpperCase();
+if (referralCodeFromUrl) {
+    try {
+        localStorage.setItem('bober_pending_referral_code', referralCodeFromUrl);
+    } catch (storageError) {
+        // localStorage может быть недоступен (приватный режим) - реферал просто не сохранится офлайн.
+    }
+}
 if (test == null && testm === true) {
     window.location.replace('tex.html');
 }
@@ -8679,6 +8747,27 @@ let flyBeaverState = getDefaultFlyBeaverState();
 let match3State = getDefaultMatch3State();
 let upgradePurchaseCounts = getDefaultUpgradePurchaseCounts();
 let profileSummary = getDefaultProfileSummary();
+let referralInfo = { code: '', invitedCount: 0, totalEarnedCoins: 0 };
+
+function normalizeReferralInfo(rawReferral) {
+    const source = rawReferral && typeof rawReferral === 'object' ? rawReferral : {};
+    return {
+        code: typeof source.code === 'string' ? source.code : '',
+        invitedCount: Number.isFinite(Number(source.invitedCount)) ? Number(source.invitedCount) : 0,
+        totalEarnedCoins: Number.isFinite(Number(source.totalEarnedCoins)) ? Number(source.totalEarnedCoins) : 0
+    };
+}
+
+function getReferralLink() {
+    if (!referralInfo.code) {
+        return '';
+    }
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('ref', referralInfo.code);
+    return url.toString();
+}
 let recentActivity = getDefaultRecentActivity();
 let questState = getDefaultQuestState();
 let unlockedAchievements = [];
@@ -11684,6 +11773,8 @@ function renderProfileModal() {
         'Крупные события аккаунта появятся здесь после покупок, достижений, квестов и забегов.'
     );
 
+    renderProfileReferralSection();
+
     const achievementRenderKeys = collectAchievementRenderKeys(unlockedItems, achievementStats);
     if (achievementRenderKeys.length < 1) {
         achievementsNode.innerHTML = '<div class="empty-list">Список достижений пока недоступен.</div>';
@@ -11768,6 +11859,92 @@ function renderProfileModal() {
         renderEconomyProfileModal();
     }
 }
+
+function renderProfileReferralSection() {
+    const codeInput = document.getElementById('profileReferralCodeInput');
+    const invitedNode = document.getElementById('profileReferralInvitedCount');
+    const earnedNode = document.getElementById('profileReferralEarnedCoins');
+
+    if (!codeInput || !invitedNode || !earnedNode) {
+        return;
+    }
+
+    codeInput.value = getReferralLink() || 'Войдите в аккаунт, чтобы получить ссылку';
+    invitedNode.textContent = `Приглашено: ${formatCompactNumber(referralInfo.invitedCount)}`;
+    earnedNode.textContent = `Заработано с рефералов: ${formatCompactNumber(referralInfo.totalEarnedCoins)}`;
+}
+
+const profileReferralCopyBtn = document.getElementById('profileReferralCopyBtn');
+if (profileReferralCopyBtn) {
+    profileReferralCopyBtn.addEventListener('click', async () => {
+        const link = getReferralLink();
+        if (!link) {
+            showNotification('Сначала войдите в аккаунт, чтобы получить реферальную ссылку.', 'error');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(link);
+            showNotification('Реферальная ссылка скопирована!', 'success');
+        } catch (copyError) {
+            const codeInput = document.getElementById('profileReferralCodeInput');
+            if (codeInput) {
+                codeInput.select();
+                document.execCommand('copy');
+                showNotification('Реферальная ссылка скопирована!', 'success');
+            } else {
+                showNotification('Не удалось скопировать ссылку.', 'error');
+            }
+        }
+    });
+}
+
+const profilePromocodeRedeemBtn = document.getElementById('profilePromocodeRedeemBtn');
+if (profilePromocodeRedeemBtn) {
+    profilePromocodeRedeemBtn.addEventListener('click', async () => {
+        const inputNode = document.getElementById('profilePromocodeInput');
+        const code = inputNode ? String(inputNode.value || '').trim() : '';
+        if (!code) {
+            showNotification('Введите промокод.', 'error');
+            return;
+        }
+
+        profilePromocodeRedeemBtn.disabled = true;
+        try {
+            const data = await requestJson('/api/promocodes/redeem.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            if (!data.success) {
+                showNotification(data.message || 'Не удалось активировать промокод.', 'error');
+                return;
+            }
+
+            if (data.account) {
+                applySynchronizedAccountState(data.account);
+            }
+
+            if (inputNode) {
+                inputNode.value = '';
+            }
+
+            showNotification(data.message || 'Промокод активирован!', 'success');
+        } catch (error) {
+            if (tryHandleSessionEndedError(error)) {
+                return;
+            }
+            if (tryHandleBanError(error)) {
+                resetUserState();
+                return;
+            }
+            showNotification(error.message || 'Не удалось активировать промокод.', 'error');
+        } finally {
+            profilePromocodeRedeemBtn.disabled = false;
+        }
+    });
+}
+
 
 function scrollProfileModalToSection(section = '') {
     const normalizedSection = String(section || '').trim().toLowerCase();
@@ -17655,6 +17832,7 @@ function applyAuthenticatedState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     match3State = normalizeMatch3State(data.match3);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    referralInfo = normalizeReferralInfo(data.referral || data.account?.referral);
     recentActivity = Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')
         ? normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity)
         : getDefaultRecentActivity();
@@ -18478,6 +18656,7 @@ function applySynchronizedAccountState(data) {
     flyBeaverState = normalizeFlyBeaverState(data.flyBeaver);
     match3State = normalizeMatch3State(data.match3);
     profileSummary = normalizeProfileSummary(data.profile || data.account?.profile);
+    referralInfo = normalizeReferralInfo(data.referral || data.account?.referral);
     if (Object.prototype.hasOwnProperty.call(data, 'recentActivity') || Object.prototype.hasOwnProperty.call(data.account || {}, 'recentActivity')) {
         recentActivity = normalizeProfileActivityList(data.recentActivity || data.account?.recentActivity);
     }
@@ -19988,13 +20167,20 @@ document.getElementById('submitRegister').onclick = async function() {
         description: 'Игрок отправил форму регистрации.'
     });
 
+    let pendingReferralCode = '';
+    try {
+        pendingReferralCode = String(localStorage.getItem('bober_pending_referral_code') || '').trim();
+    } catch (storageError) {
+        pendingReferralCode = '';
+    }
+
     try {
         const data = await requestJson('/api/auth/register.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ login: regLogin, password: regPassword })
+            body: JSON.stringify({ login: regLogin, password: regPassword, referralCode: pendingReferralCode })
         });
 
         if (!data.success) {
@@ -20004,6 +20190,11 @@ document.getElementById('submitRegister').onclick = async function() {
 
         currentLogin = typeof data.login === 'string' && data.login.trim() !== '' ? data.login.trim() : regLogin;
         applyAuthenticatedState(data);
+        try {
+            localStorage.removeItem('bober_pending_referral_code');
+        } catch (storageError) {
+            // ignore
+        }
         logClientEvent('auth', 'register_success_client', {
             login: currentLogin
         }, {

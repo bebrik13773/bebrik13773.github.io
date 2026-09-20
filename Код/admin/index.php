@@ -1391,6 +1391,210 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
+        if ($action === 'get_promocodes') {
+            if (requireAdminAuth($response)) {
+                $conn = connectDB();
+                bober_ensure_project_schema($conn);
+
+                $promoResult = $conn->query('SELECT * FROM promocodes ORDER BY created_at DESC');
+                $promoItems = [];
+                if ($promoResult) {
+                    while ($promoRow = $promoResult->fetch_assoc()) {
+                        $promoItems[] = bober_normalize_promocode_row($promoRow);
+                    }
+                    $promoResult->free();
+                }
+
+                $response['success'] = true;
+                $response['promocodes'] = $promoItems;
+                $response['total'] = count($promoItems);
+
+                $conn->close();
+            }
+        }
+
+        if ($action === 'save_promocode_item') {
+            if (requireAdminAuth($response)) {
+                $promocodeId = max(0, (int) ($_POST['promocode_id'] ?? 0));
+                $code = strtoupper(trim((string) ($_POST['promocode_code'] ?? '')));
+                $rewardCoins = max(0, (int) ($_POST['promocode_reward_coins'] ?? 0));
+                $rewardSkinId = trim((string) ($_POST['promocode_reward_skin_id'] ?? ''));
+                $rewardBoostType = trim((string) ($_POST['promocode_reward_boost_type'] ?? ''));
+                $rewardBoostMinutes = max(0, (int) ($_POST['promocode_reward_boost_minutes'] ?? 0));
+                $maxActivationsRaw = trim((string) ($_POST['promocode_max_activations'] ?? ''));
+                $maxActivations = $maxActivationsRaw === '' ? null : max(1, (int) $maxActivationsRaw);
+                $isActive = !empty($_POST['promocode_is_active']) ? 1 : 0;
+                $expiresAtRaw = trim((string) ($_POST['promocode_expires_at'] ?? ''));
+                $expiresAt = $expiresAtRaw !== '' ? date('Y-m-d H:i:s', strtotime($expiresAtRaw)) : null;
+
+                if ($code === '' || !preg_match('/^[A-Z0-9_-]{3,64}$/', $code)) {
+                    $response['message'] = 'Код может содержать только английские буквы, цифры, "-" и "_" (3-64 символа).';
+                } elseif ($rewardCoins < 1 && $rewardSkinId === '' && ($rewardBoostType === '' || $rewardBoostMinutes < 1)) {
+                    $response['message'] = 'Нужна хотя бы одна награда: монеты, скин или буст.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $nullableSkin = $rewardSkinId !== '' ? $rewardSkinId : null;
+                        $nullableBoost = $rewardBoostType !== '' ? $rewardBoostType : null;
+
+                        if ($promocodeId > 0) {
+                            $updateStmt = $conn->prepare('
+                                UPDATE promocodes
+                                SET code = ?, reward_coins = ?, reward_skin_id = ?, reward_boost_type = ?, reward_boost_minutes = ?,
+                                    max_activations = ?, is_active = ?, expires_at = ?
+                                WHERE id = ?
+                                LIMIT 1
+                            ');
+                            if (!$updateStmt) {
+                                throw new RuntimeException('Не удалось подготовить обновление промокода.');
+                            }
+                            $updateStmt->bind_param(
+                                'sissiiisi',
+                                $code,
+                                $rewardCoins,
+                                $nullableSkin,
+                                $nullableBoost,
+                                $rewardBoostMinutes,
+                                $maxActivations,
+                                $isActive,
+                                $expiresAt,
+                                $promocodeId
+                            );
+                            if (!$updateStmt->execute()) {
+                                $updateError = $updateStmt->error;
+                                $updateStmt->close();
+                                throw new RuntimeException(strpos($updateError, 'Duplicate') !== false
+                                    ? 'Промокод с таким кодом уже существует.'
+                                    : 'Не удалось обновить промокод.');
+                            }
+                            $updateStmt->close();
+                            $resultPromocodeId = $promocodeId;
+                            $response['message'] = 'Промокод обновлён.';
+                        } else {
+                            $insertStmt = $conn->prepare('
+                                INSERT INTO promocodes (code, reward_coins, reward_skin_id, reward_boost_type, reward_boost_minutes, max_activations, is_active, expires_at, created_by)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ');
+                            if (!$insertStmt) {
+                                throw new RuntimeException('Не удалось подготовить создание промокода.');
+                            }
+                            $createdBy = 'admin';
+                            $insertStmt->bind_param(
+                                'sissiiiss',
+                                $code,
+                                $rewardCoins,
+                                $nullableSkin,
+                                $nullableBoost,
+                                $rewardBoostMinutes,
+                                $maxActivations,
+                                $isActive,
+                                $expiresAt,
+                                $createdBy
+                            );
+                            if (!$insertStmt->execute()) {
+                                $insertError = $insertStmt->error;
+                                $insertStmt->close();
+                                throw new RuntimeException(strpos($insertError, 'Duplicate') !== false
+                                    ? 'Промокод с таким кодом уже существует.'
+                                    : 'Не удалось создать промокод.');
+                            }
+                            $resultPromocodeId = (int) $insertStmt->insert_id;
+                            $insertStmt->close();
+                            $response['message'] = 'Промокод создан.';
+                        }
+
+                        $fetchStmt = $conn->prepare('SELECT * FROM promocodes WHERE id = ? LIMIT 1');
+                        $fetchStmt->bind_param('i', $resultPromocodeId);
+                        $fetchStmt->execute();
+                        $fetchResult = $fetchStmt->get_result();
+                        $promocodeRow = $fetchResult ? $fetchResult->fetch_assoc() : null;
+                        if ($fetchResult) {
+                            $fetchResult->free();
+                        }
+                        $fetchStmt->close();
+
+                        $response['success'] = true;
+                        $response['promocode'] = $promocodeRow ? bober_normalize_promocode_row($promocodeRow) : null;
+
+                        bober_admin_log_action($conn, 'save_promocode_item', [
+                            'target_table' => 'promocodes',
+                            'query_text' => ($promocodeId > 0 ? 'UPDATE PROMOCODE ' : 'CREATE PROMOCODE ') . $code,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'promocode_id' => $resultPromocodeId,
+                                'code' => $code,
+                                'reward_coins' => $rewardCoins,
+                                'reward_skin_id' => $rewardSkinId,
+                                'reward_boost_type' => $rewardBoostType,
+                                'reward_boost_minutes' => $rewardBoostMinutes,
+                                'max_activations' => $maxActivations,
+                                'is_active' => $isActive,
+                            ],
+                        ]);
+                    } catch (Throwable $promoSaveError) {
+                        $response['message'] = bober_exception_message($promoSaveError);
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
+        if ($action === 'delete_promocode_item') {
+            if (requireAdminAuth($response)) {
+                $promocodeId = max(0, (int) ($_POST['promocode_id'] ?? 0));
+                if ($promocodeId < 1) {
+                    $response['message'] = 'Не указан идентификатор промокода.';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    try {
+                        $codeLookupStmt = $conn->prepare('SELECT code FROM promocodes WHERE id = ? LIMIT 1');
+                        $codeLookupStmt->bind_param('i', $promocodeId);
+                        $codeLookupStmt->execute();
+                        $codeLookupResult = $codeLookupStmt->get_result();
+                        $codeLookupRow = $codeLookupResult ? $codeLookupResult->fetch_assoc() : null;
+                        if ($codeLookupResult) {
+                            $codeLookupResult->free();
+                        }
+                        $codeLookupStmt->close();
+                        $deletedCode = (string) ($codeLookupRow['code'] ?? '');
+
+                        $deleteStmt = $conn->prepare('DELETE FROM promocodes WHERE id = ? LIMIT 1');
+                        $deleteStmt->bind_param('i', $promocodeId);
+                        $deleteStmt->execute();
+                        $affectedRows = $conn->affected_rows;
+                        $deleteStmt->close();
+
+                        $conn->query('DELETE FROM promocode_redemptions WHERE promocode_id = ' . (int) $promocodeId);
+
+                        if ($affectedRows < 1) {
+                            $response['message'] = 'Промокод не найден.';
+                        } else {
+                            $response['success'] = true;
+                            $response['message'] = 'Промокод удалён.';
+                            $response['deleted_promocode_id'] = $promocodeId;
+
+                            bober_admin_log_action($conn, 'delete_promocode_item', [
+                                'target_table' => 'promocodes',
+                                'query_text' => 'DELETE PROMOCODE ' . $deletedCode,
+                                'affected_rows' => 1,
+                                'meta' => [
+                                    'promocode_id' => $promocodeId,
+                                    'code' => $deletedCode,
+                                ],
+                            ]);
+                        }
+                    } finally {
+                        $conn->close();
+                    }
+                }
+            }
+        }
+
         if ($action === 'get_users_overview') {
             if (requireAdminAuth($response)) {
                 $search = trim((string) ($_POST['search'] ?? ''));
@@ -6226,6 +6430,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span class="material-icons">campaign</span>
             <span>Новости</span>
         </div>
+
+        <div class="sidebar-item" id="promocodesBtn">
+            <span class="material-icons">redeem</span>
+            <span>Промокоды</span>
+        </div>
         
         <div class="sidebar-item" id="statisticsBtn">
             <span class="material-icons">analytics</span>
@@ -6556,6 +6765,45 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <div class="skin-catalog-meta" id="announcementCatalogMeta">Загрузка новостей...</div>
                     <div class="skin-catalog-grid" id="announcementCatalogGrid"></div>
+                </div>
+            </div>
+
+            <div class="animated fadeIn" id="promocodesView" style="display: none;">
+                <div class="card skins-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">redeem</span>
+                                Промокоды
+                            </h2>
+                            <div class="card-subtitle">Игрок вводит код в профиле один раз. Награда — любая комбинация из монет, скина и временного буста.</div>
+                        </div>
+                        <button class="btn btn-primary" id="createPromocodeBtn">
+                            <span class="material-icons">add</span>
+                            Новый промокод
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">search</span>
+                            <input type="text" id="promocodeCatalogSearchInput" class="search-input" placeholder="Найти промокод по коду">
+                        </div>
+                        <select class="form-control account-sort-select" id="promocodeCatalogStatusSelect" aria-label="Фильтр по статусу промокода">
+                            <option value="all">Все статусы</option>
+                            <option value="active">Только активные</option>
+                            <option value="inactive">Только выключенные</option>
+                            <option value="exhausted">Лимит исчерпан</option>
+                            <option value="expired">Просроченные</option>
+                        </select>
+                        <button class="btn btn-outline" id="refreshPromocodeCatalogBtn">
+                            <span class="material-icons">refresh</span>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="skin-catalog-meta" id="promocodeCatalogMeta">Загрузка промокодов...</div>
+                    <div class="skin-catalog-grid" id="promocodeCatalogGrid"></div>
                 </div>
             </div>
 
@@ -7727,6 +7975,119 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         </div>
     </div>
 
+    <div class="modal-overlay" id="editPromocodeModal">
+        <div class="modal-content">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">redeem</span>
+                        <span id="editPromocodeModalTitle">Новый промокод</span>
+                    </h3>
+                    <div class="card-subtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Каждый игрок может активировать этот код только один раз.
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeEditPromocodeModal" type="button">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="editPromocodeForm">
+                    <div class="form-group">
+                        <label class="form-label" for="editPromocodeCodeInput">Код</label>
+                        <input class="form-control" id="editPromocodeCodeInput" type="text" maxlength="64" placeholder="Например: BOBER2026" style="text-transform: uppercase;" required>
+                    </div>
+                    <div class="detail-form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeRewardCoinsInput">Награда: монеты</label>
+                            <input class="form-control" id="editPromocodeRewardCoinsInput" type="number" min="0" step="1" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeMaxActivationsInput">Лимит активаций</label>
+                            <input class="form-control" id="editPromocodeMaxActivationsInput" type="number" min="1" step="1" placeholder="Без лимита">
+                        </div>
+                    </div>
+                    <div class="detail-form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeRewardSkinIdInput">Награда: ID скина (необязательно)</label>
+                            <input class="form-control" id="editPromocodeRewardSkinIdInput" type="text" maxlength="64" placeholder="skin_id из каталога">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeExpiresAtInput">Действует до (необязательно)</label>
+                            <input class="form-control" id="editPromocodeExpiresAtInput" type="datetime-local">
+                        </div>
+                    </div>
+                    <div class="detail-form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeRewardBoostTypeInput">Награда: тип буста (необязательно)</label>
+                            <select class="form-control" id="editPromocodeRewardBoostTypeInput">
+                                <option value="">Без буста</option>
+                                <option value="double_tap">x2 к клику</option>
+                                <option value="double_coins">x2 к монетам</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="editPromocodeRewardBoostMinutesInput">Длительность буста, мин.</label>
+                            <input class="form-control" id="editPromocodeRewardBoostMinutesInput" type="number" min="0" step="1" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="mini-chip" style="cursor: pointer;">
+                            <input type="checkbox" id="editPromocodeIsActiveInput" checked style="margin-right: 6px;">
+                            Промокод активен
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelEditPromocodeModal" type="button">Отмена</button>
+                <button class="btn btn-primary" id="saveEditPromocodeBtn" type="button">
+                    <span class="btn-text">Сохранить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="deletePromocodeModal">
+        <div class="modal-content modal-content-danger">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">
+                        <span class="material-icons">delete</span>
+                        Удаление промокода
+                    </h3>
+                    <div class="card-subtitle" style="font-size: 14px; color: var(--muted-text); margin-top: 4px;">
+                        Промокод перестанет работать для всех игроков
+                    </div>
+                </div>
+                <button class="action-button btn-icon" id="closeDeletePromocodeModal">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="modal-stack">
+                    <div class="modal-hero danger">
+                        <div class="modal-hero-icon">
+                            <span class="material-icons">redeem</span>
+                        </div>
+                        <div>
+                            <div class="modal-hero-title" id="deletePromocodeModalTitle">Удалить этот промокод?</div>
+                            <div class="modal-hero-text">Игроки больше не смогут его активировать. Уже выданные награды не отзываются.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="btn btn-outline" id="cancelDeletePromocodeModal">Отмена</button>
+                <button class="btn btn-danger" id="confirmDeletePromocodeBtn">
+                    <span class="btn-text">Удалить</span>
+                    <div class="loader" style="display: none; margin-left: 8px;"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="deleteSkinModal">
         <div class="modal-content modal-content-danger">
             <div class="card-header">
@@ -7890,6 +8251,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
         let announcementLoadPromise = null;
         let announcementCatalogSearch = '';
         let announcementCatalogStatusFilter = 'all';
+        let promocodeItems = [];
+        let promocodeLoadPromise = null;
+        let promocodeCatalogSearch = '';
+        let promocodeCatalogStatusFilter = 'all';
+        let editingPromocodeId = 0;
+        let pendingDeletePromocodeId = 0;
         let pendingDeleteSkinId = '';
         let skinEditorState = {
             mode: 'create',
@@ -8770,6 +9137,13 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const createPromocodeBtn = document.getElementById('createPromocodeBtn');
+            if (createPromocodeBtn) {
+                createPromocodeBtn.addEventListener('click', function() {
+                    showEditPromocodeModal('create');
+                });
+            }
+
             const addSkinModal = document.getElementById('addSkinModal');
             if (addSkinModal) {
                 addSkinModal.addEventListener('click', function(event) {
@@ -8898,6 +9272,74 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
             }
 
+            const closeEditPromocodeModal = document.getElementById('closeEditPromocodeModal');
+            if (closeEditPromocodeModal) {
+                closeEditPromocodeModal.addEventListener('click', function() {
+                    hideEditPromocodeModal();
+                });
+            }
+
+            const cancelEditPromocodeModal = document.getElementById('cancelEditPromocodeModal');
+            if (cancelEditPromocodeModal) {
+                cancelEditPromocodeModal.addEventListener('click', function() {
+                    hideEditPromocodeModal();
+                });
+            }
+
+            const saveEditPromocodeBtn = document.getElementById('saveEditPromocodeBtn');
+            if (saveEditPromocodeBtn) {
+                saveEditPromocodeBtn.addEventListener('click', function() {
+                    submitEditPromocodeModal();
+                });
+            }
+
+            const editPromocodeForm = document.getElementById('editPromocodeForm');
+            if (editPromocodeForm) {
+                editPromocodeForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    submitEditPromocodeModal();
+                });
+            }
+
+            const editPromocodeModal = document.getElementById('editPromocodeModal');
+            if (editPromocodeModal) {
+                editPromocodeModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideEditPromocodeModal();
+                    }
+                });
+            }
+
+            const closeDeletePromocodeModal = document.getElementById('closeDeletePromocodeModal');
+            if (closeDeletePromocodeModal) {
+                closeDeletePromocodeModal.addEventListener('click', function() {
+                    hideDeletePromocodeModal();
+                });
+            }
+
+            const cancelDeletePromocodeModal = document.getElementById('cancelDeletePromocodeModal');
+            if (cancelDeletePromocodeModal) {
+                cancelDeletePromocodeModal.addEventListener('click', function() {
+                    hideDeletePromocodeModal();
+                });
+            }
+
+            const confirmDeletePromocodeBtn = document.getElementById('confirmDeletePromocodeBtn');
+            if (confirmDeletePromocodeBtn) {
+                confirmDeletePromocodeBtn.addEventListener('click', function() {
+                    confirmDeletePromocode();
+                });
+            }
+
+            const deletePromocodeModal = document.getElementById('deletePromocodeModal');
+            if (deletePromocodeModal) {
+                deletePromocodeModal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideDeletePromocodeModal();
+                    }
+                });
+            }
+
             const deleteSkinModal = document.getElementById('deleteSkinModal');
             if (deleteSkinModal) {
                 deleteSkinModal.addEventListener('click', function(event) {
@@ -8961,6 +9403,14 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 showNewsView();
                 closeSidebarForCompactViewport();
             });
+
+            const promocodesBtn = document.getElementById('promocodesBtn');
+            if (promocodesBtn) {
+                promocodesBtn.addEventListener('click', function() {
+                    showPromocodesView();
+                    closeSidebarForCompactViewport();
+                });
+            }
             
             document.getElementById('statisticsBtn').addEventListener('click', function() {
                 showStatistics();
@@ -9200,6 +9650,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             if (refreshAnnouncementCatalogBtn) {
                 refreshAnnouncementCatalogBtn.addEventListener('click', function() {
                     loadAnnouncementCatalogAdmin();
+                });
+            }
+
+            const promocodeCatalogSearchInput = document.getElementById('promocodeCatalogSearchInput');
+            if (promocodeCatalogSearchInput) {
+                promocodeCatalogSearchInput.addEventListener('input', function() {
+                    promocodeCatalogSearch = this.value.trim();
+                    renderPromocodeCatalogList();
+                });
+            }
+
+            const promocodeCatalogStatusSelect = document.getElementById('promocodeCatalogStatusSelect');
+            if (promocodeCatalogStatusSelect) {
+                promocodeCatalogStatusSelect.addEventListener('change', function() {
+                    promocodeCatalogStatusFilter = this.value || 'all';
+                    renderPromocodeCatalogList();
+                });
+            }
+
+            const refreshPromocodeCatalogBtn = document.getElementById('refreshPromocodeCatalogBtn');
+            if (refreshPromocodeCatalogBtn) {
+                refreshPromocodeCatalogBtn.addEventListener('click', function() {
+                    loadPromocodeCatalogAdmin();
                 });
             }
 
@@ -11425,6 +11898,461 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 });
         }
 
+        function normalizeAdminPromocodeItem(rawPromocode) {
+            if (!rawPromocode || typeof rawPromocode !== 'object') {
+                return null;
+            }
+
+            const id = Math.max(0, Number(rawPromocode.id) || 0);
+            if (id < 1) {
+                return null;
+            }
+
+            const maxActivations = rawPromocode.maxActivations === null || rawPromocode.maxActivations === undefined
+                ? null
+                : Math.max(0, Number(rawPromocode.maxActivations) || 0);
+            const activationsUsed = Math.max(0, Number(rawPromocode.activationsUsed) || 0);
+            const isActive = Boolean(rawPromocode.isActive);
+            const expiresAt = String(rawPromocode.expiresAt || '').trim();
+            const isExpired = Boolean(expiresAt) && new Date(expiresAt.replace(' ', 'T')).getTime() < Date.now();
+            const isExhausted = maxActivations !== null && activationsUsed >= maxActivations;
+
+            let status = 'active';
+            if (!isActive) {
+                status = 'inactive';
+            } else if (isExpired) {
+                status = 'expired';
+            } else if (isExhausted) {
+                status = 'exhausted';
+            }
+
+            return {
+                id,
+                code: String(rawPromocode.code || ''),
+                rewardCoins: Math.max(0, Number(rawPromocode.rewardCoins) || 0),
+                rewardSkinId: String(rawPromocode.rewardSkinId || ''),
+                rewardBoostType: String(rawPromocode.rewardBoostType || ''),
+                rewardBoostMinutes: Math.max(0, Number(rawPromocode.rewardBoostMinutes) || 0),
+                maxActivations,
+                activationsUsed,
+                isActive,
+                expiresAt,
+                createdAt: String(rawPromocode.createdAt || '').trim(),
+                status
+            };
+        }
+
+        function fetchPromocodeItems(options = {}) {
+            const forceRefresh = Boolean(options && options.forceRefresh);
+            if (!forceRefresh && promocodeItems.length > 0) {
+                return Promise.resolve(promocodeItems);
+            }
+
+            if (!forceRefresh && promocodeLoadPromise) {
+                return promocodeLoadPromise;
+            }
+
+            promocodeLoadPromise = postAction({
+                action: 'get_promocodes'
+            })
+                .then(data => {
+                    if (!data.success || !Array.isArray(data.promocodes)) {
+                        throw new Error(data.message || 'Не удалось загрузить промокоды');
+                    }
+
+                    promocodeItems = data.promocodes
+                        .map(item => normalizeAdminPromocodeItem(item))
+                        .filter(Boolean);
+                    return promocodeItems;
+                })
+                .finally(() => {
+                    promocodeLoadPromise = null;
+                });
+
+            return promocodeLoadPromise;
+        }
+
+        function getFilteredPromocodeItems() {
+            const query = promocodeCatalogSearch.toLowerCase();
+
+            return promocodeItems.filter(item => {
+                if (!item) {
+                    return false;
+                }
+
+                if (promocodeCatalogStatusFilter !== 'all' && item.status !== promocodeCatalogStatusFilter) {
+                    return false;
+                }
+
+                if (!query) {
+                    return true;
+                }
+
+                return String(item.code || '').toLowerCase().includes(query);
+            });
+        }
+
+        function buildPromocodeRewardSummary(item) {
+            const parts = [];
+            if (item.rewardCoins > 0) {
+                parts.push(`💰 ${formatAdminNumber(item.rewardCoins)} монет`);
+            }
+            if (item.rewardSkinId) {
+                parts.push(`🎨 скин ${item.rewardSkinId}`);
+            }
+            if (item.rewardBoostType && item.rewardBoostMinutes > 0) {
+                const boostLabel = item.rewardBoostType === 'double_coins' ? 'x2 к монетам' : 'x2 к клику';
+                parts.push(`⚡ ${boostLabel} на ${formatAdminNumber(item.rewardBoostMinutes)} мин`);
+            }
+            return parts.length > 0 ? parts.join(' • ') : 'Награда не задана';
+        }
+
+        function renderPromocodeCatalogList() {
+            const grid = document.getElementById('promocodeCatalogGrid');
+            const meta = document.getElementById('promocodeCatalogMeta');
+            if (!grid || !meta) {
+                return;
+            }
+
+            const filteredItems = getFilteredPromocodeItems();
+            meta.textContent = promocodeCatalogSearch
+                ? `Найдено ${formatAdminNumber(filteredItems.length)} из ${formatAdminNumber(promocodeItems.length)} промокодов по запросу "${promocodeCatalogSearch}".`
+                : `Всего промокодов: ${formatAdminNumber(promocodeItems.length)}. Фильтр: ${promocodeCatalogStatusFilter === 'all' ? 'все статусы' : promocodeCatalogStatusFilter}.`;
+
+            if (filteredItems.length < 1) {
+                grid.innerHTML = '<div class="empty-list">По этому запросу промокоды не найдены.</div>';
+                return;
+            }
+
+            const statusLabels = {
+                active: 'Активен',
+                inactive: 'Выключен',
+                expired: 'Просрочен',
+                exhausted: 'Лимит исчерпан'
+            };
+            const statusClasses = {
+                active: 'active',
+                inactive: 'neutral',
+                expired: 'closed',
+                exhausted: 'closed'
+            };
+
+            grid.innerHTML = filteredItems.map(item => {
+                const activationsLabel = item.maxActivations !== null
+                    ? `${formatAdminNumber(item.activationsUsed)} / ${formatAdminNumber(item.maxActivations)}`
+                    : `${formatAdminNumber(item.activationsUsed)} / без лимита`;
+                const expiresLabel = item.expiresAt ? formatAdminDateTime(item.expiresAt) : 'бессрочно';
+
+                return `
+                    <article class="skin-catalog-card" data-promocode-id="${escapeHtml(String(item.id))}">
+                        <div class="skin-catalog-card-body">
+                            <div class="skin-catalog-card-head">
+                                <div>
+                                    <div class="skin-catalog-card-title">${escapeHtml(item.code)}</div>
+                                    <div class="skin-catalog-card-id">ID ${formatAdminNumber(item.id)} • активаций: ${escapeHtml(activationsLabel)}</div>
+                                </div>
+                                <span class="status-pill ${statusClasses[item.status] || 'neutral'}">${statusLabels[item.status] || item.status}</span>
+                            </div>
+                            <div class="stack-item-meta">
+                                ${escapeHtml(buildPromocodeRewardSummary(item))}<br>
+                                Действует до: ${escapeHtml(expiresLabel)}
+                            </div>
+                            <div class="skin-catalog-card-actions">
+                                <button class="btn btn-outline btn-small edit-promocode-btn" type="button" data-promocode-id="${escapeHtml(String(item.id))}">
+                                    <span class="material-icons">edit</span>
+                                    Редактировать
+                                </button>
+                                <button class="btn btn-outline btn-small delete-promocode-btn" type="button" data-promocode-id="${escapeHtml(String(item.id))}" data-promocode-code="${escapeHtml(item.code)}">
+                                    <span class="material-icons">delete</span>
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+
+            grid.querySelectorAll('.edit-promocode-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    openPromocodeItemEditor(Number(this.dataset.promocodeId || 0));
+                });
+            });
+
+            grid.querySelectorAll('.delete-promocode-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    openDeletePromocodeModal(Number(this.dataset.promocodeId || 0), String(this.dataset.promocodeCode || ''));
+                });
+            });
+        }
+
+        function loadPromocodeCatalogAdmin() {
+            const grid = document.getElementById('promocodeCatalogGrid');
+            const meta = document.getElementById('promocodeCatalogMeta');
+
+            if (grid) {
+                grid.innerHTML = '<div class="empty-list"><div class="loader" style="margin-right: 10px;"></div>Загружаю промокоды...</div>';
+            }
+            if (meta) {
+                meta.textContent = 'Загрузка промокодов...';
+            }
+
+            fetchPromocodeItems({
+                forceRefresh: true
+            })
+                .then(() => {
+                    renderPromocodeCatalogList();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    if (grid) {
+                        grid.innerHTML = `<div class="empty-list">${escapeHtml(error.message || 'Ошибка загрузки промокодов')}</div>`;
+                    }
+                    if (meta) {
+                        meta.textContent = 'Не удалось загрузить промокоды';
+                    }
+                    showNotification(error.message || 'Ошибка загрузки промокодов', 'error');
+                });
+        }
+
+        function resetPromocodeEditorForm() {
+            const form = document.getElementById('editPromocodeForm');
+            if (form) {
+                form.reset();
+            }
+
+            const isActiveInput = document.getElementById('editPromocodeIsActiveInput');
+            if (isActiveInput) {
+                isActiveInput.checked = true;
+            }
+
+            editingPromocodeId = 0;
+        }
+
+        function showEditPromocodeModal(mode = 'create', promocodeItem = null) {
+            resetPromocodeEditorForm();
+
+            const titleNode = document.getElementById('editPromocodeModalTitle');
+            const saveButtonText = document.querySelector('#saveEditPromocodeBtn .btn-text');
+            const codeInput = document.getElementById('editPromocodeCodeInput');
+            const rewardCoinsInput = document.getElementById('editPromocodeRewardCoinsInput');
+            const rewardSkinIdInput = document.getElementById('editPromocodeRewardSkinIdInput');
+            const rewardBoostTypeInput = document.getElementById('editPromocodeRewardBoostTypeInput');
+            const rewardBoostMinutesInput = document.getElementById('editPromocodeRewardBoostMinutesInput');
+            const maxActivationsInput = document.getElementById('editPromocodeMaxActivationsInput');
+            const expiresAtInput = document.getElementById('editPromocodeExpiresAtInput');
+            const isActiveInput = document.getElementById('editPromocodeIsActiveInput');
+
+            if (mode === 'edit' && promocodeItem) {
+                editingPromocodeId = Number(promocodeItem.id || 0);
+
+                if (titleNode) {
+                    titleNode.textContent = 'Редактировать промокод';
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Сохранить изменения';
+                }
+                if (codeInput) {
+                    codeInput.value = String(promocodeItem.code || '');
+                }
+                if (rewardCoinsInput) {
+                    rewardCoinsInput.value = promocodeItem.rewardCoins > 0 ? String(promocodeItem.rewardCoins) : '';
+                }
+                if (rewardSkinIdInput) {
+                    rewardSkinIdInput.value = String(promocodeItem.rewardSkinId || '');
+                }
+                if (rewardBoostTypeInput) {
+                    rewardBoostTypeInput.value = String(promocodeItem.rewardBoostType || '');
+                }
+                if (rewardBoostMinutesInput) {
+                    rewardBoostMinutesInput.value = promocodeItem.rewardBoostMinutes > 0 ? String(promocodeItem.rewardBoostMinutes) : '';
+                }
+                if (maxActivationsInput) {
+                    maxActivationsInput.value = promocodeItem.maxActivations !== null ? String(promocodeItem.maxActivations) : '';
+                }
+                if (expiresAtInput) {
+                    expiresAtInput.value = promocodeItem.expiresAt
+                        ? String(promocodeItem.expiresAt).replace(' ', 'T').slice(0, 16)
+                        : '';
+                }
+                if (isActiveInput) {
+                    isActiveInput.checked = Boolean(promocodeItem.isActive);
+                }
+            } else {
+                if (titleNode) {
+                    titleNode.textContent = 'Новый промокод';
+                }
+                if (saveButtonText) {
+                    saveButtonText.textContent = 'Создать промокод';
+                }
+            }
+
+            document.getElementById('editPromocodeModal').classList.add('active');
+        }
+
+        function openPromocodeItemEditor(promocodeId) {
+            const normalizedPromocodeId = Math.max(0, Number(promocodeId) || 0);
+            if (normalizedPromocodeId < 1) {
+                showNotification('Не удалось определить промокод для редактирования.', 'error');
+                return;
+            }
+
+            const promocodeItem = promocodeItems.find(item => item.id === normalizedPromocodeId);
+            if (!promocodeItem) {
+                showNotification('Промокод не найден в загруженном списке.', 'error');
+                return;
+            }
+
+            showEditPromocodeModal('edit', promocodeItem);
+        }
+
+        function hideEditPromocodeModal() {
+            document.getElementById('editPromocodeModal').classList.remove('active');
+        }
+
+        function submitEditPromocodeModal() {
+            const saveButton = document.getElementById('saveEditPromocodeBtn');
+            const btnText = saveButton ? saveButton.querySelector('.btn-text') : null;
+            const loader = saveButton ? saveButton.querySelector('.loader') : null;
+            const codeValue = String(document.getElementById('editPromocodeCodeInput').value || '').trim().toUpperCase();
+            const rewardCoinsValue = Math.max(0, Number(document.getElementById('editPromocodeRewardCoinsInput').value) || 0);
+            const rewardSkinIdValue = String(document.getElementById('editPromocodeRewardSkinIdInput').value || '').trim();
+            const rewardBoostTypeValue = String(document.getElementById('editPromocodeRewardBoostTypeInput').value || '').trim();
+            const rewardBoostMinutesValue = Math.max(0, Number(document.getElementById('editPromocodeRewardBoostMinutesInput').value) || 0);
+            const maxActivationsRaw = String(document.getElementById('editPromocodeMaxActivationsInput').value || '').trim();
+            const expiresAtValue = String(document.getElementById('editPromocodeExpiresAtInput').value || '').trim();
+            const isActiveValue = Boolean(document.getElementById('editPromocodeIsActiveInput').checked);
+
+            if (!/^[A-Z0-9_-]{3,64}$/.test(codeValue)) {
+                showNotification('Код может содержать только английские буквы, цифры, "-" и "_" (3-64 символа).', 'error');
+                return;
+            }
+
+            const hasCoinsReward = rewardCoinsValue > 0;
+            const hasSkinReward = rewardSkinIdValue !== '';
+            const hasBoostReward = rewardBoostTypeValue !== '' && rewardBoostMinutesValue > 0;
+            if (!hasCoinsReward && !hasSkinReward && !hasBoostReward) {
+                showNotification('Нужна хотя бы одна награда: монеты, скин или буст.', 'error');
+                return;
+            }
+
+            if (saveButton) {
+                saveButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: 'save_promocode_item',
+                promocode_id: String(editingPromocodeId || 0),
+                promocode_code: codeValue,
+                promocode_reward_coins: String(rewardCoinsValue),
+                promocode_reward_skin_id: rewardSkinIdValue,
+                promocode_reward_boost_type: rewardBoostTypeValue,
+                promocode_reward_boost_minutes: String(rewardBoostMinutesValue),
+                promocode_max_activations: maxActivationsRaw,
+                promocode_expires_at: expiresAtValue,
+                promocode_is_active: isActiveValue ? '1' : ''
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось сохранить промокод');
+                    }
+
+                    hideEditPromocodeModal();
+                    loadPromocodeCatalogAdmin();
+                    showNotification(data.message || 'Промокод сохранён', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка сохранения промокода', 'error');
+                })
+                .finally(() => {
+                    if (saveButton) {
+                        saveButton.disabled = false;
+                    }
+                    if (btnText) {
+                        btnText.style.display = 'inline';
+                    }
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                });
+        }
+
+        function openDeletePromocodeModal(promocodeId, promocodeCode) {
+            const normalizedPromocodeId = Math.max(0, Number(promocodeId) || 0);
+            if (normalizedPromocodeId < 1) {
+                return;
+            }
+
+            pendingDeletePromocodeId = normalizedPromocodeId;
+            const titleNode = document.getElementById('deletePromocodeModalTitle');
+            if (titleNode) {
+                titleNode.textContent = promocodeCode ? `Удалить промокод «${promocodeCode}»?` : 'Удалить этот промокод?';
+            }
+
+            document.getElementById('deletePromocodeModal').classList.add('active');
+        }
+
+        function hideDeletePromocodeModal() {
+            document.getElementById('deletePromocodeModal').classList.remove('active');
+            pendingDeletePromocodeId = 0;
+        }
+
+        function confirmDeletePromocode() {
+            if (pendingDeletePromocodeId < 1) {
+                hideDeletePromocodeModal();
+                return;
+            }
+
+            const confirmButton = document.getElementById('confirmDeletePromocodeBtn');
+            const btnText = confirmButton ? confirmButton.querySelector('.btn-text') : null;
+            const loader = confirmButton ? confirmButton.querySelector('.loader') : null;
+
+            if (confirmButton) {
+                confirmButton.disabled = true;
+            }
+            if (btnText) {
+                btnText.style.display = 'none';
+            }
+            if (loader) {
+                loader.style.display = 'inline-block';
+            }
+
+            postAction({
+                action: 'delete_promocode_item',
+                promocode_id: String(pendingDeletePromocodeId)
+            })
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.message || 'Не удалось удалить промокод');
+                    }
+
+                    hideDeletePromocodeModal();
+                    loadPromocodeCatalogAdmin();
+                    showNotification(data.message || 'Промокод удалён', 'success');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification(error.message || 'Ошибка удаления промокода', 'error');
+                })
+                .finally(() => {
+                    if (confirmButton) {
+                        confirmButton.disabled = false;
+                    }
+                    if (btnText) {
+                        btnText.style.display = 'inline';
+                    }
+                    if (loader) {
+                        loader.style.display = 'none';
+                    }
+                });
+        }
+
         function showAchievementsView() {
             stopSupportLiveRefreshAdmin();
             currentAdminView = 'achievements';
@@ -11434,6 +12362,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'block';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -11456,6 +12385,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'block';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -11477,6 +12407,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -11499,6 +12430,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'block';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -11510,6 +12442,29 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             updateActiveMenuItem('newsBtn');
             loadDashboardStats();
             loadAnnouncementCatalogAdmin();
+        }
+
+        function showPromocodesView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'promocodes';
+            scheduleAdminSupportUnreadMonitor(2000);
+            document.getElementById('accountsView').style.display = 'none';
+            document.getElementById('skinsView').style.display = 'none';
+            document.getElementById('questsView').style.display = 'none';
+            document.getElementById('achievementsView').style.display = 'none';
+            document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'block';
+            document.getElementById('supportView').style.display = 'none';
+            document.getElementById('dmModerationView').style.display = 'none';
+            document.getElementById('aiAssistantView').style.display = 'none';
+            document.getElementById('maintenanceView').style.display = 'none';
+            document.getElementById('tableDataCard').style.display = 'none';
+            document.getElementById('sqlEditorCard').style.display = 'none';
+            document.getElementById('statsToolbar').style.display = 'flex';
+            document.getElementById('statsGrid').style.display = 'grid';
+            updateActiveMenuItem('promocodesBtn');
+            loadDashboardStats();
+            loadPromocodeCatalogAdmin();
         }
 
         function normalizeAdminSupportTicket(rawTicket) {
@@ -12360,6 +13315,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'block';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -12385,6 +13341,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'block';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -12716,6 +13673,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'block';
@@ -13426,6 +14384,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -13457,6 +14416,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -13480,6 +14440,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';
@@ -13502,6 +14463,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             document.getElementById('questsView').style.display = 'none';
             document.getElementById('achievementsView').style.display = 'none';
             document.getElementById('newsView').style.display = 'none';
+            document.getElementById('promocodesView').style.display = 'none';
             document.getElementById('supportView').style.display = 'none';
             document.getElementById('dmModerationView').style.display = 'none';
             document.getElementById('aiAssistantView').style.display = 'none';

@@ -125,6 +125,7 @@ try {
         'latestAnnouncement' => is_array($account) ? ($account['latestAnnouncement'] ?? null) : null,
         'announcementFeed' => is_array($account) ? ($account['announcementFeed'] ?? []) : [],
         'announcementUnreadCount' => is_array($account) ? ($account['announcementUnreadCount'] ?? 0) : 0,
+        'referral' => is_array($account) ? ($account['referral'] ?? null) : null,
         'serverTime' => (int) round(microtime(true) * 1000),
         'saved' => $saveResult !== null,
         'settingsSaved' => $settingsSaved,

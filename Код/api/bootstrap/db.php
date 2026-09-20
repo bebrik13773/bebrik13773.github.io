@@ -4641,9 +4641,593 @@ function bober_ensure_gameplay_schema($conn)
     bober_ensure_user_quests_schema($conn);
     bober_ensure_support_schema($conn);
     bober_ensure_announcement_schema($conn);
+    bober_ensure_referral_schema($conn);
+    bober_ensure_promocode_schema($conn);
 
     bober_schema_guard_touch('gameplay');
     $schemaEnsured = true;
+}
+
+function bober_ensure_referral_schema($conn)
+{
+    $addReferralColumns = [
+        'referral_code' => "ALTER TABLE `users` ADD COLUMN `referral_code` VARCHAR(16) NULL AFTER `login`",
+        'referred_by_user_id' => "ALTER TABLE `users` ADD COLUMN `referred_by_user_id` INT NULL AFTER `referral_code`",
+        'referral_bonus_claimed' => "ALTER TABLE `users` ADD COLUMN `referral_bonus_claimed` TINYINT(1) NOT NULL DEFAULT 0 AFTER `referred_by_user_id`",
+        'referral_reg_ip' => "ALTER TABLE `users` ADD COLUMN `referral_reg_ip` VARCHAR(64) NULL AFTER `referral_bonus_claimed`",
+    ];
+
+    foreach ($addReferralColumns as $column => $sql) {
+        if (!bober_column_exists($conn, 'users', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру таблицы пользователей для рефералов.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'users', 'idx_users_referral_code') && !$conn->query("CREATE UNIQUE INDEX `idx_users_referral_code` ON `users` (`referral_code`)")) {
+        throw new RuntimeException('Не удалось создать индекс реферального кода.');
+    }
+
+    if (!bober_index_exists($conn, 'users', 'idx_users_referred_by') && !$conn->query("CREATE INDEX `idx_users_referred_by` ON `users` (`referred_by_user_id`)")) {
+        throw new RuntimeException('Не удалось создать индекс пригласившего.');
+    }
+
+    $createReferralEarningsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `referral_earnings` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `referrer_user_id` INT NOT NULL,
+    `referred_user_id` INT NOT NULL,
+    `coins_earned` BIGINT NOT NULL DEFAULT 0,
+    `referred_score_at_cap` BIGINT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_referral_earnings_referrer` (`referrer_user_id`),
+    KEY `idx_referral_earnings_referred` (`referred_user_id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createReferralEarningsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу начислений рефералов.');
+    }
+}
+
+function bober_ensure_promocode_schema($conn)
+{
+    $createPromocodesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `promocodes` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `code` VARCHAR(64) NOT NULL,
+    `reward_coins` BIGINT NOT NULL DEFAULT 0,
+    `reward_skin_id` VARCHAR(64) NULL,
+    `reward_boost_type` VARCHAR(32) NULL,
+    `reward_boost_minutes` INT NOT NULL DEFAULT 0,
+    `max_activations` INT NULL,
+    `activations_used` INT NOT NULL DEFAULT 0,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `expires_at` TIMESTAMP NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `created_by` VARCHAR(100) NULL,
+    UNIQUE KEY `idx_promocodes_code` (`code`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createPromocodesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу промокодов.');
+    }
+
+    $createPromocodeRedemptionsSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `promocode_redemptions` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `promocode_id` INT NOT NULL,
+    `user_id` INT NOT NULL,
+    `redeemed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `idx_promocode_redemptions_unique` (`promocode_id`, `user_id`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createPromocodeRedemptionsSql)) {
+        throw new RuntimeException('Не удалось создать таблицу активаций промокодов.');
+    }
+}
+
+/**
+ * Генерирует уникальный реферальный код для пользователя, если он ещё не выдан.
+ * Формат: короткий код на основе ID + случайных символов, легко копируется/вводится.
+ */
+function bober_ensure_user_referral_code($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('SELECT referral_code FROM users WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить чтение реферального кода.');
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    $existingCode = trim((string) ($row['referral_code'] ?? ''));
+    if ($existingCode !== '') {
+        return $existingCode;
+    }
+
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        $suffix = '';
+        for ($i = 0; $i < 5; $i++) {
+            $suffix .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        $candidateCode = 'B' . $userId . $suffix;
+
+        $updateStmt = $conn->prepare('UPDATE users SET referral_code = ? WHERE id = ? AND (referral_code IS NULL OR referral_code = \'\')');
+        if (!$updateStmt) {
+            throw new RuntimeException('Не удалось подготовить сохранение реферального кода.');
+        }
+        $updateStmt->bind_param('si', $candidateCode, $userId);
+        $updateStmt->execute();
+        $affected = $updateStmt->affected_rows;
+        $updateStmt->close();
+
+        if ($affected > 0) {
+            return $candidateCode;
+        }
+
+        // Гонка/дубликат — перечитываем на случай, если код уже был выставлен параллельно.
+        $recheckStmt = $conn->prepare('SELECT referral_code FROM users WHERE id = ? LIMIT 1');
+        $recheckStmt->bind_param('i', $userId);
+        $recheckStmt->execute();
+        $recheckResult = $recheckStmt->get_result();
+        $recheckRow = $recheckResult ? $recheckResult->fetch_assoc() : null;
+        if ($recheckResult) {
+            $recheckResult->free();
+        }
+        $recheckStmt->close();
+        $recheckCode = trim((string) ($recheckRow['referral_code'] ?? ''));
+        if ($recheckCode !== '') {
+            return $recheckCode;
+        }
+    }
+
+    throw new RuntimeException('Не удалось сгенерировать уникальный реферальный код.');
+}
+
+/**
+ * Порог, до которого действует и разовый бонус, и реферальный процент от заработка друга.
+ */
+function bober_referral_score_cap()
+{
+    return 100000;
+}
+
+function bober_referral_percent()
+{
+    return 0.05;
+}
+
+function bober_referral_signup_bonus_base()
+{
+    return 100000;
+}
+
+/**
+ * Привязывает нового пользователя к пригласившему по реферальному коду.
+ * Вызывается сразу после регистрации. Не начисляет никаких наград —
+ * они выдаются позже, когда приглашённый реально наберёт минимум очков
+ * (защита от фейковых аккаунтов ради бонуса).
+ */
+function bober_attach_referral($conn, $newUserId, $referralCodeRaw)
+{
+    $newUserId = max(0, (int) $newUserId);
+    $referralCode = strtoupper(trim((string) $referralCodeRaw));
+
+    if ($newUserId < 1 || $referralCode === '') {
+        return null;
+    }
+
+    $referrerStmt = $conn->prepare('SELECT id FROM users WHERE referral_code = ? LIMIT 1');
+    if (!$referrerStmt) {
+        throw new RuntimeException('Не удалось подготовить поиск пригласившего.');
+    }
+    $referrerStmt->bind_param('s', $referralCode);
+    $referrerStmt->execute();
+    $referrerResult = $referrerStmt->get_result();
+    $referrerRow = $referrerResult ? $referrerResult->fetch_assoc() : null;
+    if ($referrerResult) {
+        $referrerResult->free();
+    }
+    $referrerStmt->close();
+
+    $referrerUserId = max(0, (int) ($referrerRow['id'] ?? 0));
+    if ($referrerUserId < 1 || $referrerUserId === $newUserId) {
+        // Код не найден или это попытка пригласить самого себя — молча игнорируем.
+        return null;
+    }
+
+    // Базовая защита от накрутки: если пригласивший регистрировался с того же IP,
+    // считаем это тем же человеком/устройством и не засчитываем реферал.
+    $currentIp = bober_get_client_ip();
+    if ($currentIp !== null) {
+        $referrerIpStmt = $conn->prepare('SELECT referral_reg_ip FROM users WHERE id = ? LIMIT 1');
+        $referrerIpStmt->bind_param('i', $referrerUserId);
+        $referrerIpStmt->execute();
+        $referrerIpResult = $referrerIpStmt->get_result();
+        $referrerIpRow = $referrerIpResult ? $referrerIpResult->fetch_assoc() : null;
+        if ($referrerIpResult) {
+            $referrerIpResult->free();
+        }
+        $referrerIpStmt->close();
+
+        $referrerIp = trim((string) ($referrerIpRow['referral_reg_ip'] ?? ''));
+        if ($referrerIp !== '' && $referrerIp === $currentIp) {
+            return null;
+        }
+    }
+
+    $updateStmt = $conn->prepare('UPDATE users SET referred_by_user_id = ?, referral_reg_ip = ? WHERE id = ? AND referred_by_user_id IS NULL');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить привязку реферала.');
+    }
+    $updateStmt->bind_param('isi', $referrerUserId, $currentIp, $newUserId);
+    $updateStmt->execute();
+    $updateStmt->close();
+
+    return $referrerUserId;
+}
+
+/**
+ * Начисляет пригласившему процент от прироста счёта приглашённого (пока счёт
+ * приглашённого не превысил порог), и выдаёт разовые бонусы обеим сторонам,
+ * когда приглашённый впервые достигает порога. Вызывается при каждой синхронизации
+ * счёта приглашённого. Никогда не бросает исключение наружу — реферальная
+ * логика не должна мешать сохранению прогресса игрока.
+ */
+function bober_process_referral_progress($conn, $referredUserId, $previousScore, $nextScore)
+{
+    try {
+        $referredUserId = max(0, (int) $referredUserId);
+        $previousScore = max(0, (int) $previousScore);
+        $nextScore = max(0, (int) $nextScore);
+
+        if ($referredUserId < 1 || $nextScore <= $previousScore) {
+            return;
+        }
+
+        $userStmt = $conn->prepare('SELECT referred_by_user_id, referral_bonus_claimed, login FROM users WHERE id = ? LIMIT 1');
+        if (!$userStmt) {
+            return;
+        }
+        $userStmt->bind_param('i', $referredUserId);
+        $userStmt->execute();
+        $userResult = $userStmt->get_result();
+        $userRow = $userResult ? $userResult->fetch_assoc() : null;
+        if ($userResult) {
+            $userResult->free();
+        }
+        $userStmt->close();
+
+        $referrerUserId = max(0, (int) ($userRow['referred_by_user_id'] ?? 0));
+        if ($referrerUserId < 1) {
+            return;
+        }
+
+        $bonusClaimed = !empty($userRow['referral_bonus_claimed']);
+        $cap = bober_referral_score_cap();
+
+        // 1. Процент от прироста счёта, ограниченный порогом.
+        $cappedPreviousScore = min($previousScore, $cap);
+        $cappedNextScore = min($nextScore, $cap);
+        $cappedGain = max(0, $cappedNextScore - $cappedPreviousScore);
+
+        if ($cappedGain > 0) {
+            $coinsForReferrer = (int) round($cappedGain * bober_referral_percent());
+            if ($coinsForReferrer > 0) {
+                $grantStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
+                if ($grantStmt) {
+                    $grantStmt->bind_param('ii', $coinsForReferrer, $referrerUserId);
+                    $grantStmt->execute();
+                    $grantStmt->close();
+
+                    $logStmt = $conn->prepare('INSERT INTO referral_earnings (referrer_user_id, referred_user_id, coins_earned, referred_score_at_cap) VALUES (?, ?, ?, ?)');
+                    if ($logStmt) {
+                        $logStmt->bind_param('iiii', $referrerUserId, $referredUserId, $coinsForReferrer, $cappedNextScore);
+                        $logStmt->execute();
+                        $logStmt->close();
+                    }
+
+                    bober_log_user_activity($conn, $referrerUserId, 'referral_earning', [
+                        'action_group' => 'referral',
+                        'source' => 'sync_state',
+                        'description' => 'Начислен процент с прогресса приглашённого друга.',
+                        'coins_delta' => $coinsForReferrer,
+                        'meta' => [
+                            'referred_user_id' => $referredUserId,
+                        ],
+                    ]);
+                }
+            }
+        }
+
+        // 2. Разовый бонус обеим сторонам, когда приглашённый впервые достиг порога.
+        if (!$bonusClaimed && $nextScore >= $cap) {
+            $economyProfile = bober_build_user_economy_profile(bober_fetch_user_purchase_runtime_state($conn, $referrerUserId));
+            $bonusCoins = bober_calculate_effective_progress_reward_coins(bober_referral_signup_bonus_base(), $economyProfile);
+
+            $referredEconomyProfile = bober_build_user_economy_profile(bober_fetch_user_purchase_runtime_state($conn, $referredUserId));
+            $bonusCoinsForReferred = bober_calculate_effective_progress_reward_coins(bober_referral_signup_bonus_base(), $referredEconomyProfile);
+
+            $claimStmt = $conn->prepare('UPDATE users SET referral_bonus_claimed = 1 WHERE id = ? AND referral_bonus_claimed = 0');
+            if ($claimStmt) {
+                $claimStmt->bind_param('i', $referredUserId);
+                $claimStmt->execute();
+                $claimedNow = $claimStmt->affected_rows > 0;
+                $claimStmt->close();
+
+                if ($claimedNow) {
+                    $grantReferrerStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
+                    if ($grantReferrerStmt) {
+                        $grantReferrerStmt->bind_param('ii', $bonusCoins, $referrerUserId);
+                        $grantReferrerStmt->execute();
+                        $grantReferrerStmt->close();
+                    }
+
+                    $grantReferredStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
+                    if ($grantReferredStmt) {
+                        $grantReferredStmt->bind_param('ii', $bonusCoinsForReferred, $referredUserId);
+                        $grantReferredStmt->execute();
+                        $grantReferredStmt->close();
+                    }
+
+                    bober_log_user_activity($conn, $referrerUserId, 'referral_signup_bonus', [
+                        'action_group' => 'referral',
+                        'source' => 'sync_state',
+                        'description' => 'Разовый бонус за приглашённого друга, достигшего порога.',
+                        'coins_delta' => $bonusCoins,
+                        'meta' => ['referred_user_id' => $referredUserId],
+                    ]);
+
+                    bober_log_user_activity($conn, $referredUserId, 'referral_signup_bonus', [
+                        'action_group' => 'referral',
+                        'source' => 'sync_state',
+                        'description' => 'Разовый бонус за регистрацию по реферальной ссылке.',
+                        'coins_delta' => $bonusCoinsForReferred,
+                        'meta' => ['referrer_user_id' => $referrerUserId],
+                    ]);
+                }
+            }
+        }
+    } catch (Throwable $referralError) {
+        // Реферальная логика никогда не должна мешать сохранению прогресса игрока.
+    }
+}
+
+/**
+ * Возвращает публичную сводку по рефералам для профиля игрока: код/ссылка,
+ * количество приглашённых и суммарный заработок с рефералов.
+ */
+function bober_fetch_referral_summary($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        return [
+            'code' => '',
+            'invitedCount' => 0,
+            'totalEarnedCoins' => 0,
+        ];
+    }
+
+    $code = bober_ensure_user_referral_code($conn, $userId);
+
+    $countStmt = $conn->prepare('SELECT COUNT(*) AS cnt FROM users WHERE referred_by_user_id = ?');
+    $invitedCount = 0;
+    if ($countStmt) {
+        $countStmt->bind_param('i', $userId);
+        $countStmt->execute();
+        $countResult = $countStmt->get_result();
+        $countRow = $countResult ? $countResult->fetch_assoc() : null;
+        if ($countResult) {
+            $countResult->free();
+        }
+        $countStmt->close();
+        $invitedCount = max(0, (int) ($countRow['cnt'] ?? 0));
+    }
+
+    $earnedStmt = $conn->prepare('SELECT COALESCE(SUM(coins_earned), 0) AS total FROM referral_earnings WHERE referrer_user_id = ?');
+    $totalEarned = 0;
+    if ($earnedStmt) {
+        $earnedStmt->bind_param('i', $userId);
+        $earnedStmt->execute();
+        $earnedResult = $earnedStmt->get_result();
+        $earnedRow = $earnedResult ? $earnedResult->fetch_assoc() : null;
+        if ($earnedResult) {
+            $earnedResult->free();
+        }
+        $earnedStmt->close();
+        $totalEarned = max(0, (int) ($earnedRow['total'] ?? 0));
+    }
+
+    return [
+        'code' => $code,
+        'invitedCount' => $invitedCount,
+        'totalEarnedCoins' => $totalEarned,
+    ];
+}
+
+function bober_normalize_promocode_row(array $row)
+{
+    $maxActivations = $row['max_activations'] !== null ? (int) $row['max_activations'] : null;
+
+    return [
+        'id' => max(0, (int) ($row['id'] ?? 0)),
+        'code' => (string) ($row['code'] ?? ''),
+        'rewardCoins' => max(0, (int) ($row['reward_coins'] ?? 0)),
+        'rewardSkinId' => $row['reward_skin_id'] !== null ? (string) $row['reward_skin_id'] : '',
+        'rewardBoostType' => $row['reward_boost_type'] !== null ? (string) $row['reward_boost_type'] : '',
+        'rewardBoostMinutes' => max(0, (int) ($row['reward_boost_minutes'] ?? 0)),
+        'maxActivations' => $maxActivations,
+        'activationsUsed' => max(0, (int) ($row['activations_used'] ?? 0)),
+        'isActive' => !empty($row['is_active']),
+        'expiresAt' => $row['expires_at'] !== null ? (string) $row['expires_at'] : null,
+        'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
+        'createdBy' => $row['created_by'] !== null ? (string) $row['created_by'] : '',
+    ];
+}
+
+/**
+ * Пытается активировать промокод для пользователя. Возвращает массив с результатом
+ * и деталями выданных наград, либо кидает исключение с понятным сообщением при ошибке.
+ */
+function bober_redeem_promocode($conn, $userId, $codeRaw)
+{
+    $userId = max(0, (int) $userId);
+    $code = strtoupper(trim((string) $codeRaw));
+
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+    if ($code === '') {
+        throw new InvalidArgumentException('Введите промокод.');
+    }
+
+    $conn->begin_transaction();
+    try {
+        $promoStmt = $conn->prepare('SELECT * FROM promocodes WHERE code = ? LIMIT 1 FOR UPDATE');
+        if (!$promoStmt) {
+            throw new RuntimeException('Не удалось подготовить поиск промокода.');
+        }
+        $promoStmt->bind_param('s', $code);
+        $promoStmt->execute();
+        $promoResult = $promoStmt->get_result();
+        $promo = $promoResult ? $promoResult->fetch_assoc() : null;
+        if ($promoResult) {
+            $promoResult->free();
+        }
+        $promoStmt->close();
+
+        if (!is_array($promo)) {
+            throw new RuntimeException('Такой промокод не найден.');
+        }
+
+        if (empty($promo['is_active'])) {
+            throw new RuntimeException('Этот промокод больше не активен.');
+        }
+
+        if (!empty($promo['expires_at']) && strtotime((string) $promo['expires_at']) < time()) {
+            throw new RuntimeException('Срок действия этого промокода истёк.');
+        }
+
+        $maxActivations = $promo['max_activations'] !== null ? (int) $promo['max_activations'] : null;
+        $activationsUsed = (int) ($promo['activations_used'] ?? 0);
+        if ($maxActivations !== null && $activationsUsed >= $maxActivations) {
+            throw new RuntimeException('Лимит активаций этого промокода исчерпан.');
+        }
+
+        $promocodeId = (int) $promo['id'];
+
+        $checkRedeemedStmt = $conn->prepare('SELECT id FROM promocode_redemptions WHERE promocode_id = ? AND user_id = ? LIMIT 1');
+        $checkRedeemedStmt->bind_param('ii', $promocodeId, $userId);
+        $checkRedeemedStmt->execute();
+        $checkRedeemedStmt->store_result();
+        $alreadyRedeemed = $checkRedeemedStmt->num_rows > 0;
+        $checkRedeemedStmt->close();
+
+        if ($alreadyRedeemed) {
+            throw new RuntimeException('Вы уже активировали этот промокод.');
+        }
+
+        $insertRedemptionStmt = $conn->prepare('INSERT INTO promocode_redemptions (promocode_id, user_id) VALUES (?, ?)');
+        $insertRedemptionStmt->bind_param('ii', $promocodeId, $userId);
+        if (!$insertRedemptionStmt->execute()) {
+            $insertRedemptionStmt->close();
+            throw new RuntimeException('Не удалось зарегистрировать активацию промокода.');
+        }
+        $insertRedemptionStmt->close();
+
+        $updatePromoStmt = $conn->prepare('UPDATE promocodes SET activations_used = activations_used + 1 WHERE id = ?');
+        $updatePromoStmt->bind_param('i', $promocodeId);
+        $updatePromoStmt->execute();
+        $updatePromoStmt->close();
+
+        $rewardCoins = max(0, (int) ($promo['reward_coins'] ?? 0));
+        if ($rewardCoins > 0) {
+            $grantScoreStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
+            $grantScoreStmt->bind_param('ii', $rewardCoins, $userId);
+            $grantScoreStmt->execute();
+            $grantScoreStmt->close();
+        }
+
+        $rewardSkinId = trim((string) ($promo['reward_skin_id'] ?? ''));
+        if ($rewardSkinId !== '') {
+            bober_grant_skin_to_user($conn, $userId, $rewardSkinId, false);
+        }
+
+        $rewardBoostType = trim((string) ($promo['reward_boost_type'] ?? ''));
+        $rewardBoostMinutes = max(0, (int) ($promo['reward_boost_minutes'] ?? 0));
+        if ($rewardBoostType !== '' && $rewardBoostMinutes > 0) {
+            bober_grant_temporary_boost($conn, $userId, $rewardBoostType, $rewardBoostMinutes);
+        }
+
+        $conn->commit();
+
+        bober_log_user_activity($conn, $userId, 'promocode_redeemed', [
+            'action_group' => 'promocode',
+            'source' => 'redeem_promocode',
+            'description' => 'Активирован промокод «' . $code . '».',
+            'coins_delta' => $rewardCoins,
+            'meta' => [
+                'code' => $code,
+                'reward_coins' => $rewardCoins,
+                'reward_skin_id' => $rewardSkinId,
+                'reward_boost_type' => $rewardBoostType,
+                'reward_boost_minutes' => $rewardBoostMinutes,
+            ],
+        ]);
+
+        return [
+            'success' => true,
+            'rewardCoins' => $rewardCoins,
+            'rewardSkinId' => $rewardSkinId,
+            'rewardBoostType' => $rewardBoostType,
+            'rewardBoostMinutes' => $rewardBoostMinutes,
+        ];
+    } catch (Throwable $error) {
+        $conn->rollback();
+        throw $error;
+    }
+}
+
+/**
+ * Выдаёт временный буст игроку (например x2 к клику на N минут). Хранится
+ * прямо в user_settings как runtime-флаг с временем истечения, чтобы не
+ * заводить отдельную таблицу для простого временного эффекта.
+ */
+function bober_grant_temporary_boost($conn, $userId, $boostType, $minutes)
+{
+    $userId = max(0, (int) $userId);
+    $boostType = trim((string) $boostType);
+    $minutes = max(0, (int) $minutes);
+
+    if ($userId < 1 || $boostType === '' || $minutes < 1) {
+        return;
+    }
+
+    bober_ensure_user_settings_schema($conn);
+
+    $expiresAtMs = (int) round(microtime(true) * 1000) + ($minutes * 60 * 1000);
+
+    $settingsRecord = bober_fetch_user_settings_record($conn, $userId);
+    $settings = is_array($settingsRecord['settings'] ?? null) ? $settingsRecord['settings'] : [];
+    if (!isset($settings['activeBoosts']) || !is_array($settings['activeBoosts'])) {
+        $settings['activeBoosts'] = [];
+    }
+    $settings['activeBoosts'][$boostType] = $expiresAtMs;
+
+    bober_store_user_settings($conn, $userId, $settings);
 }
 
 function bober_ensure_project_schema($conn)
@@ -10358,6 +10942,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'latestAnnouncement' => $latestAnnouncement,
         'announcementFeed' => $announcementFeed,
         'announcementUnreadCount' => $announcementUnreadCount,
+        'referral' => bober_fetch_referral_summary($conn, $userId),
     ];
 
     if ($includeActivity) {
@@ -10541,6 +11126,7 @@ function bober_apply_user_state_update($conn, $userId, $data)
 
     if (is_array($currentRow)) {
         $previousScore = max(0, (int) ($currentRow['score'] ?? 0));
+        bober_process_referral_progress($conn, $userId, $previousScore, $score);
         $previousUpgradeCounts = $currentUpgradeCounts;
         $previousPlus = bober_calculate_plus_from_upgrade_counts($previousUpgradeCounts);
         $previousEnergyMax = bober_calculate_energy_max_from_upgrade_counts($previousUpgradeCounts);

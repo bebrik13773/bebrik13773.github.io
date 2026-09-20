@@ -11,6 +11,7 @@ try {
 
     $login = trim((string) ($data['login'] ?? ''));
     $password = (string) ($data['password'] ?? '');
+    $referralCode = trim((string) ($data['referralCode'] ?? ''));
 
     if ($login === '' || $password === '') {
         bober_json_response(['success' => false, 'message' => 'Введите логин и пароль.'], 400);
@@ -78,6 +79,16 @@ try {
 
     $newUserId = (int) $stmt->insert_id;
     $stmt->close();
+
+    bober_ensure_user_referral_code($conn, $newUserId);
+    if ($referralCode !== '') {
+        try {
+            bober_attach_referral($conn, $newUserId, $referralCode);
+        } catch (Throwable $referralAttachError) {
+            // Не даём проблеме с привязкой реферала сорвать регистрацию.
+        }
+    }
+
     $sessionInfo = bober_login_user($newUserId, $login);
     if (!empty($sessionInfo['previousSessionHash']) && !empty($sessionInfo['currentSessionHash']) && $sessionInfo['previousSessionHash'] !== $sessionInfo['currentSessionHash']) {
         bober_revoke_game_session_by_hash($conn, (string) $sessionInfo['previousSessionHash'], 'session_rotated_after_register');
