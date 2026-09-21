@@ -3346,10 +3346,33 @@ Owner decisions:
         flex-wrap: wrap;
     }
 
-    .profile-referral-code-row input,
-    .profile-promocode-row input {
+    .profile-referral-code-row .referral-input,
+    .profile-promocode-row .referral-input {
         flex: 1 1 180px;
         min-width: 0;
+    }
+
+    .referral-input {
+        width: 100%;
+        min-height: 48px;
+        border-radius: 14px;
+        border: 1px solid rgba(126, 241, 255, 0.18);
+        background: rgba(9, 13, 27, 0.62);
+        color: #fff;
+        padding: 12px 14px;
+        font-size: 14px;
+        box-sizing: border-box;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        font-family: inherit;
+    }
+
+    .referral-input::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    .referral-input:read-only {
+        color: rgba(255, 255, 255, 0.78);
+        cursor: text;
     }
 
     .profile-referral-stats {
@@ -6413,6 +6436,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                             </div>
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
+                        <button id="referralSystemButton" type="button">Реферальная система</button>
                         <button id="profileAchievementsButton" type="button">Достижения</button>
                         <button id="profileMenuNewsButton" type="button">
                             <span>Новости</span>
@@ -6876,12 +6900,25 @@ function showNotification(message, type = 'success', duration = 3000) {
 	        <div class="profile-badge-row" id="profileModalBadges"></div>
         <div class="profile-trophy-row" id="profileModalTrophies"></div>
         <div class="profile-stats-grid" id="profileModalStats"></div>
+        <div class="profile-achievements-title">Последние события</div>
+        <div class="profile-activity-section" id="profileModalActivity"></div>
+        <div class="profile-achievements-title">Достижения</div>
+        <div class="profile-achievements-grid" id="profileModalAchievements"></div>
+        <div class="skin-action-modal-buttons settings-modal-actions">
+            <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="referralModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="referralModalTitle">
+        <div class="skin-action-modal-title" id="referralModalTitle">Реферальная система</div>
+        <div class="skin-action-modal-text">Приглашай друзей и активируй промокоды от администрации.</div>
         <div class="profile-achievements-title">Пригласить друга</div>
         <div class="profile-referral-section" id="profileReferralSection">
             <div class="profile-referral-info">
                 <div class="profile-referral-hint">Отправь другу ссылку. Пока его счёт не достигнет 100 000 — ты получаешь 5% с его прогресса, а когда он наберёт 100 000, вы оба получите разовый бонус.</div>
                 <div class="profile-referral-code-row">
-                    <input type="text" id="profileReferralCodeInput" class="form-control" readonly>
+                    <input type="text" id="profileReferralCodeInput" class="referral-input" readonly>
                     <button type="button" class="settings-action-button primary" id="profileReferralCopyBtn">Скопировать ссылку</button>
                 </div>
                 <div class="profile-referral-stats">
@@ -6893,16 +6930,12 @@ function showNotification(message, type = 'success', duration = 3000) {
         <div class="profile-achievements-title">Промокод</div>
         <div class="profile-promocode-section" id="profilePromocodeSection">
             <div class="profile-promocode-row">
-                <input type="text" id="profilePromocodeInput" class="form-control" placeholder="Введите промокод" maxlength="64" autocomplete="off" autocapitalize="characters">
+                <input type="text" id="profilePromocodeInput" class="referral-input" placeholder="Введите промокод" maxlength="64" autocomplete="off" autocapitalize="characters">
                 <button type="button" class="settings-action-button primary" id="profilePromocodeRedeemBtn">Активировать</button>
             </div>
         </div>
-        <div class="profile-achievements-title">Последние события</div>
-        <div class="profile-activity-section" id="profileModalActivity"></div>
-        <div class="profile-achievements-title">Достижения</div>
-        <div class="profile-achievements-grid" id="profileModalAchievements"></div>
         <div class="skin-action-modal-buttons settings-modal-actions">
-            <button type="button" class="settings-action-button secondary" id="profileModalClose">Закрыть</button>
+            <button type="button" class="settings-action-button secondary" id="referralModalClose">Закрыть</button>
         </div>
     </div>
 </div>
@@ -11773,8 +11806,6 @@ function renderProfileModal() {
         'Крупные события аккаунта появятся здесь после покупок, достижений, квестов и забегов.'
     );
 
-    renderProfileReferralSection();
-
     const achievementRenderKeys = collectAchievementRenderKeys(unlockedItems, achievementStats);
     if (achievementRenderKeys.length < 1) {
         achievementsNode.innerHTML = '<div class="empty-list">Список достижений пока недоступен.</div>';
@@ -11924,6 +11955,8 @@ if (profilePromocodeRedeemBtn) {
             if (data.account) {
                 applySynchronizedAccountState(data.account);
             }
+
+            renderProfileReferralSection();
 
             if (inputNode) {
                 inputNode.value = '';
@@ -12127,6 +12160,35 @@ function closeQuestsModal() {
 
 function closeProfileModal() {
     const modal = document.getElementById('profileModal');
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+    scheduleLiveSync(getLiveSyncInterval());
+}
+
+function openReferralModal() {
+    const modal = document.getElementById('referralModal');
+    if (!modal || !userId) {
+        return;
+    }
+
+    closeProfileMenu();
+    renderProfileReferralSection();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    requestImmediateLiveRefresh('referral_open', {
+        includeDirtyState: true,
+        silent: true
+    });
+}
+
+function closeReferralModal() {
+    const modal = document.getElementById('referralModal');
     if (!modal) {
         return;
     }
@@ -16736,6 +16798,13 @@ if (profileModalCloseButton) {
     });
 }
 
+const referralModalCloseButton = document.getElementById('referralModalClose');
+if (referralModalCloseButton) {
+    referralModalCloseButton.addEventListener('click', () => {
+        closeReferralModal();
+    });
+}
+
 const profileModalCopyLinkButton = document.getElementById('profileModalCopyLink');
 if (profileModalCopyLinkButton) {
     profileModalCopyLinkButton.addEventListener('click', async () => {
@@ -17058,6 +17127,19 @@ if (profileAchievementsButton) {
         openProfileModal({
             scrollTo: 'achievements'
         });
+    });
+}
+
+const referralSystemButton = document.getElementById('referralSystemButton');
+if (referralSystemButton) {
+    referralSystemButton.addEventListener('click', () => {
+        if (!requestAuthModal('login', {
+            text: 'Войдите в аккаунт, чтобы приглашать друзей и активировать промокоды.'
+        })) {
+            return;
+        }
+
+        openReferralModal();
     });
 }
 

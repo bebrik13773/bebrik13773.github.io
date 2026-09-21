@@ -4713,6 +4713,25 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу промокодов.');
     }
 
+    // Расширение: несколько наград одним кодом (список скинов/бустов в JSON)
+    // и персональные промокоды, привязанные к конкретному игроку.
+    $addPromocodeColumns = [
+        'reward_skins_json' => "ALTER TABLE `promocodes` ADD COLUMN `reward_skins_json` TEXT NULL AFTER `reward_skin_id`",
+        'reward_boosts_json' => "ALTER TABLE `promocodes` ADD COLUMN `reward_boosts_json` TEXT NULL AFTER `reward_boost_minutes`",
+        'target_user_id' => "ALTER TABLE `promocodes` ADD COLUMN `target_user_id` INT NULL AFTER `created_by`",
+        'note' => "ALTER TABLE `promocodes` ADD COLUMN `note` VARCHAR(255) NULL AFTER `target_user_id`",
+    ];
+
+    foreach ($addPromocodeColumns as $column => $sql) {
+        if (!bober_column_exists($conn, 'promocodes', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру таблицы промокодов.');
+        }
+    }
+
+    if (!bober_index_exists($conn, 'promocodes', 'idx_promocodes_target_user') && !$conn->query("CREATE INDEX `idx_promocodes_target_user` ON `promocodes` (`target_user_id`)")) {
+        throw new RuntimeException('Не удалось создать индекс персональных промокодов.');
+    }
+
     $createPromocodeRedemptionsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `promocode_redemptions` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -4725,6 +4744,16 @@ SQL;
 
     if (!$conn->query($createPromocodeRedemptionsSql)) {
         throw new RuntimeException('Не удалось создать таблицу активаций промокодов.');
+    }
+
+    $addRedemptionColumns = [
+        'redeemer_login' => "ALTER TABLE `promocode_redemptions` ADD COLUMN `redeemer_login` VARCHAR(100) NULL AFTER `user_id`",
+    ];
+
+    foreach ($addRedemptionColumns as $column => $sql) {
+        if (!bober_column_exists($conn, 'promocode_redemptions', $column) && !$conn->query($sql)) {
+            throw new RuntimeException('Не удалось обновить структуру таблицы активаций промокодов.');
+        }
     }
 }
 
@@ -5062,19 +5091,74 @@ function bober_normalize_promocode_row(array $row)
 {
     $maxActivations = $row['max_activations'] !== null ? (int) $row['max_activations'] : null;
 
+    // Список скинов: новый формат reward_skins_json + старое одиночное поле для обратной совместимости.
+    $rewardSkinIds = [];
+    if (!empty($row['reward_skins_json'])) {
+        $decodedSkins = json_decode((string) $row['reward_skins_json'], true);
+        if (is_array($decodedSkins)) {
+            foreach ($decodedSkins as $skinId) {
+                $skinId = trim((string) $skinId);
+                if ($skinId !== '') {
+                    $rewardSkinIds[] = $skinId;
+                }
+            }
+        }
+    }
+    $legacySkinId = $row['reward_skin_id'] !== null ? trim((string) $row['reward_skin_id']) : '';
+    if ($legacySkinId !== '' && !in_array($legacySkinId, $rewardSkinIds, true)) {
+        $rewardSkinIds[] = $legacySkinId;
+    }
+
+    // Список бустов: [{type, minutes}, ...], новый формат + старое одиночное поле.
+    $rewardBoosts = [];
+    if (!empty($row['reward_boosts_json'])) {
+        $decodedBoosts = json_decode((string) $row['reward_boosts_json'], true);
+        if (is_array($decodedBoosts)) {
+            foreach ($decodedBoosts as $boostEntry) {
+                if (!is_array($boostEntry)) {
+                    continue;
+                }
+                $boostType = trim((string) ($boostEntry['type'] ?? ''));
+                $boostMinutes = max(0, (int) ($boostEntry['minutes'] ?? 0));
+                if ($boostType !== '' && $boostMinutes > 0) {
+                    $rewardBoosts[] = ['type' => $boostType, 'minutes' => $boostMinutes];
+                }
+            }
+        }
+    }
+    $legacyBoostType = $row['reward_boost_type'] !== null ? trim((string) $row['reward_boost_type']) : '';
+    $legacyBoostMinutes = max(0, (int) ($row['reward_boost_minutes'] ?? 0));
+    if ($legacyBoostType !== '' && $legacyBoostMinutes > 0) {
+        $alreadyPresent = false;
+        foreach ($rewardBoosts as $existingBoost) {
+            if ($existingBoost['type'] === $legacyBoostType && $existingBoost['minutes'] === $legacyBoostMinutes) {
+                $alreadyPresent = true;
+                break;
+            }
+        }
+        if (!$alreadyPresent) {
+            $rewardBoosts[] = ['type' => $legacyBoostType, 'minutes' => $legacyBoostMinutes];
+        }
+    }
+
     return [
         'id' => max(0, (int) ($row['id'] ?? 0)),
         'code' => (string) ($row['code'] ?? ''),
         'rewardCoins' => max(0, (int) ($row['reward_coins'] ?? 0)),
-        'rewardSkinId' => $row['reward_skin_id'] !== null ? (string) $row['reward_skin_id'] : '',
-        'rewardBoostType' => $row['reward_boost_type'] !== null ? (string) $row['reward_boost_type'] : '',
-        'rewardBoostMinutes' => max(0, (int) ($row['reward_boost_minutes'] ?? 0)),
+        'rewardSkinIds' => $rewardSkinIds,
+        'rewardBoosts' => $rewardBoosts,
+        // Поля ниже оставлены для обратной совместимости со старыми клиентами/кодом.
+        'rewardSkinId' => $rewardSkinIds[0] ?? '',
+        'rewardBoostType' => $rewardBoosts[0]['type'] ?? '',
+        'rewardBoostMinutes' => $rewardBoosts[0]['minutes'] ?? 0,
         'maxActivations' => $maxActivations,
         'activationsUsed' => max(0, (int) ($row['activations_used'] ?? 0)),
         'isActive' => !empty($row['is_active']),
         'expiresAt' => $row['expires_at'] !== null ? (string) $row['expires_at'] : null,
         'createdAt' => isset($row['created_at']) ? (string) $row['created_at'] : '',
         'createdBy' => $row['created_by'] !== null ? (string) $row['created_by'] : '',
+        'targetUserId' => $row['target_user_id'] !== null ? (int) $row['target_user_id'] : null,
+        'note' => $row['note'] !== null ? (string) $row['note'] : '',
     ];
 }
 
@@ -5121,6 +5205,11 @@ function bober_redeem_promocode($conn, $userId, $codeRaw)
             throw new RuntimeException('Срок действия этого промокода истёк.');
         }
 
+        $targetUserId = $promo['target_user_id'] !== null ? (int) $promo['target_user_id'] : null;
+        if ($targetUserId !== null && $targetUserId !== $userId) {
+            throw new RuntimeException('Этот промокод предназначен другому игроку.');
+        }
+
         $maxActivations = $promo['max_activations'] !== null ? (int) $promo['max_activations'] : null;
         $activationsUsed = (int) ($promo['activations_used'] ?? 0);
         if ($maxActivations !== null && $activationsUsed >= $maxActivations) {
@@ -5140,8 +5229,19 @@ function bober_redeem_promocode($conn, $userId, $codeRaw)
             throw new RuntimeException('Вы уже активировали этот промокод.');
         }
 
-        $insertRedemptionStmt = $conn->prepare('INSERT INTO promocode_redemptions (promocode_id, user_id) VALUES (?, ?)');
-        $insertRedemptionStmt->bind_param('ii', $promocodeId, $userId);
+        $loginStmt = $conn->prepare('SELECT login FROM users WHERE id = ? LIMIT 1');
+        $loginStmt->bind_param('i', $userId);
+        $loginStmt->execute();
+        $loginResult = $loginStmt->get_result();
+        $loginRow = $loginResult ? $loginResult->fetch_assoc() : null;
+        if ($loginResult) {
+            $loginResult->free();
+        }
+        $loginStmt->close();
+        $redeemerLogin = trim((string) ($loginRow['login'] ?? ''));
+
+        $insertRedemptionStmt = $conn->prepare('INSERT INTO promocode_redemptions (promocode_id, user_id, redeemer_login) VALUES (?, ?, ?)');
+        $insertRedemptionStmt->bind_param('iis', $promocodeId, $userId, $redeemerLogin);
         if (!$insertRedemptionStmt->execute()) {
             $insertRedemptionStmt->close();
             throw new RuntimeException('Не удалось зарегистрировать активацию промокода.');
@@ -5153,7 +5253,9 @@ function bober_redeem_promocode($conn, $userId, $codeRaw)
         $updatePromoStmt->execute();
         $updatePromoStmt->close();
 
-        $rewardCoins = max(0, (int) ($promo['reward_coins'] ?? 0));
+        $normalizedPromo = bober_normalize_promocode_row($promo);
+
+        $rewardCoins = $normalizedPromo['rewardCoins'];
         if ($rewardCoins > 0) {
             $grantScoreStmt = $conn->prepare('UPDATE users SET score = score + ? WHERE id = ?');
             $grantScoreStmt->bind_param('ii', $rewardCoins, $userId);
@@ -5161,15 +5263,12 @@ function bober_redeem_promocode($conn, $userId, $codeRaw)
             $grantScoreStmt->close();
         }
 
-        $rewardSkinId = trim((string) ($promo['reward_skin_id'] ?? ''));
-        if ($rewardSkinId !== '') {
+        foreach ($normalizedPromo['rewardSkinIds'] as $rewardSkinId) {
             bober_grant_skin_to_user($conn, $userId, $rewardSkinId, false);
         }
 
-        $rewardBoostType = trim((string) ($promo['reward_boost_type'] ?? ''));
-        $rewardBoostMinutes = max(0, (int) ($promo['reward_boost_minutes'] ?? 0));
-        if ($rewardBoostType !== '' && $rewardBoostMinutes > 0) {
-            bober_grant_temporary_boost($conn, $userId, $rewardBoostType, $rewardBoostMinutes);
+        foreach ($normalizedPromo['rewardBoosts'] as $rewardBoost) {
+            bober_grant_temporary_boost($conn, $userId, $rewardBoost['type'], $rewardBoost['minutes']);
         }
 
         $conn->commit();
@@ -5182,23 +5281,56 @@ function bober_redeem_promocode($conn, $userId, $codeRaw)
             'meta' => [
                 'code' => $code,
                 'reward_coins' => $rewardCoins,
-                'reward_skin_id' => $rewardSkinId,
-                'reward_boost_type' => $rewardBoostType,
-                'reward_boost_minutes' => $rewardBoostMinutes,
+                'reward_skin_ids' => $normalizedPromo['rewardSkinIds'],
+                'reward_boosts' => $normalizedPromo['rewardBoosts'],
             ],
         ]);
 
         return [
             'success' => true,
             'rewardCoins' => $rewardCoins,
-            'rewardSkinId' => $rewardSkinId,
-            'rewardBoostType' => $rewardBoostType,
-            'rewardBoostMinutes' => $rewardBoostMinutes,
+            'rewardSkinIds' => $normalizedPromo['rewardSkinIds'],
+            'rewardBoosts' => $normalizedPromo['rewardBoosts'],
         ];
     } catch (Throwable $error) {
         $conn->rollback();
         throw $error;
     }
+}
+
+
+/**
+ * История активаций конкретного промокода: кто и когда его активировал.
+ */
+function bober_fetch_promocode_redemptions($conn, $promocodeId)
+{
+    $promocodeId = max(0, (int) $promocodeId);
+    if ($promocodeId < 1) {
+        return [];
+    }
+
+    $stmt = $conn->prepare('SELECT user_id, redeemer_login, redeemed_at FROM promocode_redemptions WHERE promocode_id = ? ORDER BY redeemed_at DESC LIMIT 200');
+    if (!$stmt) {
+        return [];
+    }
+    $stmt->bind_param('i', $promocodeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $items = [];
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $items[] = [
+                'userId' => (int) ($row['user_id'] ?? 0),
+                'login' => (string) ($row['redeemer_login'] ?? ''),
+                'redeemedAt' => (string) ($row['redeemed_at'] ?? ''),
+            ];
+        }
+        $result->free();
+    }
+    $stmt->close();
+
+    return $items;
 }
 
 /**
