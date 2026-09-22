@@ -3475,6 +3475,64 @@ Owner decisions:
         line-height: 1.45;
     }
 
+    /* Markdown-контент новостей внутри ленты объявлений */
+    .profile-achievement-empty p {
+        margin: 0 0 10px;
+    }
+    .profile-achievement-empty p:last-child {
+        margin-bottom: 0;
+    }
+    .profile-achievement-empty h4,
+    .profile-achievement-empty h5,
+    .profile-achievement-empty h6 {
+        margin: 14px 0 8px;
+        color: rgba(255, 255, 255, 0.92);
+        line-height: 1.3;
+    }
+    .profile-achievement-empty h4:first-child,
+    .profile-achievement-empty h5:first-child,
+    .profile-achievement-empty h6:first-child {
+        margin-top: 0;
+    }
+    .profile-achievement-empty h4 { font-size: 17px; }
+    .profile-achievement-empty h5 { font-size: 15px; }
+    .profile-achievement-empty h6 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.8; }
+    .profile-achievement-empty strong { color: rgba(255, 255, 255, 0.92); }
+    .profile-achievement-empty em { font-style: italic; }
+    .profile-achievement-empty del { opacity: 0.6; }
+    .profile-achievement-empty code {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 5px;
+        padding: 1px 5px;
+        font-size: 0.92em;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .profile-achievement-empty ul,
+    .profile-achievement-empty ol {
+        margin: 8px 0;
+        padding-left: 22px;
+        display: grid;
+        gap: 4px;
+    }
+    .profile-achievement-empty blockquote {
+        margin: 10px 0;
+        padding: 8px 12px;
+        border-left: 3px solid rgba(111, 240, 255, 0.55);
+        background: rgba(111, 240, 255, 0.06);
+        border-radius: 0 8px 8px 0;
+        color: rgba(255, 255, 255, 0.78);
+    }
+    .profile-achievement-empty hr {
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        margin: 14px 0;
+    }
+    .profile-achievement-empty a {
+        color: #6ff0ff;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
     .profile-achievement-card {
         padding: 14px;
         border-radius: 18px;
@@ -8183,8 +8241,141 @@ function formatAnnouncementPublishedAt(value) {
     }, normalizedValue);
 }
 
-function buildAnnouncementBodyHtml(value) {
+function buildAnnouncementPlainBodyHtml(value) {
     return escapeHtmlText(String(value || '')).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+}
+
+// Компактный markdown-рендер для новостной ленты. Поддерживает подмножество,
+// достаточное для новостей: заголовки (#/##/###), жирный/курсив, зачёркнутый,
+// инлайн-код, ссылки [текст](url), маркированные (-/*) и нумерованные списки,
+// блок-цитаты (>), горизонтальные разделители (---) и абзацы/переносы строк.
+// Не поддерживает вложенные списки, таблицы, изображения — для новостей избыточно.
+function renderAnnouncementMarkdownToHtml(value) {
+    const raw = String(value || '').replace(/\r\n?/g, '\n');
+    if (raw.trim() === '') {
+        return '';
+    }
+
+    // Инлайн-разметку применяем к уже HTML-экранированному тексту,
+    // поэтому спецсимволы markdown (*_`[]~) остаются целыми после escapeHtmlText.
+    function renderInline(text) {
+        let html = escapeHtmlText(text);
+        // Ссылки [текст](https://...) — разрешаем только http(s)-схемы.
+        html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, function(match, label, url) {
+            const safeUrl = url.replace(/"/g, '&quot;');
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+        // Жирный+курсив / жирный / курсив (порядок важен: сначала более специфичные).
+        html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        html = html.replace(/(?<![A-Za-zА-Яа-я0-9])_([^_]+)_(?![A-Za-zА-Яа-я0-9])/g, '<em>$1</em>');
+        // Зачёркнутый и инлайн-код.
+        html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        return html;
+    }
+
+    const lines = raw.split('\n');
+    const blocks = [];
+    let paragraphLines = [];
+    let listItems = null;
+    let listType = null;
+
+    function flushParagraph() {
+        if (paragraphLines.length > 0) {
+            blocks.push(`<p>${paragraphLines.map(renderInline).join('<br>')}</p>`);
+            paragraphLines = [];
+        }
+    }
+
+    function flushList() {
+        if (listItems && listItems.length > 0) {
+            const tag = listType === 'ol' ? 'ol' : 'ul';
+            blocks.push(`<${tag}>${listItems.map(item => `<li>${renderInline(item)}</li>`).join('')}</${tag}>`);
+        }
+        listItems = null;
+        listType = null;
+    }
+
+    lines.forEach(function(lineRaw) {
+        const line = lineRaw.trim();
+
+        if (line === '') {
+            flushParagraph();
+            flushList();
+            return;
+        }
+
+        if (/^-{3,}$/.test(line) || /^\*{3,}$/.test(line)) {
+            flushParagraph();
+            flushList();
+            blocks.push('<hr>');
+            return;
+        }
+
+        const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+        if (headingMatch) {
+            flushParagraph();
+            flushList();
+            const level = headingMatch[1].length + 3; // # -> h4, ## -> h5, ### -> h6 (внутри модалки уже есть h1-h3)
+            blocks.push(`<h${level}>${renderInline(headingMatch[2])}</h${level}>`);
+            return;
+        }
+
+        const quoteMatch = line.match(/^>\s?(.*)$/);
+        if (quoteMatch) {
+            flushParagraph();
+            flushList();
+            blocks.push(`<blockquote>${renderInline(quoteMatch[1])}</blockquote>`);
+            return;
+        }
+
+        const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+        if (bulletMatch) {
+            flushParagraph();
+            if (listType !== 'ul') {
+                flushList();
+                listType = 'ul';
+                listItems = [];
+            }
+            listItems.push(bulletMatch[1]);
+            return;
+        }
+
+        const orderedMatch = line.match(/^\d+[.)]\s+(.+)$/);
+        if (orderedMatch) {
+            flushParagraph();
+            if (listType !== 'ol') {
+                flushList();
+                listType = 'ol';
+                listItems = [];
+            }
+            listItems.push(orderedMatch[1]);
+            return;
+        }
+
+        flushList();
+        paragraphLines.push(line);
+    });
+
+    flushParagraph();
+    flushList();
+
+    return blocks.join('');
+}
+
+function buildAnnouncementBodyHtml(value, bodyFormat) {
+    const format = String(bodyFormat || 'markdown');
+    if (format === 'html') {
+        // HTML-новости приходят только из админки (за паролем), доверяем содержимому как есть.
+        return String(value || '');
+    }
+    if (format === 'plain') {
+        return buildAnnouncementPlainBodyHtml(value);
+    }
+    return renderAnnouncementMarkdownToHtml(value);
 }
 
 function renderAnnouncementModal() {
@@ -8250,7 +8441,7 @@ function renderAnnouncementModal() {
                             Опубликовано: ${escapeHtmlText(formatAnnouncementPublishedAt(announcement.publishedAt))}
                         </div>
                         <div class="profile-achievement-empty" style="text-align:left;line-height:1.75;">
-                            <div style="margin:0;">${buildAnnouncementBodyHtml(announcement.body)}</div>
+                            <div style="margin:0;">${buildAnnouncementBodyHtml(announcement.body, announcement.bodyFormat)}</div>
                         </div>
                     </article>
                 `;

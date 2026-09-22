@@ -1,0 +1,53 @@
+name: 📰 Автопост новостей
+
+on:
+  schedule:
+    # 15:00 UTC = 18:00 Омск (UTC+3 сейчас у нас нет — Омск UTC+6, так что
+    # 15:00 UTC = 21:00 Омск. Подобрано так, чтобы новость собирала коммиты
+    # за прошедший "рабочий" день. Поменяй при желании — формат cron ниже.
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: 'За сколько часов брать коммиты'
+        required: false
+        default: '24'
+        type: string
+
+jobs:
+  post-news:
+    name: 🦫 Сгенерировать и опубликовать новость
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # нужна полная история для git log --since
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: curl, json
+
+      - name: 📰 Генерация и публикация новости
+        shell: bash
+        env:
+          NEWS_LOOKBACK_HOURS: ${{ github.event.inputs.lookback_hours || '24' }}
+          NEWS_REPO_PATH: ${{ github.workspace }}
+          NEWS_SITE_BASE_URL: 'https://bober-api.gt.tc'
+          NEWS_ADMIN_PASSWORD: ${{ secrets.BOBER_ADMIN_INITIAL_PASSWORD }}
+          BOBER_AI_API_KEY: ${{ secrets.BOBER_AI_API_KEY }}
+          BOBER_AI_BASE_URL: 'https://routerai.ru/api/v1'
+          BOBER_AI_MODEL: '~deepseek/deepseek-v4-flash-latest'
+          BOBER_TG_BOT_TOKEN: ${{ secrets.BOBER_TG_BOT_TOKEN }}
+          BOBER_TG_CHAT_ID: ${{ secrets.BOBER_TG_CHAT_ID }}
+        run: php Код/scripts/generate-news.php
+
+      - name: 📋 Итог
+        if: always()
+        run: |
+          echo "### 📰 Автопост новостей" >> $GITHUB_STEP_SUMMARY
+          echo "- **Триггер:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Период сбора коммитов:** ${{ github.event.inputs.lookback_hours || '24' }} ч." >> $GITHUB_STEP_SUMMARY
+          echo "- Подробности — в логе шага выше." >> $GITHUB_STEP_SUMMARY
