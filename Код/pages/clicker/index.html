@@ -1680,6 +1680,28 @@ Owner decisions:
         margin-top: 0;
     }
 
+    .telegram-link-widget-host {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 46px;
+        margin: 18px 0 14px;
+        padding: 4px 0;
+    }
+
+    .telegram-link-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .telegram-link-actions button {
+        flex: 1;
+        min-width: 0;
+        margin-top: 0;
+        white-space: normal;
+        line-height: 1.3;
+    }
+
     .session-conflict-modal {
         width: min(100%, 660px);
         border-radius: 28px;
@@ -2644,12 +2666,15 @@ Owner decisions:
     }
 
     #profileMenuNewsButton,
-    #supportAppealButton {
+    #supportAppealButton,
+    #telegramLinkMenuButton {
         justify-content: space-between;
         gap: 12px;
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2685,6 +2710,8 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2704,6 +2731,8 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2727,6 +2756,8 @@ Owner decisions:
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
     #profileDetailsButton:hover,
+    #telegramLinkMenuButton:hover,
+    #referralSystemButton:hover,
     #profileAchievementsButton:hover,
     #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
@@ -2738,6 +2769,8 @@ Owner decisions:
     }
 
     #profileDetailsButton:hover,
+    #telegramLinkMenuButton:hover,
+    #referralSystemButton:hover,
     #profileAchievementsButton:hover,
     #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
@@ -2761,6 +2794,8 @@ Owner decisions:
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
     #profileDetailsButton:active,
+    #telegramLinkMenuButton:active,
+    #referralSystemButton:active,
     #profileAchievementsButton:active,
     #profileMenuNewsButton:active,
     #viewPlayerProfileButton:active,
@@ -6436,6 +6471,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                             </div>
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
+                        <button id="telegramLinkMenuButton" type="button" hidden>
+                            <span>Привязать Telegram</span>
+                            <span class="profile-menu-button-badge" id="telegramLinkMenuBadge">🎁</span>
+                        </button>
                         <button id="referralSystemButton" type="button">Реферальная система</button>
                         <button id="profileAchievementsButton" type="button">Достижения</button>
                         <button id="profileMenuNewsButton" type="button">
@@ -11435,6 +11474,8 @@ function updateProfileMenuUI() {
             newsBadgeNode.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
         }
     }
+
+    updateTelegramLinkMenuButtonUI();
 }
 
 function setAuthModalTab(tab) {
@@ -18798,8 +18839,19 @@ function applySynchronizedAccountState(data) {
 const telegramLinkState = {
     autoAttempted: false,
     linking: false,
-    widgetRendered: false
+    widgetRendered: false,
+    linked: false
 };
+
+function updateTelegramLinkMenuButtonUI() {
+    const button = document.getElementById('telegramLinkMenuButton');
+    if (!button) {
+        return;
+    }
+    // Кнопка видна только у залогиненных игроков, ещё не привязавших Telegram —
+    // после привязки прячем её, показывать нечего.
+    button.hidden = !userId || telegramLinkState.linked;
+}
 
 function isTelegramMiniAppContext() {
     const tg = window.Telegram && window.Telegram.WebApp;
@@ -18895,6 +18947,9 @@ async function maybePromptTelegramLink(telegramInfo) {
         return;
     }
 
+    telegramLinkState.linked = Boolean(telegramInfo.linked);
+    updateTelegramLinkMenuButtonUI();
+
     if (telegramInfo.linked) {
         hideTelegramLinkModal();
         return;
@@ -18935,6 +18990,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (skipButton) {
         skipButton.addEventListener('click', () => {
             skipTelegramLinkPrompt();
+        });
+    }
+
+    const menuButton = document.getElementById('telegramLinkMenuButton');
+    if (menuButton) {
+        menuButton.addEventListener('click', () => {
+            closeProfileMenu();
+            showTelegramLinkModal();
         });
     }
 });
