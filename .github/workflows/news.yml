@@ -2,9 +2,6 @@ name: 📰 Автопост новостей
 
 on:
   schedule:
-    # 15:00 UTC = 18:00 Омск (UTC+3 сейчас у нас нет — Омск UTC+6, так что
-    # 15:00 UTC = 21:00 Омск. Подобрано так, чтобы новость собирала коммиты
-    # за прошедший "рабочий" день. Поменяй при желании — формат cron ниже.
     - cron: '0 15 * * *'
   workflow_dispatch:
     inputs:
@@ -22,15 +19,21 @@ jobs:
       - name: 🚚 Get latest code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # нужна полная история для git log --since
+          fetch-depth: 0
 
-      - name: 🐘 Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          php-version: '8.2'
-          extensions: curl, json
+          node-version: '22'
+          cache: npm
 
-      - name: 📰 Генерация и публикация новости
+      - name: 🌐 Install Playwright
+        shell: bash
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: 📰 Генерация и публикация новости в браузере
         shell: bash
         env:
           NEWS_LOOKBACK_HOURS: ${{ github.event.inputs.lookback_hours || '24' }}
@@ -39,10 +42,11 @@ jobs:
           NEWS_ADMIN_PASSWORD: ${{ secrets.BOBER_ADMIN_INITIAL_PASSWORD }}
           BOBER_AI_API_KEY: ${{ secrets.BOBER_AI_API_KEY }}
           BOBER_AI_BASE_URL: 'https://routerai.ru/api/v1'
-          BOBER_AI_MODEL: 'deepseek/deepseek-v4.1-flash'
+          BOBER_AI_MODEL: 'deepseek/deepseek-v4-flash-0731'
           BOBER_TG_BOT_TOKEN: ${{ secrets.BOBER_TG_BOT_TOKEN }}
           BOBER_TG_CHAT_ID: ${{ secrets.BOBER_TG_CHAT_ID }}
-        run: php Код/scripts/generate-news.php
+          NEWS_BROWSER_WAIT_MS: '15000'
+        run: node scripts/publish-news-browser.js
 
       - name: 📋 Итог
         if: always()
@@ -50,4 +54,4 @@ jobs:
           echo "### 📰 Автопост новостей" >> $GITHUB_STEP_SUMMARY
           echo "- **Триггер:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Период сбора коммитов:** ${{ github.event.inputs.lookback_hours || '24' }} ч." >> $GITHUB_STEP_SUMMARY
-          echo "- Подробности — в логе шага выше." >> $GITHUB_STEP_SUMMARY
+          echo "- Публикация выполняется через Playwright Chromium." >> $GITHUB_STEP_SUMMARY
