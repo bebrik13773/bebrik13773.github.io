@@ -59,6 +59,250 @@ function bober_encryption_key()
 }
 
 /**
+ * Токен Telegram-бота. Уже используется для уведомлений о жалобах игроков
+ * (Код/api/support/*) — переиспользуем тот же секрет для проверки
+ * подлинности данных Mini App / Login Widget при привязке аккаунта.
+ * Источник — GitHub Secret BOBER_TG_BOT_TOKEN, попадает в
+ * Код/config/ai_config.php при деплое (см. main.yml).
+ */
+function bober_telegram_bot_token()
+{
+    static $token = null;
+    if ($token !== null) {
+        return $token;
+    }
+
+    $raw = getenv('BOBER_TG_BOT_TOKEN');
+    if ($raw === false || $raw === '') {
+        $configFile = dirname(__DIR__, 2) . '/config/ai_config.php';
+        if (is_file($configFile)) {
+            $loaded = require $configFile;
+            if (is_array($loaded) && !empty($loaded['tg_bot_token'])) {
+                $raw = (string) $loaded['tg_bot_token'];
+            }
+        }
+    }
+
+    $token = (string) $raw;
+
+    return $token;
+}
+
+/**
+ * Проверка подписи данных Telegram Mini App (WebApp.initData).
+ * Алгоритм по документации Telegram:
+ * secret_key = HMAC_SHA256(bot_token, "WebAppData")
+ * data_check_string = все поля initData кроме hash, отсортированные по
+ *   ключу, склеенные как "key=value" через "\n"
+ * ожидаемый hash = HMAC_SHA256(data_check_string, secret_key) в hex
+ *
+ * Возвращает декодированный массив полей initData (включая вложенный user)
+ * при успехе, либо null при провале проверки/протухшем auth_date.
+ */
+function bober_verify_telegram_webapp_init_data($initData, $maxAgeSeconds = 86400)
+{
+    $initData = trim((string) $initData);
+    if ($initData === '') {
+        return null;
+    }
+
+    $botToken = bober_telegram_bot_token();
+    if ($botToken === '') {
+        return null;
+    }
+
+    parse_str($initData, $fields);
+    if (!is_array($fields) || empty($fields['hash']) || !is_string($fields['hash'])) {
+        return null;
+    }
+
+    $receivedHash = strtolower($fields['hash']);
+    unset($fields['hash']);
+
+    $pairs = [];
+    foreach ($fields as $key => $value) {
+        $pairs[] = $key . '=' . $value;
+    }
+    sort($pairs, SORT_STRING);
+    $dataCheckString = implode("\n", $pairs);
+
+    $secretKey = hash_hmac('sha256', $botToken, 'WebAppData', true);
+    $computedHash = hash_hmac('sha256', $dataCheckString, $secretKey);
+
+    if (!hash_equals($computedHash, $receivedHash)) {
+        return null;
+    }
+
+    $authDate = (int) ($fields['auth_date'] ?? 0);
+    if ($authDate <= 0 || (time() - $authDate) > max(60, (int) $maxAgeSeconds)) {
+        return null;
+    }
+
+    $user = null;
+    if (!empty($fields['user']) && is_string($fields['user'])) {
+        $decodedUser = json_decode($fields['user'], true);
+        if (is_array($decodedUser)) {
+            $user = $decodedUser;
+        }
+    }
+
+    if (!is_array($user) || empty($user['id'])) {
+        return null;
+    }
+
+    return [
+        'telegramId' => (int) $user['id'],
+        'username' => isset($user['username']) ? (string) $user['username'] : '',
+        'firstName' => isset($user['first_name']) ? (string) $user['first_name'] : '',
+        'authDate' => $authDate,
+    ];
+}
+
+/**
+ * Проверка подписи данных Telegram Login Widget.
+ * Отличается от Mini App форматом data_check_string: подписывается сам
+ * HMAC_SHA256(bot_token) (без "WebAppData"), поля — плоские id/first_name/
+ * username/photo_url/auth_date, без вложенного user.
+ */
+function bober_verify_telegram_login_widget($payload, $maxAgeSeconds = 86400)
+{
+    if (!is_array($payload) || empty($payload['id']) || empty($payload['hash']) || empty($payload['auth_date'])) {
+        return null;
+    }
+
+    $botToken = bober_telegram_bot_token();
+    if ($botToken === '') {
+        return null;
+    }
+
+    $receivedHash = strtolower((string) $payload['hash']);
+
+    $fields = $payload;
+    unset($fields['hash']);
+
+    $pairs = [];
+    foreach ($fields as $key => $value) {
+        if ($value === null || $value === '') {
+            continue;
+        }
+        $pairs[] = $key . '=' . $value;
+    }
+    sort($pairs, SORT_STRING);
+    $dataCheckString = implode("\n", $pairs);
+
+    $secretKey = hash('sha256', $botToken, true);
+    $computedHash = hash_hmac('sha256', $dataCheckString, $secretKey);
+
+    if (!hash_equals($computedHash, $receivedHash)) {
+        return null;
+    }
+
+    $authDate = (int) $payload['auth_date'];
+    if ($authDate <= 0 || (time() - $authDate) > max(60, (int) $maxAgeSeconds)) {
+        return null;
+    }
+
+    return [
+        'telegramId' => (int) $payload['id'],
+        'username' => isset($payload['username']) ? (string) $payload['username'] : '',
+        'firstName' => isset($payload['first_name']) ? (string) $payload['first_name'] : '',
+        'authDate' => $authDate,
+    ];
+}
+
+/**
+ * Привязывает подтверждённый Telegram ID к игровому аккаунту.
+ * Бросает InvalidArgumentException с понятным сообщением, если этот
+ * Telegram ID уже привязан к другому аккаунту.
+ */
+function bober_link_telegram_to_user($conn, $userId, array $telegramData)
+{
+    $userId = max(0, (int) $userId);
+    $telegramId = (int) ($telegramData['telegramId'] ?? 0);
+
+    if ($userId < 1 || $telegramId < 1) {
+        throw new InvalidArgumentException('Некорректные данные для привязки Telegram.');
+    }
+
+    $checkStmt = $conn->prepare('SELECT id FROM users WHERE telegram_id = ? AND id <> ? LIMIT 1');
+    if (!$checkStmt) {
+        throw new RuntimeException('Не удалось проверить занятость Telegram-аккаунта.');
+    }
+    $checkStmt->bind_param('ii', $telegramId, $userId);
+    if (!$checkStmt->execute()) {
+        $checkStmt->close();
+        throw new RuntimeException('Не удалось выполнить проверку Telegram-аккаунта.');
+    }
+    $checkStmt->store_result();
+    $alreadyTaken = $checkStmt->num_rows > 0;
+    $checkStmt->close();
+
+    if ($alreadyTaken) {
+        throw new InvalidArgumentException('Этот Telegram-аккаунт уже привязан к другому игроку.');
+    }
+
+    $username = trim((string) ($telegramData['username'] ?? ''));
+    $firstName = trim((string) ($telegramData['firstName'] ?? ''));
+
+    $updateStmt = $conn->prepare('UPDATE users SET telegram_id = ?, telegram_username = ?, telegram_first_name = ?, telegram_linked_at = CURRENT_TIMESTAMP, telegram_skip_until = NULL WHERE id = ? LIMIT 1');
+    if (!$updateStmt) {
+        throw new RuntimeException('Не удалось подготовить сохранение привязки Telegram.');
+    }
+    $updateStmt->bind_param('issi', $telegramId, $username, $firstName, $userId);
+    if (!$updateStmt->execute()) {
+        $updateStmt->close();
+        throw new RuntimeException('Не удалось сохранить привязку Telegram.');
+    }
+    $updateStmt->close();
+
+    $alreadyHadSkin = false;
+    $skinResult = $conn->query('SELECT skin FROM users WHERE id = ' . $userId . ' LIMIT 1');
+    if ($skinResult instanceof mysqli_result) {
+        $skinRow = $skinResult->fetch_assoc();
+        $skinResult->free();
+        if (is_array($skinRow)) {
+            $skinState = bober_decode_skin_state($skinRow['skin'] ?? '');
+            $alreadyHadSkin = in_array(bober_telegram_link_reward_skin_id(), $skinState['ownedSkinIds'], true);
+        }
+    }
+
+    if (!$alreadyHadSkin) {
+        bober_grant_skin_to_user($conn, $userId, bober_telegram_link_reward_skin_id(), false);
+    }
+
+    return [
+        'telegramId' => $telegramId,
+        'username' => $username,
+        'firstName' => $firstName,
+        'rewardSkinGranted' => !$alreadyHadSkin,
+    ];
+}
+
+/**
+ * Откладывает следующее напоминание "привяжи Telegram" на N дней —
+ * для кнопки "У меня нет Telegram / нет доступа".
+ */
+function bober_snooze_telegram_link_prompt($conn, $userId, $days = 14)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $days = max(1, (int) $days);
+    $stmt = $conn->prepare('UPDATE users SET telegram_skip_until = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? DAY) WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить отложенное напоминание.');
+    }
+    $stmt->bind_param('ii', $days, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось сохранить отложенное напоминание.');
+    }
+    $stmt->close();
+}
+
+/**
  * Шифрует произвольный текст (AES-256-CBC, случайный IV на каждое
  * сообщение). Возвращает строку вида base64(iv) . ':' . base64(ciphertext),
  * готовую для хранения в TEXT-колонке.
@@ -639,6 +883,25 @@ function bober_fly_beaver_top_reward_skin_defaults()
     ];
 }
 
+function bober_telegram_link_reward_skin_id()
+{
+    return 'bober-tg';
+}
+
+function bober_telegram_link_reward_skin_defaults()
+{
+    return [
+        'id' => bober_telegram_link_reward_skin_id(),
+        'name' => 'Телеграм-бобёр',
+        'price' => 0,
+        'image' => '/assets/skins/bober-tg.png',
+        'available' => false,
+        'rarity' => 'rare',
+        'category' => 'special',
+        'issue_mode' => 'grant_only',
+    ];
+}
+
 function bober_skin_catalog_file_path()
 {
     return dirname(__DIR__, 2) . '/data/skin-catalog.json';
@@ -729,6 +992,7 @@ function bober_builtin_skin_catalog()
         ],
         bober_clicker_top_reward_skin_id() => bober_clicker_top_reward_skin_defaults(),
         bober_fly_beaver_top_reward_skin_id() => bober_fly_beaver_top_reward_skin_defaults(),
+        bober_telegram_link_reward_skin_id() => bober_telegram_link_reward_skin_defaults(),
     ];
 }
 
@@ -853,6 +1117,18 @@ function bober_merge_required_skin_catalog_items(array $catalogItems)
         'id' => $flyTopSkinId,
         'price' => 0,
         'category' => 'top',
+        'issue_mode' => 'grant_only',
+        'default_owned' => false,
+        'grant_only' => true,
+    ]);
+
+    $tgLinkSkinId = bober_telegram_link_reward_skin_id();
+    $tgLinkSkinDefaults = bober_telegram_link_reward_skin_defaults();
+    $existingTgLinkSkin = is_array($catalogMap[$tgLinkSkinId] ?? null) ? $catalogMap[$tgLinkSkinId] : [];
+    $catalogMap[$tgLinkSkinId] = array_merge($tgLinkSkinDefaults, $existingTgLinkSkin, [
+        'id' => $tgLinkSkinId,
+        'price' => 0,
+        'category' => 'special',
         'issue_mode' => 'grant_only',
         'default_owned' => false,
         'grant_only' => true,
@@ -1589,11 +1865,22 @@ SQL;
         'upgrade_click_rate_count' => "ALTER TABLE `users` ADD COLUMN `upgrade_click_rate_count` INT NOT NULL DEFAULT 0 AFTER `upgrade_energy_huge_count`",
         'created_at' => "ALTER TABLE `users` ADD COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `upgrade_click_rate_count`",
         'updated_at' => "ALTER TABLE `users` ADD COLUMN `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`",
+        'telegram_id' => "ALTER TABLE `users` ADD COLUMN `telegram_id` BIGINT NULL DEFAULT NULL AFTER `updated_at`",
+        'telegram_username' => "ALTER TABLE `users` ADD COLUMN `telegram_username` VARCHAR(100) NULL DEFAULT NULL AFTER `telegram_id`",
+        'telegram_first_name' => "ALTER TABLE `users` ADD COLUMN `telegram_first_name` VARCHAR(255) NULL DEFAULT NULL AFTER `telegram_username`",
+        'telegram_linked_at' => "ALTER TABLE `users` ADD COLUMN `telegram_linked_at` TIMESTAMP NULL DEFAULT NULL AFTER `telegram_first_name`",
+        'telegram_skip_until' => "ALTER TABLE `users` ADD COLUMN `telegram_skip_until` TIMESTAMP NULL DEFAULT NULL AFTER `telegram_linked_at`",
     ];
 
     foreach ($alterStatements as $column => $sql) {
         if (!bober_column_exists($conn, 'users', $column) && !$conn->query($sql)) {
             throw new RuntimeException('Не удалось обновить структуру таблицы пользователей.');
+        }
+    }
+
+    if (bober_column_exists($conn, 'users', 'telegram_id') && !bober_index_exists($conn, 'users', 'telegram_id_unique')) {
+        if (!$conn->query('ALTER TABLE `users` ADD UNIQUE INDEX `telegram_id_unique` (`telegram_id`)')) {
+            throw new RuntimeException('Не удалось создать уникальный индекс telegram_id.');
         }
     }
 
@@ -10839,7 +11126,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
 
     bober_reconcile_top_reward_skins($conn);
 
-    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count FROM users WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, login, plus, skin, energy, last_energy_update, ENERGY_MAX, score, upgrade_tap_small_count, upgrade_tap_big_count, upgrade_energy_count, upgrade_tap_huge_count, upgrade_regen_boost_count, upgrade_energy_huge_count, upgrade_click_rate_count, telegram_id, telegram_username, telegram_first_name, telegram_linked_at, telegram_skip_until FROM users WHERE id = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
     }
@@ -10860,6 +11147,17 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
     if (!$row) {
         throw new RuntimeException('Сессия устарела.');
     }
+
+    $telegramLinked = !empty($row['telegram_id']);
+    $telegramSkipUntil = (string) ($row['telegram_skip_until'] ?? '');
+    $telegramSkipActive = $telegramSkipUntil !== '' && strtotime($telegramSkipUntil) > time();
+    $telegramInfo = [
+        'linked' => $telegramLinked,
+        'username' => $telegramLinked ? (string) ($row['telegram_username'] ?? '') : '',
+        'firstName' => $telegramLinked ? (string) ($row['telegram_first_name'] ?? '') : '',
+        'linkedAt' => $telegramLinked ? (string) ($row['telegram_linked_at'] ?? '') : '',
+        'shouldPrompt' => !$telegramLinked && !$telegramSkipActive,
+    ];
 
     $normalizedSkin = bober_normalize_skin_json($row['skin'] ?? null);
     if ($normalizedSkin !== (string) ($row['skin'] ?? '')) {
@@ -11075,6 +11373,7 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'announcementFeed' => $announcementFeed,
         'announcementUnreadCount' => $announcementUnreadCount,
         'referral' => bober_fetch_referral_summary($conn, $userId),
+        'telegram' => $telegramInfo,
     ];
 
     if ($includeActivity) {
