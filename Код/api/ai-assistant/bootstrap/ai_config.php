@@ -22,7 +22,7 @@ function bober_ai_load_config()
     $config = [
         'ai_api_key' => null,
         'ai_base_url' => 'https://routerai.ru/api/v1',
-        'ai_model' => '~deepseek/deepseek-v4-flash-latest',
+        'ai_model' => 'deepseek/deepseek-v4-flash-0731',
         'tg_bot_token' => null,
         'tg_chat_id' => null,
     ];
