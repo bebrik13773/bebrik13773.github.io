@@ -1680,6 +1680,28 @@ Owner decisions:
         margin-top: 0;
     }
 
+    .telegram-link-widget-host {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 46px;
+        margin: 18px 0 14px;
+        padding: 4px 0;
+    }
+
+    .telegram-link-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .telegram-link-actions button {
+        flex: 1;
+        min-width: 0;
+        margin-top: 0;
+        white-space: normal;
+        line-height: 1.3;
+    }
+
     .session-conflict-modal {
         width: min(100%, 660px);
         border-radius: 28px;
@@ -2644,12 +2666,15 @@ Owner decisions:
     }
 
     #profileMenuNewsButton,
-    #supportAppealButton {
+    #supportAppealButton,
+    #telegramLinkMenuButton {
         justify-content: space-between;
         gap: 12px;
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2685,6 +2710,8 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2704,6 +2731,8 @@ Owner decisions:
     }
 
     #profileDetailsButton,
+    #telegramLinkMenuButton,
+    #referralSystemButton,
     #profileAchievementsButton,
     #profileMenuNewsButton,
     #viewPlayerProfileButton,
@@ -2727,6 +2756,8 @@ Owner decisions:
     .session-conflict-card button:hover,
     .session-conflict-actions button:hover,
     #profileDetailsButton:hover,
+    #telegramLinkMenuButton:hover,
+    #referralSystemButton:hover,
     #profileAchievementsButton:hover,
     #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
@@ -2738,6 +2769,8 @@ Owner decisions:
     }
 
     #profileDetailsButton:hover,
+    #telegramLinkMenuButton:hover,
+    #referralSystemButton:hover,
     #profileAchievementsButton:hover,
     #profileMenuNewsButton:hover,
     #viewPlayerProfileButton:hover,
@@ -2761,6 +2794,8 @@ Owner decisions:
     .session-conflict-card button:active,
     .session-conflict-actions button:active,
     #profileDetailsButton:active,
+    #telegramLinkMenuButton:active,
+    #referralSystemButton:active,
     #profileAchievementsButton:active,
     #profileMenuNewsButton:active,
     #viewPlayerProfileButton:active,
@@ -6494,6 +6529,10 @@ function showNotification(message, type = 'success', duration = 3000) {
                             </div>
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
+                        <button id="telegramLinkMenuButton" type="button" hidden>
+                            <span>Привязать Telegram</span>
+                            <span class="profile-menu-button-badge" id="telegramLinkMenuBadge">🎁</span>
+                        </button>
                         <button id="referralSystemButton" type="button">Реферальная система</button>
                         <button id="profileAchievementsButton" type="button">Достижения</button>
                         <button id="profileMenuNewsButton" type="button">
@@ -6831,6 +6870,18 @@ function showNotification(message, type = 'success', duration = 3000) {
             </div>
             <div class="auth-panel-rule">Логин: от 3 до 10 символов, только английские буквы, цифры, <code>-</code> и <code>_</code>.</div>
             <button id="submitRegister">Зарегистрироваться</button>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop" id="telegramLinkModal" aria-hidden="true" data-palette="modal">
+    <div class="skin-action-modal telegram-link-modal" role="dialog" aria-modal="true" aria-labelledby="telegramLinkModalTitle">
+        <div class="skin-action-modal-title" id="telegramLinkModalTitle">Привяжи Telegram</div>
+        <div class="skin-action-modal-text" id="telegramLinkModalText">
+            Так безопаснее и мы сможем присылать уведомления. В подарок — эксклюзивный скин «Телеграм-бобёр».
+        </div>
+        <div id="telegramLinkWidgetHost" class="telegram-link-widget-host"></div>
+        <div class="telegram-link-actions">
+            <button type="button" class="skin-modal-cancel" id="telegramLinkSkip">У меня нет Telegram / нет доступа</button>
         </div>
     </div>
 </div>
@@ -10284,6 +10335,7 @@ function syncGlobalOverlayState() {
         document.getElementById('upgradeActionModal'),
         document.getElementById('sessionConflictModal'),
         document.getElementById('authModal'),
+        document.getElementById('telegramLinkModal'),
         document.getElementById('settingsModal'),
         document.getElementById('profileModal'),
         document.getElementById('questsModal'),
@@ -11613,6 +11665,8 @@ function updateProfileMenuUI() {
             newsBadgeNode.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
         }
     }
+
+    updateTelegramLinkMenuButtonUI();
 }
 
 function setAuthModalTab(tab) {
@@ -18165,6 +18219,7 @@ function applyAuthenticatedState(data) {
         autosaveState.lastSavedAt = Date.now();
         setSaveStatus('saved', 'Прогресс загружен');
     }
+    maybePromptTelegramLink(data.telegram || data.account?.telegram);
 }
 
 function escapeHtmlText(value) {
@@ -18968,8 +19023,177 @@ function applySynchronizedAccountState(data) {
     updateAdminVisibility(resolvedLogin);
     startEnergyTimer();
     scheduleAnnouncementFeedRefresh();
+    maybePromptTelegramLink(data.telegram || data.account?.telegram);
     return true;
 }
+
+const telegramLinkState = {
+    autoAttempted: false,
+    linking: false,
+    widgetRendered: false,
+    linked: false
+};
+
+function updateTelegramLinkMenuButtonUI() {
+    const button = document.getElementById('telegramLinkMenuButton');
+    if (!button) {
+        return;
+    }
+    // Кнопка видна только у залогиненных игроков, ещё не привязавших Telegram —
+    // после привязки прячем её, показывать нечего.
+    button.hidden = !userId || telegramLinkState.linked;
+}
+
+function isTelegramMiniAppContext() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    return Boolean(tg && typeof tg.initData === 'string' && tg.initData.length > 0);
+}
+
+function hideTelegramLinkModal() {
+    const modal = document.getElementById('telegramLinkModal');
+    if (!modal) {
+        return;
+    }
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    syncGlobalOverlayState();
+}
+
+function renderTelegramLoginWidget() {
+    const host = document.getElementById('telegramLinkWidgetHost');
+    if (!host || telegramLinkState.widgetRendered) {
+        return;
+    }
+
+    host.innerHTML = '';
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-login', 'Dodoloptyuoi_bot');
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-onauth', 'onTelegramLoginWidgetAuth(user)');
+    script.setAttribute('data-request-access', 'write');
+    host.appendChild(script);
+    telegramLinkState.widgetRendered = true;
+}
+
+function showTelegramLinkModal() {
+    const modal = document.getElementById('telegramLinkModal');
+    if (!modal || !userId) {
+        return;
+    }
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+    renderTelegramLoginWidget();
+}
+
+async function submitTelegramLink(payload) {
+    if (telegramLinkState.linking) {
+        return false;
+    }
+    telegramLinkState.linking = true;
+
+    try {
+        const data = await requestJson('/api/auth/telegram-link.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (data && data.success) {
+            applySynchronizedAccountState(data);
+            hideTelegramLinkModal();
+            showNotification(data.message || 'Telegram привязан!', 'success');
+            return true;
+        }
+
+        showNotification((data && data.message) || 'Не удалось привязать Telegram.', 'error');
+        return false;
+    } catch (error) {
+        console.warn('Не удалось привязать Telegram.', error);
+        showNotification(error.message || 'Не удалось привязать Telegram.', 'error');
+        return false;
+    } finally {
+        telegramLinkState.linking = false;
+    }
+}
+
+// Вызывается Telegram Login Widget-скриптом после подтверждения пользователем.
+window.onTelegramLoginWidgetAuth = function(user) {
+    submitTelegramLink({ widgetData: user });
+};
+
+async function attemptSilentMiniAppTelegramLink() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (!tg || !tg.initData) {
+        return false;
+    }
+
+    return submitTelegramLink({ initData: tg.initData });
+}
+
+async function maybePromptTelegramLink(telegramInfo) {
+    if (!userId || !telegramInfo) {
+        return;
+    }
+
+    telegramLinkState.linked = Boolean(telegramInfo.linked);
+    updateTelegramLinkMenuButtonUI();
+
+    if (telegramInfo.linked) {
+        hideTelegramLinkModal();
+        return;
+    }
+
+    if (!telegramInfo.shouldPrompt) {
+        return;
+    }
+
+    if (isTelegramMiniAppContext()) {
+        // Внутри Mini App данные Telegram уже есть без действий игрока —
+        // привязываем тихо в фоне, баннер не показываем.
+        if (!telegramLinkState.autoAttempted) {
+            telegramLinkState.autoAttempted = true;
+            await attemptSilentMiniAppTelegramLink();
+        }
+        return;
+    }
+
+    showTelegramLinkModal();
+}
+
+async function skipTelegramLinkPrompt() {
+    hideTelegramLinkModal();
+    try {
+        await requestJson('/api/auth/telegram-snooze.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+    } catch (error) {
+        console.warn('Не удалось отложить напоминание о Telegram.', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const skipButton = document.getElementById('telegramLinkSkip');
+    if (skipButton) {
+        skipButton.addEventListener('click', () => {
+            skipTelegramLinkPrompt();
+        });
+    }
+
+    const menuButton = document.getElementById('telegramLinkMenuButton');
+    if (menuButton) {
+        menuButton.addEventListener('click', () => {
+            closeProfileMenu();
+            showTelegramLinkModal();
+        });
+    }
+});
+
+
 
 function stopLiveSyncTimer() {
     if (liveSyncState.timer) {
