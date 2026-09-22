@@ -39,7 +39,7 @@ jobs:
           NEWS_ADMIN_PASSWORD: ${{ secrets.BOBER_ADMIN_INITIAL_PASSWORD }}
           BOBER_AI_API_KEY: ${{ secrets.BOBER_AI_API_KEY }}
           BOBER_AI_BASE_URL: 'https://routerai.ru/api/v1'
-          BOBER_AI_MODEL: '~deepseek/deepseek-v4-flash-latest'
+          BOBER_AI_MODEL: 'deepseek/deepseek-v4.1-flash'
           BOBER_TG_BOT_TOKEN: ${{ secrets.BOBER_TG_BOT_TOKEN }}
           BOBER_TG_CHAT_ID: ${{ secrets.BOBER_TG_CHAT_ID }}
         run: php Код/scripts/generate-news.php
