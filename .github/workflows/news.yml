@@ -2,7 +2,8 @@ name: 📰 Автопост новостей
 
 on:
   schedule:
-    - cron: '0 15 * * *'
+    # 06:00 UTC = 12:00 по Омску (UTC+6)
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       lookback_hours:
