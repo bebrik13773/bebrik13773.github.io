@@ -89,6 +89,50 @@ function bober_telegram_bot_token()
 }
 
 /**
+ * Отправляет сообщение конкретному пользователю Telegram от имени бота.
+ * Синхронно, с коротким таймаутом. Любая ошибка (бот заблокирован, человек
+ * не запускал бота, хостинг режет исходящие запросы) НЕ должна ломать
+ * основное действие — просто возвращаем false.
+ */
+function bober_send_telegram_message($chatId, $text)
+{
+    $botToken = bober_telegram_bot_token();
+    $chatId = trim((string) $chatId);
+
+    if ($botToken === '' || $chatId === '' || !function_exists('curl_init')) {
+        return false;
+    }
+
+    $payload = json_encode([
+        'chat_id' => $chatId,
+        'text' => (string) $text,
+        'parse_mode' => 'HTML',
+        'disable_web_page_preview' => true,
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init('https://api.telegram.org/bot' . $botToken . '/sendMessage');
+    if ($ch === false) {
+        return false;
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 4,
+    ]);
+    $response = curl_exec($ch);
+    $ok = $response !== false
+        && curl_errno($ch) === 0
+        && (int) curl_getinfo($ch, CURLINFO_HTTP_CODE) === 200;
+    curl_close($ch);
+
+    return $ok;
+}
+
+/**
  * Проверка подписи данных Telegram Mini App (WebApp.initData).
  * Алгоритм по документации Telegram:
  * secret_key = HMAC_SHA256(bot_token, "WebAppData")
@@ -276,6 +320,33 @@ function bober_link_telegram_to_user($conn, $userId, array $telegramData)
         'firstName' => $firstName,
         'rewardSkinGranted' => !$alreadyHadSkin,
     ];
+}
+
+/**
+ * Отвязывает Telegram от игрового аккаунта. После отвязки на 14 дней
+ * откладываем автопредложение привязки — иначе внутри Mini App аккаунт
+ * тут же тихо привязался бы обратно, а в браузере сразу выскочило бы окно.
+ * Скин-награда остаётся у игрока (повторно не выдаётся).
+ */
+function bober_unlink_telegram_from_user($conn, $userId)
+{
+    $userId = max(0, (int) $userId);
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
+    }
+
+    $stmt = $conn->prepare('UPDATE users SET telegram_id = NULL, telegram_username = NULL, telegram_first_name = NULL, telegram_linked_at = NULL WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить отвязку Telegram.');
+    }
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось отвязать Telegram.');
+    }
+    $stmt->close();
+
+    bober_snooze_telegram_link_prompt($conn, $userId, 14);
 }
 
 /**
@@ -11157,6 +11228,12 @@ function bober_fetch_account_snapshot($conn, $userId, array $options = [])
         'firstName' => $telegramLinked ? (string) ($row['telegram_first_name'] ?? '') : '',
         'linkedAt' => $telegramLinked ? (string) ($row['telegram_linked_at'] ?? '') : '',
         'shouldPrompt' => !$telegramLinked && !$telegramSkipActive,
+        // Награда-скин выдаётся один раз: если уже есть — не обещаем подарок в окне привязки.
+        'rewardAvailable' => !in_array(
+            bober_telegram_link_reward_skin_id(),
+            (array) (bober_decode_skin_state($row['skin'] ?? '')['ownedSkinIds'] ?? []),
+            true
+        ),
     ];
 
     $normalizedSkin = bober_normalize_skin_json($row['skin'] ?? null);

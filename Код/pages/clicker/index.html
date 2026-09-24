@@ -6530,7 +6530,7 @@ function showNotification(message, type = 'success', duration = 3000) {
                         </div>
                         <button id="profileDetailsButton" type="button">Мой профиль</button>
                         <button id="telegramLinkMenuButton" type="button" hidden>
-                            <span>Привязать Telegram</span>
+                            <span id="telegramLinkMenuLabel">Привязать Telegram</span>
                             <span class="profile-menu-button-badge" id="telegramLinkMenuBadge">🎁</span>
                         </button>
                         <button id="referralSystemButton" type="button">Реферальная система</button>
@@ -6880,8 +6880,12 @@ function showNotification(message, type = 'success', duration = 3000) {
             Так безопаснее и мы сможем присылать уведомления. В подарок — эксклюзивный скин «Телеграм-бобёр».
         </div>
         <div id="telegramLinkWidgetHost" class="telegram-link-widget-host"></div>
-        <div class="telegram-link-actions">
+        <div class="telegram-link-actions" id="telegramLinkActions">
             <button type="button" class="skin-modal-cancel" id="telegramLinkSkip">У меня нет Telegram / нет доступа</button>
+        </div>
+        <div class="skin-action-modal-buttons" id="telegramUnlinkActions" style="display:none">
+            <button type="button" class="skin-modal-cancel" id="telegramUnlinkCancel">Отмена</button>
+            <button type="button" class="skin-modal-confirm" id="telegramUnlinkConfirm">Отвязать</button>
         </div>
     </div>
 </div>
@@ -7004,6 +7008,7 @@ function showNotification(message, type = 'success', duration = 3000) {
 	                <div class="profile-modal-login" id="profileModalLogin">Игрок</div>
 	                <div class="profile-title-chip" id="profileModalTitleChip">Начинающий бобр</div>
 	                <div class="profile-modal-subtitle" id="profileModalSubtitle">Сводка по аккаунту и облачным достижениям.</div>
+	                <div class="profile-modal-subtitle" id="profileModalTelegram" style="display:none"></div>
 	            </div>
 	        </div>
 	        <div class="profile-badge-row" id="profileModalBadges"></div>
@@ -12038,6 +12043,11 @@ function renderProfileModal() {
     subtitleNode.textContent = summary.clickerTop1 || summary.flyTop1
         ? 'Лидерские статусы и облачные достижения обновляются автоматически.'
         : 'Сводка по основному прогрессу, мини-игре и облачным достижениям.';
+    try {
+        updateProfileTelegramLine();
+    } catch (telegramLineError) {
+        console.warn('Не удалось обновить строку Telegram в профиле.', telegramLineError);
+    }
     badgesNode.innerHTML = badgeItems.join('');
     trophiesNode.innerHTML = buildProfileTrophyHtml(honors.trophies);
     statsNode.innerHTML = stats.map((item) => `
@@ -19031,17 +19041,125 @@ const telegramLinkState = {
     autoAttempted: false,
     linking: false,
     widgetRendered: false,
-    linked: false
+    linked: false,
+    info: null
 };
+
+function getTelegramDisplayName(info) {
+    if (!info || !info.linked) {
+        return '';
+    }
+    const username = String(info.username || '').trim();
+    if (username) {
+        return '@' + username;
+    }
+    return String(info.firstName || '').trim() || 'привязан';
+}
+
+function updateProfileTelegramLine() {
+    const node = document.getElementById('profileModalTelegram');
+    if (!node) {
+        return;
+    }
+    const name = userId ? getTelegramDisplayName(telegramLinkState.info) : '';
+    node.textContent = name ? 'Telegram: ' + name : '';
+    node.style.display = name ? '' : 'none';
+}
 
 function updateTelegramLinkMenuButtonUI() {
     const button = document.getElementById('telegramLinkMenuButton');
     if (!button) {
         return;
     }
-    // Кнопка видна только у залогиненных игроков, ещё не привязавших Telegram —
-    // после привязки прячем её, показывать нечего.
-    button.hidden = !userId || telegramLinkState.linked;
+    // Кнопка есть у всех залогиненных: до привязки — «Привязать», после —
+    // «Перепривязать» (сначала отвязка, потом привязка другого аккаунта).
+    button.hidden = !userId;
+
+    const label = document.getElementById('telegramLinkMenuLabel');
+    if (label) {
+        label.textContent = telegramLinkState.linked ? 'Перепривязать Telegram' : 'Привязать Telegram';
+    }
+
+    const badge = document.getElementById('telegramLinkMenuBadge');
+    if (badge) {
+        const rewardAvailable = !telegramLinkState.info || telegramLinkState.info.rewardAvailable !== false;
+        badge.hidden = telegramLinkState.linked || !rewardAvailable;
+    }
+
+    updateProfileTelegramLine();
+}
+
+// Режим окна: 'link' — виджет привязки, 'unlink' — подтверждение отвязки.
+function setTelegramModalMode(mode) {
+    const isUnlink = mode === 'unlink';
+    const titleNode = document.getElementById('telegramLinkModalTitle');
+    const textNode = document.getElementById('telegramLinkModalText');
+    const hostNode = document.getElementById('telegramLinkWidgetHost');
+    const linkActions = document.getElementById('telegramLinkActions');
+    const unlinkActions = document.getElementById('telegramUnlinkActions');
+
+    if (isUnlink) {
+        const name = getTelegramDisplayName(telegramLinkState.info);
+        if (titleNode) titleNode.textContent = 'Отвязать Telegram?';
+        if (textNode) {
+            textNode.textContent = (name ? 'Сейчас привязан ' + name + '. ' : '')
+                + 'После отвязки можно будет привязать другой Telegram-аккаунт. Скин-награда останется у тебя.';
+        }
+    } else {
+        const rewardAvailable = !telegramLinkState.info || telegramLinkState.info.rewardAvailable !== false;
+        if (titleNode) titleNode.textContent = 'Привяжи Telegram';
+        if (textNode) {
+            textNode.textContent = 'Так безопаснее и мы сможем присылать уведомления.'
+                + (rewardAvailable ? ' В подарок — эксклюзивный скин «Телеграм-бобёр».' : '');
+        }
+    }
+
+    if (hostNode) hostNode.style.display = isUnlink ? 'none' : '';
+    if (linkActions) linkActions.style.display = isUnlink ? 'none' : '';
+    if (unlinkActions) unlinkActions.style.display = isUnlink ? '' : 'none';
+}
+
+function showTelegramUnlinkModal() {
+    const modal = document.getElementById('telegramLinkModal');
+    if (!modal || !userId) {
+        return;
+    }
+
+    setTelegramModalMode('unlink');
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    syncGlobalOverlayState();
+}
+
+async function unlinkTelegram() {
+    if (telegramLinkState.linking) {
+        return;
+    }
+    telegramLinkState.linking = true;
+
+    try {
+        const data = await requestJson('/api/auth/telegram-unlink.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        if (data && data.success) {
+            applySynchronizedAccountState(data);
+            hideTelegramLinkModal();
+            showNotification(data.message || 'Telegram отвязан.', 'success');
+            // Сразу предлагаем привязать другой аккаунт.
+            showTelegramLinkModal();
+            return;
+        }
+
+        showNotification((data && data.message) || 'Не удалось отвязать Telegram.', 'error');
+    } catch (error) {
+        console.warn('Не удалось отвязать Telegram.', error);
+        showNotification(error.message || 'Не удалось отвязать Telegram.', 'error');
+    } finally {
+        telegramLinkState.linking = false;
+    }
 }
 
 function isTelegramMiniAppContext() {
@@ -19082,6 +19200,7 @@ function showTelegramLinkModal() {
         return;
     }
 
+    setTelegramModalMode('link');
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     syncGlobalOverlayState();
@@ -19139,6 +19258,7 @@ async function maybePromptTelegramLink(telegramInfo) {
     }
 
     telegramLinkState.linked = Boolean(telegramInfo.linked);
+    telegramLinkState.info = telegramInfo;
     updateTelegramLinkMenuButtonUI();
 
     if (telegramInfo.linked) {
@@ -19188,7 +19308,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (menuButton) {
         menuButton.addEventListener('click', () => {
             closeProfileMenu();
+            if (telegramLinkState.linked) {
+                // Перепривязка: сначала отвязываем, потом привязываем заново.
+                showTelegramUnlinkModal();
+                return;
+            }
+            if (isTelegramMiniAppContext()) {
+                // Внутри Mini App данные Telegram уже есть — привязываем сразу.
+                attemptSilentMiniAppTelegramLink();
+                return;
+            }
             showTelegramLinkModal();
+        });
+    }
+
+    const unlinkCancel = document.getElementById('telegramUnlinkCancel');
+    if (unlinkCancel) {
+        unlinkCancel.addEventListener('click', () => {
+            hideTelegramLinkModal();
+        });
+    }
+
+    const unlinkConfirm = document.getElementById('telegramUnlinkConfirm');
+    if (unlinkConfirm) {
+        unlinkConfirm.addEventListener('click', () => {
+            unlinkTelegram();
         });
     }
 });

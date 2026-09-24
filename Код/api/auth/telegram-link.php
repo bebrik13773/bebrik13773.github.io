@@ -53,6 +53,15 @@ try {
     $response = bober_fetch_account_snapshot($conn, $userId);
     $conn->close();
 
+    // Бот пишет в Telegram, что аккаунт привязан. Ошибка отправки не критична.
+    $gameLogin = trim((string) ($response['login'] ?? ($_SESSION['game_login'] ?? '')));
+    $safeLogin = htmlspecialchars($gameLogin !== '' ? $gameLogin : 'Игрок', ENT_QUOTES, 'UTF-8');
+    $notifyText = "✅ Этот Telegram-аккаунт привязан к игровому аккаунту <b>" . $safeLogin . "</b> в «Бобёр Кликер 2».";
+    if (!empty($linkResult['rewardSkinGranted'])) {
+        $notifyText .= "\n🎁 Тебе начислен эксклюзивный скин «Телеграм-бобёр».";
+    }
+    bober_send_telegram_message($linkResult['telegramId'], $notifyText);
+
     $response['telegramLink'] = $linkResult;
     $response['message'] = $linkResult['rewardSkinGranted']
         ? 'Telegram привязан! Тебе начислен скин «Телеграм-бобёр».'
