@@ -16,7 +16,12 @@ const path = require('node:path');
  *       - писать только о РЕАЛЬНЫХ улучшениях для игроков (не техдолг/рефактор/
  *         CI/чистка репо) — если таких нет, публикация пропускается целиком;
  *       - дружеский тон, эмодзи, кратко, без воды, структурировано списком;
- *       - отдельно текст для игры (Markdown) и для Telegram (MarkdownV2);
+ *       - только ОДИН текст в обычном Markdown (title + body_game);
+ *     Telegram-версия (MarkdownV2) генерируется программно — конвертером
+ *     convertMarkdownToTelegram() ниже, а не самой моделью: попытка заставить
+ *     модель одновременно писать валидный JSON И правильно экранированный
+ *     MarkdownV2 оказалась ненадёжной (модель либо забывала экранировать,
+ *     либо ломала валидность самого JSON-ответа лишними escape-слэшами);
  *  3) публикует в игровую ленту новостей через api/announcements/update.php
  *     (через настоящий браузер Playwright — сайт использует anti-bot защиту,
  *     обычный curl/fetch с раннера возвращает challenge/блок);
@@ -159,21 +164,15 @@ async function generateNews(commits) {
 {
   "verdict": "publish",
   "title": "Короткий заголовок с эмодзи, до 60 символов",
-  "body_game": "Текст в обычном Markdown для игры — см. правила ниже",
-  "body_telegram": "Тот же смысл в Telegram MarkdownV2 — см. правила ниже"
+  "body_game": "Текст в обычном Markdown — см. правила ниже"
 }
 
-### Правила для body_game (обычный Markdown, рендерится в игре)
+### Правила для body_game (обычный Markdown)
 - Разрешено: **жирный**, *курсив*, зачёркнутый через ~~, списки через "- ", цитаты через "> ", разделитель "---". Не используй заголовки # — заголовок новости отдельно в поле title.
 - 2-5 коротких пунктов/предложений максимум.
+- Этот же текст пойдёт и в Telegram (автоматически сконвертируется в его формат) — не используй ничего, кроме перечисленной разметки.
 
-### Правила для body_telegram (СТРОГО Telegram MarkdownV2 — другой синтаксис!)
-- Жирный: *текст* (одна звёздочка, а не двойная)
-- Курсив: _текст_
-- Список — через эмодзи-буллиты ("• " или тематический эмодзи), НЕ через "- " (в Telegram нет настоящих списков)
-- КРИТИЧЕСКИ ВАЖНО: экранируй обратным слэшем вне code-блоков любую обычную пунктуацию из набора: подчёркивание, звёздочка, квадратные и круглые скобки, тильда, обратная кавычка, знак больше, решётка, плюс, дефис, знак равно, вертикальная черта, фигурные скобки, точка, восклицательный знак.
-  Например точка в конце предложения и восклицательный знак должны быть экранированы. Если сомневаешься — экранируй, иначе Telegram отклонит сообщение целиком.
-- Короче, чем body_game: 1-3 коротких абзаца/пункта.
+ВАЖНО про формат JSON-ответа: заголовок и текст — это строки JSON. Не используй внутри них обратный слэш \\ ни в каком виде (никаких self-made экранирований) — если нужен обратный слэш как символ, лучше вообще его не используй. Двойные кавычки внутри текста тоже не используй — если нужна цитата, используй «ёлочки» или одинарные кавычки.
 
 ## Справочник знаний об игре
 ${gameKnowledge || '(файл game-knowledge.md недоступен в этом запуске)'}`;
@@ -199,7 +198,106 @@ ${gameKnowledge || '(файл game-knowledge.md недоступен в этом
   let content = envelope.choices?.[0]?.message?.content?.trim();
   if (!content) throw new Error('AI вернул пустой ответ');
   content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  return JSON.parse(content);
+  return parseNewsJson(content);
+}
+
+/**
+ * Пытается распарсить JSON-ответ модели. Модели иногда всё же вставляют
+ * "лишний" обратный слэш (невалидную escape-последовательность типа \.),
+ * из-за чего строгий JSON.parse падает — прежде чем сдаться, пробуем
+ * почистить такие слэши и распарсить ещё раз.
+ */
+function parseNewsJson(content) {
+  try {
+    return JSON.parse(content);
+  } catch (firstError) {
+    // Убираем обратный слэш перед любым символом, который не образует
+    // валидную JSON-escape-последовательность (", \, /, b, f, n, r, t, u).
+    const sanitized = content.replace(/\\(?!["\\/bfnrtu])/g, '');
+    try {
+      const parsed = JSON.parse(sanitized);
+      log('Ответ AI содержал невалидные escape-последовательности — восстановлен автоматической очисткой.');
+      return parsed;
+    } catch (secondError) {
+      throw new Error(`Не удалось распарсить JSON-ответ AI: ${firstError.message}. Сырой ответ: ${content.slice(0, 500)}`);
+    }
+  }
+}
+
+/**
+ * Экранирует спецсимволы Telegram MarkdownV2 в куске обычного текста
+ * (не самой разметки, а текста между тегами разметки).
+ */
+function escapeTelegramText(text) {
+  return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
+}
+
+/**
+ * Конвертирует наше ограниченное подмножество обычного Markdown
+ * (**жирный**, *курсив*, ~~зачёркнутый~~, "- " списки, "> " цитаты, "---")
+ * в Telegram MarkdownV2, беря на себя всё экранирование программно —
+ * не полагаясь на то, что модель сама правильно расставит escape-слэши
+ * (это оказалось ненадёжным: модель то забывала экранировать, то ломала
+ * валидность самого JSON-ответа лишними слэшами).
+ */
+function convertMarkdownToTelegram(markdown) {
+  const lines = markdown.split('\n');
+  const outputLines = lines.map(line => {
+    const trimmed = line.trim();
+
+    if (trimmed === '' || /^-{3,}$/.test(trimmed)) {
+      return '';
+    }
+
+    // Списковые пункты "- текст" -> буллит "• текст"
+    const bulletMatch = trimmed.match(/^-\s+(.*)$/);
+    const quoteMatch = trimmed.match(/^>\s?(.*)$/);
+    const prefix = bulletMatch ? '• ' : quoteMatch ? '› ' : '';
+    let body = bulletMatch ? bulletMatch[1] : quoteMatch ? quoteMatch[1] : trimmed;
+
+    // Сначала выделяем куски внутри **жирный**/*курсив*/~~зачёркнутый~~,
+    // экранируем текст МЕЖДУ ними отдельно, саму разметку конвертируем
+    // в телеграмный синтаксис без экранирования звёздочек/тильд разметки.
+    const tokens = [];
+    let rest = body;
+    const pattern = /(\*\*([^*]+)\*\*|~~([^~]+)~~|\*([^*]+)\*)/;
+    while (rest.length > 0) {
+      const match = rest.match(pattern);
+      if (!match) {
+        tokens.push({ type: 'text', value: rest });
+        break;
+      }
+      if (match.index > 0) {
+        tokens.push({ type: 'text', value: rest.slice(0, match.index) });
+      }
+      if (match[2] !== undefined) {
+        tokens.push({ type: 'bold', value: match[2] });
+      } else if (match[3] !== undefined) {
+        tokens.push({ type: 'strike', value: match[3] });
+      } else if (match[4] !== undefined) {
+        tokens.push({ type: 'italic', value: match[4] });
+      }
+      rest = rest.slice(match.index + match[0].length);
+    }
+
+    const rendered = tokens.map(token => {
+      const escaped = escapeTelegramText(token.value);
+      if (token.type === 'bold') return `*${escaped}*`;
+      if (token.type === 'italic') return `_${escaped}_`;
+      if (token.type === 'strike') return `~${escaped}~`;
+      return escaped;
+    }).join('');
+
+    return prefix ? escapeTelegramText(prefix).replace(/\\/g, '') + rendered : rendered;
+  });
+
+  // Схлопываем повторяющиеся пустые строки, оставляя не более одной подряд.
+  const collapsed = [];
+  for (const line of outputLines) {
+    if (line === '' && collapsed[collapsed.length - 1] === '') continue;
+    collapsed.push(line);
+  }
+  return collapsed.join('\n').trim();
 }
 
 async function publishInBrowser(news) {
@@ -244,13 +342,16 @@ async function publishInBrowser(news) {
 }
 
 async function postTelegram(news) {
-  if (!process.env.BOBER_TG_BOT_TOKEN || !process.env.BOBER_TG_CHAT_ID || !news.body_telegram) return;
+  if (!process.env.BOBER_TG_BOT_TOKEN || !process.env.BOBER_TG_CHAT_ID) return;
+  const titleEscaped = escapeTelegramText(news.title);
+  const bodyTelegram = convertMarkdownToTelegram(news.body_game);
+  const text = `*${titleEscaped}*\n\n${bodyTelegram}`;
   const response = await fetch(`https://api.telegram.org/bot${process.env.BOBER_TG_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: process.env.BOBER_TG_CHAT_ID,
-      text: `*${news.title}*\n\n${news.body_telegram}`,
+      text,
       parse_mode: 'MarkdownV2',
       disable_web_page_preview: true,
     }),
