@@ -1,4 +1,5 @@
 {
+  "name": "bober-clicker-2-tools",
   "private": true,
   "scripts": {
     "install-browser": "playwright install chromium"

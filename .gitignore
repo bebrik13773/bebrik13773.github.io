@@ -3,3 +3,4 @@
 Код/config/ai_config.php
 config.local.json
 .codex.local.json
+node_modules/
