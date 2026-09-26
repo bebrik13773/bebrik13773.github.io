@@ -1757,6 +1757,11 @@ SELECT
     `u`.`upgrade_click_rate_count`,
     `u`.`created_at`,
     `u`.`updated_at`,
+    `u`.`telegram_id`,
+    `u`.`telegram_username`,
+    `u`.`telegram_first_name`,
+    `u`.`telegram_linked_at`,
+    `u`.`telegram_skip_until`,
     GREATEST(
         COALESCE(`u`.`updated_at`, '1970-01-01 00:00:00'),
         COALESCE(`f`.`last_played_at`, '1970-01-01 00:00:00'),
@@ -1962,6 +1967,14 @@ SQL;
                                     || strncmp((string) ($row['active_ban_until'] ?? ''), '2099-', 5) === 0,
                                 'isRepeat' => (int) ($row['active_ban_is_repeat'] ?? 0) === 1,
                             ] : null,
+                            'telegram' => [
+                                'linked' => !empty($row['telegram_id']),
+                                'telegramId' => !empty($row['telegram_id']) ? (int) $row['telegram_id'] : null,
+                                'username' => (string) ($row['telegram_username'] ?? ''),
+                                'firstName' => (string) ($row['telegram_first_name'] ?? ''),
+                                'linkedAt' => isset($row['telegram_linked_at']) ? (string) $row['telegram_linked_at'] : null,
+                                'skipUntil' => isset($row['telegram_skip_until']) ? (string) $row['telegram_skip_until'] : null,
+                            ],
                             'flyBeaver' => [
                                 'bestScore' => max(0, (int) ($row['fly_best_score'] ?? 0)),
                                 'lastScore' => max(0, (int) ($row['fly_last_score'] ?? 0)),
@@ -3460,6 +3473,76 @@ SQL;
                             'meta' => [
                                 'lifted_user_bans' => $liftedUserBans,
                                 'lifted_ip_bans' => $liftedIpBans,
+                            ],
+                        ]);
+                    }
+
+                    $conn->close();
+                }
+            }
+        }
+
+        if ($action === 'admin_unlink_telegram') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $userStmt = $conn->prepare('SELECT login, telegram_id, telegram_username FROM users WHERE id = ? LIMIT 1');
+                    if (!$userStmt) {
+                        throw new RuntimeException('Не удалось подготовить получение пользователя.');
+                    }
+
+                    $userStmt->bind_param('i', $userId);
+                    if (!$userStmt->execute()) {
+                        $userStmt->close();
+                        throw new RuntimeException('Не удалось получить пользователя.');
+                    }
+
+                    $userResult = $userStmt->get_result();
+                    $userRow = $userResult ? $userResult->fetch_assoc() : null;
+                    if ($userResult) {
+                        $userResult->free();
+                    }
+                    $userStmt->close();
+
+                    if (!$userRow) {
+                        $response['message'] = 'Пользователь не найден';
+                    } elseif (empty($userRow['telegram_id'])) {
+                        $response['message'] = 'У этого пользователя Telegram и так не привязан';
+                    } else {
+                        $previousTelegramId = (int) $userRow['telegram_id'];
+                        $previousTelegramUsername = (string) ($userRow['telegram_username'] ?? '');
+
+                        bober_unlink_telegram_from_user($conn, $userId);
+
+                        $response['success'] = true;
+                        $response['message'] = 'Telegram отвязан от аккаунта';
+                        invalidateAdminRuntimeCaches($conn);
+
+                        bober_admin_log_action($conn, 'admin_unlink_telegram', [
+                            'target_table' => 'users',
+                            'query_text' => 'UNLINK TELEGRAM FOR USER #' . $userId,
+                            'affected_rows' => 1,
+                            'meta' => [
+                                'user_id' => $userId,
+                                'login' => $userRow['login'] ?? '',
+                                'previous_telegram_id' => $previousTelegramId,
+                                'previous_telegram_username' => $previousTelegramUsername,
+                            ],
+                        ]);
+                        bober_log_user_activity($conn, $userId, 'admin_unlink_telegram', [
+                            'action_group' => 'admin',
+                            'source' => 'admin_panel',
+                            'login' => (string) ($userRow['login'] ?? ''),
+                            'description' => 'Администратор принудительно отвязал Telegram от аккаунта.',
+                            'meta' => [
+                                'previous_telegram_id' => $previousTelegramId,
+                                'previous_telegram_username' => $previousTelegramUsername,
                             ],
                         ]);
                     }
@@ -16092,6 +16175,57 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                     <section class="detail-section">
                         <div class="detail-section-title">
+                            <span class="material-icons">send</span>
+                            Telegram
+                        </div>
+                        ${(() => {
+                            const tg = user.telegram || {};
+                            if (tg.linked) {
+                                const nameLabel = tg.username ? '@' + tg.username : (tg.firstName || 'без имени');
+                                return `
+                                    <div class="inline-actions" style="margin-top: 0; margin-bottom: 14px;">
+                                        <div class="status-pill active">
+                                            <span class="material-icons" style="font-size: 16px;">link</span>
+                                            <span>Привязан: ${escapeHtml(nameLabel)}</span>
+                                        </div>
+                                        <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">tag</span>ID ${formatAdminNumber(tg.telegramId || 0)}</div>
+                                        <div class="mini-chip"><span class="material-icons" style="font-size: 14px;">event</span>Привязан ${escapeHtml(formatAdminDateTime(tg.linkedAt))}</div>
+                                    </div>
+                                    <div class="stack-item">
+                                        <div class="stack-item-title">
+                                            <span>Отвязать Telegram</span>
+                                        </div>
+                                        <div class="stack-item-meta">
+                                            Игрок сможет привязать Telegram заново (в т.ч. другой аккаунт) сам, из меню профиля. Награда за привязку у него уже остаётся и повторно не выдаётся.
+                                        </div>
+                                        <div class="stack-item-actions">
+                                            <button class="btn btn-danger btn-small" type="button" id="unlinkTelegramBtn">
+                                                <span class="material-icons">link_off</span>
+                                                Отвязать Telegram
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+
+                            const skipUntilActive = tg.skipUntil && new Date(tg.skipUntil).getTime() > Date.now();
+                            return `
+                                <div class="inline-actions" style="margin-top: 0; margin-bottom: 14px;">
+                                    <div class="status-pill">
+                                        <span class="material-icons" style="font-size: 16px;">link_off</span>
+                                        <span>Telegram не привязан</span>
+                                    </div>
+                                    ${skipUntilActive ? `<div class="mini-chip"><span class="material-icons" style="font-size: 14px;">snooze</span>Предложение отложено до ${escapeHtml(formatAdminDateTime(tg.skipUntil))}</div>` : ''}
+                                </div>
+                                <div class="card-subtitle" style="margin-bottom: 0;">
+                                    У игрока нет привязанного Telegram-аккаунта. Привязать можно только со стороны игрока (через кнопку в игре) — админ не может привязать чужой Telegram-аккаунт напрямую.
+                                </div>
+                            `;
+                        })()}
+                    </section>
+
+                    <section class="detail-section">
+                        <div class="detail-section-title">
                             <span class="material-icons">sports_esports</span>
                             Летающий бобер
                         </div>
@@ -16434,6 +16568,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     banSelectedAccount();
                 }
             });
+            const unlinkTelegramBtn = document.getElementById('unlinkTelegramBtn');
+            if (unlinkTelegramBtn) {
+                unlinkTelegramBtn.addEventListener('click', function() {
+                    unlinkSelectedAccountTelegram();
+                });
+            }
             detailContainer.querySelectorAll('.lift-ip-ban-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     liftSingleIpBan(Number(this.dataset.ipBanId || 0));
@@ -16823,6 +16963,46 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             .finally(() => {
                 actionButton.disabled = false;
                 actionButton.innerHTML = originalContent;
+            });
+        }
+
+        function unlinkSelectedAccountTelegram() {
+            if (!selectedAccountId) {
+                return;
+            }
+
+            if (!window.confirm('Отвязать Telegram от этого аккаунта? Игрок сможет привязать его (или другой) заново сам.')) {
+                return;
+            }
+
+            const actionButton = document.getElementById('unlinkTelegramBtn');
+            const originalContent = actionButton ? actionButton.innerHTML : '';
+            if (actionButton) {
+                actionButton.disabled = true;
+                actionButton.innerHTML = `<div class="loader" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+            }
+
+            postAction({
+                action: 'admin_unlink_telegram',
+                user_id: String(selectedAccountId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось отвязать Telegram');
+                }
+
+                showNotification(data.message || 'Telegram отвязан', 'success');
+                loadUserProfile(selectedAccountId);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка отвязки Telegram', 'error');
+            })
+            .finally(() => {
+                if (actionButton) {
+                    actionButton.disabled = false;
+                    actionButton.innerHTML = originalContent;
+                }
             });
         }
 
