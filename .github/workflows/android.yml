@@ -63,9 +63,9 @@ jobs:
         run: |
           VERSION=$(grep -oP 'versionName "\K[^"]+' android/app/build.gradle)
           TAG="apk-v$VERSION"
-          cp app-release-signed.apk "bober-clicker-v$VERSION.apk"
+          cp app-release-signed.apk bober-clicker.apk
           gh release delete "$TAG" --cleanup-tag -y || true
-          gh release create "$TAG" "bober-clicker-v$VERSION.apk" \
+          gh release create "$TAG" bober-clicker.apk --latest \
             --title "Бобёр кликер APK v$VERSION" \
             --notes "Android-приложение Бобёр кликер v$VERSION" \
             --target "$GITHUB_SHA"
