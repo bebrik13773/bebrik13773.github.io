@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нет связи</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #2c1740; overflow: hidden; }
+  .bg { position: fixed; inset: -40px; background: url(offline.jpg) center / cover; filter: blur(40px) brightness(.6); }
+  .wrap { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  img { width: min(100vw, 78vh); height: auto; display: block; }
+  button { font: 600 17px system-ui, sans-serif; color: #fff; background: #7b3fc4; border: 0; border-radius: 14px; padding: 14px 34px; }
+  button:active { background: #6432a3; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="wrap">
+  <img src="offline.jpg" alt="Ой, связь потеряна!">
+  <button id="retry">Повторить</button>
+</div>
+<script>
+  var TARGET = 'https://bober-api.gt.tc/pages/clicker/index.html';
+  var busy = false;
+  function retry() {
+    if (busy) return;
+    busy = true;
+    var ctrl = new AbortController();
+    var t = setTimeout(function () { ctrl.abort(); }, 5000);
+    fetch(TARGET, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
+      .then(function () { location.replace(TARGET); })
+      .catch(function () {})
+      .then(function () { clearTimeout(t); busy = false; });
+  }
+  document.getElementById('retry').addEventListener('click', retry);
+  window.addEventListener('online', retry);
+  setInterval(retry, 4000);
+</script>
+</body>
+</html>
