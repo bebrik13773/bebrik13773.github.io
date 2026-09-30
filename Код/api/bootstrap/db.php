@@ -541,6 +541,8 @@ function bober_database_quota_exceeded_message()
 
 function bober_read_json_request()
 {
+    bober_enforce_same_origin();
+
     $raw = file_get_contents('php://input');
 
     if ($raw === false || trim($raw) === '') {
@@ -11618,6 +11620,21 @@ function bober_apply_user_state_update($conn, $userId, $data)
 
     $nowMs = (string) (int) round(microtime(true) * 1000);
 
+    // Серверный потолок прироста: клиент не может прислать счёт, который заметно
+    // превышает то, что можно заработать тапами с момента прошлого сохранения.
+    // Потолок втрое выше порога подозрений, чтобы не задевать честную игру.
+    $requestedScoreBeforeCap = $score;
+    $capPreviousScore = max(0, (int) ($currentRow['score'] ?? 0));
+    $capMaxGain = bober_max_plausible_score_gain(
+        $currentUpgradeCounts,
+        $plus,
+        (int) ($currentRow['last_score_update'] ?? 0),
+        (int) $nowMs
+    );
+    if ($capMaxGain !== null && $score > $capPreviousScore + ($capMaxGain * 3)) {
+        $score = $capPreviousScore + ($capMaxGain * 3);
+    }
+
     $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, last_score_update = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
@@ -11651,7 +11668,7 @@ function bober_apply_user_state_update($conn, $userId, $data)
         try {
             bober_flag_suspicious_score_gain($conn, $userId, [
                 'previousScore' => $previousScore,
-                'nextScore' => $score,
+                'nextScore' => $requestedScoreBeforeCap,
                 'previousUpgradeCounts' => $previousUpgradeCounts,
                 'previousPlus' => $previousPlus,
                 'previousLastScoreUpdate' => $previousLastScoreUpdate,
@@ -13174,4 +13191,211 @@ function bober_issue_user_ban($conn, $userId, $reason, $details = [])
     }
 
     return $ban;
+}
+
+
+// ---------------------------------------------------------------------------
+// Защита: проверка источника запроса (CSRF), лимиты попыток, админ-пароль
+// ---------------------------------------------------------------------------
+
+/**
+ * CSRF-защита без токенов на клиенте: для изменяющих запросов (не GET/HEAD/OPTIONS)
+ * браузер всегда шлёт Origin (или Sec-Fetch-Site). Если запрос пришёл с чужого
+ * сайта — отклоняем. Запросы без Origin/Referer (curl, серверы) не браузерные,
+ * CSRF для них неприменим, поэтому пропускаем.
+ */
+function bober_enforce_same_origin()
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    $checked = true;
+
+    $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if ($method === 'GET' || $method === 'HEAD' || $method === 'OPTIONS') {
+        return;
+    }
+
+    $fetchSite = strtolower((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+    if ($fetchSite === 'cross-site') {
+        bober_json_response(['success' => false, 'message' => 'Запрос отклонён: чужой источник.'], 403);
+    }
+
+    $source = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($source === '' || $source === 'null') {
+        $source = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+    }
+    if ($source === '') {
+        return;
+    }
+
+    $sourceHost = strtolower((string) parse_url($source, PHP_URL_HOST));
+    $ownHost = strtolower((string) preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+    $allowedHosts = [$ownHost, 'bober-api.gt.tc', 'localhost', '127.0.0.1'];
+
+    if ($sourceHost === '' || !in_array($sourceHost, $allowedHosts, true)) {
+        bober_json_response(['success' => false, 'message' => 'Запрос отклонён: чужой источник.'], 403);
+    }
+}
+
+function bober_rate_limit_ensure_table($conn)
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS `rate_limits` ('
+        . '`bucket` CHAR(64) NOT NULL PRIMARY KEY,'
+        . '`window_start` INT UNSIGNED NOT NULL,'
+        . '`hits` INT UNSIGNED NOT NULL DEFAULT 0'
+        . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+}
+
+function bober_rate_limit_bucket($name, $identity)
+{
+    return hash('sha256', $name . '|' . strtolower((string) $identity));
+}
+
+/**
+ * Сколько секунд осталось до конца блокировки (0 — не заблокирован).
+ * Учитываются только записанные через bober_rate_limit_hit() неудачи.
+ */
+function bober_rate_limit_blocked_seconds($conn, $name, $identity, $limit, $windowSeconds)
+{
+    $bucket = bober_rate_limit_bucket($name, $identity);
+    $row = null;
+
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        try {
+            $stmt = $conn->prepare('SELECT `window_start`, `hits` FROM `rate_limits` WHERE `bucket` = ? LIMIT 1');
+            if (!$stmt) {
+                throw new RuntimeException('prepare failed');
+            }
+            $stmt->bind_param('s', $bucket);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
+            break;
+        } catch (Throwable $error) {
+            if ($attempt === 0) {
+                try {
+                    bober_rate_limit_ensure_table($conn);
+                } catch (Throwable $ignored) {
+                    return 0;
+                }
+                continue;
+            }
+            return 0;
+        }
+    }
+
+    if (!is_array($row)) {
+        return 0;
+    }
+
+    $remaining = ((int) $row['window_start'] + (int) $windowSeconds) - time();
+    if ($remaining > 0 && (int) $row['hits'] >= (int) $limit) {
+        return $remaining;
+    }
+
+    return 0;
+}
+
+function bober_rate_limit_hit($conn, $name, $identity, $windowSeconds)
+{
+    $bucket = bober_rate_limit_bucket($name, $identity);
+    $now = time();
+    $windowStart = $now - (int) $windowSeconds;
+
+    try {
+        $stmt = $conn->prepare(
+            'INSERT INTO `rate_limits` (`bucket`, `window_start`, `hits`) VALUES (?, ?, 1) '
+            . 'ON DUPLICATE KEY UPDATE '
+            . '`hits` = IF(`window_start` <= ?, 1, `hits` + 1), '
+            . '`window_start` = IF(`window_start` <= ?, VALUES(`window_start`), `window_start`)'
+        );
+        if (!$stmt) {
+            return;
+        }
+        $stmt->bind_param('siii', $bucket, $now, $windowStart, $windowStart);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Throwable $ignored) {
+        // Лимитер не должен ломать вход, если таблицы ещё нет.
+    }
+}
+
+function bober_rate_limit_clear($conn, $name, $identity)
+{
+    $bucket = bober_rate_limit_bucket($name, $identity);
+    try {
+        $stmt = $conn->prepare('DELETE FROM `rate_limits` WHERE `bucket` = ?');
+        if ($stmt) {
+            $stmt->bind_param('s', $bucket);
+            $stmt->execute();
+            $stmt->close();
+        }
+    } catch (Throwable $ignored) {
+    }
+}
+
+function bober_rate_limit_message($seconds)
+{
+    $minutes = max(1, (int) ceil($seconds / 60));
+    return 'Слишком много неудачных попыток. Попробуй снова через ' . $minutes . ' мин.';
+}
+
+/**
+ * Проверка админ-пароля: лимит попыток + запрет пароля по умолчанию.
+ * Возвращает true, если пароль верный. Иначе сама отвечает JSON-ошибкой и завершает запрос.
+ */
+function bober_admin_require_password($conn, $adminPassword)
+{
+    $ip = (string) (bober_get_client_ip() ?? 'unknown');
+
+    $blockedFor = bober_rate_limit_blocked_seconds($conn, 'admin_ip', $ip, 5, 900);
+    if ($blockedFor > 0) {
+        bober_json_response(['success' => false, 'message' => bober_rate_limit_message($blockedFor)], 429);
+    }
+    $blockedGlobal = bober_rate_limit_blocked_seconds($conn, 'admin_global', 'all', 30, 900);
+    if ($blockedGlobal > 0) {
+        bober_json_response(['success' => false, 'message' => bober_rate_limit_message($blockedGlobal)], 429);
+    }
+
+    $configuredHash = bober_configured_admin_password_hash();
+    if ($configuredHash === null || !password_verify($adminPassword, $configuredHash)) {
+        bober_rate_limit_hit($conn, 'admin_ip', $ip, 900);
+        bober_rate_limit_hit($conn, 'admin_global', 'all', 900);
+        bober_json_response(['success' => false, 'message' => 'Неверный админ-пароль.'], 403);
+    }
+
+    if (bober_admin_is_default_password_hash($configuredHash)) {
+        bober_json_response([
+            'success' => false,
+            'message' => 'Админ-доступ отключён: используется пароль по умолчанию. Смени секрет BOBER_ADMIN_INITIAL_PASSWORD / ADMIN_PASSWORD_HASH на сервере.',
+        ], 403);
+    }
+
+    bober_rate_limit_clear($conn, 'admin_ip', $ip);
+    return true;
+}
+
+/**
+ * Максимально правдоподобный прирост счёта между двумя сохранениями
+ * (тап-доход с запасом x2 + фиксированный допуск на бонусы). null — оценить нельзя.
+ */
+function bober_max_plausible_score_gain(array $previousUpgradeCounts, $previousPlus, $previousLastScoreUpdate, $nowMs)
+{
+    $previousLastScoreUpdate = max(0, (int) $previousLastScoreUpdate);
+    $nowMs = max(0, (int) $nowMs);
+
+    if ($previousLastScoreUpdate <= 0 || $nowMs <= $previousLastScoreUpdate) {
+        return null;
+    }
+
+    $elapsedSeconds = min(($nowMs - $previousLastScoreUpdate) / 1000, 30 * 24 * 60 * 60);
+    $previousPlus = max(1, (int) $previousPlus);
+    $clickRateLimit = max(1, (int) bober_calculate_click_rate_limit_from_upgrade_counts($previousUpgradeCounts));
+
+    return (int) ceil($previousPlus * $clickRateLimit * $elapsedSeconds * 2) + 200000;
 }

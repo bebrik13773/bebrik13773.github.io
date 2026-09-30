@@ -30,6 +30,16 @@ try {
         ], 403);
     }
 
+    $rateIp = (string) (bober_get_client_ip() ?? 'unknown');
+    $blockedFor = max(
+        bober_rate_limit_blocked_seconds($conn, 'login_user', $login, 8, 900),
+        bober_rate_limit_blocked_seconds($conn, 'login_ip', $rateIp, 30, 900)
+    );
+    if ($blockedFor > 0) {
+        $conn->close();
+        bober_json_response(['success' => false, 'message' => bober_rate_limit_message($blockedFor)], 429);
+    }
+
     $stmt = $conn->prepare('SELECT id, password FROM users WHERE login = ? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
@@ -45,6 +55,8 @@ try {
 
     if ($stmt->num_rows !== 1) {
         $stmt->close();
+        bober_rate_limit_hit($conn, 'login_user', $login, 900);
+        bober_rate_limit_hit($conn, 'login_ip', $rateIp, 900);
         $conn->close();
         bober_json_response(['success' => false, 'message' => 'Неверный логин или пароль.']);
     }
@@ -54,9 +66,13 @@ try {
     $stmt->close();
 
     if (!is_string($hashedPassword) || $hashedPassword === '' || !password_verify($password, $hashedPassword)) {
+        bober_rate_limit_hit($conn, 'login_user', $login, 900);
+        bober_rate_limit_hit($conn, 'login_ip', $rateIp, 900);
         $conn->close();
         bober_json_response(['success' => false, 'message' => 'Неверный логин или пароль.']);
     }
+
+    bober_rate_limit_clear($conn, 'login_user', $login);
 
     $activeBan = bober_fetch_active_user_ban($conn, (int) $id);
     if ($activeBan !== null) {

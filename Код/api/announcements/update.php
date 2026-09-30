@@ -15,10 +15,7 @@ try {
     bober_ensure_admin_schema($conn);
     bober_ensure_announcement_schema($conn);
 
-    $configuredHash = bober_configured_admin_password_hash();
-    if ($configuredHash === null || !password_verify($adminPassword, $configuredHash)) {
-        bober_json_response(['success' => false, 'message' => 'Неверный админ-пароль'], 403);
-    }
+    bober_admin_require_password($conn, $adminPassword);
 
     $announcementId = max(0, (int) ($request['id'] ?? 0));
     $title = trim((string) ($request['title'] ?? ''));
