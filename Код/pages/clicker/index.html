@@ -6039,6 +6039,29 @@ Owner decisions:
         35% { transform: translateY(-4px); opacity: 1; }
     }
 
+    .ai-chat-price-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: rgba(247, 254, 255, 0.6);
+    }
+
+    .ai-chat-price-row.insufficient {
+        color: #ff8a8a;
+    }
+
+    .ai-chat-price-row .ai-chat-price-coin {
+        font-weight: 600;
+        color: #ffd76a;
+    }
+
+    .ai-chat-price-row.insufficient .ai-chat-price-coin {
+        color: #ff8a8a;
+    }
+
     .ai-chat-input-row {
         display: flex;
         gap: 8px;
@@ -7296,6 +7319,7 @@ function showNotification(message, type = 'success', duration = 3000) {
             <button type="button" class="ai-chat-close" id="aiChatClose" aria-label="Закрыть">✕</button>
         </div>
         <div class="ai-chat-messages" id="aiChatMessages"></div>
+        <div class="ai-chat-price-row" id="aiChatPriceRow" style="display:none;"></div>
         <div class="ai-chat-input-row">
             <textarea class="ai-chat-input" id="aiChatInput" placeholder="Спроси что-нибудь про игру..." rows="1"></textarea>
             <button type="button" class="ai-chat-send" id="aiChatSend" aria-label="Отправить">➤</button>
@@ -22465,6 +22489,8 @@ console.log('Настройки античита:', clickDetector.config);
     const AI_CHAT_LOCAL_KEY = 'boberAiChatLastPreview';
     let isSending = false;
     let hasGreeted = false;
+    const aiPriceRow = document.getElementById('aiChatPriceRow');
+    const aiPriceState = { mustPay: false, priceCoins: 0, loaded: false };
 
     function readAiChatPreview() {
         try {
@@ -22609,6 +22635,42 @@ console.log('Настройки античита:', clickDetector.config);
         }
     }
 
+    function renderAiPriceRow() {
+        if (!aiPriceRow) {
+            return;
+        }
+        if (!aiPriceState.mustPay || !aiPriceState.priceCoins) {
+            aiPriceRow.style.display = 'none';
+            aiPriceRow.classList.remove('insufficient');
+            return;
+        }
+        const currentScore = Number.isFinite(Number(score)) ? Number(score) : 0;
+        const notEnough = currentScore < aiPriceState.priceCoins;
+        aiPriceRow.style.display = 'flex';
+        aiPriceRow.classList.toggle('insufficient', notEnough);
+        aiPriceRow.innerHTML = notEnough
+            ? `Не хватает монет: нужно <span class="ai-chat-price-coin">${aiPriceState.priceCoins.toLocaleString('ru-RU')} 🪙</span>`
+            : `Сообщение бобру: <span class="ai-chat-price-coin">${aiPriceState.priceCoins.toLocaleString('ru-RU')} 🪙</span>`;
+    }
+
+    async function refreshAiChatPrice() {
+        try {
+            const response = await fetch(resolveRuntimeUrl('/api/ai-assistant/ai-status.php'), {
+                method: 'GET',
+                credentials: 'include'
+            });
+            const data = await response.json().catch(() => null);
+            if (data && data.success && data.allowed) {
+                aiPriceState.mustPay = !!data.mustPay;
+                aiPriceState.priceCoins = Number(data.priceCoins) || 0;
+                aiPriceState.loaded = true;
+            }
+        } catch (error) {
+            // Тихо игнорируем — не критично, просто не покажем цену заранее
+        }
+        renderAiPriceRow();
+    }
+
     function openAiChat() {
         closeChatsList();
         aiModal.classList.add('show');
@@ -22620,6 +22682,7 @@ console.log('Настройки античита:', clickDetector.config);
             hasGreeted = true;
             addBubble('assistant', 'Привет! Я бобёр-помощник 🦫 Спроси что-нибудь про игру: что выгодно купить, сколько нужно накопить, или просто поболтаем.');
         }
+        refreshAiChatPrice();
         window.setTimeout(() => aiInput.focus(), 150);
     }
 
@@ -22638,6 +22701,15 @@ console.log('Настройки античита:', clickDetector.config);
         const text = aiInput.value.trim();
         if (!text || isSending) {
             return;
+        }
+
+        if (aiPriceState.mustPay && aiPriceState.priceCoins > 0) {
+            const currentScore = Number.isFinite(Number(score)) ? Number(score) : 0;
+            if (currentScore < aiPriceState.priceCoins) {
+                renderAiPriceRow();
+                addBubble('system-note', `Не хватает монет для сообщения бобру: нужно ${aiPriceState.priceCoins.toLocaleString('ru-RU')} 🪙.`);
+                return;
+            }
         }
 
         isSending = true;
@@ -22671,17 +22743,33 @@ console.log('Настройки античита:', clickDetector.config);
             if (!response.ok || !data) {
                 const message = (data && data.message) ? data.message : 'Бобёр не смог ответить. Попробуй ещё раз чуть позже.';
                 addBubble('system-note', message);
+                if (data && data.insufficientCoins) {
+                    aiPriceState.priceCoins = Number(data.requiredCoins) || aiPriceState.priceCoins;
+                    renderAiPriceRow();
+                }
                 return;
             }
 
             if (data.success === false) {
                 addBubble('system-note', data.message || 'Что-то пошло не так.');
+                if (data.insufficientCoins) {
+                    aiPriceState.priceCoins = Number(data.requiredCoins) || aiPriceState.priceCoins;
+                    renderAiPriceRow();
+                }
                 return;
             }
 
             const replyText = data.reply || '...';
             addBubble('assistant', replyText);
             writeAiChatPreview(replyText, Date.now());
+
+            if (data.balanceAfter !== null && data.balanceAfter !== undefined && Number.isFinite(Number(data.balanceAfter))) {
+                score = Number(data.balanceAfter);
+                if (typeof updateScoreUI === 'function') {
+                    updateScoreUI();
+                }
+            }
+            refreshAiChatPrice();
         } catch (networkError) {
             hideTyping();
             addBubble('system-note', 'Не удалось связаться с сервером. Проверь соединение и попробуй снова.');

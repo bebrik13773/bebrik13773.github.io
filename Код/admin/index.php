@@ -2586,8 +2586,7 @@ SQL;
                     'accessMode' => (string) ($_POST['access_mode'] ?? 'free'),
                     'defaultMessageLimitPerHour' => (int) ($_POST['default_message_limit_per_hour'] ?? 15),
                     'defaultActionLimitPerHour' => (int) ($_POST['default_action_limit_per_hour'] ?? 5),
-                    'paidPriceCoins' => (int) ($_POST['paid_price_coins'] ?? 0),
-                    'paidDurationDays' => (int) ($_POST['paid_duration_days'] ?? 30),
+                    'paidPriceCoins' => (int) ($_POST['paid_price_coins'] ?? 300),
                 ]);
 
                 $response['success'] = true;
@@ -2627,7 +2626,6 @@ SQL;
                     $settings = bober_ai_set_user_settings($conn, $userId, [
                         'isBlocked' => !empty($_POST['is_blocked']),
                         'isPaidUnlocked' => !empty($_POST['is_paid_unlocked']),
-                        'paidUntil' => (string) ($_POST['paid_until'] ?? '') !== '' ? (string) $_POST['paid_until'] : null,
                         'customMessageLimitPerHour' => $customMessageLimitRaw === '' ? null : (int) $customMessageLimitRaw,
                         'customActionLimitPerHour' => $customActionLimitRaw === '' ? null : (int) $customActionLimitRaw,
                         'adminNote' => (string) ($_POST['admin_note'] ?? ''),
@@ -2642,45 +2640,6 @@ SQL;
                         'query_text' => 'UPDATE AI USER SETTINGS FOR USER #' . $userId,
                         'affected_rows' => 1,
                         'meta' => $settings,
-                    ]);
-                }
-
-                $conn->close();
-            }
-        }
-
-        if ($action === 'grant_ai_paid_access') {
-            if (requireAdminAuth($response)) {
-                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
-                $login = trim((string) ($_POST['login'] ?? ''));
-                $durationDays = max(1, (int) ($_POST['duration_days'] ?? 30));
-
-                $conn = connectDB();
-                bober_ensure_project_schema($conn);
-                bober_ai_ensure_schema($conn);
-
-                if ($userId < 1 && $login !== '') {
-                    $userId = (int) (bober_ai_admin_find_user_id_by_login($conn, $login) ?? 0);
-                }
-
-                if ($userId < 1) {
-                    $response['message'] = 'Не удалось определить игрока (укажите user_id или существующий логин).';
-                } else {
-                    $settings = bober_ai_grant_paid_access($conn, $userId, $durationDays);
-
-                    $response['success'] = true;
-                    $response['message'] = 'Платный доступ к ИИ выдан на ' . $durationDays . ' дн.';
-                    $response['userSettings'] = $settings;
-
-                    bober_admin_log_action($conn, 'grant_ai_paid_access', [
-                        'target_table' => 'ai_chat_user_settings',
-                        'query_text' => 'GRANT AI PAID ACCESS FOR USER #' . $userId,
-                        'affected_rows' => 1,
-                        'meta' => [
-                            'user_id' => $userId,
-                            'duration_days' => $durationDays,
-                            'paid_until' => $settings['paidUntil'] ?? null,
-                        ],
                     ]);
                 }
 
@@ -7433,8 +7392,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <div class="form-group">
                                     <label class="form-label">Режим доступа</label>
                                     <select class="form-control" id="aiGlobalAccessMode">
-                                        <option value="free">Свободный (все игроки)</option>
-                                        <option value="paid_only">Только платный доступ</option>
+                                        <option value="free">Свободный (бесплатно для всех)</option>
+                                        <option value="paid_only">Платно (списывается за каждое сообщение)</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -7446,13 +7405,12 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                     <input type="number" class="form-control" id="aiGlobalActionLimit" min="1" value="5">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Цена платного доступа (монеты)</label>
-                                    <input type="number" class="form-control" id="aiGlobalPaidPrice" min="0" value="0">
+                                    <label class="form-label">Базовая цена 1 сообщения (монеты)</label>
+                                    <input type="number" class="form-control" id="aiGlobalPaidPrice" min="0" value="300">
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label">Длительность платного доступа (дней)</label>
-                                    <input type="number" class="form-control" id="aiGlobalPaidDuration" min="1" value="30">
-                                </div>
+                            </div>
+                            <div class="card-subtitle" style="margin-top: -4px; margin-bottom: 8px;">
+                                Итоговая цена сообщения = базовая цена × экономический индекс игрока (как у апгрейдов/бустеров). Действует только в режиме "Платно".
                             </div>
                             <div class="inline-actions">
                                 <button class="btn btn-primary" id="saveAiGlobalSettingsBtn">
@@ -7487,7 +7445,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                             <div class="form-group">
                                 <label class="form-label" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
                                     <input type="checkbox" id="aiUserIsPaidUnlocked" style="width: auto;">
-                                    Платный доступ активен (для режима "Только платный доступ")
+                                    Бесплатный доступ для этого игрока (даже при включённом глобальном режиме "Платно")
                                 </label>
                             </div>
                             <div class="form-group">
@@ -7498,10 +7456,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 <button class="btn btn-primary" id="saveAiUserSettingsBtn">
                                     <span class="material-icons">save</span>
                                     Сохранить настройки игрока
-                                </button>
-                                <button class="btn btn-outline" id="grantAiPaidAccessBtn">
-                                    <span class="material-icons">workspace_premium</span>
-                                    Выдать платный доступ (дней): <input type="number" id="grantAiPaidDays" min="1" value="30" style="width: 60px; margin-left: 6px;">
                                 </button>
                             </div>
                         </div>
@@ -9805,11 +9759,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             const saveAiUserSettingsBtn = document.getElementById('saveAiUserSettingsBtn');
             if (saveAiUserSettingsBtn) {
                 saveAiUserSettingsBtn.addEventListener('click', saveAiUserSettingsAdmin);
-            }
-
-            const grantAiPaidAccessBtn = document.getElementById('grantAiPaidAccessBtn');
-            if (grantAiPaidAccessBtn) {
-                grantAiPaidAccessBtn.addEventListener('click', grantAiPaidAccessAdmin);
             }
 
             const aiChatOpenProfileBtn = document.getElementById('aiChatOpenProfileBtn');
@@ -14292,7 +14241,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 login: String(raw.login || 'без логина'),
                 isBlocked: Boolean(raw.isBlocked),
                 isPaidUnlocked: Boolean(raw.isPaidUnlocked),
-                paidUntil: raw.paidUntil || null,
                 customMessageLimitPerHour: raw.customMessageLimitPerHour,
                 customActionLimitPerHour: raw.customActionLimitPerHour,
                 adminNote: String(raw.adminNote || ''),
@@ -14328,8 +14276,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 };
                 setValue('aiGlobalMessageLimit', globalSettings.defaultMessageLimitPerHour ?? 15);
                 setValue('aiGlobalActionLimit', globalSettings.defaultActionLimitPerHour ?? 5);
-                setValue('aiGlobalPaidPrice', globalSettings.paidPriceCoins ?? 0);
-                setValue('aiGlobalPaidDuration', globalSettings.paidDurationDays ?? 30);
+                setValue('aiGlobalPaidPrice', globalSettings.paidPriceCoins ?? 300);
 
                 const usersList = (data.userSettingsList || []).map(normalizeAiUserSettings).filter(Boolean);
 
@@ -14343,7 +14290,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     listNode.innerHTML = usersList.map((u) => {
                         const badges = [];
                         if (u.isBlocked) badges.push('<span style="color: #ff8a8a;">заблокирован</span>');
-                        if (u.isPaidUnlocked) badges.push(`<span style="color: #56f5e0;">платный до ${formatAdminDateTime(u.paidUntil)}</span>`);
+                        if (u.isPaidUnlocked) badges.push('<span style="color: #56f5e0;">бесплатный доступ (исключение)</span>');
                         if (u.customMessageLimitPerHour !== null && u.customMessageLimitPerHour !== undefined) badges.push(`сообщ.: ${u.customMessageLimitPerHour}/ч`);
                         if (u.customActionLimitPerHour !== null && u.customActionLimitPerHour !== undefined) badges.push(`действ.: ${u.customActionLimitPerHour}/ч`);
 
@@ -14387,7 +14334,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             formData.append('default_message_limit_per_hour', document.getElementById('aiGlobalMessageLimit').value);
             formData.append('default_action_limit_per_hour', document.getElementById('aiGlobalActionLimit').value);
             formData.append('paid_price_coins', document.getElementById('aiGlobalPaidPrice').value);
-            formData.append('paid_duration_days', document.getElementById('aiGlobalPaidDuration').value);
 
             try {
                 const response = await fetch('', { method: 'POST', body: formData });
@@ -14426,31 +14372,6 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                 }
             } catch (error) {
                 showNotification('Ошибка сохранения: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
-            }
-        }
-
-        async function grantAiPaidAccessAdmin() {
-            const login = document.getElementById('aiUserSettingsLogin').value.trim();
-            const days = document.getElementById('grantAiPaidDays').value;
-            if (!login) {
-                showNotification('Укажите логин игрока.', 'warning');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('action', 'grant_ai_paid_access');
-            formData.append('login', login);
-            formData.append('duration_days', days);
-
-            try {
-                const response = await fetch('', { method: 'POST', body: formData });
-                const data = await response.json();
-                showNotification(data.message || (data.success ? 'Готово.' : 'Не удалось выдать доступ.'), data.success ? 'success' : 'error');
-                if (data.success) {
-                    loadAiAccessSettingsAdmin();
-                }
-            } catch (error) {
-                showNotification('Ошибка: ' + (error && error.message ? error.message : 'неизвестная ошибка'), 'error');
             }
         }
 

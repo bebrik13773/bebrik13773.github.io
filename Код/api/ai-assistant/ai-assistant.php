@@ -158,29 +158,21 @@ try {
 
     bober_enforce_runtime_access_rules($conn, $sessionUserId);
 
-    // Проверка доступа к ИИ: блокировка администратором или платный режим.
+    // Проверка доступа к ИИ: блокировка администратором.
+    // Платность (paid_only) больше не блокирует доступ целиком — вместо
+    // этого монеты списываются за каждое отправленное сообщение ниже.
     $accessInfo = bober_ai_resolve_access($conn, $sessionUserId);
     if (empty($accessInfo['allowed'])) {
         $conn->close();
-        if ($accessInfo['reason'] === 'blocked') {
-            bober_json_response([
-                'success' => false,
-                'message' => 'Доступ к ИИ-помощнику для твоего аккаунта ограничен. Обратись в поддержку, если считаешь, что это ошибка.',
-                'accessBlocked' => true,
-            ], 403);
-        }
-
         bober_json_response([
             'success' => false,
-            'message' => 'ИИ-помощник сейчас доступен только по платной подписке.',
-            'paidOnly' => true,
-            'paidPriceCoins' => $accessInfo['paidPriceCoins'] ?? 0,
-            'paidDurationDays' => $accessInfo['paidDurationDays'] ?? 30,
-        ], 402);
+            'message' => 'Доступ к ИИ-помощнику для твоего аккаунта ограничен. Обратись в поддержку, если считаешь, что это ошибка.',
+            'accessBlocked' => true,
+        ], 403);
     }
 
     // Если это просто запрос на новый чат без текста — создаём новую сессию
-    // и выходим сразу, не тратя обращение к RouterAI.
+    // и выходим сразу, не тратя обращение к RouterAI и не списывая монеты.
     if ($userMessage === '' && $forceNewSession) {
         bober_ai_get_or_create_session($conn, $sessionUserId, true);
         $conn->close();
@@ -199,6 +191,26 @@ try {
     }
 
     $chatSessionId = bober_ai_get_or_create_session($conn, $sessionUserId, $forceNewSession);
+
+    // Списание монет за сообщение — если для этого игрока сейчас включена
+    // платность. Делается ДО обращения к RouterAI, чтобы не тратить платный
+    // запрос к ИИ впустую, если у игрока не хватит монет.
+    $chargeResult = ['charged' => 0, 'balanceAfter' => null];
+    if (!empty($accessInfo['mustPay'])) {
+        try {
+            $chargeResult = bober_ai_charge_message_fee($conn, $sessionUserId, $chatSessionId, $accessInfo['basePriceCoins'] ?? 0);
+        } catch (Throwable $chargeError) {
+            $requiredPrice = bober_ai_calculate_message_price($conn, $sessionUserId, $accessInfo['basePriceCoins'] ?? 0);
+            $conn->close();
+            bober_json_response([
+                'success' => false,
+                'message' => 'Не хватает монет, чтобы написать бобру. Накопи ещё и возвращайся!',
+                'insufficientCoins' => true,
+                'requiredCoins' => $requiredPrice,
+            ], 402);
+        }
+    }
+
     $userContext = bober_ai_build_user_context($conn, $sessionUserId);
     $login = (string) ($userContext['login'] ?? '');
 
@@ -279,6 +291,8 @@ try {
     bober_json_response([
         'success' => true,
         'reply' => $finalReplyText,
+        'chargedCoins' => $chargeResult['charged'],
+        'balanceAfter' => $chargeResult['balanceAfter'],
     ]);
 } catch (Throwable $error) {
     if (isset($conn) && $conn instanceof mysqli) {

@@ -108,12 +108,13 @@ SQL;
 
     // Индивидуальные настройки доступа/лимитов/платности для конкретного игрока.
     // Отсутствие строки для user_id означает "все дефолты из ai_chat_global_settings".
+    // is_paid_unlocked здесь означает "бесплатный доступ для этого игрока даже
+    // при включённом глобальном платном режиме" (индивидуальное исключение).
     $createUserSettingsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `ai_chat_user_settings` (
     `user_id` INT NOT NULL PRIMARY KEY,
     `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
     `is_paid_unlocked` TINYINT(1) NOT NULL DEFAULT 0,
-    `paid_until` TIMESTAMP NULL DEFAULT NULL,
     `custom_message_limit_per_hour` INT NULL DEFAULT NULL,
     `custom_action_limit_per_hour` INT NULL DEFAULT NULL,
     `admin_note` VARCHAR(500) NOT NULL DEFAULT '',
@@ -125,16 +126,23 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу настроек доступа к ИИ-чату.');
     }
 
+    // Старые инсталляции могли создать таблицу ещё с колонкой paid_until —
+    // на новых серверах её просто не будет, поэтому проверяем перед удалением.
+    if (bober_column_exists($conn, 'ai_chat_user_settings', 'paid_until')) {
+        $conn->query('ALTER TABLE `ai_chat_user_settings` DROP COLUMN `paid_until`');
+    }
+
     // Глобальные дефолтные лимиты и режим доступа (free-for-all / paid-only).
-    // Хранится одной строкой с id=1 — упрощённый key-value для одного набора настроек.
+    // paid_price_coins — базовая цена ОДНОГО сообщения чата в монетах (до
+    // умножения на экономический индекс игрока). Хранится одной строкой
+    // с id=1 — упрощённый key-value для одного набора настроек.
     $createGlobalSettingsSql = <<<SQL
 CREATE TABLE IF NOT EXISTS `ai_chat_global_settings` (
     `id` TINYINT UNSIGNED NOT NULL PRIMARY KEY DEFAULT 1,
     `access_mode` VARCHAR(16) NOT NULL DEFAULT 'free',
     `default_message_limit_per_hour` INT NOT NULL DEFAULT 15,
     `default_action_limit_per_hour` INT NOT NULL DEFAULT 5,
-    `paid_price_coins` INT NOT NULL DEFAULT 0,
-    `paid_duration_days` INT NOT NULL DEFAULT 30,
+    `paid_price_coins` INT NOT NULL DEFAULT 300,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 SQL;
@@ -143,7 +151,33 @@ SQL;
         throw new RuntimeException('Не удалось создать таблицу глобальных настроек ИИ-чата.');
     }
 
+    if (bober_column_exists($conn, 'ai_chat_global_settings', 'paid_duration_days')) {
+        $conn->query('ALTER TABLE `ai_chat_global_settings` DROP COLUMN `paid_duration_days`');
+    }
+
     $conn->query('INSERT IGNORE INTO `ai_chat_global_settings` (`id`) VALUES (1)');
+
+    // Лог списаний монет за сообщения ИИ-чата — для админки/статистики.
+    $createChargesSql = <<<SQL
+CREATE TABLE IF NOT EXISTS `ai_chat_charges` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `session_id` BIGINT UNSIGNED NULL DEFAULT NULL,
+    `amount_coins` INT NOT NULL DEFAULT 0,
+    `balance_after` INT NOT NULL DEFAULT 0,
+    `economy_index` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_ai_chat_charges_user` (`user_id`, `created_at`)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+SQL;
+
+    if (!$conn->query($createChargesSql)) {
+        throw new RuntimeException('Не удалось создать таблицу списаний ИИ-чата.');
+    }
+
+    if (!bober_index_exists($conn, 'ai_chat_charges', 'idx_ai_chat_charges_user') && !$conn->query("CREATE INDEX `idx_ai_chat_charges_user` ON `ai_chat_charges` (`user_id`, `created_at`)")) {
+        throw new RuntimeException('Не удалось создать индекс списаний ИИ-чата.');
+    }
 
     $schemaEnsured = true;
 }
@@ -154,7 +188,7 @@ SQL;
  */
 function bober_ai_get_global_settings($conn)
 {
-    $result = $conn->query('SELECT access_mode, default_message_limit_per_hour, default_action_limit_per_hour, paid_price_coins, paid_duration_days FROM ai_chat_global_settings WHERE id = 1 LIMIT 1');
+    $result = $conn->query('SELECT access_mode, default_message_limit_per_hour, default_action_limit_per_hour, paid_price_coins FROM ai_chat_global_settings WHERE id = 1 LIMIT 1');
     $row = $result ? $result->fetch_assoc() : null;
     if ($result instanceof mysqli_result) {
         $result->free();
@@ -165,8 +199,7 @@ function bober_ai_get_global_settings($conn)
             'accessMode' => 'free',
             'defaultMessageLimitPerHour' => 15,
             'defaultActionLimitPerHour' => 5,
-            'paidPriceCoins' => 0,
-            'paidDurationDays' => 30,
+            'paidPriceCoins' => 300,
         ];
     }
 
@@ -175,7 +208,6 @@ function bober_ai_get_global_settings($conn)
         'defaultMessageLimitPerHour' => max(1, (int) $row['default_message_limit_per_hour']),
         'defaultActionLimitPerHour' => max(1, (int) $row['default_action_limit_per_hour']),
         'paidPriceCoins' => max(0, (int) $row['paid_price_coins']),
-        'paidDurationDays' => max(1, (int) $row['paid_duration_days']),
     ];
 }
 
@@ -184,14 +216,13 @@ function bober_ai_update_global_settings($conn, array $settings)
     $accessMode = in_array($settings['accessMode'] ?? '', ['free', 'paid_only'], true) ? $settings['accessMode'] : 'free';
     $messageLimit = max(1, (int) ($settings['defaultMessageLimitPerHour'] ?? 15));
     $actionLimit = max(1, (int) ($settings['defaultActionLimitPerHour'] ?? 5));
-    $priceCoins = max(0, (int) ($settings['paidPriceCoins'] ?? 0));
-    $durationDays = max(1, (int) ($settings['paidDurationDays'] ?? 30));
+    $priceCoins = max(0, (int) ($settings['paidPriceCoins'] ?? 300));
 
-    $stmt = $conn->prepare('UPDATE ai_chat_global_settings SET access_mode = ?, default_message_limit_per_hour = ?, default_action_limit_per_hour = ?, paid_price_coins = ?, paid_duration_days = ? WHERE id = 1');
+    $stmt = $conn->prepare('UPDATE ai_chat_global_settings SET access_mode = ?, default_message_limit_per_hour = ?, default_action_limit_per_hour = ?, paid_price_coins = ? WHERE id = 1');
     if (!$stmt) {
         throw new RuntimeException('Не удалось обновить глобальные настройки ИИ-чата.');
     }
-    $stmt->bind_param('siiii', $accessMode, $messageLimit, $actionLimit, $priceCoins, $durationDays);
+    $stmt->bind_param('siii', $accessMode, $messageLimit, $actionLimit, $priceCoins);
     $stmt->execute();
     $stmt->close();
 
@@ -209,7 +240,7 @@ function bober_ai_get_user_settings($conn, $userId)
         return null;
     }
 
-    $stmt = $conn->prepare('SELECT user_id, is_blocked, is_paid_unlocked, paid_until, custom_message_limit_per_hour, custom_action_limit_per_hour, admin_note FROM ai_chat_user_settings WHERE user_id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT user_id, is_blocked, is_paid_unlocked, custom_message_limit_per_hour, custom_action_limit_per_hour, admin_note FROM ai_chat_user_settings WHERE user_id = ? LIMIT 1');
     if (!$stmt) {
         return null;
     }
@@ -229,8 +260,9 @@ function bober_ai_get_user_settings($conn, $userId)
     return [
         'userId' => (int) $row['user_id'],
         'isBlocked' => (bool) $row['is_blocked'],
+        // "Освобождён от платы" — индивидуальное исключение: бесплатный доступ
+        // для этого игрока, даже когда глобально включён платный режим.
         'isPaidUnlocked' => (bool) $row['is_paid_unlocked'],
-        'paidUntil' => $row['paid_until'],
         'customMessageLimitPerHour' => $row['custom_message_limit_per_hour'] !== null ? (int) $row['custom_message_limit_per_hour'] : null,
         'customActionLimitPerHour' => $row['custom_action_limit_per_hour'] !== null ? (int) $row['custom_action_limit_per_hour'] : null,
         'adminNote' => (string) $row['admin_note'],
@@ -250,7 +282,6 @@ function bober_ai_set_user_settings($conn, $userId, array $settings)
 
     $isBlocked = !empty($settings['isBlocked']) ? 1 : 0;
     $isPaidUnlocked = !empty($settings['isPaidUnlocked']) ? 1 : 0;
-    $paidUntil = !empty($settings['paidUntil']) ? (string) $settings['paidUntil'] : null;
     $customMessageLimit = isset($settings['customMessageLimitPerHour']) && $settings['customMessageLimitPerHour'] !== null
         ? max(0, (int) $settings['customMessageLimitPerHour'])
         : null;
@@ -261,12 +292,11 @@ function bober_ai_set_user_settings($conn, $userId, array $settings)
 
     $stmt = $conn->prepare(<<<SQL
 INSERT INTO ai_chat_user_settings
-    (user_id, is_blocked, is_paid_unlocked, paid_until, custom_message_limit_per_hour, custom_action_limit_per_hour, admin_note)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+    (user_id, is_blocked, is_paid_unlocked, custom_message_limit_per_hour, custom_action_limit_per_hour, admin_note)
+VALUES (?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
     is_blocked = VALUES(is_blocked),
     is_paid_unlocked = VALUES(is_paid_unlocked),
-    paid_until = VALUES(paid_until),
     custom_message_limit_per_hour = VALUES(custom_message_limit_per_hour),
     custom_action_limit_per_hour = VALUES(custom_action_limit_per_hour),
     admin_note = VALUES(admin_note)
@@ -275,7 +305,7 @@ SQL
     if (!$stmt) {
         throw new RuntimeException('Не удалось сохранить настройки доступа к ИИ-чату.');
     }
-    $stmt->bind_param('iiisiis', $userId, $isBlocked, $isPaidUnlocked, $paidUntil, $customMessageLimit, $customActionLimit, $adminNote);
+    $stmt->bind_param('iiiiis', $userId, $isBlocked, $isPaidUnlocked, $customMessageLimit, $customActionLimit, $adminNote);
     $stmt->execute();
     $stmt->close();
 
@@ -284,8 +314,9 @@ SQL
 
 /**
  * Сводная точка правды: заблокирован ли доступ игрока к ИИ прямо сейчас,
- * и какие лимиты сообщений/действий к нему применяются (с учётом
- * индивидуальных настроек, платного доступа и глобального режима).
+ * какие лимиты сообщений/действий к нему применяются, и должен ли он
+ * платить монетами за каждое сообщение (с учётом индивидуальных настроек
+ * и глобального режима доступа).
  */
 function bober_ai_resolve_access($conn, $userId)
 {
@@ -298,29 +329,14 @@ function bober_ai_resolve_access($conn, $userId)
             'reason' => 'blocked',
             'messageLimitPerHour' => 0,
             'actionLimitPerHour' => 0,
+            'mustPay' => false,
         ];
     }
 
-    $hasActivePaidAccess = false;
-    if ($userSettings !== null && $userSettings['isPaidUnlocked']) {
-        if ($userSettings['paidUntil'] === null) {
-            $hasActivePaidAccess = true; // без даты истечения — бессрочный платный доступ
-        } else {
-            $paidUntilTimestamp = strtotime((string) $userSettings['paidUntil']);
-            $hasActivePaidAccess = ($paidUntilTimestamp !== false) && ($paidUntilTimestamp > time());
-        }
-    }
-
-    if ($globalSettings['accessMode'] === 'paid_only' && !$hasActivePaidAccess) {
-        return [
-            'allowed' => false,
-            'reason' => 'paid_only',
-            'messageLimitPerHour' => 0,
-            'actionLimitPerHour' => 0,
-            'paidPriceCoins' => $globalSettings['paidPriceCoins'],
-            'paidDurationDays' => $globalSettings['paidDurationDays'],
-        ];
-    }
+    // Индивидуальное исключение: этот игрок освобождён от платы админом,
+    // даже если глобально включён платный режим.
+    $isExemptFromPaying = $userSettings !== null && $userSettings['isPaidUnlocked'];
+    $mustPay = ($globalSettings['accessMode'] === 'paid_only') && !$isExemptFromPaying;
 
     $messageLimit = $globalSettings['defaultMessageLimitPerHour'];
     $actionLimit = $globalSettings['defaultActionLimitPerHour'];
@@ -339,38 +355,119 @@ function bober_ai_resolve_access($conn, $userId)
         'reason' => 'ok',
         'messageLimitPerHour' => max(0, $messageLimit),
         'actionLimitPerHour' => max(0, $actionLimit),
-        'isPaidUnlocked' => $hasActivePaidAccess,
+        'mustPay' => $mustPay,
+        'basePriceCoins' => $globalSettings['paidPriceCoins'],
     ];
 }
 
 /**
- * Активирует платный доступ игроку на N дней (продлевает от текущего
- * paid_until, если он ещё не истёк, иначе — от текущего момента).
+ * Списывает у игрока цену одного сообщения ИИ-чата (базовая цена, умноженная
+ * на его текущий экономический индекс — как апгрейды/бустеры) и логирует
+ * списание. Атомарно: блокирует строку пользователя, проверяет баланс,
+ * списывает и коммитит в одной транзакции. Бросает исключение, если монет
+ * не хватает — вызывающий код должен отменить отправку сообщения.
+ * Возвращает ['charged' => int, 'balanceAfter' => int].
  */
-function bober_ai_grant_paid_access($conn, $userId, $durationDays)
+function bober_ai_charge_message_fee($conn, $userId, $sessionId, $basePriceCoins)
 {
     $userId = max(0, (int) $userId);
-    $durationDays = max(1, (int) $durationDays);
-
-    $existing = bober_ai_get_user_settings($conn, $userId);
-    $baseTimestamp = time();
-    if ($existing !== null && $existing['isPaidUnlocked'] && $existing['paidUntil'] !== null) {
-        $existingTimestamp = strtotime((string) $existing['paidUntil']);
-        if ($existingTimestamp !== false && $existingTimestamp > $baseTimestamp) {
-            $baseTimestamp = $existingTimestamp;
-        }
+    if ($userId < 1) {
+        throw new InvalidArgumentException('Некорректный идентификатор пользователя.');
     }
 
-    $newPaidUntil = date('Y-m-d H:i:s', $baseTimestamp + ($durationDays * 86400));
+    $basePriceCoins = max(0, (int) $basePriceCoins);
+    if ($basePriceCoins < 1) {
+        return ['charged' => 0, 'balanceAfter' => null];
+    }
 
-    return bober_ai_set_user_settings($conn, $userId, [
-        'isBlocked' => $existing['isBlocked'] ?? false,
-        'isPaidUnlocked' => true,
-        'paidUntil' => $newPaidUntil,
-        'customMessageLimitPerHour' => $existing['customMessageLimitPerHour'] ?? null,
-        'customActionLimitPerHour' => $existing['customActionLimitPerHour'] ?? null,
-        'adminNote' => $existing['adminNote'] ?? '',
-    ]);
+    $conn->begin_transaction();
+
+    try {
+        $stmt = $conn->prepare('SELECT score FROM users WHERE id = ? LIMIT 1 FOR UPDATE');
+        if (!$stmt) {
+            throw new RuntimeException('Не удалось подготовить проверку баланса.');
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        $stmt->close();
+
+        if (!is_array($row)) {
+            throw new RuntimeException('Пользователь не найден.');
+        }
+
+        $currentScore = max(0, (int) $row['score']);
+        $economyProfile = bober_build_user_economy_profile(['score' => $currentScore]);
+        $effectivePrice = bober_calculate_effective_purchase_price($basePriceCoins, $economyProfile, 'shop');
+
+        if ($currentScore < $effectivePrice) {
+            throw new RuntimeException('Не хватает монет для сообщения бобру.');
+        }
+
+        $nextScore = $currentScore - $effectivePrice;
+
+        $updateStmt = $conn->prepare('UPDATE users SET score = ? WHERE id = ?');
+        if (!$updateStmt) {
+            throw new RuntimeException('Не удалось списать монеты.');
+        }
+        $updateStmt->bind_param('ii', $nextScore, $userId);
+        if (!$updateStmt->execute()) {
+            $updateStmt->close();
+            throw new RuntimeException('Не удалось списать монеты.');
+        }
+        $updateStmt->close();
+
+        $logStmt = $conn->prepare('INSERT INTO ai_chat_charges (user_id, session_id, amount_coins, balance_after, economy_index) VALUES (?, ?, ?, ?, ?)');
+        if ($logStmt) {
+            $sessionIdValue = $sessionId !== null ? (int) $sessionId : null;
+            $economyIndex = (int) ($economyProfile['index'] ?? 0);
+            $logStmt->bind_param('iiiii', $userId, $sessionIdValue, $effectivePrice, $nextScore, $economyIndex);
+            $logStmt->execute();
+            $logStmt->close();
+        }
+
+        $conn->commit();
+
+        return ['charged' => $effectivePrice, 'balanceAfter' => $nextScore];
+    } catch (Throwable $error) {
+        $conn->rollback();
+        throw $error;
+    }
+}
+
+/**
+ * Считает текущую эффективную цену одного сообщения для игрока (базовая
+ * цена × его экономический множитель) — не списывает, только показывает.
+ */
+function bober_ai_calculate_message_price($conn, $userId, $basePriceCoins)
+{
+    $userId = max(0, (int) $userId);
+    $basePriceCoins = max(0, (int) $basePriceCoins);
+    if ($basePriceCoins < 1 || $userId < 1) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare('SELECT score FROM users WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        return $basePriceCoins;
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    $score = is_array($row) ? max(0, (int) $row['score']) : 0;
+    $economyProfile = bober_build_user_economy_profile(['score' => $score]);
+
+    return bober_calculate_effective_purchase_price($basePriceCoins, $economyProfile, 'shop');
 }
 
 /**
@@ -729,7 +826,7 @@ function bober_ai_admin_fetch_user_settings_list($conn, array $options = [])
     $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
 
     $stmt = $conn->prepare('
-        SELECT s.user_id, u.login, s.is_blocked, s.is_paid_unlocked, s.paid_until,
+        SELECT s.user_id, u.login, s.is_blocked, s.is_paid_unlocked,
                s.custom_message_limit_per_hour, s.custom_action_limit_per_hour, s.admin_note, s.updated_at
         FROM ai_chat_user_settings s
         LEFT JOIN users u ON u.id = s.user_id
@@ -749,7 +846,6 @@ function bober_ai_admin_fetch_user_settings_list($conn, array $options = [])
             'login' => (string) ($row['login'] ?? ''),
             'isBlocked' => (bool) $row['is_blocked'],
             'isPaidUnlocked' => (bool) $row['is_paid_unlocked'],
-            'paidUntil' => $row['paid_until'],
             'customMessageLimitPerHour' => $row['custom_message_limit_per_hour'] !== null ? (int) $row['custom_message_limit_per_hour'] : null,
             'customActionLimitPerHour' => $row['custom_action_limit_per_hour'] !== null ? (int) $row['custom_action_limit_per_hour'] : null,
             'adminNote' => (string) $row['admin_note'],
