@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Сбор данных для античита</title>
+<style>
+:root{--bg:#14171c;--card:#1e232b;--tx:#eef1f5;--mt:#8b95a5;--ac:#f5a524;--ok:#3ecf8e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif;padding:14px;padding-top:max(14px,env(safe-area-inset-top));padding-bottom:max(14px,env(safe-area-inset-bottom))}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
+h1{font-size:19px;margin:0 0 6px}p{color:var(--mt);margin:4px 0;font-size:14px}
+input{width:100%;padding:10px;border-radius:8px;border:1px solid #333b47;background:#111418;color:var(--tx);margin-top:6px;font-size:16px}
+button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--ac);color:#111;font-weight:700;font-size:16px;margin-top:8px}
+button:disabled{opacity:.35}
+#pad{height:220px;border-radius:14px;background:#2a3140;display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:800;user-select:none;-webkit-user-select:none;touch-action:manipulation;margin-top:8px}
+#pad.on{background:#7a4e0b;outline:3px solid var(--ac)}
+.st{font-size:13px;color:var(--mt);white-space:pre-wrap;margin-top:8px}.ok{color:var(--ok)}
+</style></head><body>
+<div class="card"><h1>Сбор данных для античита</h1>
+<p>1) Введи название автокликера. 2) Фаза «с автокликером»: включи его и держи на зоне 30 сек. 3) Фаза «руками»: кликай сам 30 сек как обычно. 4) Скачай архив и отправь Claude.</p>
+<input id="name" placeholder="Название автокликера / приложения"><input id="note" placeholder="Заметка: скорость, режим (необязательно)"></div>
+<div class="card"><div id="lbl">Фаза 1 — С автокликером</div>
+<div id="pad">0</div><div class="st" id="info">Нажми «Начать», потом включи автокликер.</div>
+<button id="go">Начать фазу 1 (с автокликером)</button></div>
+<div class="card"><button id="dl" disabled>Скачать архив</button><div class="st" id="sum"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),DUR=30,CD=3;
+const order=['auto','manual'],names={auto:'С автокликером',manual:'Руками'};
+const data={auto:[],manual:[]},done={auto:false,manual:false};
+let cur=null,t0=0,idx=0,clicks=0,tick=null;
+const pad=$('pad');
+function rec(e){
+  if(!cur||performance.now()<t0)return;
+  const s=e.changedTouches&&e.changedTouches[0]||e;
+  data[cur].push({t:+(performance.now()-t0).toFixed(3),ts:+e.timeStamp.toFixed(3),type:e.type,trusted:e.isTrusted,
+    x:s.clientX??null,y:s.clientY??null,sx:s.screenX??null,sy:s.screenY??null,pt:e.pointerType||null,
+    pr:e.pressure??s.force??null,w:e.width??s.radiusX??null,h:e.height??s.radiusY??null,
+    b:e.button??null,id:e.pointerId??s.identifier??null,key:e.key||null,rep:e.repeat||null});
+  if(e.type==='click'){clicks++;pad.textContent=clicks}
+}
+['pointerdown','pointerup','pointercancel','mousedown','mouseup','click','touchstart','touchend'].forEach(t=>pad.addEventListener(t,rec,{passive:true}));
+['keydown','keyup'].forEach(t=>document.addEventListener(t,rec));
+function stats(ev){
+  let d=ev.filter(e=>e.type==='pointerdown');if(d.length<3)d=ev.filter(e=>e.type==='click');
+  const iv=[];for(let i=1;i<d.length;i++)iv.push(d[i].t-d[i-1].t);
+  if(!iv.length)return{n:d.length};
+  const m=iv.reduce((a,b)=>a+b)/iv.length,sd=Math.sqrt(iv.reduce((a,b)=>a+(b-m)**2,0)/iv.length);
+  return{n:d.length,cps:+(d.length/DUR).toFixed(2),mean_ms:+m.toFixed(1),sd_ms:+sd.toFixed(2),cv:+(sd/m).toFixed(3),min_ms:+Math.min(...iv).toFixed(1),max_ms:+Math.max(...iv).toFixed(1)};
+}
+function summary(){return order.filter(k=>done[k]).map(k=>names[k]+': '+JSON.stringify(stats(data[k]))).join('\n')}
+$('go').onclick=()=>{
+  if(cur)return;cur=order[idx];clicks=0;pad.textContent='0';data[cur]=[];
+  $('go').disabled=true;let c=CD;t0=performance.now()+CD*1000+1e6;
+  $('lbl').textContent='Фаза '+(idx+1)+' — '+names[cur];
+  const cd=setInterval(()=>{
+    if(c>0){$('info').textContent='Приготовься… '+c;c--;return}
+    clearInterval(cd);t0=performance.now();pad.classList.add('on');
+    tick=setInterval(()=>{
+      const left=Math.max(0,DUR-(performance.now()-t0)/1000);
+      $('info').textContent='Идёт запись… осталось '+left.toFixed(0)+' с';
+      if(left<=0)finish();
+    },200);
+  },1000);
+  $('info').textContent='Приготовься… '+c;c--;
+};
+function finish(){
+  clearInterval(tick);pad.classList.remove('on');done[cur]=true;cur=null;idx++;
+  $('sum').textContent=summary();
+  if(idx<order.length){$('go').disabled=false;$('go').textContent='Начать фазу 2 (руками, без автокликера)';$('lbl').textContent='Фаза 2 — Руками';$('info').textContent='Фаза 1 готова. Выключи автокликер.'}
+  else{$('go').style.display='none';$('lbl').textContent='Готово';$('info').textContent='Обе фазы записаны.';$('dl').disabled=false}
+}
+$('dl').onclick=async()=>{
+  const meta={created:new Date().toISOString(),autoclicker:$('name').value,note:$('note').value,duration_s:DUR,
+    ua:navigator.userAgent,platform:navigator.platform,screen:[screen.width,screen.height],dpr:devicePixelRatio,
+    maxTouchPoints:navigator.maxTouchPoints,lang:navigator.language,stats:{auto:stats(data.auto),manual:stats(data.manual)}};
+  const base='anticheat-'+($('name').value||'data').replace(/[^\w\u0400-\u04FF-]+/g,'_')+'-'+Date.now();
+  let blob,fn;
+  if(window.JSZip){const z=new JSZip();z.file('meta.json',JSON.stringify(meta,null,1));
+    z.file('auto_events.json',JSON.stringify(data.auto));z.file('manual_events.json',JSON.stringify(data.manual));
+    z.file('summary.txt',summary());blob=await z.generateAsync({type:'blob',compression:'DEFLATE'});fn=base+'.zip'}
+  else{blob=new Blob([JSON.stringify({meta,auto:data.auto,manual:data.manual})],{type:'application/json'});fn=base+'.json'}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();
+  $('sum').textContent=summary()+'\n\nСкачано: '+fn;
+};
+</script></body></html>
