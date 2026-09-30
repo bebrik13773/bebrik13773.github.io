@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Бобёр кликер</string>
+    <string name="title_activity_main">Бобёр кликер</string>
+    <string name="package_name">com.bober.tap</string>
+    <string name="custom_url_scheme">com.bober.tap</string>
+</resources>

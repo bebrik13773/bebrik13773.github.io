@@ -1,0 +1,32 @@
+{
+  "appId": "com.bober.tap",
+  "appName": "Бобёр кликер",
+  "webDir": "www",
+  "server": {
+    "url": "https://bober-api.gt.tc/pages/clicker/index.html",
+    "cleartext": true,
+    "allowNavigation": [
+      "bober-api.gt.tc",
+      "*.bober-api.gt.tc"
+    ],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#9C27B0"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#3A0C5C",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    }
+  }
+}
