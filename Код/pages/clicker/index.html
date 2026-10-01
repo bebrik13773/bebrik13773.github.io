@@ -18398,7 +18398,87 @@ function renderLeaderboardError(message) {
     attachLeaderboardTabHandlers(leaderboard);
 }
 
+// Сбор признаков тапов для серверного античита (ритм, длительность касания, тип указателя).
+// Клиент только считает признаки по окнам из 15 тапов; решение принимает сервер.
+const tapFeatureCollector = (() => {
+    const taps = [];
+    const down = new Map();
+    const WINDOW = 15;
+    const inClicker = (e) => !!(e.target && e.target.closest && e.target.closest('#clicker'));
+
+    document.addEventListener('pointerdown', (e) => {
+        if (!inClicker(e)) { return; }
+        down.set(e.pointerId, {
+            t: performance.now(),
+            pt: e.pointerType || '',
+            zero: (!e.width && !e.height) ? 1 : 0,
+            untrusted: e.isTrusted ? 0 : 1
+        });
+    }, true);
+
+    document.addEventListener('pointerup', (e) => {
+        const d = down.get(e.pointerId);
+        if (!d) { return; }
+        down.delete(e.pointerId);
+        taps.push({ t: d.t, hold: performance.now() - d.t, empty: d.pt === '' ? 1 : 0, zero: d.zero, untrusted: d.untrusted });
+        if (taps.length > 150) { taps.shift(); }
+    }, true);
+
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const sd = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((v) => (v - m) ** 2))); };
+    const round = (v, k) => Math.round(v * k) / k;
+
+    function buildWindow(run) {
+        const iv = [];
+        for (let i = 1; i < run.length; i += 1) { iv.push(run[i].t - run[i - 1].t); }
+        const holds = run.map((x) => x.hold);
+        const m = mean(iv);
+        return {
+            n: run.length,
+            cv: m > 0 ? round(sd(iv) / m, 1000) : null,
+            meanMs: round(m, 10),
+            holdMean: round(mean(holds), 10),
+            holdSd: round(sd(holds), 10),
+            emptyPt: round(mean(run.map((x) => x.empty)), 100),
+            zeroContact: round(mean(run.map((x) => x.zero)), 100),
+            untrusted: run.reduce((x, y) => x + y.untrusted, 0)
+        };
+    }
+
+    function drain() {
+        const windows = [];
+        let run = [];
+        const flush = () => {
+            for (let i = 0; i + WINDOW <= run.length; i += WINDOW) { windows.push(buildWindow(run.slice(i, i + WINDOW))); }
+            run = [];
+        };
+        taps.forEach((tap) => {
+            if (run.length && tap.t - run[run.length - 1].t > 800) { flush(); }
+            run.push(tap);
+        });
+        flush();
+        taps.length = 0;
+        return windows.slice(-3);
+    }
+
+    return { drain };
+})();
+window.tapFeatureCollector = tapFeatureCollector;
+
 async function requestJson(url, options = {}) {
+    if (typeof url === 'string' && url.indexOf('/api/state/sync.php') !== -1 && options && typeof options.body === 'string' && options.body.indexOf('"score"') !== -1) {
+        try {
+            const tapFeatures = tapFeatureCollector.drain();
+            if (tapFeatures.length) {
+                const syncBody = JSON.parse(options.body);
+                syncBody.tapFeatures = tapFeatures;
+                options = Object.assign({}, options, { body: JSON.stringify(syncBody) });
+            }
+        } catch (tapFeaturesError) {
+            // Признаки для античита необязательны для сохранения.
+        }
+    }
+
     if (SHARED_CLIENT.requestJson) {
         try {
             return await SHARED_CLIENT.requestJson(url, options);
@@ -19566,6 +19646,10 @@ async function synchronizeMainState(options = {}) {
         }
 
         const data = await requestJson('/api/state/sync.php', requestOptions);
+
+        if (data && data.cheatWarning && window.clickDetector && typeof window.clickDetector.showWarning === 'function') {
+            window.clickDetector.showWarning('ПРЕДУПРЕЖДЕНИЕ', 'Серверная проверка: похоже на автокликер.', String(data.cheatWarning.message || ''), true);
+        }
 
         if (data.leaderboards && typeof data.leaderboards === 'object') {
             renderLeaderboard(data.leaderboards.main, data.leaderboards.flyBeaver);

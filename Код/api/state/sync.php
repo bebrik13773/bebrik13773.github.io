@@ -80,6 +80,11 @@ try {
 
         if ($wantsStateSave) {
             $saveResult = bober_apply_user_state_update($conn, $sessionUserId, $data);
+
+            // Точное срабатывание античита: бан уже выдан, завершаем сессию (ответ 403 с баном).
+            if (is_array($saveResult['cheat'] ?? null) && ($saveResult['cheat']['level'] ?? '') === 'certain') {
+                bober_enforce_runtime_access_rules($conn, $sessionUserId);
+            }
         }
 
         if ($wantsSettingsSave) {
@@ -130,6 +135,7 @@ try {
         'saved' => $saveResult !== null,
         'settingsSaved' => $settingsSaved,
         'clientLog' => $saveResult['clientLog'] ?? null,
+        'cheatWarning' => (is_array($saveResult['cheat'] ?? null) && ($saveResult['cheat']['level'] ?? '') === 'suspicious') ? $saveResult['cheat'] : null,
     ]);
 } catch (Throwable $error) {
     bober_json_response(['success' => false, 'message' => bober_exception_message($error)], 500);

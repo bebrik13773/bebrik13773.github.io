@@ -11635,6 +11635,20 @@ function bober_apply_user_state_update($conn, $userId, $data)
         $score = $capPreviousScore + ($capMaxGain * 3);
     }
 
+    // Серверный античит: признаки тапов от клиента -> предупреждение или штраф+бан.
+    $cheatNotice = null;
+    if (is_array($data['tapFeatures'] ?? null)) {
+        try {
+            $cheatNotice = bober_evaluate_tap_features($conn, $userId, $data['tapFeatures'], $score, $capPreviousScore);
+            if (is_array($cheatNotice) && $cheatNotice['level'] === 'certain' && $cheatNotice['newScore'] !== null) {
+                $score = (int) $cheatNotice['newScore'];
+            }
+        } catch (Throwable $cheatError) {
+            // Античит не должен ломать сохранение прогресса.
+            $cheatNotice = null;
+        }
+    }
+
     $stmt = $conn->prepare('UPDATE users SET score = ?, plus = ?, skin = ?, energy = ?, last_energy_update = ?, ENERGY_MAX = ?, last_score_update = ?, upgrade_tap_small_count = ?, upgrade_tap_big_count = ?, upgrade_energy_count = ?, upgrade_tap_huge_count = ?, upgrade_regen_boost_count = ?, upgrade_energy_huge_count = ?, upgrade_click_rate_count = ? WHERE id = ?');
     if (!$stmt) {
         throw new RuntimeException('Ошибка подготовки запроса.');
@@ -11860,6 +11874,7 @@ function bober_apply_user_state_update($conn, $userId, $data)
 
     return [
         'clientLog' => $clientLogResult,
+        'cheat' => $cheatNotice,
     ];
 }
 
@@ -13399,3 +13414,5 @@ function bober_max_plausible_score_gain(array $previousUpgradeCounts, $previousP
 
     return (int) ceil($previousPlus * $clickRateLimit * $elapsedSeconds * 2) + 200000;
 }
+
+require_once __DIR__ . '/anticheat.php';

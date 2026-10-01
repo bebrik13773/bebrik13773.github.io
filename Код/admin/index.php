@@ -3371,6 +3371,41 @@ SQL;
             }
         }
 
+        if ($action === 'revert_cheat_penalty') {
+            if (requireAdminAuth($response)) {
+                $userId = max(0, (int) ($_POST['user_id'] ?? 0));
+
+                if ($userId < 1) {
+                    $response['message'] = 'Некорректный идентификатор пользователя';
+                } else {
+                    $conn = connectDB();
+                    bober_ensure_project_schema($conn);
+
+                    $revert = bober_revert_cheat_penalties($conn, $userId);
+                    $response['success'] = true;
+                    $response['message'] = 'Наказание снято. Возвращено баллов: ' . (int) $revert['restoredScore']
+                        . ', отменено нарушений: ' . (int) $revert['revertedEvents'];
+                    $response['revert'] = $revert;
+                    invalidateAdminRuntimeCaches($conn);
+
+                    bober_admin_log_action($conn, 'revert_cheat_penalty', [
+                        'target_table' => 'users',
+                        'query_text' => 'REVERT CHEAT PENALTY #' . $userId,
+                        'affected_rows' => (int) $revert['revertedEvents'],
+                        'meta' => ['user_id' => $userId, 'revert' => $revert],
+                    ]);
+                    bober_log_user_activity($conn, $userId, 'admin_revert_cheat_penalty', [
+                        'action_group' => 'admin',
+                        'source' => 'admin_panel',
+                        'description' => 'Администратор снял наказание за автокликер и вернул баллы.',
+                        'meta' => $revert,
+                    ]);
+
+                    $conn->close();
+                }
+            }
+        }
+
         if ($action === 'unban_user_account') {
             if (requireAdminAuth($response)) {
                 $userId = max(0, (int) ($_POST['user_id'] ?? 0));
@@ -15943,6 +15978,10 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             detailContainer.innerHTML = `
                 <div class="account-detail-head">
                     <div class="account-head-actions">
+                        <button class="btn btn-primary" id="revertCheatBtn">
+                            <span class="material-icons">history</span>
+                            Снять наказание
+                        </button>
                         <button class="btn ${activeBan ? 'btn-success' : 'btn-danger'}" id="toggleBanAccountBtn">
                             <span class="material-icons">${activeBan ? 'verified_user' : 'gpp_bad'}</span>
                             ${activeBan ? 'Разбанить' : 'Забанить'}
@@ -16482,6 +16521,7 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
 
                 grantSkinToSelectedAccount(String(select.value), Boolean(equipInput && equipInput.checked));
             });
+            document.getElementById('revertCheatBtn').addEventListener('click', revertCheatPenaltyForSelectedAccount);
             document.getElementById('toggleBanAccountBtn').addEventListener('click', function() {
                 if (activeBan) {
                     unbanSelectedAccount();
@@ -16852,6 +16892,30 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             }
 
             showBanDurationModal();
+        }
+
+        function revertCheatPenaltyForSelectedAccount() {
+            if (!selectedAccountId || !confirm('Вернуть отнятые баллы, отменить нарушения и снять бан?')) {
+                return;
+            }
+
+            postAction({
+                action: 'revert_cheat_penalty',
+                user_id: String(selectedAccountId)
+            })
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.message || 'Не удалось снять наказание');
+                }
+
+                showNotification(data.message || 'Наказание снято', 'success');
+                loadDashboardStats();
+                loadAccounts(lastAccountSearch, currentAccountSort);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(error.message || 'Ошибка снятия наказания', 'error');
+            });
         }
 
         function unbanSelectedAccount() {
