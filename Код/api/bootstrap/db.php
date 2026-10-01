@@ -6946,6 +6946,60 @@ function bober_reply_support_ticket_as_user($conn, $userId, $ticketId, $message,
     return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 }
 
+function bober_edit_support_ticket_message_as_user($conn, $userId, $ticketId, $messageId, $message)
+{
+    $userId = max(0, (int) $userId);
+    $ticketId = max(0, (int) $ticketId);
+    $messageId = max(0, (int) $messageId);
+    if ($userId < 1 || $ticketId < 1 || $messageId < 1) {
+        throw new InvalidArgumentException('Не удалось определить сообщение тикета.');
+    }
+
+    $newText = bober_normalize_support_ticket_message($message);
+    $ticket = bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+    if (bober_normalize_support_ticket_status($ticket['status'] ?? 'waiting_support') === 'closed') {
+        throw new RuntimeException('Тикет уже закрыт, сообщения в нём редактировать нельзя.');
+    }
+
+    $stmt = $conn->prepare("UPDATE support_ticket_messages SET message_text = ? WHERE id = ? AND ticket_id = ? AND author_type = 'user' AND author_user_id = ? LIMIT 1");
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось подготовить редактирование сообщения.');
+    }
+
+    $stmt->bind_param('siii', $newText, $messageId, $ticketId, $userId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        throw new RuntimeException('Не удалось отредактировать сообщение.');
+    }
+    $matched = $stmt->affected_rows;
+    $stmt->close();
+
+    if ($matched < 1) {
+        $checkStmt = $conn->prepare("SELECT id FROM support_ticket_messages WHERE id = ? AND ticket_id = ? AND author_type = 'user' AND author_user_id = ? LIMIT 1");
+        $exists = false;
+        if ($checkStmt) {
+            $checkStmt->bind_param('iii', $messageId, $ticketId, $userId);
+            if ($checkStmt->execute()) {
+                $checkResult = $checkStmt->get_result();
+                $exists = $checkResult && $checkResult->num_rows > 0;
+            }
+            $checkStmt->close();
+        }
+        if (!$exists) {
+            throw new RuntimeException('Сообщение не найдено. Редактировать можно только сообщения игрока, не ответы поддержки и не системные.');
+        }
+    }
+
+    $touchStmt = $conn->prepare('UPDATE support_tickets SET unread_by_admin = unread_by_admin + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? LIMIT 1');
+    if ($touchStmt) {
+        $touchStmt->bind_param('ii', $ticketId, $userId);
+        $touchStmt->execute();
+        $touchStmt->close();
+    }
+
+    return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
+}
+
 function bober_mark_admin_support_ticket_read($conn, $ticketId)
 {
     $ticketId = max(0, (int) $ticketId);

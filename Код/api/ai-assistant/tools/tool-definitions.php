@@ -55,6 +55,51 @@ function bober_ai_tool_definitions()
                 ],
             ],
         ],
+        [
+            'type' => 'function',
+            'function' => [
+                'name' => 'reply_support_ticket',
+                'description' => 'Добавляет сообщение в УЖЕ СУЩЕСТВУЮЩИЙ открытый тикет игрока (вместо создания нового). В тикете автоматически появится системная пометка, что сообщение отправил ИИ-бобёр. Используй только по явной просьбе игрока дописать/добавить/ответить в тикет. ticketId бери из recentSupportTickets.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'ticketId' => ['type' => 'integer', 'description' => 'Номер существующего тикета игрока.'],
+                        'message' => ['type' => 'string', 'description' => 'Текст сообщения, которое нужно добавить в тикет, на основе слов игрока.'],
+                    ],
+                    'required' => ['ticketId', 'message'],
+                ],
+            ],
+        ],
+        [
+            'type' => 'function',
+            'function' => [
+                'name' => 'edit_support_ticket_message',
+                'description' => 'Редактирует сообщение игрока в его тикете (в том числе отправленное ранее ИИ-бобром). Ответы поддержки и системные сообщения редактировать нельзя. В тикете появится системная пометка об редактировании ИИ-бобром. Используй только по явной просьбе игрока. Сначала вызови get_support_ticket, чтобы узнать messageId.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'ticketId' => ['type' => 'integer', 'description' => 'Номер тикета.'],
+                        'messageId' => ['type' => 'integer', 'description' => 'Номер сообщения игрока из get_support_ticket.'],
+                        'message' => ['type' => 'string', 'description' => 'Новый полный текст сообщения.'],
+                    ],
+                    'required' => ['ticketId', 'messageId', 'message'],
+                ],
+            ],
+        ],
+        [
+            'type' => 'function',
+            'function' => [
+                'name' => 'get_support_ticket',
+                'description' => 'Возвращает переписку тикета игрока с номерами сообщений (id, автор, текст). Только читает. Нужен перед редактированием сообщения или чтобы увидеть ответ поддержки.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'ticketId' => ['type' => 'integer', 'description' => 'Номер тикета.'],
+                    ],
+                    'required' => ['ticketId'],
+                ],
+            ],
+        ],
 /*
         [
             'type' => 'function',
