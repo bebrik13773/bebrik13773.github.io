@@ -1,6 +1,11 @@
 package com.bober.tap;
 
+import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Toast;
@@ -24,6 +29,37 @@ public class MainActivity extends BridgeActivity {
         // загрузках (возврат из фона, ручной reload, переход по ссылке).
         super.onCreate(savedInstanceState);
         disableWebViewCaching();
+        registerVibrationBridge();
+    }
+
+    /**
+     * Нативный мост вибрации: игра зовёт window.BoberNative.vibrate(ms).
+     * navigator.vibrate в WebView ненадёжен, поэтому вибрируем через
+     * системный Vibrator напрямую.
+     */
+    private void registerVibrationBridge() {
+        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView == null) {
+            return;
+        }
+        webView.addJavascriptInterface(new VibrationBridge(), "BoberNative");
+    }
+
+    private class VibrationBridge {
+        @JavascriptInterface
+        public void vibrate(int durationMs) {
+            Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator == null || !vibrator.hasVibrator()) {
+                return;
+            }
+            // Слишком короткие импульсы (<15 мс) многие моторы не отрабатывают
+            long ms = Math.max(15, Math.min(durationMs, 200));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(ms);
+            }
+        }
     }
 
     @Override

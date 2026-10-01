@@ -10895,7 +10895,8 @@ function shouldShowNotification(type = 'success') {
 }
 
 function triggerHaptic(kind = 'tap') {
-    if (!('vibrate' in navigator)) {
+    const nativeVibrate = window.BoberNative && typeof window.BoberNative.vibrate === 'function';
+    if (!nativeVibrate && !('vibrate' in navigator)) {
         return;
     }
 
@@ -10914,7 +10915,17 @@ function triggerHaptic(kind = 'tap') {
         duration = intensity === 'low' ? 8 : intensity === 'medium' ? 14 : 20;
     }
 
-    navigator.vibrate(duration);
+    if (nativeVibrate) {
+        try {
+            window.BoberNative.vibrate(duration);
+            return;
+        } catch (error) {
+            // падаем обратно на navigator.vibrate
+        }
+    }
+    if ('vibrate' in navigator) {
+        navigator.vibrate(duration);
+    }
 }
 
 function getEffectsQualityMultiplier() {
