@@ -18419,11 +18419,18 @@ const tapFeatureCollector = (() => {
 
     document.addEventListener('pointerdown', (e) => {
         if (!inClicker(e)) { return; }
+        const pt = e.pointerType || '';
         down.set(e.pointerId, {
             t: performance.now(),
-            pt: e.pointerType || '',
+            pt: pt,
             zero: (!e.width && !e.height) ? 1 : 0,
-            untrusted: e.isTrusted ? 0 : 1
+            untrusted: e.isTrusted ? 0 : 1,
+            x: Number(e.clientX) || 0,
+            y: Number(e.clientY) || 0,
+            pressure: Number(e.pressure) || 0,
+            size: (Number(e.width) || 0) + (Number(e.height) || 0),
+            // другой палец уже прижат -> человек тапает несколькими пальцами
+            multi: down.size > 0 ? 1 : 0
         });
     }, true);
 
@@ -18431,9 +18438,14 @@ const tapFeatureCollector = (() => {
         const d = down.get(e.pointerId);
         if (!d) { return; }
         down.delete(e.pointerId);
-        taps.push({ t: d.t, hold: performance.now() - d.t, empty: d.pt === '' ? 1 : 0, zero: d.zero, untrusted: d.untrusted });
+        taps.push({
+            t: d.t, hold: performance.now() - d.t, empty: d.pt === '' ? 1 : 0, zero: d.zero, untrusted: d.untrusted,
+            touch: d.pt === 'touch' ? 1 : 0, x: d.x, y: d.y, pressure: d.pressure, size: d.size, multi: d.multi
+        });
         if (taps.length > 150) { taps.shift(); }
     }, true);
+
+    document.addEventListener('pointercancel', (e) => { down.delete(e.pointerId); }, true);
 
     const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
     const sd = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((v) => (v - m) ** 2))); };
@@ -18444,6 +18456,10 @@ const tapFeatureCollector = (() => {
         for (let i = 1; i < run.length; i += 1) { iv.push(run[i].t - run[i - 1].t); }
         const holds = run.map((x) => x.hold);
         const m = mean(iv);
+        const touchRatio = mean(run.map((x) => x.touch));
+        // Разброс координат, силы и площади касания осмысленны только для пальца:
+        // у мыши они всегда одинаковые, это не признак робота.
+        const allTouch = touchRatio >= 0.9;
         return {
             n: run.length,
             cv: m > 0 ? round(sd(iv) / m, 1000) : null,
@@ -18452,23 +18468,34 @@ const tapFeatureCollector = (() => {
             holdSd: round(sd(holds), 10),
             emptyPt: round(mean(run.map((x) => x.empty)), 100),
             zeroContact: round(mean(run.map((x) => x.zero)), 100),
-            untrusted: run.reduce((x, y) => x + y.untrusted, 0)
+            untrusted: run.reduce((x, y) => x + y.untrusted, 0),
+            touchRatio: round(touchRatio, 100),
+            multi: round(mean(run.map((x) => x.multi)), 100),
+            posSd: allTouch ? round(Math.hypot(sd(run.map((x) => x.x)), sd(run.map((x) => x.y))), 100) : null,
+            pressureSd: allTouch ? round(sd(run.map((x) => x.pressure)), 1000) : null,
+            sizeSd: allTouch ? round(sd(run.map((x) => x.size)), 100) : null
         };
     }
 
     function drain() {
         const windows = [];
         let run = [];
-        const flush = () => {
-            for (let i = 0; i + WINDOW <= run.length; i += WINDOW) { windows.push(buildWindow(run.slice(i, i + WINDOW))); }
+        const flush = (isLast) => {
+            let i = 0;
+            for (; i + WINDOW <= run.length; i += WINDOW) { windows.push(buildWindow(run.slice(i, i + WINDOW))); }
+            // Неполный хвост последней серии не выбрасываем: дособерём его к следующей отправке.
+            const tail = isLast ? run.slice(i) : [];
             run = [];
+            return tail;
         };
+        let keep = [];
         taps.forEach((tap) => {
-            if (run.length && tap.t - run[run.length - 1].t > 800) { flush(); }
+            if (run.length && tap.t - run[run.length - 1].t > 800) { flush(false); }
             run.push(tap);
         });
-        flush();
+        if (run.length) { keep = flush(true); }
         taps.length = 0;
+        keep.forEach((tap) => taps.push(tap));
         return windows.slice(-3);
     }
 
@@ -21880,6 +21907,12 @@ class AutoClickerDetector {
         const multiTouchRatio = recentClicks.length > 0
             ? recentClicks.filter(click => Math.max(1, Number(click.touchCount) || 1) >= 3).length / recentClicks.length
             : 0;
+        // Несколько пальцев (в т.ч. быстрый тап в одну точку) — это человек, а не робот.
+        // Решение по роботам принимает сервер по признакам касаний (точка, длительность, ровность).
+        const humanMultiFinger = this.isMobile && (maxTouchCount >= 2 || averageTouchCount > 1.15);
+        if (humanMultiFinger) {
+            return { action: 'ignore' };
+        }
         const multiTouchGuard = this.isMobile && (maxTouchCount >= 3 || multiTouchRatio >= 0.25);
         const hasStrongMobileMultiTouch = this.isMobile &&
             multiTouchRatio >= 0.35 &&
@@ -22034,11 +22067,14 @@ class AutoClickerDetector {
             pointerStableRatio >= 0.48 &&
             pointerLongestStableStreak >= 4;
 
-        const extremeSpeed = pointerRecentClicks.length >= this.config.minSamples && effectiveCps >= this.config.extremeCPS;
+        // Одна высокая скорость без ровного ритма — не признак робота (быстрые пальцы, чередование).
+        const extremeSpeed = pointerRecentClicks.length >= this.config.minSamples &&
+            effectiveCps >= this.config.extremeCPS &&
+            pointerCoefficientOfVariation <= 0.3;
         const strongHundredMsPattern = exactHundredMsPattern || desktopShortExactPattern || mobileHundredMsPattern || mobileNearHundredMsPattern;
         const mobileCpsOnlySuspicion = this.isMobile &&
             !strongHundredMsPattern &&
-            (extremeSpeed || suspiciousCadence || hardCadence || pointerShortBurstRatio >= 0.6);
+            (extremeSpeed || suspiciousCadence || hardCadence);
 
         if (!keyboardSustainedPattern && !suspiciousCadence && !hardCadence && !exactHundredMsPattern && !desktopShortExactPattern && !desktopNearHundredMsPattern && !mobileHundredMsPattern && !mobileNearHundredMsPattern && !extremeSpeed) {
             return {

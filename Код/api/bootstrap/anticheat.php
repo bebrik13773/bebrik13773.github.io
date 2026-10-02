@@ -66,6 +66,11 @@ function bober_cheat_clean_windows($rawWindows)
             'emptyPt' => $num('emptyPt'),
             'zeroContact' => $num('zeroContact'),
             'untrusted' => (int) ($window['untrusted'] ?? 0),
+            'touchRatio' => $num('touchRatio'),
+            'multi' => $num('multi'),
+            'posSd' => $num('posSd'),
+            'pressureSd' => $num('pressureSd'),
+            'sizeSd' => $num('sizeSd'),
         ];
     }
 
@@ -81,14 +86,27 @@ function bober_cheat_score_windows(array $windows)
         $points = 0;
         $reasons = [];
 
-        if ($w['cv'] !== null) {
-            if ($w['cv'] < 0.10) {
+        // Несколько пальцев одновременно — признак человека: ритм и скорость не считаем,
+        // оцениваем только признаки устройства (точка, длительность касания, синтетика).
+        $multi = $w['multi'] !== null && $w['multi'] >= 0.2;
+
+        if (!$multi && $w['cv'] !== null) {
+            if ($w['cv'] < 0.05) {
                 $points += 4;
                 $reasons[] = 'слишком ровный ритм';
+            } elseif ($w['cv'] < 0.10) {
+                $points += 3;
+                $reasons[] = 'очень ровный ритм';
             } elseif ($w['cv'] < 0.18) {
                 $points += 2;
                 $reasons[] = 'ритм подозрительно ровный';
             }
+        }
+
+        // Палец не попадает в одну и ту же точку с точностью до пикселя (у мыши это норма — для неё posSd не передаётся).
+        if (!$multi && $w['posSd'] !== null && $w['posSd'] < 1.2) {
+            $points += 3;
+            $reasons[] = 'касания в одну и ту же точку';
         }
 
         if ($w['holdMean'] !== null && $w['holdMean'] > 0 && $w['holdMean'] < 20) {
@@ -99,6 +117,10 @@ function bober_cheat_score_windows(array $windows)
             $points += 1;
             $reasons[] = 'одинаковая длительность касаний';
         }
+        if ($w['pressureSd'] !== null && $w['sizeSd'] !== null && $w['pressureSd'] < 0.01 && $w['sizeSd'] < 0.5) {
+            $points += 1;
+            $reasons[] = 'одинаковая сила и площадь касания';
+        }
         if ($w['emptyPt'] !== null && $w['emptyPt'] >= 0.9) {
             $points += 1;
             $reasons[] = 'нет типа указателя';
@@ -108,13 +130,10 @@ function bober_cheat_score_windows(array $windows)
             $reasons[] = 'нулевая площадь касания';
         }
         if ($w['untrusted'] > 0) {
-            $points += 5;
+            $points += 7;
             $reasons[] = 'синтетические события';
         }
-        if ($w['meanMs'] !== null && $w['meanMs'] > 0 && $w['meanMs'] < 70) {
-            $points += 1;
-            $reasons[] = 'сверхвысокая скорость';
-        }
+        // Одна высокая скорость баллов не даёт: быстрые пальцы — не признак робота.
 
         if ($points > $best['points']) {
             $best['points'] = $points;
@@ -122,7 +141,15 @@ function bober_cheat_score_windows(array $windows)
         }
     }
 
-    $best['level'] = $best['points'] >= 7 ? 'certain' : ($best['points'] >= 4 ? 'suspicious' : 'none');
+    // Первое срабатывание — всегда предупреждение; бан только после него (см. bober_evaluate_tap_features)
+    // или сразу при синтетических событиях (скрипт, а не палец).
+    $best['level'] = $best['points'] >= 4 ? 'suspicious' : 'none';
+    foreach ($windows as $w) {
+        if ($w['untrusted'] > 0) {
+            $best['level'] = 'certain';
+            break;
+        }
+    }
 
     return $best;
 }
@@ -191,14 +218,15 @@ function bober_evaluate_tap_features($conn, $userId, $rawWindows, $requestedScor
     $level = $verdict['level'];
     $reasons = $verdict['reasons'];
 
-    // Предупреждения не чаще раза в 10 минут; третье за сутки приравнивается к "точно".
+    // Одно предупреждение, потом бан. После предупреждения даём 45 секунд, чтобы остановиться;
+    // если и дальше есть признаки робота (за сутки) — это уже бан.
     if ($level === 'suspicious') {
-        if (bober_cheat_count_events($conn, $userId, 'suspicious', 600) > 0) {
+        if (bober_cheat_count_events($conn, $userId, 'suspicious', 45) > 0) {
             return null;
         }
-        if (bober_cheat_count_events($conn, $userId, 'suspicious', 86400) >= 2) {
+        if (bober_cheat_count_events($conn, $userId, 'suspicious', 86400) >= 1) {
             $level = 'certain';
-            $reasons[] = 'повторные предупреждения';
+            $reasons[] = 'признаки автокликера после предупреждения';
         }
     }
 
