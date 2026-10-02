@@ -6702,9 +6702,9 @@ function showNotification(message, type = 'success', duration = 3000) {
 </button>
 <button class="upgrade-card click-rate" id="upgradeClickRateButton" data-palette="upgrade-click-rate" onclick="buyClickRateUpgrade()">
     <span class="upgrade-card-top">
-        <span class="upgrade-card-badge">+3 кликов/сек</span>
+        <span class="upgrade-card-badge">+3 тапа в секунду</span>
         <span class="upgrade-card-title">Разогнать ритм</span>
-        <span class="upgrade-card-meta">Поднимает лимит засчитываемых кликов на 3 в секунду. Полезно, если кликаешь очень быстро и часть кликов не засчитывается.</span>
+        <span class="upgrade-card-meta">Позволяет тапать быстрее: засчитывается на 3 тапа в секунду больше. Пригодится, если тапаешь очень быстро и часть тапов пропадает.</span>
     </span>
     <span class="upgrade-card-footer">
         <span class="upgrade-card-price"></span>
@@ -14356,7 +14356,7 @@ function formatCoinShortageCompact(price, options = {}) {
         return 'Хватает коинов';
     }
 
-    return `Не хватает ${formatCompactNumber(forecast.shortage)} • ~${formatCompactNumber(forecast.clicksNeeded)} кликов`;
+    return `Не хватает ${formatCompactNumber(forecast.shortage)} коинов`;
 }
 
 function formatCoinShortageDetails(price, options = {}) {
@@ -14365,7 +14365,7 @@ function formatCoinShortageDetails(price, options = {}) {
         return `Сейчас ${formatCompactNumber(forecast.balance)} из ${formatCompactNumber(forecast.price)}. Хватает на покупку.`;
     }
 
-    return `Сейчас ${formatCompactNumber(forecast.balance)} из ${formatCompactNumber(forecast.price)}. Не хватает ${formatCompactNumber(forecast.shortage)}. При текущем +${formatCompactNumber(forecast.coinsPerClick)} за клик это около ${formatCompactNumber(forecast.clicksNeeded)} кликов.`;
+    return `Сейчас ${formatCompactNumber(forecast.balance)} из ${formatCompactNumber(forecast.price)}. Не хватает ${formatCompactNumber(forecast.shortage)}.`;
 }
 
 function getUpgradePriceFormulaHint() {
@@ -14384,21 +14384,21 @@ function getUpgradePaybackHint(type, quantity, totalPrice, descriptor) {
     if (type === 'tapSmall' || type === 'tapBig' || type === 'tapHuge') {
         const addedCoinsPerClick = Math.max(1, Number(descriptor.effectStep || 0) * safeQuantity);
         const paybackClicks = Math.max(1, Math.ceil(safeTotalPrice / addedCoinsPerClick));
-        return `Окупится примерно за ${formatCompactNumber(paybackClicks)} тапов после покупки.`;
+        return `Купишь — и потраченные коины вернутся примерно через ${formatCompactNumber(paybackClicks)} тапов.`;
     }
 
     if (type === 'regenBoost') {
-        return `Эффект набора: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} энергии/сек. Доход напрямую не растет, но играть можно дольше без пауз.`;
+        return `Энергия будет восстанавливаться быстрее: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} в секунду. Коинов за тап не прибавится, зато меньше ждать.`;
     }
 
     if (type === 'energy' || type === 'energyHuge') {
-        return `Эффект набора: +${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)} к максимуму энергии. Это апгрейд на длительность сессии, а не на прямой доход.`;
+        return `Запас энергии станет больше на ${formatCompactNumber((Number(descriptor.effectStep) || 0) * safeQuantity)}. Можно тапать дольше без пауз, но коинов за тап не прибавится.`;
     }
 
     if (type === 'clickRate') {
         const currentLimit = getCurrentClickRateLimit();
         const nextLimit = currentLimit + (CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade * safeQuantity);
-        return `Эффект набора: лимит засчитываемых кликов вырастет с ${formatCompactNumber(currentLimit)} до ${formatCompactNumber(nextLimit)} в секунду. Доход напрямую не растет, но лишние быстрые клики перестанут теряться.`;
+        return `Засчитываться будет до ${formatCompactNumber(nextLimit)} тапов в секунду вместо ${formatCompactNumber(currentLimit)}. Коинов за тап не прибавится, но быстрые тапы перестанут пропадать.`;
     }
 
     return '';
@@ -14875,7 +14875,7 @@ function getUpgradeDescriptor(type) {
         },
         clickRate: {
             title: 'Разогнать ритм',
-            effect: '+3 к лимиту кликов в секунду',
+            effect: '+3 тапа в секунду',
             effectStep: CLICK_RATE_LIMIT_CONFIG.bonusPerUpgrade,
             purchaseCount: upgradePurchaseCounts.clickRate,
             price: calculateUpgradeCost(UPGRADE_BASE_COSTS.clickRate, upgradePurchaseCounts.clickRate, 'clickRate')
@@ -15002,9 +15002,9 @@ function updateUpgradeActionModalView() {
         if (upgradeActionState.type === 'energy' || upgradeActionState.type === 'energyHuge') {
             effectLabel = 'к энергии';
         } else if (upgradeActionState.type === 'regenBoost') {
-            effectLabel = 'энергии/сек';
+            effectLabel = 'энергии в секунду';
         } else if (upgradeActionState.type === 'clickRate') {
-            effectLabel = 'к лимиту кликов/сек';
+            effectLabel = 'тапа в секунду';
         }
         effectNode.textContent = `Эффект: +${formatCompactNumber(descriptor.effectStep * quantity)} ${effectLabel}`;
     }
@@ -15127,9 +15127,9 @@ async function performUpgradePurchase(type, quantity = 1) {
         type === 'energy' || type === 'energyHuge'
             ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый максимум: ${formatCompactNumber(energy_max)}`
             : type === 'regenBoost'
-                ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Реген: +${formatCompactNumber(upgradePurchaseCounts.regenBoost * 2)} энергии/сек`
+                ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Энергия восстанавливается быстрее: +${formatCompactNumber(upgradePurchaseCounts.regenBoost * 2)} в секунду`
                 : type === 'clickRate'
-                    ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Новый лимит: ${formatCompactNumber(getCurrentClickRateLimit())} кликов/сек`
+                    ? `Куплено ${formatCompactNumber(safeQuantity)} улучш. Теперь засчитывается до ${formatCompactNumber(getCurrentClickRateLimit())} тапов в секунду`
                 : `Куплено ${formatCompactNumber(safeQuantity)} улучш.`,
         'success'
     );
@@ -16174,8 +16174,8 @@ function updateUpgradeShopUI() {
             button: upgradeClickRateButton,
             baseCost: UPGRADE_BASE_COSTS.clickRate,
             purchaseCount: upgradePurchaseCounts.clickRate,
-            affordableText: 'Можно поднять лимит засчитываемых кликов',
-            lockedText: 'Нужно накопить на разгон ритма'
+            affordableText: 'Можно тапать быстрее',
+            lockedText: 'Нужно накопить на «Разогнать ритм»'
         },
         {
             type: 'energyHuge',
@@ -20872,7 +20872,7 @@ function buyClickRateUpgrade() {
             balance: score
         }, {
             source: 'upgrade_shop',
-            description: 'Не хватило коинов на покупку улучшения лимита кликов в секунду.'
+            description: 'Не хватило коинов на покупку улучшения скорости тапов.'
         });
         showUpgradeActionModal('clickRate');
         return;
