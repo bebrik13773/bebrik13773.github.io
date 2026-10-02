@@ -100,29 +100,6 @@ function bober_ai_tool_definitions()
                 ],
             ],
         ],
-/*
-        [
-            'type' => 'function',
-            'function' => [
-                'name' => 'report_player',
-                'description' => 'Принимает жалобу игрока на другого игрока (читерство, оскорбления и т.п.) и сохраняет её для ручного разбора владельцем игры. Не выносит вердиктов и не банит сам. Используй только если игрок явно жалуется на конкретного другого игрока.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'reportedLogin' => [
-                            'type' => 'string',
-                            'description' => 'Логин/ник игрока, на которого жалуются (как его назвал автор жалобы).',
-                        ],
-                        'description' => [
-                            'type' => 'string',
-                            'description' => 'Суть жалобы: что произошло, почему игрок считает это нарушением.',
-                        ],
-                    ],
-                    'required' => ['reportedLogin', 'description'],
-                ],
-            ],
-        ],
-*/
         [
             'type' => 'function',
             'function' => [

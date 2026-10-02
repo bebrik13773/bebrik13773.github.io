@@ -133,6 +133,201 @@ function bober_send_telegram_message($chatId, $text)
 }
 
 /**
+ * chat_id чата/канала владельца игры, куда уходят служебные уведомления
+ * (новые тикеты поддержки). Источник — GitHub Secret BOBER_TG_CHAT_ID →
+ * Код/config/ai_config.php, либо переменная окружения.
+ */
+function bober_telegram_owner_chat_id()
+{
+    static $chatId = null;
+    if ($chatId !== null) {
+        return $chatId;
+    }
+
+    $raw = getenv('BOBER_TG_CHAT_ID');
+    if ($raw === false || $raw === '') {
+        $configFile = dirname(__DIR__, 2) . '/config/ai_config.php';
+        if (is_file($configFile)) {
+            $loaded = require $configFile;
+            if (is_array($loaded) && !empty($loaded['tg_chat_id'])) {
+                $raw = (string) $loaded['tg_chat_id'];
+            }
+        }
+    }
+
+    $chatId = trim((string) $raw);
+
+    return $chatId;
+}
+
+/**
+ * Один запрос к Telegram sendMessage с разбором ответа.
+ * Возвращает [ok, httpCode, описаниеОшибки]. Сначала curl, при неудаче —
+ * запасной вариант через stream-контекст (file_get_contents).
+ */
+function bober_telegram_send_raw($botToken, array $fields)
+{
+    $url = 'https://api.telegram.org/bot' . $botToken . '/sendMessage';
+    $payload = json_encode($fields, JSON_UNESCAPED_UNICODE);
+    $body = false;
+    $httpCode = 0;
+    $transportError = '';
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        if ($ch !== false) {
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $payload,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 4,
+                CURLOPT_TIMEOUT => 8,
+            ]);
+            $body = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($body === false) {
+                $transportError = 'curl: ' . curl_error($ch);
+            }
+            curl_close($ch);
+        }
+    }
+
+    if ($body === false && ini_get('allow_url_fopen')) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/json\r\n",
+                'content' => $payload,
+                'timeout' => 8,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $context);
+        if ($body === false) {
+            $transportError .= ($transportError !== '' ? '; ' : '') . 'stream: запрос не прошёл';
+        } elseif (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+            $httpCode = (int) $m[1];
+        }
+    }
+
+    if ($body === false) {
+        return [false, $httpCode, $transportError !== '' ? $transportError : 'нет доступного транспорта (curl/allow_url_fopen)'];
+    }
+
+    $decoded = json_decode((string) $body, true);
+    if (is_array($decoded) && !empty($decoded['ok'])) {
+        return [true, $httpCode, ''];
+    }
+
+    $description = is_array($decoded) && isset($decoded['description'])
+        ? (string) $decoded['description']
+        : 'неожиданный ответ: ' . substr((string) $body, 0, 200);
+
+    return [false, $httpCode, $description];
+}
+
+/**
+ * Уведомление владельцу игры в Telegram. Никогда не бросает исключений —
+ * сбой уведомления не должен ломать основное действие. Причина сбоя пишется
+ * в error_log с префиксом [bober][telegram]. При ошибке HTML-разметки
+ * повторяет отправку обычным текстом.
+ */
+function bober_notify_owner_telegram($text)
+{
+    try {
+        $botToken = bober_telegram_bot_token();
+        $chatId = bober_telegram_owner_chat_id();
+
+        if ($botToken === '' || $chatId === '') {
+            error_log('[bober][telegram] не заданы токен/chat_id — проверь GitHub Secrets BOBER_TG_BOT_TOKEN и BOBER_TG_CHAT_ID');
+            return false;
+        }
+
+        list($ok, $httpCode, $error) = bober_telegram_send_raw($botToken, [
+            'chat_id' => $chatId,
+            'text' => (string) $text,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ]);
+        if ($ok) {
+            return true;
+        }
+
+        error_log('[bober][telegram] sendMessage не прошёл (HTTP ' . $httpCode . '): ' . $error);
+
+        if (stripos($error, 'parse') !== false || stripos($error, 'entities') !== false) {
+            list($ok, $httpCode, $error) = bober_telegram_send_raw($botToken, [
+                'chat_id' => $chatId,
+                'text' => strip_tags((string) $text),
+                'disable_web_page_preview' => true,
+            ]);
+            if ($ok) {
+                return true;
+            }
+            error_log('[bober][telegram] повтор без HTML не прошёл (HTTP ' . $httpCode . '): ' . $error);
+        }
+    } catch (Throwable $error) {
+        error_log('[bober][telegram] исключение при отправке: ' . $error->getMessage());
+    }
+
+    return false;
+}
+
+/**
+ * Уведомление в Telegram о новом тикете поддержки. Вызывается из ВСЕХ путей
+ * создания тикета (форма игрока, ИИ-бобёр, админка, античит), поэтому
+ * тикеты — единственное место для жалоб, багов и обращений.
+ * Отправка откладывается на конец запроса (после ответа клиенту, если доступен
+ * fastcgi_finish_request), чтобы не задерживать игрока и не держать транзакцию.
+ */
+function bober_notify_support_ticket_created($conn, $userId, $ticketId, $category, $subject, $message, $source = 'user')
+{
+    try {
+        $login = '';
+        $stmt = $conn->prepare('SELECT login FROM users WHERE id = ? LIMIT 1');
+        if ($stmt) {
+            $stmt->bind_param('i', $userId);
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+                if ($result instanceof mysqli_result) {
+                    $result->free();
+                }
+                if (is_array($row)) {
+                    $login = (string) ($row['login'] ?? '');
+                }
+            }
+            $stmt->close();
+        }
+
+        $messageText = (string) $message;
+        $messageText = function_exists('mb_substr') ? mb_substr($messageText, 0, 500) : substr($messageText, 0, 500);
+        $sourceLabel = $source === 'admin' ? 'исходящий, от поддержки' : 'от игрока';
+
+        $text = sprintf(
+            "🎫 <b>Новый тикет #%d</b> (%s)\nИгрок: %s (id %d)\nКатегория: %s\nТема: %s\n\n%s",
+            (int) $ticketId,
+            $sourceLabel,
+            htmlspecialchars($login !== '' ? $login : '—', ENT_QUOTES),
+            (int) $userId,
+            htmlspecialchars((string) $category, ENT_QUOTES),
+            htmlspecialchars((string) $subject, ENT_QUOTES),
+            htmlspecialchars($messageText, ENT_QUOTES)
+        );
+
+        register_shutdown_function(function () use ($text) {
+            if (function_exists('fastcgi_finish_request')) {
+                @fastcgi_finish_request();
+            }
+            bober_notify_owner_telegram($text);
+        });
+    } catch (Throwable $error) {
+        error_log('[bober][telegram] не удалось подготовить уведомление о тикете: ' . $error->getMessage());
+    }
+}
+
+/**
  * Проверка подписи данных Telegram Mini App (WebApp.initData).
  * Алгоритм по документации Telegram:
  * secret_key = HMAC_SHA256(bot_token, "WebAppData")
@@ -6787,6 +6982,8 @@ function bober_create_support_ticket($conn, $userId, $category, $subject, $messa
         throw $error;
     }
 
+    bober_notify_support_ticket_created($conn, $userId, $ticketId, $category, $subject, $payload['message'], 'user');
+
     return bober_fetch_user_support_ticket($conn, $userId, $ticketId, false);
 }
 
@@ -6875,6 +7072,8 @@ function bober_create_support_ticket_as_admin($conn, $userId, $category, $subjec
         bober_cleanup_support_attachment_paths($storedAttachmentPaths);
         throw $error;
     }
+
+    bober_notify_support_ticket_created($conn, $userId, $ticketId, $category, $subject, $payload['message'], 'admin');
 
     return bober_fetch_admin_support_ticket($conn, $ticketId, false, [
         'includeArchived' => true,
