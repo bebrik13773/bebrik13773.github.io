@@ -1,21 +1,71 @@
-MIT License
+Лицензия «Бобёр Кликер» (source-available)
+Bober Clicker Source-Available License
 
-Copyright (c) 2026 Sean Donahoe
+Copyright (c) 2026 Бобёр (GitHub: bebrik13773)
+Все права защищены, кроме прямо разрешённых ниже.
+All rights reserved, except as expressly permitted below.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+------------------------------------------------------------------
+РУССКИЙ ТЕКСТ
+------------------------------------------------------------------
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Что разрешено всегда
+   Любому человеку разрешено бесплатно:
+   - читать и изучать исходный код;
+   - запускать его у себя локально для изучения и тестов;
+   - предлагать правки в этот репозиторий (pull request / issue).
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Что запрещено без «сильной переработки»
+   Запрещено публично разворачивать (на хостинге, в интернете, в
+   магазине приложений), распространять или публиковать копию проекта
+   либо производную версию, если она не прошла «сильную переработку»
+   (п. 3). Просто скопировать и запустить «такой же Бобёр Кликер»
+   нельзя.
+
+3. Что такое «сильная переработка»
+   Проект должен быть переделан так, чтобы его нельзя было принять за
+   оригинал. Обязательно все пункты:
+   а) заменены название проекта и персонаж (например, вместо бобра —
+      капибара, и это не просто смена слова в тексте);
+   б) заменены ВСЕ графические материалы, скины, иконки, звуки и
+      картинки оригинала собственными или свободно лицензированными;
+   в) заметно изменён визуальный стиль интерфейса (цвета, оформление,
+      компоновка) и пользовательские тексты;
+   г) убраны ссылки на домены, репозиторий, Telegram и аккаунты
+      оригинала.
+   Идея игры (тап → монеты → улучшения) свободна и не охраняется.
+
+4. Ссылка на происхождение
+   В переработанной версии нужно оставить этот файл или его копию и
+   указать, что проект вдохновлён кодом «Бобёр Кликер»
+   (github.com/bebrik13773/bebrik13773.github.io).
+
+5. Чужие материалы
+   Графика, скины, звуки и тексты оригинала принадлежат правообладателю
+   и НЕ могут использоваться в других проектах ни при каких условиях.
+
+6. Выдача разрешения
+   Правообладатель может отдельно письменно разрешить то, что здесь
+   запрещено.
+
+7. Без гарантий
+   Программа предоставляется «как есть», без каких-либо гарантий.
+   Авторы не отвечают за ущерб от её использования.
+
+------------------------------------------------------------------
+ENGLISH SUMMARY
+------------------------------------------------------------------
+
+You may read, study and run the code locally for learning/testing, and
+contribute changes via this repository.
+
+You may NOT publicly deploy, distribute or publish a copy or derivative
+unless it has been substantially transformed: new project name and
+character; ALL original graphics, skins, icons and sounds replaced; a
+visibly different UI style and texts; all links to the original's
+domains, repository and accounts removed. Keep this file and credit the
+original project. The original's art, sounds and texts may never be
+reused. The software is provided "AS IS", without warranty of any kind.
+
+Note: versions of the code obtained before this license was adopted
+(under the MIT License) remain under the terms they were received with.
