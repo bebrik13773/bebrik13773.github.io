@@ -203,92 +203,101 @@ function bober_cheat_insert_event($conn, $userId, array $event)
 // Возвращает null (всё чисто) или ['level', 'newScore', 'message', ...].
 function bober_evaluate_tap_features($conn, $userId, $rawWindows, $requestedScore, $previousScore)
 {
-    $windows = bober_cheat_clean_windows($rawWindows);
-    if (!$windows) {
-        return null;
-    }
+    // ====================================================================
+    // АНТИЧИТ ОТКЛЮЧЁН: ПОЛНАЯ БЛОКИРОВКА БЕЗ УДАЛЕНИЯ КОДА
+    // ====================================================================
+    // Функция вернёт null и не будет проверять, штрафовать или банить.
+    // Весь остальной код оставлен ниже (закомментирован логически).
+    // ====================================================================
+    return null;
 
-    bober_ensure_cheat_schema($conn);
-
-    $verdict = bober_cheat_score_windows($windows);
-    if ($verdict['level'] === 'none') {
-        return null;
-    }
-
-    $level = $verdict['level'];
-    $reasons = $verdict['reasons'];
-
-    // Одно предупреждение, потом бан. После предупреждения даём 45 секунд, чтобы остановиться;
-    // если и дальше есть признаки робота (за сутки) — это уже бан.
-    if ($level === 'suspicious') {
-        if (bober_cheat_count_events($conn, $userId, 'suspicious', 45) > 0) {
-            return null;
-        }
-        if (bober_cheat_count_events($conn, $userId, 'suspicious', 86400) >= 1) {
-            $level = 'certain';
-            $reasons[] = 'признаки автокликера после предупреждения';
-        }
-    }
-
-    if ($level === 'suspicious') {
-        bober_cheat_insert_event($conn, $userId, [
-            'level' => 'suspicious',
-            'points' => $verdict['points'],
-            'reasons' => $reasons,
-            'windows' => $windows,
-        ]);
-
-        return [
-            'level' => 'suspicious',
-            'newScore' => null,
-            'message' => 'Похоже на автокликер: ' . implode(', ', array_slice($reasons, 0, 2)) . '. Следующее нарушение приведёт к штрафу и бану.',
-        ];
-    }
-
-    // certain: отнимаем накрутку этой синхронизации + растущий штраф с учётом эконом-индекса.
-    $strike = bober_cheat_count_events($conn, $userId, 'certain') + 1;
-    $basePercent = min(50.0, 5.0 * pow(2, $strike - 1));
-
-    $multiplier = 1.0;
-    try {
-        $profile = bober_build_user_economy_profile(bober_fetch_user_purchase_runtime_state($conn, $userId));
-        $multiplier = max(1.0, (float) ($profile['multiplier'] ?? 1.0));
-    } catch (Throwable $e) {
-        $multiplier = 1.0;
-    }
-
-    $percent = min(60.0, $basePercent * $multiplier);
-    $previousScore = max(0, (int) $previousScore);
-    $removed = max(0, (int) $requestedScore - $previousScore);
-    $penalty = (int) round($previousScore * $percent / 100);
-    $newScore = max(0, $previousScore - $penalty);
-
-    bober_cheat_insert_event($conn, $userId, [
-        'level' => 'certain',
-        'points' => $verdict['points'],
-        'strike' => $strike,
-        'removed' => $removed,
-        'penalty' => min($penalty, $previousScore),
-        'percent' => $percent,
-        'multiplier' => $multiplier,
-        'reasons' => $reasons,
-        'windows' => $windows,
-    ]);
-
-    $reasonText = 'Автокликер (серверная проверка): ' . implode(', ', array_slice($reasons, 0, 3));
-    bober_issue_user_ban($conn, $userId, $reasonText, [
-        'source' => 'autoclicker',
-        'detected_by' => 'server',
-        'meta' => ['points' => $verdict['points'], 'strike' => $strike, 'penalty_percent' => $percent],
-    ]);
-
-    return [
-        'level' => 'certain',
-        'newScore' => $newScore,
-        'message' => $reasonText,
-        'strike' => $strike,
-        'percent' => $percent,
-    ];
+    // // Всё нижеприведённое тело функции не выполняется:
+    // $windows = bober_cheat_clean_windows($rawWindows);
+    // if (!$windows) {
+    //     return null;
+    // }
+    //
+    // bober_ensure_cheat_schema($conn);
+    //
+    // $verdict = bober_cheat_score_windows($windows);
+    // if ($verdict['level'] === 'none') {
+    //     return null;
+    // }
+    //
+    // $level = $verdict['level'];
+    // $reasons = $verdict['reasons'];
+    //
+    // // Одно предупреждение, потом бан. После предупреждения даём 45 секунд, чтобы остановиться;
+    // // если и дальше есть признаки робота (за сутки) — это уже бан.
+    // if ($level === 'suspicious') {
+    //     if (bober_cheat_count_events($conn, $userId, 'suspicious', 45) > 0) {
+    //         return null;
+    //     }
+    //     if (bober_cheat_count_events($conn, $userId, 'suspicious', 86400) >= 1) {
+    //         $level = 'certain';
+    //         $reasons[] = 'признаки автокликера после предупреждения';
+    //     }
+    // }
+    //
+    // if ($level === 'suspicious') {
+    //     bober_cheat_insert_event($conn, $userId, [
+    //         'level' => 'suspicious',
+    //         'points' => $verdict['points'],
+    //         'reasons' => $reasons,
+    //         'windows' => $windows,
+    //     ]);
+    //
+    //     return [
+    //         'level' => 'suspicious',
+    //         'newScore' => null,
+    //         'message' => 'Похоже на автокликер: ' . implode(', ', array_slice($reasons, 0, 2)) . '. Следующее нарушение приведёт к штрафу и блокировке.',
+    //     ];
+    // }
+    //
+    // // certain: отнимаем накрутку этой синхронизации + растущий штраф с учётом эконом-индекса.
+    // $strike = bober_cheat_count_events($conn, $userId, 'certain') + 1;
+    // $basePercent = min(50.0, 5.0 * pow(2, $strike - 1));
+    //
+    // $multiplier = 1.0;
+    // try {
+    //     $profile = bober_build_user_economy_profile(bober_fetch_user_purchase_runtime_state($conn, $userId));
+    //     $multiplier = max(1.0, (float) ($profile['multiplier'] ?? 1.0));
+    // } catch (Throwable $e) {
+    //     $multiplier = 1.0;
+    // }
+    //
+    // $percent = min(60.0, $basePercent * $multiplier);
+    // $previousScore = max(0, (int) $previousScore);
+    // $removed = max(0, (int) $requestedScore - $previousScore);
+    // $penalty = (int) round($previousScore * $percent / 100);
+    // $newScore = max(0, $previousScore - $penalty);
+    //
+    // bober_cheat_insert_event($conn, $userId, [
+    //     'level' => 'certain',
+    //     'points' => $verdict['points'],
+    //     'strike' => $strike,
+    //     'removed' => $removed,
+    //     'penalty' => min($penalty, $previousScore),
+    //     'percent' => $percent,
+    //     'multiplier' => $multiplier,
+    //     'reasons' => $reasons,
+    //     'windows' => $windows,
+    // ]);
+    //
+    // $reasonText = 'Автокликер (серверная проверка): ' . implode(', ', array_slice($reasons, 0, 3));
+    // bober_issue_user_ban($conn, $userId, $reasonText, [
+    //     'source' => 'autoclicker',
+    //     'detected_by' => 'server',
+    //     'meta' => ['points' => $verdict['points'], 'strike' => $strike, 'penalty_percent' => $percent],
+    // ]);
+    //
+    // return [
+    //     'level' => 'certain',
+    //     'newScore' => $newScore,
+    //     'message' => $reasonText,
+    //     'strike' => $strike,
+    //     'percent' => $percent,
+    // ];
 }
 
 // Откат: возвращает отнятые баллы, помечает нарушения отменёнными, снимает баны.
