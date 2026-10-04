@@ -7,6 +7,11 @@
 // выведенным из замеров реального автокликера и ручных тапов.
 // ---------------------------------------------------------------------------
 
+// Мастер-флаг античита: false = никаких проверок, штрафов и банов.
+if (!defined('ANTICHEAT_ENABLED')) {
+    define('ANTICHEAT_ENABLED', false);
+}
+
 function bober_ensure_cheat_schema($conn)
 {
     static $ensured = false;
@@ -209,6 +214,9 @@ function bober_evaluate_tap_features($conn, $userId, $rawWindows, $requestedScor
     // Функция вернёт null и не будет проверять, штрафовать или банить.
     // Весь остальной код оставлен ниже (закомментирован логически).
     // ====================================================================
+    if (!ANTICHEAT_ENABLED) {
+        return null;
+    }
     return null;
 
     // // Всё нижеприведённое тело функции не выполняется:

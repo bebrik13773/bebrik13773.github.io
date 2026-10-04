@@ -21384,6 +21384,9 @@ window.addEventListener('storage', function(event) {
 
 
 <script>
+// Мастер-флаг античита: false = ничего не детектим, не предупреждаем и не баним.
+const ANTICHEAT_ENABLED = false;
+
 class AutoClickerDetector {
     constructor() {
         this.utils = SHARED_CLIENT.antiCheatUtils || {};
@@ -21562,6 +21565,9 @@ class AutoClickerDetector {
     }
 
     recordInteraction(payload = {}) {
+        if (!ANTICHEAT_ENABLED) {
+            return null;
+        }
         if (!userId || this.banRequestInFlight || this.isBanned()) {
             return null;
         }
@@ -22233,6 +22239,9 @@ class AutoClickerDetector {
     }
 
     showWarning(title, text, reason, strong = false) {
+        if (!ANTICHEAT_ENABLED) {
+            return;
+        }
         logClientEvent('security', 'anti_cheat_warning', {
             title: title,
             text: text,
@@ -22300,6 +22309,9 @@ class AutoClickerDetector {
     }
 
     async banUser(reason, metrics = null) {
+        if (!ANTICHEAT_ENABLED) {
+            return;
+        }
         if (this.banRequestInFlight) {
             return;
         }
