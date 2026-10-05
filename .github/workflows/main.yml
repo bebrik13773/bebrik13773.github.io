@@ -128,6 +128,11 @@ jobs:
       run: |
         sed -i "s/data-build-commit=\"__BUILD_COMMIT_SHA__\"/data-build-commit=\"${GITHUB_SHA}\"/" "./Код/pages/clicker/index.html"
 
+    - name: 🏷️ Stamp build commit id (Дикий Лес)
+      shell: bash
+      run: |
+        sed -i "s/data-build-commit=\"__BUILD_COMMIT_SHA__\"/data-build-commit=\"${GITHUB_SHA}\"/" "./Код/games/wild-forest/index.html"
+
     - name: 🔍 Determine deployment directory
       id: deployment
       run: |

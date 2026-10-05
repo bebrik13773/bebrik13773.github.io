@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="theme-color" content="#16301f">
+<title>Бобёр Кликер: Дикий Лес — бета</title>
+<style>
+:root {
+    --bg-top: #1c3b27;
+    --bg-bottom: #0e1f15;
+    --card: rgba(255, 255, 255, 0.07);
+    --line: rgba(255, 255, 255, 0.16);
+    --text: #f2f6ee;
+    --muted: #b8c9b4;
+    --accent: #f2b441;
+    --accent-text: #2b1b00;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+    min-height: 100%;
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+    -webkit-text-size-adjust: 100%;
+}
+.wf-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px 18px;
+    text-align: center;
+}
+.wf-logo { font-size: 72px; line-height: 1; }
+.wf-title { margin: 0; font-size: 28px; line-height: 1.2; }
+.wf-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+}
+.wf-card {
+    max-width: 420px;
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--muted);
+}
+.wf-card p { margin: 0 0 8px; }
+.wf-card p:last-child { margin-bottom: 0; }
+.wf-build { font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); min-height: 1.4em; }
+.wf-status { font-size: 14px; color: var(--muted); min-height: 1.4em; }
+.wf-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+.wf-btn {
+    min-height: 44px;
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.wf-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.62);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease-out, visibility 0.2s;
+}
+.wf-modal.is-open { visibility: visible; opacity: 1; }
+.wf-modal-box {
+    max-width: 400px;
+    width: 100%;
+    padding: 22px 20px;
+    border-radius: 18px;
+    background: #20402c;
+    border: 1px solid var(--line);
+    text-align: center;
+}
+.wf-modal-box h2 { margin: 0 0 10px; font-size: 22px; }
+.wf-modal-box p { margin: 0 0 10px; color: var(--muted); }
+.wf-modal-box .wf-btn { margin-top: 6px; width: 100%; }
+</style>
+</head>
+<body>
+<main class="wf-page">
+    <div class="wf-logo" aria-hidden="true">🦫🌲</div>
+    <h1 class="wf-title">Бобёр Кликер: Дикий Лес</h1>
+    <span class="wf-badge">БЕТА</span>
+    <div class="wf-card">
+        <p>Здесь строится новая игра: огромный общий лес, деревня, дорога к городу и торговля.</p>
+        <p>Пока это заглушка — скоро появятся бобёр и первые деревья.</p>
+    </div>
+    <div class="wf-build" id="wfBuild" data-build-commit="__BUILD_COMMIT_SHA__"></div>
+    <div class="wf-status" id="wfStatus" aria-live="polite"></div>
+    <button type="button" class="wf-btn" id="wfBetaOpen">О бета-версии</button>
+    <a class="wf-link" href="../../pages/clicker/index.html">← Старый Бобёр Кликер</a>
+</main>
+
+<div class="wf-modal" id="wfBetaModal" aria-hidden="true">
+    <div class="wf-modal-box" role="dialog" aria-modal="true" aria-labelledby="wfBetaTitle">
+        <h2 id="wfBetaTitle">⚠️ Внимание: бета-версия</h2>
+        <p>Это бета-версия игры. Финальная версия будет сильно отличаться от текущей.</p>
+        <p>Могут быть ошибки, а данные беты способны сбрасываться. Прогресс старого кликера сюда не переносится.</p>
+        <button type="button" class="wf-btn" id="wfBetaAck">Понятно</button>
+    </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Закрытая бета: не индексировать (ДЛ-02)
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow, noarchive"
+</IfModule>
