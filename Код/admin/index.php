@@ -2434,6 +2434,64 @@ SQL;
             }
         }
 
+        /* ==================== Дикий Лес: права администраторов (режим «Креатив») ==================== */
+
+        if ($action === 'forest_admin_list' || $action === 'forest_admin_grant' || $action === 'forest_admin_revoke') {
+            if (requireAdminAuth($response)) {
+                require_once dirname(__DIR__) . '/api/forest/lib/common.php';
+                $conn = connectDB();
+                forest_ensure_schema($conn);
+
+                if ($action === 'forest_admin_grant') {
+                    $login = trim((string) ($_POST['login'] ?? ''));
+                    $role = trim((string) ($_POST['role'] ?? 'creative'));
+                    $userId = 0;
+                    $userLogin = '';
+
+                    if ($login !== '') {
+                        $stmt = $conn->prepare('SELECT `id`, `login` FROM `users` WHERE `login` = ? LIMIT 1');
+                        $stmt->bind_param('s', $login);
+                        $stmt->execute();
+                        $stmt->bind_result($foundId, $foundLogin);
+                        if ($stmt->fetch()) {
+                            $userId = (int) $foundId;
+                            $userLogin = (string) $foundLogin;
+                        }
+                        $stmt->close();
+                    }
+
+                    if ($userId <= 0) {
+                        $response['message'] = 'Игрок с таким логином не найден';
+                    } elseif (!in_array($role, forest_config('admin.roles'), true)) {
+                        $response['message'] = 'Неизвестная роль';
+                    } else {
+                        forest_admin_grant($conn, $userId, $role, 'admin');
+                        bober_admin_log_action($conn, 'forest_admin_grant', ['target_table' => 'forest_admins', 'affected_rows' => 1, 'meta' => ['user_id' => $userId, 'login' => $userLogin, 'role' => $role]]);
+                        $response['success'] = true;
+                        $response['message'] = 'Права «' . $role . '» выданы игроку ' . $userLogin;
+                    }
+                } elseif ($action === 'forest_admin_revoke') {
+                    $userId = (int) ($_POST['user_id'] ?? 0);
+                    if ($userId <= 0) {
+                        $response['message'] = 'Не указан игрок';
+                    } else {
+                        $removed = forest_admin_revoke($conn, $userId);
+                        bober_admin_log_action($conn, 'forest_admin_revoke', ['target_table' => 'forest_admins', 'affected_rows' => $removed ? 1 : 0, 'meta' => ['user_id' => $userId]]);
+                        $response['success'] = true;
+                        $response['message'] = $removed ? 'Права забраны' : 'У игрока не было прав';
+                    }
+                } else {
+                    $response['success'] = true;
+                }
+
+                if ($response['success']) {
+                    $response['admins'] = forest_admin_list($conn);
+                    $response['roles'] = forest_config('admin.roles');
+                }
+                $conn->close();
+            }
+        }
+
         /* ==================== Список слов автомодерации (замена мата) ==================== */
 
         if ($action === 'get_moderation_words') {
@@ -6662,6 +6720,11 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             <span>Личные сообщения</span>
         </div>
 
+        <div class="sidebar-item" id="forestAdminBtn">
+            <span class="material-icons">forest</span>
+            <span>Дикий Лес</span>
+        </div>
+
         <div class="sidebar-item" id="aiAssistantBtn">
             <span class="material-icons">smart_toy</span>
             <span>ИИ-помощник</span>
@@ -7222,6 +7285,52 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                                 </div>
                             </div>
                         </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Раздел «Дикий Лес»: права администраторов и вход в режим «Креатив» -->
+            <div class="animated fadeIn" id="forestAdminView" style="display: none;">
+                <div class="card maintenance-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">
+                                <span class="material-icons">forest</span>
+                                Дикий Лес: Креатив и права
+                            </h2>
+                            <div class="card-subtitle">Права выдаются любому игроку по логину. Игрок с правами открывает режим «Креатив» в игре (полёт по миру, правка деревень, модерация).</div>
+                        </div>
+                        <a class="btn btn-outline" href="/games/wild-forest/?creative=1" target="_blank" rel="noopener">
+                            <span class="material-icons">open_in_new</span>
+                            Открыть Креатив
+                        </a>
+                    </div>
+
+                    <div class="support-toolbar">
+                        <div class="search-box" style="flex: 1; margin-bottom: 0;">
+                            <span class="material-icons search-icon">person_add</span>
+                            <input type="text" id="forestAdminLoginInput" class="search-input" placeholder="Логин игрока">
+                        </div>
+                        <select class="form-control account-sort-select" id="forestAdminRoleSelect" aria-label="Роль"></select>
+                        <button class="btn btn-primary" id="forestAdminGrantBtn">
+                            <span class="material-icons">add</span>
+                            Выдать права
+                        </button>
+                    </div>
+                    <div class="card-subtitle" id="forestAdminMeta">Загрузка...</div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Игрок</th>
+                                    <th>Роль</th>
+                                    <th>Выдал</th>
+                                    <th>Когда</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forestAdminTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -9687,6 +9796,8 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
                     closeSidebarForCompactViewport();
                 });
             }
+
+            initForestAdminSection();
 
             const dmModerationBtn = document.getElementById('dmModerationBtn');
             if (dmModerationBtn) {
@@ -13751,6 +13862,108 @@ $darkThemeEnabled = !isset($_COOKIE['dark_theme']) || $_COOKIE['dark_theme'] ===
             loadSupportTicketsAdmin().finally(() => {
                 scheduleSupportLiveRefreshAdmin(ADMIN_SUPPORT_LIVE_REFRESH_CONFIG.intervalMs);
             });
+        }
+
+        /* ==================== Дикий Лес: права администраторов (JS) ==================== */
+
+        function showForestAdminView() {
+            stopSupportLiveRefreshAdmin();
+            currentAdminView = 'forest_admin';
+            const forestView = document.getElementById('forestAdminView');
+            Array.from(forestView.parentElement.children).forEach(function(node) {
+                if (node !== forestView && node.id && /View$/.test(node.id)) {
+                    node.style.display = 'none';
+                }
+            });
+            ['tableDataCard', 'sqlEditorCard', 'statsToolbar', 'statsGrid'].forEach(function(id) {
+                const node = document.getElementById(id);
+                if (node) node.style.display = 'none';
+            });
+            forestView.style.display = 'block';
+            updateActiveMenuItem('forestAdminBtn');
+            loadForestAdmins();
+        }
+
+        function renderForestAdmins(data) {
+            const admins = Array.isArray(data.admins) ? data.admins : [];
+            const roles = Array.isArray(data.roles) ? data.roles : [];
+            const select = document.getElementById('forestAdminRoleSelect');
+            if (select && select.options.length === 0) {
+                const roleNames = { creative: 'Креатив (полёт и правка мира)', moderator: 'Модератор' };
+                roles.forEach(function(role) {
+                    const option = document.createElement('option');
+                    option.value = role;
+                    option.textContent = roleNames[role] || role;
+                    select.appendChild(option);
+                });
+            }
+            const meta = document.getElementById('forestAdminMeta');
+            if (meta) meta.textContent = admins.length > 0 ? 'Администраторов: ' + admins.length : 'Пока никому не выдано';
+            const body = document.getElementById('forestAdminTableBody');
+            if (!body) return;
+            body.innerHTML = admins.map(function(a) {
+                const when = a.granted_at ? new Date(a.granted_at * 1000).toLocaleString('ru-RU') : '';
+                return '<tr><td>' + escapeHtml(a.login || ('id ' + a.user_id)) + '</td><td>' + escapeHtml(a.role) + '</td><td>' + escapeHtml(a.granted_by) + '</td><td>' + escapeHtml(when) + '</td><td><button class="btn btn-outline" data-forest-revoke="' + Number(a.user_id) + '">Забрать</button></td></tr>';
+            }).join('');
+        }
+
+        function loadForestAdmins() {
+            postAction({ action: 'forest_admin_list' })
+                .then(function(data) {
+                    if (!data.success) throw new Error(data.message || 'Не удалось загрузить список');
+                    renderForestAdmins(data);
+                })
+                .catch(function(error) {
+                    const meta = document.getElementById('forestAdminMeta');
+                    if (meta) meta.textContent = 'Ошибка: ' + error.message;
+                });
+        }
+
+        function initForestAdminSection() {
+            const openBtn = document.getElementById('forestAdminBtn');
+            if (openBtn) {
+                openBtn.addEventListener('click', function() {
+                    showForestAdminView();
+                    closeSidebarForCompactViewport();
+                });
+            }
+            // Остальные разделы не знают про этот вид: скрываем его при выборе любого другого пункта меню.
+            document.addEventListener('click', function(event) {
+                const item = event.target.closest ? event.target.closest('.sidebar-item, .table-item') : null;
+                if (item && item.id !== 'forestAdminBtn') {
+                    const view = document.getElementById('forestAdminView');
+                    if (view) view.style.display = 'none';
+                }
+            });
+            const grantBtn = document.getElementById('forestAdminGrantBtn');
+            if (grantBtn) {
+                grantBtn.addEventListener('click', function() {
+                    const loginInput = document.getElementById('forestAdminLoginInput');
+                    const select = document.getElementById('forestAdminRoleSelect');
+                    const login = loginInput.value.trim();
+                    if (!login) { showNotification('Введите логин игрока', 'warning'); return; }
+                    postAction({ action: 'forest_admin_grant', login: login, role: select.value || 'creative' })
+                        .then(function(data) {
+                            showNotification(data.message || (data.success ? 'Готово' : 'Ошибка'), data.success ? 'success' : 'error');
+                            if (data.success) { loginInput.value = ''; renderForestAdmins(data); }
+                        })
+                        .catch(function(error) { showNotification('Ошибка: ' + error.message, 'error'); });
+                });
+            }
+            const body = document.getElementById('forestAdminTableBody');
+            if (body) {
+                body.addEventListener('click', function(event) {
+                    const btn = event.target.closest('[data-forest-revoke]');
+                    if (!btn) return;
+                    if (!confirm('Забрать права у этого игрока?')) return;
+                    postAction({ action: 'forest_admin_revoke', user_id: btn.getAttribute('data-forest-revoke') })
+                        .then(function(data) {
+                            showNotification(data.message || 'Готово', data.success ? 'success' : 'error');
+                            if (data.success) renderForestAdmins(data);
+                        })
+                        .catch(function(error) { showNotification('Ошибка: ' + error.message, 'error'); });
+                });
+            }
         }
 
         function showDmModerationView() {

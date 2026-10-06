@@ -10,7 +10,7 @@
 
 require_once __DIR__ . '/db.php';
 
-const FOREST_SCHEMA_VERSION = 3;
+const FOREST_SCHEMA_VERSION = 4;
 
 /** Конфиг баланса (Код/api/forest/config.php), читается один раз за запрос. */
 function forest_config($path = null)
@@ -65,6 +65,7 @@ function forest_expected_tables()
         'forest_routes' => 2, 'forest_dams' => 2,
         'forest_helpers' => 3, 'forest_trades' => 3, 'forest_presence' => 3, 'forest_chat' => 3,
         'forest_ratings' => 3, 'forest_seasons' => 3, 'forest_event_log' => 3,
+        'forest_admins' => 4,
     ];
 }
 
@@ -131,6 +132,7 @@ function forest_ensure_schema($conn)
             1 => 'forest_migration_1',
             2 => 'forest_migration_2',
             3 => 'forest_migration_3',
+            4 => 'forest_migration_4',
         ];
 
         foreach ($migrations as $version => $fn) {
@@ -438,4 +440,17 @@ function forest_migration_3($conn)
         `params_json` TEXT NULL,
         KEY `idx_forest_event_key` (`event_key`, `started_at`)
     ){$t}", 'forest_event_log');
+}
+
+/** Миграция 4: права администраторов леса (выдаются любому игроку из админки). */
+function forest_migration_4($conn)
+{
+    $t = FOREST_TABLE_TAIL;
+
+    forest_ddl($conn, "CREATE TABLE IF NOT EXISTS `forest_admins` (
+        `player_id` INT NOT NULL PRIMARY KEY,
+        `role` VARCHAR(16) NOT NULL DEFAULT 'creative',
+        `granted_by` VARCHAR(64) NOT NULL DEFAULT 'admin',
+        `granted_at` INT UNSIGNED NOT NULL
+    ){$t}", 'forest_admins');
 }

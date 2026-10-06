@@ -117,21 +117,101 @@ function forest_require_player($conn = null, $withAccessRules = true)
     return (int) $userId;
 }
 
-function forest_owner_id()
+/** Роль игрока в админке леса ('creative', 'moderator') или null. Один запрос по первичному ключу. */
+function forest_admin_role($conn, $userId)
 {
-    $env = getenv('BOBER_FOREST_OWNER_ID');
-    if ($env !== false && ctype_digit((string) $env)) {
-        return (int) $env;
+    $userId = (int) $userId;
+    if ($userId <= 0) {
+        return null;
     }
+    $stmt = $conn->prepare('SELECT `role` FROM `forest_admins` WHERE `player_id` = ? LIMIT 1');
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $stmt->bind_result($role);
+    $found = $stmt->fetch();
+    $stmt->close();
 
-    return (int) forest_config('admin.owner_user_id');
+    return $found ? (string) $role : null;
 }
 
-function forest_is_owner($userId)
+function forest_is_admin($conn, $userId, $roles = null)
 {
-    $ownerId = forest_owner_id();
+    $role = forest_admin_role($conn, $userId);
+    if ($role === null) {
+        return false;
+    }
 
-    return $ownerId > 0 && (int) $userId === $ownerId;
+    return $roles === null || in_array($role, (array) $roles, true);
+}
+
+/** Игрок из сессии с правами администратора леса; иначе ответ forbidden. */
+function forest_require_admin($conn, $roles = null)
+{
+    $userId = forest_require_player($conn, true);
+    if (!forest_is_admin($conn, $userId, $roles)) {
+        forest_error('forbidden');
+    }
+
+    return $userId;
+}
+
+/** Выдать или сменить роль. $grantedBy: 'admin' (панель) или логин. Возвращает true. */
+function forest_admin_grant($conn, $userId, $role, $grantedBy = 'admin')
+{
+    if (!in_array($role, forest_config('admin.roles'), true)) {
+        throw new InvalidArgumentException('Неизвестная роль.');
+    }
+    $userId = (int) $userId;
+    $grantedBy = substr((string) $grantedBy, 0, 64);
+    $now = time();
+    $stmt = $conn->prepare('INSERT INTO `forest_admins` (`player_id`, `role`, `granted_by`, `granted_at`) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE `role` = VALUES(`role`), `granted_by` = VALUES(`granted_by`), `granted_at` = VALUES(`granted_at`)');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось выдать права.');
+    }
+    $stmt->bind_param('issi', $userId, $role, $grantedBy, $now);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return (bool) $ok;
+}
+
+function forest_admin_revoke($conn, $userId)
+{
+    $userId = (int) $userId;
+    $stmt = $conn->prepare('DELETE FROM `forest_admins` WHERE `player_id` = ?');
+    if (!$stmt) {
+        throw new RuntimeException('Не удалось забрать права.');
+    }
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $affected = $stmt->affected_rows;
+    $stmt->close();
+
+    return $affected > 0;
+}
+
+/** Список администраторов леса с логинами игроков. */
+function forest_admin_list($conn)
+{
+    $rows = [];
+    $res = $conn->query('SELECT a.`player_id`, a.`role`, a.`granted_by`, a.`granted_at`, u.`login` FROM `forest_admins` a LEFT JOIN `users` u ON u.`id` = a.`player_id` ORDER BY a.`granted_at` DESC LIMIT 200');
+    while ($res instanceof mysqli_result && ($row = $res->fetch_assoc())) {
+        $rows[] = [
+            'user_id' => (int) $row['player_id'],
+            'login' => (string) ($row['login'] ?? ''),
+            'role' => (string) $row['role'],
+            'granted_by' => (string) $row['granted_by'],
+            'granted_at' => (int) $row['granted_at'],
+        ];
+    }
+    if ($res instanceof mysqli_result) {
+        $res->free();
+    }
+
+    return $rows;
 }
 
 /**

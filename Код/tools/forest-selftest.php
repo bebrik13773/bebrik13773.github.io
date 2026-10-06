@@ -193,6 +193,17 @@ wf_st_test($results, 'forest_log: запись в журнал', function () use
     return ['да', ((int) $row[0]) >= 1 ? 'да' : 'нет'];
 });
 
+wf_st_test($results, 'Права администратора леса: выдача, проверка, отзыв', function () use ($conn) {
+    $fakeId = 2147483000; // несуществующий игрок
+    forest_admin_grant($conn, $fakeId, 'creative', 'selftest');
+    $granted = forest_is_admin($conn, $fakeId, ['creative']);
+    $wrongRole = forest_is_admin($conn, $fakeId, ['moderator']);
+    $revoked = forest_admin_revoke($conn, $fakeId);
+    $after = forest_admin_role($conn, $fakeId);
+    $line = ($granted ? 'выдано' : 'не выдано') . ', ' . ($wrongRole ? 'чужая роль проходит' : 'чужая роль нет') . ', ' . ($revoked ? 'забрано' : 'не забрано') . ', ' . ($after === null ? 'роли нет' : 'роль осталась');
+    return ['выдано, чужая роль нет, забрано, роли нет', $line];
+});
+
 // 4. Лимит частоты и каталог ошибок
 wf_st_test($results, 'Лимит частоты: первый вызов проходит', function () {
     return ['да', forest_rate_limit('selftest:' . mt_rand(), 5000) ? 'да' : 'нет'];
