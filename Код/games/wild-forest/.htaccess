@@ -2,3 +2,11 @@
 <IfModule mod_headers.c>
     Header set X-Robots-Tag "noindex, nofollow, noarchive"
 </IfModule>
+
+# Сжатие статики (кеш не включаем: он сломал бы автообновление по SHA) (ДЛ-04, issue #57): three.js ~690 КБ без сжатия слишком тяжёл для медленного хостинга
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript application/json
+</IfModule>
+<IfModule mod_mime.c>
+    AddType application/javascript .js .mjs
+</IfModule>

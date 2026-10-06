@@ -6,6 +6,27 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="theme-color" content="#16301f">
 <title>Бобёр Кликер: Дикий Лес — бета</title>
+<link rel="modulepreload" href="./vendor/three.module.min.js">
+<link rel="modulepreload" href="./src/audio/index.js">
+<link rel="modulepreload" href="./src/config.js">
+<link rel="modulepreload" href="./src/core/fps.js">
+<link rel="modulepreload" href="./src/core/loop.js">
+<link rel="modulepreload" href="./src/core/quality.js">
+<link rel="modulepreload" href="./src/core/renderer.js">
+<link rel="modulepreload" href="./src/entities/index.js">
+<link rel="modulepreload" href="./src/main.js">
+<link rel="modulepreload" href="./src/net/clientlog.js">
+<link rel="modulepreload" href="./src/net/health.js">
+<link rel="modulepreload" href="./src/net/index.js">
+<link rel="modulepreload" href="./src/three.js">
+<link rel="modulepreload" href="./src/ui/beta.js">
+<link rel="modulepreload" href="./src/ui/debug.js">
+<link rel="modulepreload" href="./src/ui/errors.js">
+<link rel="modulepreload" href="./src/ui/loading.js">
+<link rel="modulepreload" href="./src/ui/notice.js">
+<link rel="modulepreload" href="./src/ui/settings.js">
+<link rel="modulepreload" href="./src/update.js">
+<link rel="modulepreload" href="./src/world/scene.js">
 <style>
 :root {
     --bg-top: #1c3b27;
@@ -263,22 +284,45 @@ html, body {
     document.getElementById('wfErrorActions').appendChild(a);
 </script>
 <script>
-    // Страховка: если модули не загрузились (сеть, блокировка), через 12 секунд показываем сообщение.
-    window.setTimeout(function () {
-        if (window.__wfBooted) return;
-        var err = document.getElementById('wfError');
-        if (!err || !err.classList.contains('is-hidden')) return;
-        document.getElementById('wfLoading').classList.add('is-hidden');
-        err.classList.remove('is-hidden');
-        document.getElementById('wfErrorText').textContent = 'Игра не загрузилась. Проверь интернет и попробуй ещё раз.';
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'wf-btn';
-        b.textContent = 'Перезагрузить';
-        b.onclick = function () { location.reload(); };
-        document.getElementById('wfErrorActions').appendChild(b);
-    }, 12000);
+    // Страховка: если модули не загрузились (сеть, блокировка), показываем понятное сообщение с диагностикой.
+    (function () {
+        var SLOW_MS = 8000, FAIL_MS = 40000;
+        function loadedCount() {
+            try {
+                return performance.getEntriesByType('resource').filter(function (r) { return /\.js(\?|$)/.test(r.name); });
+            } catch (e) { return []; }
+        }
+        function showFail(text, technical) {
+            var err = document.getElementById('wfError');
+            if (!err || !err.classList.contains('is-hidden')) return;
+            document.getElementById('wfLoading').classList.add('is-hidden');
+            err.classList.remove('is-hidden');
+            document.getElementById('wfErrorText').textContent = text;
+            var d = document.getElementById('wfErrorDetail');
+            if (d && technical) { d.textContent = technical; d.hidden = false; }
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'wf-btn';
+            b.textContent = 'Перезагрузить';
+            b.onclick = function () { location.reload(); };
+            document.getElementById('wfErrorActions').appendChild(b);
+        }
+        window.__wfShowLoadFail = function (reason) {
+            var done = loadedCount().map(function (r) { return r.name.split('/').slice(-2).join('/'); });
+            showFail('Игра не загрузилась. Проверь интернет и попробуй ещё раз.',
+                (reason || 'timeout') + '; js загружено: ' + done.length + '; последний: ' + (done[done.length - 1] || '-'));
+        };
+        window.setTimeout(function () {
+            if (window.__wfBooted) return;
+            var st = document.getElementById('wfLoadStatus');
+            if (st && !st.textContent) st.textContent = 'Медленная сеть, ещё грузим…';
+        }, SLOW_MS);
+        window.setTimeout(function () {
+            if (window.__wfBooted) return;
+            window.__wfShowLoadFail('timeout ' + FAIL_MS + 'ms');
+        }, FAIL_MS);
+    })();
 </script>
-<script type="module" src="./src/main.js"></script>
+<script type="module" src="./src/main.js" onerror="window.__wfShowLoadFail && window.__wfShowLoadFail('main.js load error')"></script>
 </body>
 </html>
