@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="theme-color" content="#16301f">
 <title>Бобёр Кликер: Дикий Лес — бета</title>
@@ -16,29 +16,49 @@
     --muted: #b8c9b4;
     --accent: #f2b441;
     --accent-text: #2b1b00;
+    --danger: #ff7a6b;
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
 }
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
-body {
-    min-height: 100%;
-    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: #0e1f15;
     color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     -webkit-text-size-adjust: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
-.wf-page {
-    min-height: 100vh;
+#wfStage { position: fixed; inset: 0; }
+#wfCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+
+/* Экран загрузки */
+.wf-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    padding: 24px 18px;
+    gap: 12px;
+    padding: calc(24px + var(--sat)) calc(18px + var(--sar)) calc(24px + var(--sab)) calc(18px + var(--sal));
     text-align: center;
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.3s ease-out, visibility 0.3s;
 }
-.wf-logo { font-size: 72px; line-height: 1; }
-.wf-title { margin: 0; font-size: 28px; line-height: 1.2; }
+.wf-screen.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }
+.wf-logo { font-size: 64px; line-height: 1; }
+.wf-title { margin: 0; font-size: 26px; line-height: 1.2; }
 .wf-badge {
     display: inline-block;
     padding: 3px 12px;
@@ -49,17 +69,12 @@ body {
     font-size: 13px;
     letter-spacing: 0.08em;
 }
-.wf-card {
-    max-width: 420px;
-    width: 100%;
-    padding: 16px 18px;
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    background: var(--card);
-    color: var(--muted);
-}
-.wf-card p { margin: 0 0 8px; }
-.wf-card p:last-child { margin-bottom: 0; }
+.wf-bar { width: min(320px, 80vw); height: 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.wf-bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.25s ease-out; }
+.wf-steps { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 14px; text-align: left; }
+.wf-steps li::before { content: "○ "; }
+.wf-steps li.is-done::before { content: "● "; color: var(--accent); }
+.wf-steps li.is-warn::before { content: "▲ "; color: var(--danger); }
 .wf-build { font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); min-height: 1.4em; }
 .wf-status { font-size: 14px; color: var(--muted); min-height: 1.4em; }
 .wf-link { color: var(--accent); text-decoration: none; font-weight: 600; }
@@ -74,10 +89,94 @@ body {
     font-weight: 700;
     cursor: pointer;
 }
+.wf-btn.is-ghost { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.wf-error-text { max-width: 420px; margin: 0; color: var(--muted); }
+.wf-error-detail { max-width: 420px; max-height: 120px; overflow: auto; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--muted); text-align: left; white-space: pre-wrap; }
+.wf-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+/* Кнопка настроек и панель */
+#wfGear {
+    position: fixed;
+    top: calc(10px + var(--sat));
+    right: calc(10px + var(--sar));
+    z-index: 8;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(14, 31, 21, 0.6);
+    color: var(--text);
+    font-size: 22px;
+    cursor: pointer;
+}
+.wf-panel {
+    position: fixed;
+    top: calc(64px + var(--sat));
+    right: calc(10px + var(--sar));
+    z-index: 9;
+    width: min(300px, calc(100vw - 20px - var(--sal) - var(--sar)));
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(20, 44, 30, 0.96);
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.18s ease-out, visibility 0.18s;
+}
+.wf-panel.is-open { visibility: visible; opacity: 1; }
+.wf-panel h2 { margin: 0 0 8px; font-size: 16px; }
+.wf-quality { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.wf-quality button {
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+.wf-quality button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); font-weight: 700; border-color: var(--accent); }
+.wf-panel .wf-build, .wf-panel .wf-status { margin-top: 8px; }
+.wf-panel .wf-btn { width: 100%; margin-top: 10px; }
+
+/* Отладка и уведомления */
+#wfDebug {
+    position: fixed;
+    top: calc(10px + var(--sat));
+    left: calc(10px + var(--sal));
+    z-index: 7;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre;
+    pointer-events: none;
+}
+#wfNotice {
+    position: fixed;
+    left: 50%;
+    bottom: calc(18px + var(--sab));
+    transform: translateX(-50%);
+    z-index: 12;
+    width: min(380px, calc(100vw - 24px));
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(20, 44, 30, 0.97);
+    text-align: center;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.18s ease-out, visibility 0.18s;
+}
+#wfNotice.is-open { visibility: visible; opacity: 1; }
+#wfNotice p { margin: 0 0 8px; }
+#wfNotice.is-danger { border-color: var(--danger); }
+
+/* Окно беты */
 .wf-modal {
     position: fixed;
     inset: 0;
-    z-index: 10;
+    z-index: 30;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -88,34 +187,53 @@ body {
     transition: opacity 0.2s ease-out, visibility 0.2s;
 }
 .wf-modal.is-open { visibility: visible; opacity: 1; }
-.wf-modal-box {
-    max-width: 400px;
-    width: 100%;
-    padding: 22px 20px;
-    border-radius: 18px;
-    background: #20402c;
-    border: 1px solid var(--line);
-    text-align: center;
-}
+.wf-modal-box { max-width: 400px; width: 100%; padding: 22px 20px; border-radius: 18px; background: #20402c; border: 1px solid var(--line); text-align: center; }
 .wf-modal-box h2 { margin: 0 0 10px; font-size: 22px; }
 .wf-modal-box p { margin: 0 0 10px; color: var(--muted); }
 .wf-modal-box .wf-btn { margin-top: 6px; width: 100%; }
+[hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<main class="wf-page">
-    <div class="wf-logo" aria-hidden="true">🦫🌲</div>
-    <h1 class="wf-title">Бобёр Кликер: Дикий Лес</h1>
-    <span class="wf-badge">БЕТА</span>
-    <div class="wf-card">
-        <p>Здесь строится новая игра: огромный общий лес, деревня, дорога к городу и торговля.</p>
-        <p>Пока это заглушка — скоро появятся бобёр и первые деревья.</p>
+<div id="wfStage"></div>
+
+<button type="button" id="wfGear" aria-label="Настройки" aria-expanded="false" hidden>⚙</button>
+<pre id="wfDebug" hidden></pre>
+
+<section class="wf-panel" id="wfPanel" aria-hidden="true">
+    <h2>Качество графики</h2>
+    <div class="wf-quality" id="wfQuality" role="group" aria-label="Качество графики">
+        <button type="button" data-q="low" aria-pressed="false">Низкое</button>
+        <button type="button" data-q="medium" aria-pressed="false">Среднее</button>
+        <button type="button" data-q="high" aria-pressed="false">Высокое</button>
     </div>
     <div class="wf-build" id="wfBuild" data-build-commit="__BUILD_COMMIT_SHA__"></div>
     <div class="wf-status" id="wfStatus" aria-live="polite"></div>
-    <button type="button" class="wf-btn" id="wfBetaOpen">О бета-версии</button>
-    <a class="wf-link" href="../../pages/clicker/index.html">← Старый Бобёр Кликер</a>
-</main>
+    <button type="button" class="wf-btn is-ghost" id="wfBetaOpen">О бета-версии</button>
+</section>
+
+<div id="wfNotice" role="status" aria-live="polite"></div>
+
+<section class="wf-screen" id="wfLoading" aria-live="polite">
+    <div class="wf-logo" aria-hidden="true">🦫🌲</div>
+    <h1 class="wf-title">Бобёр Кликер: Дикий Лес</h1>
+    <span class="wf-badge" id="wfBadge">БЕТА</span>
+    <div class="wf-bar" aria-hidden="true"><i id="wfBarFill"></i></div>
+    <ul class="wf-steps" id="wfSteps">
+        <li data-step="code">Загружаем игру</li>
+        <li data-step="world">Готовим лес</li>
+        <li data-step="server">Проверяем сервер</li>
+    </ul>
+    <div class="wf-status" id="wfLoadStatus"></div>
+</section>
+
+<section class="wf-screen is-hidden" id="wfError" role="alertdialog" aria-labelledby="wfErrorTitle">
+    <div class="wf-logo" aria-hidden="true">🪵</div>
+    <h1 class="wf-title" id="wfErrorTitle">Что-то пошло не так</h1>
+    <p class="wf-error-text" id="wfErrorText"></p>
+    <pre class="wf-error-detail" id="wfErrorDetail" hidden></pre>
+    <div class="wf-actions" id="wfErrorActions"></div>
+</section>
 
 <div class="wf-modal" id="wfBetaModal" aria-hidden="true">
     <div class="wf-modal-box" role="dialog" aria-modal="true" aria-labelledby="wfBetaTitle">
@@ -126,6 +244,41 @@ body {
     </div>
 </div>
 
+<noscript>
+    <div class="wf-screen"><h1 class="wf-title">Нужен JavaScript</h1><p class="wf-error-text">Включи JavaScript в браузере, чтобы играть. <a class="wf-link" href="../../pages/clicker/index.html">Старый Бобёр Кликер</a></p></div>
+</noscript>
+
+<script nomodule>
+    // Браузер без ES-модулей (очень старый WebView): понятное сообщение вместо белого экрана.
+    document.getElementById('wfLoading').classList.add('is-hidden');
+    var err = document.getElementById('wfError');
+    err.classList.remove('is-hidden');
+    document.getElementById('wfErrorTitle').textContent = 'Браузер слишком старый';
+    document.getElementById('wfErrorText').textContent = 'Дикий Лес не запустится в этом браузере. Обнови его или открой старый Бобёр Кликер.';
+    var a = document.createElement('a');
+    a.className = 'wf-btn';
+    a.style.textDecoration = 'none';
+    a.href = '../../pages/clicker/index.html';
+    a.textContent = 'Старый кликер';
+    document.getElementById('wfErrorActions').appendChild(a);
+</script>
+<script>
+    // Страховка: если модули не загрузились (сеть, блокировка), через 12 секунд показываем сообщение.
+    window.setTimeout(function () {
+        if (window.__wfBooted) return;
+        var err = document.getElementById('wfError');
+        if (!err || !err.classList.contains('is-hidden')) return;
+        document.getElementById('wfLoading').classList.add('is-hidden');
+        err.classList.remove('is-hidden');
+        document.getElementById('wfErrorText').textContent = 'Игра не загрузилась. Проверь интернет и попробуй ещё раз.';
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wf-btn';
+        b.textContent = 'Перезагрузить';
+        b.onclick = function () { location.reload(); };
+        document.getElementById('wfErrorActions').appendChild(b);
+    }, 12000);
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
