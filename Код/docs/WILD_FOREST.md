@@ -182,12 +182,12 @@
 | `Код/api/forest/health.php` | `GET /api/forest/health.php`: версия схемы, время сервера, режим беты (сам создаёт схему) |
 | `Код/tools/forest-selftest.php` | страница самопроверки (пароль администратора): конфиг, схема, InnoDB, транзакции, лимиты |
 
-**Схема** (версия 3, 18 таблиц `forest_*`, все `ENGINE=InnoDB`): миграция 1 — ядро (`meta`, `players`, `inventory`, `drops`, `chunk_changes`, `log`); 2 — деревня (`buildings`, `saplings`, `road_tiles`, `routes`, `dams`); 3 — люди и мета (`helpers`, `trades`, `presence`, `chat`, `ratings`, `seasons`, `event_log`). Новая миграция = новая функция `forest_migration_N` и `FOREST_SCHEMA_VERSION`.
+**Схема** (версия 4, 19 таблиц `forest_*`, все `ENGINE=InnoDB`): миграция 1 — ядро (`meta`, `players`, `inventory`, `drops`, `chunk_changes`, `log`); 2 — деревня (`buildings`, `saplings`, `road_tiles`, `routes`, `dams`); 3 — люди и мета (`helpers`, `trades`, `presence`, `chat`, `ratings`, `seasons`, `event_log`); 4 — права администраторов (`admins`). Новая миграция = новая функция `forest_migration_N` и `FOREST_SCHEMA_VERSION`.
 - В `forest_chunk_changes` поле называется `ckey` (в плане `key`, но это зарезервированное слово SQL); уникальный ключ `(kind, ckey)` защищает от гонок.
 - Миграции идемпотентны (`CREATE TABLE IF NOT EXISTS`), идут под `GET_LOCK('forest_schema')`, повторная проверка кешируется файлом-замком на 10 минут (экономит лимит запросов). Таблицы леса не на InnoDB автоматически переводятся в InnoDB.
 - Лимит частоты `forest_rate_limit(ключ, мс)` и IP-защита хранятся в APCu (запасной вариант — файл в каталоге кеша), без запросов к БД.
 - `forest_require_player($conn, $withAccessRules)`: игрок берётся из сессии кликера; полная проверка банов и сессий включается флагом и отключается для «горячих» эндпоинтов (ДЛ-38).
-- `admin.owner_user_id` в `config.php` (или переменная окружения `BOBER_FOREST_OWNER_ID`) задаёт владельца для админки (ДЛ-37); пока 0.
+- **Права администраторов** (решение владельца): таблица `forest_admins` (миграция 4, схема v4, 19 таблиц), роли `creative` и `moderator` (`config.php`, группа `admin`). Выдаются любому игроку из админ-панели кликера: раздел «Дикий Лес» (`Код/admin/index.php`: выдача по логину, отзыв, запись в аудит админки, кнопка «Открыть Креатив»). Функции `forest_is_admin()`, `forest_require_admin()`; `GET /api/forest/admin-access.php` сообщает клиенту роль игрока. Жёсткого id владельца нет.
 
 ## 8. Процесс
 
