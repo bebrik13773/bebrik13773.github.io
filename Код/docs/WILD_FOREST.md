@@ -173,6 +173,22 @@
 - Деплой: GitHub Actions заливает `Код/` по FTP при каждом пуше в `main`; новая папка `Код/games/wild-forest/` и `Код/api/forest/` едут как есть.
 - PHP в контейнере разработки не запускается: серверная логика пишется чистыми функциями и проверяется страницей `tools/forest-selftest.php` на хостинге (ДЛ-03).
 
+## 9. Серверный каркас (ДЛ-03)
+
+| Файл | Назначение |
+|------|-----------|
+| `Код/api/bootstrap/forest_db.php` | `forest_config('a.b')`, `forest_db()` (одно соединение на запрос), схема с версией и автомиграцией |
+| `Код/api/forest/lib/common.php` | единый формат ответов, `forest_json_in()`, `forest_require_player()`, `forest_rate_limit()`, `forest_tx()`, `forest_log()`, каталог ошибок |
+| `Код/api/forest/health.php` | `GET /api/forest/health.php`: версия схемы, время сервера, режим беты (сам создаёт схему) |
+| `Код/tools/forest-selftest.php` | страница самопроверки (пароль администратора): конфиг, схема, InnoDB, транзакции, лимиты |
+
+**Схема** (версия 3, 18 таблиц `forest_*`, все `ENGINE=InnoDB`): миграция 1 — ядро (`meta`, `players`, `inventory`, `drops`, `chunk_changes`, `log`); 2 — деревня (`buildings`, `saplings`, `road_tiles`, `routes`, `dams`); 3 — люди и мета (`helpers`, `trades`, `presence`, `chat`, `ratings`, `seasons`, `event_log`). Новая миграция = новая функция `forest_migration_N` и `FOREST_SCHEMA_VERSION`.
+- В `forest_chunk_changes` поле называется `ckey` (в плане `key`, но это зарезервированное слово SQL); уникальный ключ `(kind, ckey)` защищает от гонок.
+- Миграции идемпотентны (`CREATE TABLE IF NOT EXISTS`), идут под `GET_LOCK('forest_schema')`, повторная проверка кешируется файлом-замком на 10 минут (экономит лимит запросов). Таблицы леса не на InnoDB автоматически переводятся в InnoDB.
+- Лимит частоты `forest_rate_limit(ключ, мс)` и IP-защита хранятся в APCu (запасной вариант — файл в каталоге кеша), без запросов к БД.
+- `forest_require_player($conn, $withAccessRules)`: игрок берётся из сессии кликера; полная проверка банов и сессий включается флагом и отключается для «горячих» эндпоинтов (ДЛ-38).
+- `admin.owner_user_id` в `config.php` (или переменная окружения `BOBER_FOREST_OWNER_ID`) задаёт владельца для админки (ДЛ-37); пока 0.
+
 ## 8. Процесс
 
 Каждый пункт плана: issue → реализация → коммит от имени Claude → пуш в `main` → комментарий и закрытие issue → отметка прогресса в памяти проекта. Подробнее: раздел 10.10 плана.
