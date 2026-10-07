@@ -1,0 +1,15 @@
+{
+  "_comment": "Породы деревьев для генерации мира (ДЛ-05). Порядок = индекс породы в клетке, менять нельзя после старта беты. Баланс (твёрдость, брёвна, цены) лежит в api/forest/config.php, trees.species.",
+  "species": [
+    { "id": "spruce", "rare": false },
+    { "id": "pine", "rare": false },
+    { "id": "birch", "rare": false },
+    { "id": "aspen", "rare": false },
+    { "id": "maple", "rare": false },
+    { "id": "oak", "rare": false },
+    { "id": "black_alder", "rare": false },
+    { "id": "gold_birch", "rare": true },
+    { "id": "ancient_cedar", "rare": true },
+    { "id": "iron_oak", "rare": true }
+  ]
+}

@@ -228,6 +228,140 @@ wf_st_test($results, 'Хранилище лимитов частоты', functio
     return [$mode, $mode]; // информационная строка: всегда зелёная
 });
 
+// 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
+require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
+@set_time_limit(120);
+$wfQuick = isset($_GET['quick']); // ?quick=1 проверяет только первую тысячу записей каждого вида
+$wfStarted = microtime(true);
+
+/** Читает тест-векторы один раз за запрос. */
+function wf_st_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $path = dirname(__DIR__) . '/games/wild-forest/tests/vectors/worldgen.json';
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            throw new RuntimeException('нет файла векторов: games/wild-forest/tests/vectors/worldgen.json');
+        }
+        $v = json_decode($raw, true);
+        if (!is_array($v) || empty($v['worlds'])) {
+            throw new RuntimeException('файл векторов не разобран: ' . json_last_error_msg());
+        }
+    }
+    return $v;
+}
+
+/** Итог сверки: ожидается «0 расхождений из N», получено — число и первые примеры. */
+function wf_st_vec_result($total, array $bad)
+{
+    $expected = '0 расхождений из ' . $total;
+    $actual = count($bad) . ' расхождений из ' . $total;
+    if ($bad) {
+        $actual .= '; первые: ' . implode(' | ', array_slice($bad, 0, 3));
+    }
+    return [$expected, $actual];
+}
+
+function wf_st_rows(array $rows, $quick)
+{
+    return $quick ? array_slice($rows, 0, 1000) : $rows;
+}
+
+wf_st_test($results, 'Мир: mul32 без выхода за 64 бита', function () {
+    return ['1,6,0', implode(',', [wf_wg_mul32(0xFFFFFFFF, 0xFFFFFFFF), wf_wg_mul32(2, 3), wf_wg_mul32(0, 5)])];
+});
+wf_st_test($results, 'Мир: mix(1) = 0x514E28B7 (murmur3 fmix32)', function () {
+    return [1364076727, wf_wg_mix(1)];
+});
+wf_st_test($results, 'Мир: деление с округлением вниз для отрицательных', function () {
+    return ['-1,-1,-2,0', implode(',', [wf_wg_fdiv(-1, 6000), wf_wg_fdiv(-6000, 6000), wf_wg_fdiv(-6001, 6000), wf_wg_fdiv(5999, 6000)])];
+});
+wf_st_test($results, 'Мир: целый корень на границах', function () {
+    return ['1200,1199,1414213', implode(',', [wf_wg_isqrt(1440000), wf_wg_isqrt(1439999), wf_wg_isqrt(2 * 1000000 * 1000000)])];
+});
+wf_st_test($results, 'Мир: данные пород и биомов читаются (10 пород, 6 биомов)', function () {
+    $d = wf_wg_load_data();
+    return ['10 и 6', count($d['species']['species']) . ' и ' . count($d['biomes']['biomes'])];
+});
+wf_st_test($results, 'Мир: сид в config.php равен 1337 (как в клиенте)', function () {
+    return [1337, (int) forest_config('world.seed')];
+});
+wf_st_test($results, 'Мир: разбор id дерева', function () {
+    $ok = wf_wg_parse_tree_id('3:-2:17') === [3, -2, 17]
+        && wf_wg_parse_tree_id('1:2:64') === null
+        && wf_wg_parse_tree_id("1:2:3\n") === null
+        && wf_wg_parse_tree_id('a:b:c') === null
+        && wf_wg_tree_id(3, -2, 17) === '3:-2:17';
+    return ['да', $ok ? 'да' : 'нет'];
+});
+wf_st_test($results, 'Мир: векторы хеша (JS и PHP совпадают)', function () use ($wfQuick) {
+    $rows = wf_st_rows(wf_st_vectors()['hashes'], $wfQuick);
+    $bad = [];
+    foreach ($rows as $i => $r) {
+        $got = wf_wg_hash($r[0], $r[1], $r[2], $r[3]);
+        if ($got !== $r[4]) {
+            $bad[] = '#' . $i . ' seed=' . $r[0] . ' x=' . $r[1] . ' z=' . $r[2] . ' salt=' . $r[3] . ': ждали ' . $r[4] . ', получили ' . $got;
+        }
+    }
+    return wf_st_vec_result(count($rows), $bad);
+});
+wf_st_test($results, 'Мир: векторы шума и fbm', function () use ($wfQuick) {
+    $rows = wf_st_rows(wf_st_vectors()['noises'], $wfQuick);
+    $bad = [];
+    foreach ($rows as $i => $r) {
+        $n = wf_wg_noise2($r[0], $r[1], $r[2], $r[3], $r[4]);
+        $f = wf_wg_fbm($r[0], $r[1], $r[2], $r[3] * 8 > 6000 ? 6000 : $r[3] * 8, $r[4]);
+        if ($n !== $r[5] || $f !== $r[6]) {
+            $bad[] = '#' . $i . ' seed=' . $r[0] . ' X=' . $r[1] . ' Z=' . $r[2] . ' P=' . $r[3] . ': ждали ' . $r[5] . '/' . $r[6] . ', получили ' . $n . '/' . $f;
+        }
+    }
+    return wf_st_vec_result(count($rows), $bad);
+});
+foreach ([0, 1] as $wfWorldIndex) {
+    wf_st_test($results, 'Мир: точки (поля, высота, биом, tier, зона, город), сид мира №' . ($wfWorldIndex + 1), function () use ($wfQuick, $wfWorldIndex) {
+        $world = wf_st_vectors()['worlds'][$wfWorldIndex];
+        $w = wf_wg_make((int) $world['seed']);
+        $rows = wf_st_rows($world['points'], $wfQuick);
+        $bad = [];
+        foreach ($rows as $i => $r) {
+            [$X, $Z] = $r;
+            $E = wf_wg_field_e($w, $X, $Z);
+            $M = wf_wg_field_m($w, $X, $Z);
+            $C = wf_wg_field_c($w, $X, $Z);
+            $R = wf_wg_field_r($w, $X, $Z);
+            $D = wf_wg_field_d($w, $X, $Z);
+            $got = [$X, $Z, $E, $M, $C, $R, $D, wf_wg_height_from_fields($w, $E, $R, $D), wf_wg_biome_from_fields($w, $E, $M, $C, $R),
+                wf_wg_tier_dm($w, $X, $Z), wf_wg_zone_dm($w, $X, $Z), wf_wg_is_city($w, $X, $Z) ? 1 : 0, wf_wg_inside_world($w, $X, $Z) ? 1 : 0];
+            // каждую 8-ю точку дополнительно проверяем через «полные» функции высоты и биома
+            if ($i % 8 === 0 && (wf_wg_height_dm($w, $X, $Z) !== $r[7] || wf_wg_biome_dm($w, $X, $Z) !== $r[8])) {
+                $bad[] = '#' . $i . ' X=' . $X . ' Z=' . $Z . ': wf_wg_height_dm/biome_dm расходятся с вектором';
+            } elseif ($got !== $r) {
+                $bad[] = '#' . $i . ' X=' . $X . ' Z=' . $Z . ': ждали [' . implode(',', $r) . '], получили [' . implode(',', $got) . ']';
+            }
+        }
+        return wf_st_vec_result(count($rows), $bad);
+    });
+    wf_st_test($results, 'Мир: клетки (дерево, порода, размер, редкость, сокровище, булыжник, руда), сид мира №' . ($wfWorldIndex + 1), function () use ($wfQuick, $wfWorldIndex) {
+        $world = wf_st_vectors()['worlds'][$wfWorldIndex];
+        $w = wf_wg_make((int) $world['seed']);
+        $rows = wf_st_rows($world['cells'], $wfQuick);
+        $bad = [];
+        foreach ($rows as $i => $r) {
+            $c = wf_wg_cell($w, $r[0], $r[1], $r[2]);
+            $got = [$r[0], $r[1], $r[2], $c['kind'], $c['ox'], $c['oz'], $c['species'], $c['size'], $c['rare'], $c['treasure'], $c['biome']];
+            if ($got !== $r) {
+                $bad[] = '#' . $i . ' клетка ' . wf_wg_tree_id($r[0], $r[1], $r[2]) . ': ждали [' . implode(',', $r) . '], получили [' . implode(',', $got) . ']';
+            }
+        }
+        return wf_st_vec_result(count($rows), $bad);
+    });
+}
+wf_st_test($results, 'Мир: время сверки векторов, секунд' . ($wfQuick ? ' (режим quick)' : ' (полный прогон)'), function () use ($wfStarted) {
+    $sec = round(microtime(true) - $wfStarted, 1);
+    return [(string) $sec, (string) $sec]; // информационная строка: всегда зелёная
+});
+
 $total = count($results);
 $passed = count(array_filter($results, function ($r) { return $r[3]; }));
 echo '<p class="' . ($passed === $total ? 'ok' : 'fail') . '">Пройдено ' . $passed . ' из ' . $total . '</p>';
@@ -235,4 +369,4 @@ echo '<table><tr><th>Тест</th><th>Ожидается</th><th>Получен�
 foreach ($results as $r) {
     echo '<tr><td>' . wf_st_h($r[0]) . '</td><td>' . wf_st_h($r[1]) . '</td><td>' . wf_st_h($r[2]) . '</td><td class="' . ($r[3] ? 'ok' : 'fail') . '">' . ($r[3] ? 'ОК' : 'ОШИБКА') . '</td></tr>';
 }
-echo '</table><p>Здоровье API: <code>/api/forest/health.php</code>. Страницу после релиза (ДЛ-40) оставить только за доступом владельца.</p></body></html>';
+echo '</table><p>Полный прогон векторов мира занимает несколько секунд; если хостинг не успевает, добавьте к адресу <code>?quick=1</code>.</p><p>Здоровье API: <code>/api/forest/health.php</code>. Страницу после релиза (ДЛ-40) оставить только за доступом владельца.</p></body></html>';

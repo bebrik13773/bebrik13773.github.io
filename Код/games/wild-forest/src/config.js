@@ -95,3 +95,7 @@ export const ERRORS = Object.freeze({
 export const OLD_GAME_URL = '../../pages/clicker/index.html';
 export const HEALTH_URL = '../../api/forest/health.php';
 export const HEALTH_TIMEOUT_MS = 4000;
+
+// Сид мира (ДЛ-05). Должен совпадать с world.seed в api/forest/config.php (проверяет tests/worldgen.test.mjs).
+// Менять нельзя после старта беты: изменится весь лес.
+export const WORLD_SEED = 1337;

@@ -1,0 +1,27 @@
+{
+  "_comment": "Биомы и все константы генерации мира (ДЛ-05). Читают и JS (shared/worldgen.js), и PHP (api/forest/lib/worldgen.php). Менять нельзя после старта беты. Единицы: дециметры (1 м = 10 дм), шум 0..65535.",
+  "params": {
+    "periods_dm": { "E": 6000, "M": 4000, "C": 5000, "R": 3000, "D": 600 },
+    "salts": { "E": 1, "M": 2, "C": 3, "R": 4, "D": 5, "tree": 11, "ox": 12, "oz": 13, "species": 14, "size": 15, "rare": 16, "treasure": 17, "boulder": 18, "ore": 19 },
+    "height": { "e_scale": 360, "base": -60, "d_scale": 30 },
+    "water": { "level": -30, "lake_e": 6500, "lake_ramp_e": 9500, "lake_depth": 40, "river_r": 1800, "river_ramp_r": 4500, "river_depth": 30, "river_fade_e": 24000, "bed_gap": 10, "bank_gap": 5 },
+    "biome": { "rocks_e": 43000, "swamp_m": 40000, "swamp_e_max": 26000, "conifer_c": 32768, "grove_c": 20000 },
+    "cell": {
+      "offset_max_dm": 15,
+      "ore_e": 50000, "ore_permille": 30,
+      "boulder_permille_rocks": 80, "boulder_permille_other": 20,
+      "treasure_per10k": 20,
+      "rare_base_per10k": 120, "rare_tier_pct": 25, "rare_cap_per10k": 600,
+      "size_cum": [60, 90]
+    },
+    "world": { "radius_dm": 1000000, "city_radius_dm": 1200, "tier_step_dm": 5000, "tier_max": 10, "zone_edge_dm": 6000, "zone_deep_dm": 15000 }
+  },
+  "biomes": [
+    { "id": "water", "code": 0, "density_permille": 0, "rare": null, "species": [] },
+    { "id": "rocks", "code": 1, "density_permille": 80, "rare": null, "species": [["pine", 70], ["spruce", 30]] },
+    { "id": "swamp", "code": 2, "density_permille": 120, "rare": null, "species": [["black_alder", 70], ["birch", 15], ["aspen", 15]] },
+    { "id": "conifer", "code": 3, "density_permille": 620, "rare": "ancient_cedar", "species": [["spruce", 60], ["pine", 40]] },
+    { "id": "broadleaf", "code": 4, "density_permille": 550, "rare": "iron_oak", "species": [["birch", 15], ["aspen", 30], ["maple", 25], ["oak", 30]] },
+    { "id": "birch", "code": 5, "density_permille": 500, "rare": "gold_birch", "species": [["birch", 70], ["aspen", 20], ["maple", 10]] }
+  ]
+}
