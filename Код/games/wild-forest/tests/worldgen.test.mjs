@@ -246,3 +246,16 @@ test('hash/fbm публичного API совпадают с векторами
         assert.equal(fbm(seed, X, Z, P * 8 > 6000 ? 6000 : P * 8, salt), f);
     }
 });
+
+test('sampleDm (быстрая выборка для рендера) равна heightAtDm и biomeAtDm', () => {
+    const out = [0, 0, 0, 0];
+    for (let i = 0; i < 3000; i++) {
+        const X = ((i * 7919) % 400000) - 200000;
+        const Z = ((i * 104729) % 400000) - 200000;
+        wg.sampleDm(X, Z, out);
+        assert.equal(out[0], wg.heightAtDm(X, Z));
+        assert.equal(out[1], wg.biomeAtDm(X, Z));
+        assert.equal(out[2], wg.fieldE(X, Z));
+        assert.equal(out[3], wg.fieldD(X, Z));
+    }
+});

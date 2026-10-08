@@ -36,6 +36,8 @@ export const QUALITY_PRESETS = Object.freeze({
         label: 'Низкое',
         renderScale: 0.6,
         drawChunks: 3,
+        terrainSeg: 8,      // сегментов рельефа на чанк (шаг 4 м)
+        detailChunks: 0,    // деревья подробной модели в этом радиусе чанков (0 = везде простые)
         drawDistance: 96,
         treeDensity: 0.6,
         shadows: 'none',     // нет теней
@@ -48,6 +50,8 @@ export const QUALITY_PRESETS = Object.freeze({
         label: 'Среднее',
         renderScale: 0.8,
         drawChunks: 5,
+        terrainSeg: 16,     // шаг 2 м
+        detailChunks: 1.5,
         drawDistance: 160,
         treeDensity: 0.85,
         shadows: 'blob',     // простые тени под бобром
@@ -60,6 +64,8 @@ export const QUALITY_PRESETS = Object.freeze({
         label: 'Высокое',
         renderScale: 1.0,
         drawChunks: 7,
+        terrainSeg: 32,     // шаг 1 м
+        detailChunks: 3.5,
         drawDistance: 224,
         treeDensity: 1.0,
         shadows: 'real',     // реальные тени, 1 каскад, карта 1024
@@ -99,3 +105,12 @@ export const HEALTH_TIMEOUT_MS = 4000;
 // Сид мира (ДЛ-05). Должен совпадать с world.seed в api/forest/config.php (проверяет tests/worldgen.test.mjs).
 // Менять нельзя после старта беты: изменится весь лес.
 export const WORLD_SEED = 1337;
+
+// Мир (ДЛ-06): чанки, бюджеты построения и пул пней.
+export const WORLD = Object.freeze({
+    chunkBuildBudgetMs: 4,     // сколько миллисекунд за кадр тратим на построение чанков (минимум один чанк за кадр)
+    unloadMarginChunks: 1.2,   // чанк выгружается, когда уходит дальше радиуса на это число чанков (гистерезис)
+    stumpCapacity: 3000,       // размер общего пула пней (один вызов отрисовки на все пни)
+    waterLevelM: -3,           // уровень воды, м (совпадает с water.level = -30 дм из biomes.json)
+    heroSpeed: 3.2,            // временная скорость бобра до ДЛ-08 (потом формула из shared/formulas.js)
+});

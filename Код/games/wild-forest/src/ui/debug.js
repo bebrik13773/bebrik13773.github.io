@@ -18,7 +18,7 @@ export function createDebugPanel() {
     }
 
     return {
-        update(now, { fps, info, quality, state, trees }) {
+        update(now, { fps, info, quality, state, trees, chunks }) {
             if (now - lastPaint < 500) return;
             lastPaint = now;
             const lines = [
@@ -27,6 +27,7 @@ export function createDebugPanel() {
                 info ? `geo ${info.geometries}  tex ${info.textures}` : '',
                 info ? `buf ${info.width}x${info.height} dpr ${info.pixelRatio.toFixed(2)}` : '',
                 `trees ${trees}  heap ${heapMb()}`,
+                chunks ? `chunks ${chunks.loaded}  queue ${chunks.pending}  stumps ${chunks.stumpCount}` : '',
             ];
             el.textContent = lines.filter(Boolean).join('\n');
         },

@@ -65,18 +65,23 @@ with sync_playwright() as p:
     # 2. Качество
     page.click('#wfGear')
     sizes = {}
-    for q, scale, trees in (('low', 0.6, 960), ('high', 1.0, 1600), ('medium', 0.8, 1360)):
+    worlds = {}
+    for q, scale, radius in (('low', 0.6, 3), ('high', 1.0, 7), ('medium', 0.8, 5)):
         page.click(f'#wfQuality [data-q={q}]')
-        page.wait_for_timeout(700)
+        page.wait_for_timeout(500)
         wait_playing(page)
+        page.evaluate("window.__wf.pumpAll()")  # достраиваем очередь чанков, чтобы сравнивать готовый мир
         info = page.evaluate("window.__wf.info()")
         dpr = min(3, 2) * scale
         check(f'{q}: pixelRatio = min(dpr,2) x {scale}', abs(info['pixelRatio'] - dpr) < 0.01, f"{info['pixelRatio']}")
         check(f'{q}: pressed в меню', page.get_attribute(f'#wfQuality [data-q={q}]', 'aria-pressed') == 'true')
         sizes[q] = info['width']
+        worlds[q] = page.evaluate("window.__wf.world()")
         dbg = page.inner_text('#wfDebug')
-        check(f'{q}: плотность деревьев ({trees})', f'trees {trees}' in dbg, dbg.split('\n')[-1])
+        check(f'{q}: радиус кольца чанков {radius} (загружено > 0 и в пределах круга)', 0 < worlds[q]['loaded'] <= (2 * radius + 3) ** 2, str(worlds[q]))
+        check(f'{q}: debug показывает чанки и деревья', 'chunks' in dbg and 'trees' in dbg, dbg.split('\n')[-2])
         if q != 'medium': page.screenshot(path=f'{OUT}/02-{q}.png')
+    check('чанков и деревьев больше с ростом качества low < medium < high', worlds['low']['loaded'] < worlds['medium']['loaded'] < worlds['high']['loaded'] and worlds['low']['trees'] < worlds['medium']['trees'] < worlds['high']['trees'], str(worlds))
     check('размер буфера растёт low < medium < high', sizes['low'] < sizes['medium'] < sizes['high'], str(sizes))
     page.click('#wfQuality [data-q=high]')
     page.wait_for_timeout(500); wait_playing(page)

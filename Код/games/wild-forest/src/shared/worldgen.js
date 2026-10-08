@@ -96,6 +96,21 @@ export function createWorldGen({ seed, species, biomes }) {
         return biomeFromFields(fieldE(X, Z), fieldM(X, Z), fieldC(X, Z), fieldR(X, Z));
     }
 
+    /**
+     * Быстрая выборка для рендера: высота (дм), биом, E и D за одно вычисление полей (без лишних fbm).
+     * out = [H, biome, E, D]. Результат равен heightAtDm и biomeAtDm. На сервере не нужна, в PHP зеркала нет.
+     */
+    function sampleDm(X, Z, out) {
+        const E = fieldE(X, Z);
+        const R = fieldR(X, Z);
+        const D = fieldD(X, Z);
+        out[0] = heightFromFields(E, R, D);
+        out[1] = biomeFromFields(E, fieldM(X, Z), fieldC(X, Z), R);
+        out[2] = E;
+        out[3] = D;
+        return out;
+    }
+
     const isInsideWorld = (X, Z) => Math.abs(X) <= WD.radius_dm && Math.abs(Z) <= WD.radius_dm;
     /** Город в точке (0, 0): круг радиусом 120 м без деревьев. */
     const isCityZone = (X, Z) => X * X + Z * Z < WD.city_radius_dm * WD.city_radius_dm;
@@ -187,7 +202,7 @@ export function createWorldGen({ seed, species, biomes }) {
         seed,
         species: SP,
         // ядро (дм)
-        heightAtDm, biomeAtDm, cellAt, tierAtDm, zoneAtDm, isCityZone, isInsideWorld, distDm,
+        heightAtDm, biomeAtDm, sampleDm, cellAt, tierAtDm, zoneAtDm, isCityZone, isInsideWorld, distDm,
         fieldE, fieldM, fieldC, fieldR, fieldD,
         boulderAt, oreAt, chunkCells, rareChance,
         waterLevelDm: W.level,

@@ -5,6 +5,8 @@ import { createRendererHost, detectWebGL } from './core/renderer.js';
 import { createLoop } from './core/loop.js';
 import { createFpsMeter } from './core/fps.js';
 import { createWorldScene } from './world/scene.js';
+import { loadWorldGen } from './world/gen.js';
+import { installDemoInput } from './core/demo-input.js';
 import { checkServer } from './net/index.js';
 import { createLoadingScreen } from './ui/loading.js';
 import { createNotice } from './ui/notice.js';
@@ -69,9 +71,23 @@ async function boot() {
         },
     });
 
+    let wg = null;
+    try {
+        wg = await loadWorldGen();
+    } catch (error) {
+        loading.hide();
+        errors.showFatal({
+            heading: 'Не загрузился мир',
+            message: 'Не удалось загрузить данные леса. Проверь соединение и перезагрузи страницу.',
+            technical: error && error.message ? error.message : String(error),
+        });
+        errors.report('worldgen', error);
+        return;
+    }
+
     try {
         host.apply(quality.preset);
-        world = createWorldScene();
+        world = createWorldScene({ wg });
         world.applyQuality(quality.preset);
         world.resize(window.innerWidth, window.innerHeight);
     } catch (error) {
@@ -85,6 +101,8 @@ async function boot() {
         return;
     }
     loading.step('world');
+
+    installDemoInput({ canvasHost: stage, world, isActive: () => state === STATES.PLAYING });
 
     const settings = createSettingsUi({ quality, onOpenBeta: () => beta.open() });
 
@@ -128,7 +146,7 @@ async function boot() {
             const avg = fps.probe(now);
             if (avg !== null) suggestLower(avg);
             if (debug) {
-                debug.update(now, { fps: fps.fps, info: host.info(), quality: quality.current, state, trees: world.treeCount });
+                debug.update(now, { fps: fps.fps, info: host.info(), quality: quality.current, state, trees: world.treeCount, chunks: world.chunks });
             }
         },
         getTargetFps: () => quality.preset.targetFps,
@@ -155,6 +173,18 @@ async function boot() {
                 if (loseExt) loseExt.restoreContext();
                 return Boolean(loseExt);
             },
+            // мир (ДЛ-06)
+            teleport: (x, z) => world.teleport(x, z),
+            heroPos: () => world.heroPos,
+            setTarget: (x, z) => world.setTarget(x, z),
+            moveInput: (x, z) => world.setMoveInput(x, z),
+            world: () => ({ loaded: world.chunks.loaded, pending: world.chunks.pending, trees: world.treeCount, stumps: world.chunks.stumpCount }),
+            fell: (id) => world.chunks.fell(id),
+            clearing: (x, z, r) => world.chunks.addClearing(x, z, r),
+            chunkTrees: (cx, cz) => { const c = world.chunks.chunk(cx, cz); return c ? [...c.data.trees.keys()] : null; },
+            pumpAll: () => { let n = 0; while (world.chunks.pending > 0 && n < 400) { world.chunks.pump(1000); n += 1; } return world.chunks.loaded; },
+            groundY: (x, z) => world.groundY(x, z),
+            biomeAt: (x, z) => wg.biomeAt(x, z),
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };
     }

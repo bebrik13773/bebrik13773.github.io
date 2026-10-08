@@ -1,147 +1,220 @@
 import * as THREE from '../three.js';
+import { WORLD } from '../config.js';
+import { createModels } from './models.js';
+import { createChunkManager } from './chunks.js';
+import { findDemoSpawn } from './spawn.js';
 
-// Тестовая сцена каркаса (ДЛ-04): земля, «лес» из инстансов и маркер героя.
-// Нужна, чтобы смена качества была видна: тени, дальность тумана, плотность деревьев.
-// Настоящий мир (чанки, биомы) приходит в ДЛ-05 и ДЛ-06.
-const MAX_TREES = 1600;
-const FIELD = 360; // сторона квадрата с деревьями, м
+// Сцена мира (ДЛ-06): бесконечный лес из чанков, вода, свет, туман, герой-маркер и камера от третьего лица.
+// Герой пока «капсула» (3D-бобёр приходит в ДЛ-07), управление временное (core/demo-input.js, полноценное в ДЛ-08).
 const SKY = 0xbfe3f2;
+const WATER_COLOR = 0x3d8fb8;
 
-function seededRandom(seed) {
-    let s = seed >>> 0;
-    return () => {
-        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-        return s / 4294967296;
-    };
-}
-
-export function createWorldScene() {
+export function createWorldScene({ wg }) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(SKY);
     scene.fog = new THREE.Fog(SKY, 20, 160);
 
     const camera = new THREE.PerspectiveCamera(60, 1, 0.3, 300);
 
-    const hemi = new THREE.HemisphereLight(0xdff3ff, 0x4f6b3a, 0.9);
+    const hemi = new THREE.HemisphereLight(0xe6f5ff, 0x5f7a45, 1.15);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff1d0, 1.1);
-    sun.position.set(40, 70, 25);
+    const sun = new THREE.DirectionalLight(0xfff1d0, 1.2);
     sun.castShadow = false;
     sun.shadow.mapSize.set(1024, 1024);
-    const cam = sun.shadow.camera;
-    cam.left = -40; cam.right = 40; cam.top = 40; cam.bottom = -40; cam.near = 1; cam.far = 200;
+    const sc = sun.shadow.camera;
+    sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 220;
     scene.add(sun);
     scene.add(sun.target);
 
-    // Земля: сетка с цветами вершин (без текстур).
-    const groundGeo = new THREE.PlaneGeometry(FIELD * 2, FIELD * 2, 48, 48);
-    groundGeo.rotateX(-Math.PI / 2);
-    const rnd = seededRandom(7);
-    const colors = [];
-    const base = new THREE.Color(0x5f8f45);
-    const tmp = new THREE.Color();
-    for (let i = 0; i < groundGeo.attributes.position.count; i += 1) {
-        tmp.copy(base).offsetHSL(0, 0, (rnd() - 0.5) * 0.12);
-        colors.push(tmp.r, tmp.g, tmp.b);
-    }
-    groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    const ground = new THREE.Mesh(groundGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-    ground.receiveShadow = true;
-    scene.add(ground);
+    const models = createModels();
+    const chunks = createChunkManager({ scene, wg, models });
+    const spawn = findDemoSpawn(wg);
+    chunks.addClearing(spawn.x, spawn.z, 12); // временная поляна: настоящая приходит с сервером (ДЛ-10)
 
-    // Деревья: ствол и крона двумя InstancedMesh (2 вызова отрисовки на весь лес).
-    const trunkGeo = new THREE.CylinderGeometry(0.25, 0.35, 2, 6);
-    trunkGeo.translate(0, 1, 0);
-    const crownGeo = new THREE.ConeGeometry(1.6, 5, 7);
-    crownGeo.translate(0, 4.2, 0);
-    const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x6b4a2b }), MAX_TREES);
-    const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: 0x2f6b3b }), MAX_TREES);
-    const matrix = new THREE.Matrix4();
-    const quat = new THREE.Quaternion();
-    const pos = new THREE.Vector3();
-    const scl = new THREE.Vector3();
-    const rt = seededRandom(1234);
-    for (let i = 0; i < MAX_TREES; i += 1) {
-        let x = (rt() - 0.5) * FIELD;
-        let z = (rt() - 0.5) * FIELD;
-        if (Math.hypot(x, z) < 6) { x += 12; z += 12; } // поляна в центре
-        const s = 0.8 + rt() * 0.9;
-        pos.set(x, 0, z);
-        scl.set(s, s, s);
-        matrix.compose(pos, quat, scl);
-        trunks.setMatrixAt(i, matrix);
-        crowns.setMatrixAt(i, matrix);
-    }
-    trunks.castShadow = true;
-    crowns.castShadow = true;
-    trunks.frustumCulled = false;
-    crowns.frustumCulled = false;
-    scene.add(trunks, crowns);
+    // Вода: одна плоскость на уровне воды, едет за героем (озёра и реки уже «вырезаны» рельефом).
+    const water = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: WATER_COLOR, transparent: true, opacity: 0.74, depthWrite: false }),
+    );
+    water.position.y = WORLD.waterLevelM;
+    water.renderOrder = 1;
+    scene.add(water);
 
-    // Маркер героя (заменит 3D-бобёр в ДЛ-07).
+    // Герой-маркер.
     const hero = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.7, 4, 8), new THREE.MeshLambertMaterial({ color: 0x9a6a3a }));
     body.position.y = 0.75;
-    body.castShadow = true;
     hero.add(body);
-    scene.add(hero);
-
-    // Простая тень-пятно под героем (среднее качество).
     const blob = new THREE.Mesh(
         new THREE.CircleGeometry(0.7, 16).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
     );
-    blob.position.y = 0.02;
+    blob.position.y = 0.04;
     hero.add(blob);
+    scene.add(hero);
 
-    // Состояние демо-камеры: орбита вокруг героя, предыдущий и текущий угол для интерполяции.
-    const orbit = { prev: 0, curr: 0, radius: 10, height: 6 };
+    let preset = null;
+    const pos = { x: spawn.x, z: spawn.z, px: spawn.x, pz: spawn.z }; // текущее и прошлое положение (для интерполяции кадров)
+    const cam = { yaw: 0.8, pitch: 0.8, dist: 11 };
+    let target = null; // точка, куда идёт герой по тапу
+    const input = { x: 0, z: 0 }; // движение клавишами: x вправо, z вперёд
+    let clock = 0;
+
+    /** Высота земли под героем: билинейно по сетке рельефа текущего качества (совпадает с тем, что нарисовано). */
+    function groundY(x, z) {
+        const seg = preset ? preset.terrainSeg : 16;
+        const step = 320 / seg; // дм
+        const gx = (x * 10) / step;
+        const gz = (z * 10) / step;
+        const x0 = Math.floor(gx);
+        const z0 = Math.floor(gz);
+        const tx = gx - x0;
+        const tz = gz - z0;
+        const h = (i, j) => wg.heightAtDm(Math.round(i * step), Math.round(j * step));
+        const a = h(x0, z0) * (1 - tx) + h(x0 + 1, z0) * tx;
+        const b = h(x0, z0 + 1) * (1 - tx) + h(x0 + 1, z0 + 1) * tx;
+        return (a * (1 - tz) + b * tz) / 10;
+    }
+
+    const isWater = (x, z) => groundY(x, z) < WORLD.waterLevelM;
 
     function placeCamera(alpha) {
-        const angle = orbit.prev + (orbit.curr - orbit.prev) * alpha;
-        camera.position.set(Math.cos(angle) * orbit.radius, orbit.height, Math.sin(angle) * orbit.radius);
-        camera.lookAt(0, 1, 0);
+        const hx = pos.px + (pos.x - pos.px) * alpha;
+        const hz = pos.pz + (pos.z - pos.pz) * alpha;
+        const hy = groundY(hx, hz);
+        hero.position.set(hx, hy, hz);
+        const cp = Math.cos(cam.pitch);
+        const cxm = hx + Math.sin(cam.yaw) * cp * cam.dist;
+        const czm = hz + Math.cos(cam.yaw) * cp * cam.dist;
+        let cy = hy + 1.2 + Math.sin(cam.pitch) * cam.dist;
+        cy = Math.max(cy, groundY(cxm, czm) + 1.5); // камера не уходит под землю
+        camera.position.set(cxm, cy, czm);
+        camera.lookAt(hx, hy + 1.2, hz);
+        sun.position.set(hx + 40, hy + 70, hz + 25);
+        sun.target.position.set(hx, hy, hz);
+        sun.target.updateMatrixWorld();
+        water.position.x = hx;
+        water.position.z = hz;
+    }
+
+    function teleport(x, z) {
+        pos.x = x;
+        pos.px = x;
+        pos.z = z;
+        pos.pz = z;
+        target = null;
+        chunks.setCenter(x, z);
+    }
+
+    function stepHero(dt) {
+        pos.px = pos.x;
+        pos.pz = pos.z;
+        let dx = 0;
+        let dz = 0;
+        if (input.x !== 0 || input.z !== 0) {
+            target = null;
+            const fx = -Math.sin(cam.yaw);
+            const fz = -Math.cos(cam.yaw);
+            dx = fx * input.z + Math.cos(cam.yaw) * input.x;
+            dz = fz * input.z - Math.sin(cam.yaw) * input.x;
+            const len = Math.hypot(dx, dz) || 1;
+            dx /= len;
+            dz /= len;
+        } else if (target) {
+            const tx = target.x - pos.x;
+            const tz = target.z - pos.z;
+            const d = Math.hypot(tx, tz);
+            if (d < 0.2) { target = null; } else { dx = tx / d; dz = tz / d; }
+        }
+        if (dx === 0 && dz === 0) return;
+        const step = WORLD.heroSpeed * dt;
+        const nx = pos.x + dx * step;
+        const nz = pos.z + dz * step;
+        if (isWater(nx, nz)) { target = null; return; } // в воду пока не идём
+        pos.x = nx;
+        pos.z = nz;
     }
 
     return {
         scene,
         camera,
         hero,
-        get treeCount() { return trunks.count; },
+        chunks,
+        get treeCount() { return chunks.treeCount; },
+        get heroPos() { return { x: pos.x, z: pos.z }; },
+        get cameraYaw() { return cam.yaw; },
+        groundY,
+        isWater,
+        teleport,
+        setTarget(x, z) { target = x === null ? null : { x, z }; },
+        setMoveInput(x, z) { input.x = x; input.z = z; },
+        rotateCamera(dYaw) { cam.yaw += dYaw; },
         update(dt) {
-            orbit.prev = orbit.curr;
-            orbit.curr += dt * 0.25;
+            clock += dt;
+            stepHero(dt);
+            chunks.setCenter(pos.x, pos.z);
         },
         render(renderer, alpha) {
+            chunks.pump();
             placeCamera(alpha);
+            water.material.color.setHex(WATER_COLOR).offsetHSL(0, 0, Math.sin(clock * 0.8) * 0.015);
             renderer.render(scene, camera);
         },
         resize(width, height) {
-            camera.aspect = width / Math.max(1, height);
+            const aspect = width / Math.max(1, height);
+            camera.aspect = aspect;
+            // в портрете горизонтальный обзор узкий: шире угол и дальше камера, чтобы кадр не был «в упор»
+            const portrait = Math.max(0, 1 - aspect);
+            camera.fov = 60 + portrait * 24;
+            cam.dist = 11 + portrait * 7;
             camera.updateProjectionMatrix();
         },
-        // Пресет качества: дальность, плотность деревьев, тени.
-        applyQuality(preset) {
-            scene.fog.far = preset.drawDistance;
-            scene.fog.near = Math.max(10, preset.drawDistance * 0.15);
-            camera.far = preset.drawDistance * 1.25;
+        /** Точка земли под лучом из камеры через экранную точку (ndc -1..1). Марш шагом 1 м и уточнение делением пополам. */
+        pickGround(ndcX, ndcY) {
+            camera.updateMatrixWorld();
+            const origin = camera.position;
+            const dir = new THREE.Vector3(ndcX, ndcY, 0.5).unproject(camera).sub(origin).normalize();
+            let prevT = 0;
+            for (let t = 1; t <= 300; t += 1) {
+                const px = origin.x + dir.x * t;
+                const py = origin.y + dir.y * t;
+                const pz = origin.z + dir.z * t;
+                if (py <= groundY(px, pz)) {
+                    let lo = prevT;
+                    let hi = t;
+                    for (let i = 0; i < 8; i += 1) {
+                        const mid = (lo + hi) / 2;
+                        const my = origin.y + dir.y * mid;
+                        if (my <= groundY(origin.x + dir.x * mid, origin.z + dir.z * mid)) hi = mid; else lo = mid;
+                    }
+                    const tt = (lo + hi) / 2;
+                    return { x: origin.x + dir.x * tt, z: origin.z + dir.z * tt };
+                }
+                prevT = t;
+            }
+            return null;
+        },
+        /** Пресет качества: дальность, туман, плотность леса, рельеф, тени. */
+        applyQuality(next) {
+            preset = next;
+            scene.fog.far = next.drawDistance;
+            scene.fog.near = Math.max(10, next.drawDistance * 0.15);
+            camera.far = next.drawDistance * 1.25;
             camera.updateProjectionMatrix();
-            const count = Math.max(1, Math.round(MAX_TREES * preset.treeDensity));
-            trunks.count = count;
-            crowns.count = count;
-            sun.castShadow = preset.shadows === 'real';
-            blob.visible = preset.shadows === 'blob';
-            trunks.castShadow = preset.shadows === 'real';
-            crowns.castShadow = preset.shadows === 'real';
-            body.castShadow = preset.shadows === 'real';
-            ground.receiveShadow = preset.shadows === 'real';
+            sun.castShadow = next.shadows === 'real';
+            blob.visible = next.shadows === 'blob';
+            const size = next.drawChunks * 32 * 2 + 160;
+            water.scale.set(size, 1, size);
+            chunks.applyPreset(next);
+            chunks.setCenter(pos.x, pos.z);
             // материалы пересоберутся под новое состояние теней
-            [ground.material, trunks.material, crowns.material, body.material].forEach((m) => { m.needsUpdate = true; });
+            [chunks.material, body.material].forEach((m) => { m.needsUpdate = true; });
         },
         dispose() {
+            chunks.dispose();
             scene.traverse((obj) => {
                 if (obj.geometry) obj.geometry.dispose();
-                if (obj.material) obj.material.dispose();
+                if (obj.material && obj.material !== chunks.material) obj.material.dispose();
             });
         },
     };
