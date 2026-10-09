@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Бобёр: тестовая страница модели (ДЛ-07)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #bfe3f2; font: 14px/1.3 system-ui, sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #ui { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); background: rgba(255,255,255,.86); max-height: 46%; overflow: auto; }
+  #ui .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; }
+  button, select { font: inherit; padding: 6px 10px; border: 1px solid #8a6a3a; border-radius: 8px; background: #fff7e8; }
+  button.on { background: #9a6a3a; color: #fff; }
+  label { display: flex; gap: 6px; align-items: center; }
+  #info { position: fixed; top: 6px; left: 8px; background: rgba(255,255,255,.8); padding: 4px 8px; border-radius: 8px; white-space: pre; font-size: 12px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info"></div>
+<div id="ui">
+  <div class="row" id="states"></div>
+  <div class="row">
+    <label>Скорость <input id="speed" type="range" min="0" max="6" step="0.1" value="3.2"></label>
+    <label>Груз <input id="load" type="range" min="0" max="1" step="0.05" value="0"></label>
+    <label>Топор <input id="axe" type="range" min="1" max="6" step="1" value="1"></label>
+  </div>
+  <div class="row">
+    <label>Рюкзак <input id="pack" type="range" min="0" max="8" step="1" value="1"></label>
+    <label>Фонарь <input id="lamp" type="range" min="0" max="4" step="1" value="0"></label>
+    <label>Скин <select id="skin"></select></label>
+    <button id="detail">Подробность: высокая</button>
+    <button id="spin" class="on">Вращение</button>
+  </div>
+</div>
+<script type="module">
+import * as THREE from '../src/three.js';
+import { createBeaver, STATE_NAMES, SAMPLE_SKINS } from '../src/entities/index.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbfe3f2);
+scene.fog = new THREE.Fog(0xbfe3f2, 14, 40);
+scene.add(new THREE.HemisphereLight(0xdff2ff, 0x6a5a3a, 1.15));
+const sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
+sun.position.set(3, 6, 4);
+scene.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(30, 32).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x6f9a4a }));
+scene.add(ground);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+const beaver = createBeaver({ detail: 'high' });
+scene.add(beaver.group);
+
+const view = { yaw: 0.6, pitch: 0.25, dist: 4.2, spin: true };
+function resize() {
+  const w = window.innerWidth; const h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+const statesEl = document.getElementById('states');
+const names = { idle: 'Стоит', walk: 'Идёт', run: 'Бежит', chop: 'Рубит', carry: 'Несёт', sleep: 'Спит', scared: 'Испуг', eat: 'Ест' };
+STATE_NAMES.forEach((s) => {
+  const b = document.createElement('button');
+  b.textContent = names[s] || s;
+  b.dataset.state = s;
+  b.onclick = () => setState(s);
+  statesEl.appendChild(b);
+});
+function setState(s) {
+  beaver.setState(s);
+  [...statesEl.children].forEach((b) => b.classList.toggle('on', b.dataset.state === s));
+  syncLocomotion();
+}
+function syncLocomotion() {
+  const moving = ['walk', 'run', 'carry'].includes(beaver.state);
+  beaver.setSpeed(moving ? Number(document.getElementById('speed').value) : 0);
+  beaver.setLoad(Number(document.getElementById('load').value));
+}
+['speed', 'load'].forEach((id) => document.getElementById(id).addEventListener('input', syncLocomotion));
+['axe', 'pack', 'lamp'].forEach((id) => document.getElementById(id).addEventListener('input', () => beaver.setGear({ [id]: Number(document.getElementById(id).value) })));
+const skinEl = document.getElementById('skin');
+SAMPLE_SKINS.forEach((s, i) => { const o = document.createElement('option'); o.value = i; o.textContent = s.name; skinEl.appendChild(o); });
+skinEl.onchange = () => beaver.setSkin(SAMPLE_SKINS[Number(skinEl.value)]);
+document.getElementById('detail').onclick = (e) => {
+  const low = beaver.detail === 'high';
+  beaver.setDetail(low ? 'low' : 'high');
+  e.target.textContent = `Подробность: ${low ? 'низкая' : 'высокая'}`;
+};
+document.getElementById('spin').onclick = (e) => { view.spin = !view.spin; e.target.classList.toggle('on', view.spin); };
+
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; view.spin = false; });
+window.addEventListener('pointerup', () => { drag = null; });
+window.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  view.yaw -= (e.clientX - drag.x) * 0.01;
+  view.pitch = Math.max(-0.1, Math.min(1.2, view.pitch + (e.clientY - drag.y) * 0.01));
+  drag = { x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('wheel', (e) => { view.dist = Math.max(2, Math.min(10, view.dist + e.deltaY * 0.005)); });
+
+function draw() {
+  const r = view.dist;
+  camera.position.set(Math.sin(view.yaw) * Math.cos(view.pitch) * r, 0.7 + Math.sin(view.pitch) * r, Math.cos(view.yaw) * Math.cos(view.pitch) * r);
+  camera.lookAt(0, 0.7, 0);
+  beaver.setOutlineWidth(0.02 * Math.max(0.85, r / 4));
+  renderer.render(scene, camera);
+  const info = beaver.info();
+  document.getElementById('info').textContent = `${info.state} · ${info.detail}\nтреугольников ${info.triangles} (+контур ${info.hullTriangles})\nвызовов отрисовки (бобёр) ${info.drawCalls}`;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (view.spin) view.yaw += dt * 0.5;
+  beaver.update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+setState('idle');
+requestAnimationFrame(frame);
+
+// Хуки для автотестов: шаг анимации без ожидания реального времени.
+window.__bt = {
+  beaver, renderer, scene,
+  set(state, seconds = 0.6, opts = {}) {
+    view.spin = false;
+    if (opts.speed !== undefined) document.getElementById('speed').value = opts.speed;
+    if (opts.load !== undefined) document.getElementById('load').value = opts.load;
+    setState(state);
+    if (state === 'chop') beaver.setState('chop', { auto: true, rate: 2.2 });
+    for (let t = 0; t < seconds; t += 1 / 60) beaver.update(1 / 60);
+    draw();
+    return beaver.info();
+  },
+  view(v) { Object.assign(view, v); draw(); },
+  stats() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }; },
+};
+</script>
+</body>
+</html>

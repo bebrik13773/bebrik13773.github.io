@@ -42,6 +42,7 @@ export const QUALITY_PRESETS = Object.freeze({
         treeDensity: 0.6,
         shadows: 'none',     // нет теней
         outline: 'hero',     // контур только у бобра
+        beaverDetail: 'low', // простая модель бобра
         particles: 'min',
         targetFps: 30,
         antialias: false,
@@ -56,6 +57,7 @@ export const QUALITY_PRESETS = Object.freeze({
         treeDensity: 0.85,
         shadows: 'blob',     // простые тени под бобром
         outline: 'near',
+        beaverDetail: 'high',
         particles: 'normal',
         targetFps: 45,
         antialias: false,
@@ -70,6 +72,7 @@ export const QUALITY_PRESETS = Object.freeze({
         treeDensity: 1.0,
         shadows: 'real',     // реальные тени, 1 каскад, карта 1024
         outline: 'all',
+        beaverDetail: 'high',
         particles: 'full',
         targetFps: 60,
         antialias: true,

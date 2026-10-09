@@ -184,6 +184,11 @@ async function boot() {
             chunkTrees: (cx, cz) => { const c = world.chunks.chunk(cx, cz); return c ? [...c.data.trees.keys()] : null; },
             pumpAll: () => { let n = 0; while (world.chunks.pending > 0 && n < 400) { world.chunks.pump(1000); n += 1; } return world.chunks.loaded; },
             groundY: (x, z) => world.groundY(x, z),
+            beaver: () => world.beaver.info(),
+            beaverState: (name, opts) => world.setBeaverState(name, opts),
+            beaverGear: (gear) => world.beaver.setGear(gear),
+            beaverSkin: (skin) => world.beaver.setSkin(skin),
+            beaverSwing: () => { world.setBeaverState('chop', { auto: false }); world.beaver.swing(); },
             biomeAt: (x, z) => wg.biomeAt(x, z),
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };

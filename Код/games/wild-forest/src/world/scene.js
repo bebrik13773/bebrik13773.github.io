@@ -3,9 +3,10 @@ import { WORLD } from '../config.js';
 import { createModels } from './models.js';
 import { createChunkManager } from './chunks.js';
 import { findDemoSpawn } from './spawn.js';
+import { createBeaver } from '../entities/beaver.js';
 
 // Сцена мира (ДЛ-06): бесконечный лес из чанков, вода, свет, туман, герой-маркер и камера от третьего лица.
-// Герой пока «капсула» (3D-бобёр приходит в ДЛ-07), управление временное (core/demo-input.js, полноценное в ДЛ-08).
+// Герой это 3D-бобёр (ДЛ-07), управление временное (core/demo-input.js, полноценное в ДЛ-08).
 const SKY = 0xbfe3f2;
 const WATER_COLOR = 0x3d8fb8;
 
@@ -40,11 +41,10 @@ export function createWorldScene({ wg }) {
     water.renderOrder = 1;
     scene.add(water);
 
-    // Герой-маркер.
+    // Герой: 3D-бобёр. Поворот лицом по ходу движения плавный, анимация идёт от реального кадра, а не от шага логики.
     const hero = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.7, 4, 8), new THREE.MeshLambertMaterial({ color: 0x9a6a3a }));
-    body.position.y = 0.75;
-    hero.add(body);
+    const beaver = createBeaver({ detail: 'high' });
+    hero.add(beaver.group);
     const blob = new THREE.Mesh(
         new THREE.CircleGeometry(0.7, 16).rotateX(-Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }),
@@ -56,6 +56,10 @@ export function createWorldScene({ wg }) {
     let preset = null;
     const pos = { x: spawn.x, z: spawn.z, px: spawn.x, pz: spawn.z }; // текущее и прошлое положение (для интерполяции кадров)
     const cam = { yaw: 0.8, pitch: 0.8, dist: 11 };
+    const face = { yaw: 0, pyaw: 0 };            // куда повёрнут бобёр: сейчас и на прошлом шаге логики
+    let speedNow = 0;                            // фактическая скорость, м/с (сглаженная)
+    let stateOverride = null;                    // ручное состояние для отладки и тестов (null = по движению)
+    let lastRender = 0;
     let target = null; // точка, куда идёт герой по тапу
     const input = { x: 0, z: 0 }; // движение клавишами: x вправо, z вперёд
     let clock = 0;
@@ -126,13 +130,27 @@ export function createWorldScene({ wg }) {
             const d = Math.hypot(tx, tz);
             if (d < 0.2) { target = null; } else { dx = tx / d; dz = tz / d; }
         }
-        if (dx === 0 && dz === 0) return;
+        if (dx === 0 && dz === 0) { speedNow += (0 - speedNow) * Math.min(1, dt * 8); return; }
+        const want = Math.atan2(dx, dz); // модель смотрит в +Z
+        let diff = want - face.yaw;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        const maxTurn = 10 * dt;
+        face.yaw += Math.max(-maxTurn, Math.min(maxTurn, diff));
         const step = WORLD.heroSpeed * dt;
         const nx = pos.x + dx * step;
         const nz = pos.z + dz * step;
-        if (isWater(nx, nz)) { target = null; return; } // в воду пока не идём
+        if (isWater(nx, nz)) { target = null; speedNow += (0 - speedNow) * Math.min(1, dt * 8); return; } // в воду пока не идём
         pos.x = nx;
         pos.z = nz;
+        speedNow += (step / dt - speedNow) * Math.min(1, dt * 8);
+    }
+
+    /** Состояние бобра по движению: стоит, идёт или бежит (с небольшим гистерезисом). */
+    function autoState() {
+        const cur = beaver.state;
+        if (cur === 'idle') return speedNow > 0.4 ? (speedNow > 4.6 ? 'run' : 'walk') : 'idle';
+        if (speedNow < 0.15) return 'idle';
+        return speedNow > 4.6 ? 'run' : 'walk';
     }
 
     return {
@@ -143,6 +161,12 @@ export function createWorldScene({ wg }) {
         get treeCount() { return chunks.treeCount; },
         get heroPos() { return { x: pos.x, z: pos.z }; },
         get cameraYaw() { return cam.yaw; },
+        beaver,
+        /** Ручное состояние бобра (для отладки и тестов); null возвращает управление по движению. */
+        setBeaverState(name, opts) {
+            stateOverride = name || null;
+            if (name) beaver.setState(name, opts);
+        },
         groundY,
         isWater,
         teleport,
@@ -151,12 +175,24 @@ export function createWorldScene({ wg }) {
         rotateCamera(dYaw) { cam.yaw += dYaw; },
         update(dt) {
             clock += dt;
+            face.pyaw = face.yaw;
             stepHero(dt);
             chunks.setCenter(pos.x, pos.z);
         },
         render(renderer, alpha) {
             chunks.pump();
             placeCamera(alpha);
+            // анимация бобра: по реальному времени кадра (при паузе вкладки шаг ограничен)
+            const now = performance.now();
+            const frameDt = lastRender ? Math.min(0.1, (now - lastRender) / 1000) : 0;
+            lastRender = now;
+            let turn = face.yaw - face.pyaw;
+            turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+            beaver.group.rotation.y = face.pyaw + turn * alpha;
+            beaver.setSpeed(speedNow);
+            if (!stateOverride && !['chop', 'carry', 'sleep', 'scared', 'eat'].includes(beaver.state)) beaver.setState(autoState());
+            beaver.update(frameDt);
+            beaver.setOutlineWidth(0.02 * Math.min(2.4, Math.max(0.85, cam.dist / 9)));
             water.material.color.setHex(WATER_COLOR).offsetHSL(0, 0, Math.sin(clock * 0.8) * 0.015);
             renderer.render(scene, camera);
         },
@@ -166,7 +202,7 @@ export function createWorldScene({ wg }) {
             // в портрете горизонтальный обзор узкий: шире угол и дальше камера, чтобы кадр не был «в упор»
             const portrait = Math.max(0, 1 - aspect);
             camera.fov = 60 + portrait * 24;
-            cam.dist = 11 + portrait * 7;
+            cam.dist = 7 + portrait * 3.5; // ближе, чтобы бобёр хорошо читался (зум пальцами придёт в ДЛ-08)
             camera.updateProjectionMatrix();
         },
         /** Точка земли под лучом из камеры через экранную точку (ndc -1..1). Марш шагом 1 м и уточнение делением пополам. */
@@ -203,14 +239,19 @@ export function createWorldScene({ wg }) {
             camera.updateProjectionMatrix();
             sun.castShadow = next.shadows === 'real';
             blob.visible = next.shadows === 'blob';
+            beaver.setDetail(next.beaverDetail);
+            const bodyMesh = beaver.group.getObjectByName('beaver-body');
+            if (bodyMesh) bodyMesh.castShadow = next.shadows === 'real';
             const size = next.drawChunks * 32 * 2 + 160;
             water.scale.set(size, 1, size);
             chunks.applyPreset(next);
             chunks.setCenter(pos.x, pos.z);
             // материалы пересоберутся под новое состояние теней
-            [chunks.material, body.material].forEach((m) => { m.needsUpdate = true; });
+            chunks.material.needsUpdate = true;
+            beaver.group.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
         },
         dispose() {
+            beaver.dispose();
             chunks.dispose();
             scene.traverse((obj) => {
                 if (obj.geometry) obj.geometry.dispose();
