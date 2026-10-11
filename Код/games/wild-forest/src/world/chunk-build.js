@@ -1,7 +1,7 @@
 import * as THREE from '../three.js';
 import { CHUNK_M, KIND } from '../shared/worldgen.js';
 import { hash } from '../shared/rng.js';
-import { WORLD } from '../config.js';
+import { WORLD, MOVE } from '../config.js';
 
 // Построение данных чанка (ДЛ-06). Чистая функция без WebGL: возвращает типизированные массивы,
 // из которых chunks.js собирает один меш (рельеф, деревья и камни в одной геометрии = один вызов отрисовки).
@@ -161,6 +161,7 @@ export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, cl
     }
 
     const trees = new Map(); // id -> { v0, vN, lx, y, lz, wx, wz, sp, size }
+    const obs = new Array(64).fill(null); // препятствия по номеру клетки (ДЛ-08): { id, kind, x, y, z, h, r, size, sp }
     let treeCount = 0;
     let rockCount = 0;
     let vo = terrainVerts;
@@ -192,6 +193,11 @@ export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, cl
             col[d3] = tc[s3] * tint; col[d3 + 1] = tc[s3 + 1] * tint; col[d3 + 2] = tc[s3 + 2] * tint;
             index[ii++] = vo + k;
         }
+        obs[c.ci] = {
+            id: c.id, kind: c.kind, x: c.x, y: c.y, z: c.z, size: c.size, sp: c.species,
+            h: tpl.height * scale,
+            r: isTree ? MOVE.treeRadius[c.size] : Math.max(0.3, tpl.radius * scale * MOVE.rockRadiusK),
+        };
         if (isTree) {
             treeCount += 1;
             trees.set(c.id, { v0: vo, vN: tpl.verts, lx, y: c.y, lz, wx: c.x, wz: c.z, sp: c.species, size: c.size });
@@ -201,7 +207,7 @@ export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, cl
         vo += tpl.verts;
     }
 
-    return { cx, cz, lod, pos, nrm, col, index, vertexCount: totalVerts, trees, stumps, treeCount, rockCount };
+    return { cx, cz, lod, pos, nrm, col, index, vertexCount: totalVerts, trees, obs, stumps, treeCount, rockCount };
 }
 
 /** Прячет дерево внутри готового буфера: все его вершины в одну точку (вырожденные треугольники ничего не рисуют). */

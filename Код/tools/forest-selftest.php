@@ -228,6 +228,29 @@ wf_st_test($results, 'Хранилище лимитов частоты', functio
     return [$mode, $mode]; // информационная строка: всегда зелёная
 });
 
+// 4а. Управление (ДЛ-08): формулы скорости и допуск движения, те же числа, что в shared/formulas.js (tests/controls.test.mjs)
+require_once dirname(__DIR__) . '/api/forest/lib/formulas.php';
+wf_st_test($results, 'Скорость бобра налегке 3.2 м/с', function () {
+    return ['3.2', (string) round(wf_hero_speed(), 6)];
+});
+wf_st_test($results, 'Скорость с полным рюкзаком 1.44 м/с', function () {
+    return ['1.44', (string) round(wf_hero_speed(40, 40), 6)];
+});
+wf_st_test($results, 'Скорость по асфальту 4.64 м/с', function () {
+    return ['4.64', (string) round(wf_hero_speed(0, 40, 3), 6)];
+});
+wf_st_test($results, 'Скорость в сапогах 3.52 м/с', function () {
+    return ['3.52', (string) round(wf_hero_speed(0, 40, 0, true), 6)];
+});
+wf_st_test($results, 'Допуск движения за 1 с: 7.32 м', function () {
+    return ['7.32', (string) round(wf_move_allowance(3.2, 1), 6)];
+});
+wf_st_test($results, 'Журнал позиций: честный проходит, рывок на 40 м за секунду нет', function () {
+    $honest = [['t' => 0, 'x' => 0, 'z' => 0], ['t' => 1, 'x' => 3.2, 'z' => 0], ['t' => 2, 'x' => 6.4, 'z' => 0]];
+    $cheat = [['t' => 0, 'x' => 0, 'z' => 0], ['t' => 1, 'x' => 40, 'z' => 0]];
+    return ['0 1', count(wf_check_track($honest, 3.2)) . ' ' . count(wf_check_track($cheat, 3.2))];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

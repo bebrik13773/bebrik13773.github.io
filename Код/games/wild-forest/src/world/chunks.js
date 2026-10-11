@@ -66,6 +66,8 @@ export function createChunkManager({ scene, wg, models }) {
     const stumps = createStumpPool(scene, material);
     const chunks = new Map(); // key -> { cx, cz, mesh, geometry, data, lod, stumpIds }
     const felled = new Set();
+    const obsIndex = new Map(); // числовой ключ чанка -> массив препятствий по клеткам (для навигации, ДЛ-08)
+    const okey = (cx, cz) => (cx + 16384) * 32768 + (cz + 16384);
     const clearings = [];
     let queue = [];
     const queued = new Set();
@@ -82,6 +84,7 @@ export function createChunkManager({ scene, wg, models }) {
     const lodFor = (cx, cz) => (preset && preset.detailChunks > 0 && distTo(cx, cz) <= preset.detailChunks ? 1 : 0);
 
     function disposeChunk(chunk) {
+        if (obsIndex.get(okey(chunk.cx, chunk.cz)) === chunk.data.obs) obsIndex.delete(okey(chunk.cx, chunk.cz));
         scene.remove(chunk.mesh);
         chunk.geometry.dispose();
         for (const id of chunk.stumpIds) stumps.remove(id);
@@ -113,6 +116,7 @@ export function createChunkManager({ scene, wg, models }) {
         }
         scene.add(mesh);
         chunks.set(key, chunk);
+        obsIndex.set(okey(cx, cz), data.obs);
     }
 
     function enqueue(cx, cz, kind) {
@@ -214,6 +218,7 @@ export function createChunkManager({ scene, wg, models }) {
             if (!parsed) return false;
             const chunk = chunks.get(chunkKey(parsed.cx, parsed.cz));
             if (!chunk) return false;
+            chunk.data.obs[parsed.ci] = null; // срублено или добыто: больше не препятствие
             const rec = chunk.data.trees.get(id);
             if (!rec) { enqueue(parsed.cx, parsed.cz, 'rebuild'); return true; } // камень или руда: перестраиваем чанк
             collapseTree(chunk.data.pos, rec);
@@ -246,6 +251,58 @@ export function createChunkManager({ scene, wg, models }) {
             for (const chunk of chunks.values()) {
                 chunk.mesh.castShadow = shadows;
                 chunk.mesh.receiveShadow = shadows;
+            }
+        },
+        /** Препятствие в клетке (глобальные индексы клеток 4×4 м) или null. */
+        obstacleInCell(gx, gz) {
+            const cx = Math.floor(gx / 8);
+            const cz = Math.floor(gz / 8);
+            const arr = obsIndex.get(okey(cx, cz));
+            return arr ? arr[(gz - cz * 8) * 8 + (gx - cx * 8)] : null;
+        },
+        /** Попадает ли круг (x, z, r) в какое-либо препятствие (стволы, камни, руда). Деревья и камни только в загруженных чанках. */
+        blockedAt(x, z, r) {
+            const gx = Math.floor(x / 4);
+            const gz = Math.floor(z / 4);
+            for (let dz = -1; dz <= 1; dz += 1) {
+                for (let dx = -1; dx <= 1; dx += 1) {
+                    const o = this.obstacleInCell(gx + dx, gz + dz);
+                    if (!o) continue;
+                    const ex = x - o.x;
+                    const ez = z - o.z;
+                    const m = r + o.r;
+                    if (ex * ex + ez * ez < m * m) return true;
+                }
+            }
+            return false;
+        },
+        /** Препятствия рядом с точкой (клетки вокруг, достаточно для радиусов до ~2 м). */
+        forEachNear(x, z, range, cb) {
+            const span = Math.max(1, Math.ceil((range + 1.5) / 4));
+            const gx = Math.floor(x / 4);
+            const gz = Math.floor(z / 4);
+            for (let dz = -span; dz <= span; dz += 1) {
+                for (let dx = -span; dx <= span; dx += 1) {
+                    const o = this.obstacleInCell(gx + dx, gz + dz);
+                    if (o) cb(o);
+                }
+            }
+        },
+        /** Все препятствия в квадрате range вокруг точки (для выбора объекта пальцем). */
+        forEachInRange(x, z, range, cb) {
+            const x0 = Math.floor((x - range) / CHUNK_M);
+            const x1 = Math.floor((x + range) / CHUNK_M);
+            const z0 = Math.floor((z - range) / CHUNK_M);
+            const z1 = Math.floor((z + range) / CHUNK_M);
+            for (let cz = z0; cz <= z1; cz += 1) {
+                for (let cx = x0; cx <= x1; cx += 1) {
+                    const arr = obsIndex.get(okey(cx, cz));
+                    if (!arr) continue;
+                    for (let i = 0; i < 64; i += 1) {
+                        const o = arr[i];
+                        if (o && Math.abs(o.x - x) <= range && Math.abs(o.z - z) <= range) cb(o);
+                    }
+                }
             }
         },
         get material() { return material; },

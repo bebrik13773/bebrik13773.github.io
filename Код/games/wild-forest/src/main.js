@@ -6,7 +6,8 @@ import { createLoop } from './core/loop.js';
 import { createFpsMeter } from './core/fps.js';
 import { createWorldScene } from './world/scene.js';
 import { loadWorldGen } from './world/gen.js';
-import { installDemoInput } from './core/demo-input.js';
+import { installInput } from './core/input.js';
+import { checkTrack } from './shared/formulas.js';
 import { checkServer } from './net/index.js';
 import { createLoadingScreen } from './ui/loading.js';
 import { createNotice } from './ui/notice.js';
@@ -87,7 +88,13 @@ async function boot() {
 
     try {
         host.apply(quality.preset);
-        world = createWorldScene({ wg });
+        world = createWorldScene({
+            wg,
+            onEvent(e) {
+                if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
+                else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
+            },
+        });
         world.applyQuality(quality.preset);
         world.resize(window.innerWidth, window.innerHeight);
     } catch (error) {
@@ -102,7 +109,19 @@ async function boot() {
     }
     loading.step('world');
 
-    installDemoInput({ canvasHost: stage, world, isActive: () => state === STATES.PLAYING });
+    // Единый слой ввода (ДЛ-08): слушает только холст, интерфейс поверх мира тапы не пропускает.
+    installInput({
+        host: stage,
+        isActive: () => state === STATES.PLAYING,
+        onTap: (tap) => {
+            const rect = stage.getBoundingClientRect();
+            world.handleTap(tap.x - rect.left, tap.y - rect.top);
+        },
+        onOrbit: (dYaw, dPitch) => world.orbitCamera(dYaw, dPitch),
+        onZoom: (factor) => world.zoomCamera(factor),
+        onMoveKeys: (x, z) => world.setMoveInput(x, z),
+        onKeyRotate: (d) => world.rotateCamera(d),
+    });
 
     const settings = createSettingsUi({ quality, onOpenBeta: () => beta.open() });
 
@@ -190,6 +209,33 @@ async function boot() {
             beaverSkin: (skin) => world.beaver.setSkin(skin),
             beaverSwing: () => { world.setBeaverState('chop', { auto: false }); world.beaver.swing(); },
             biomeAt: (x, z) => wg.biomeAt(x, z),
+            // управление и камера (ДЛ-08)
+            tap: (px, py) => world.handleTap(px, py),
+            pickAt: (px, py) => { const o = world.pickAt(px, py); return o ? { id: o.id, kind: o.kind, x: o.x, z: o.z } : null; },
+            camera: () => ({ yaw: world.rig.yaw, pitch: world.rig.pitch, dist: world.rig.dist, goalDist: world.rig.goal.dist, goalPitch: world.rig.goal.pitch, goalYaw: world.rig.goal.yaw, y: world.camera.position.y }),
+            orbit: (dYaw, dPitch) => world.orbitCamera(dYaw, dPitch),
+            zoom: (f) => world.zoomCamera(f),
+            snapCamera: () => world.rig.snap(),
+            hero: () => ({ mode: world.ctl.mode, obj: world.ctl.obj ? world.ctl.obj.id : null, speed: world.ctl.moveSpeed, partial: world.ctl.partial, path: world.ctl.path.length, yaw: world.ctl.yaw }),
+            workHits: () => world.workHits,
+            speedLimit: () => world.speedLimit,
+            setSpeedMods: (m) => world.setSpeedMods(m),
+            track: () => world.track.peek(),
+            trackOk: () => checkTrack(world.track.peek(), () => world.speedLimit).ok,
+            treeScreen: (id) => {
+                const parsed = id.split(':').map(Number);
+                const c = world.chunks.chunk(parsed[0], parsed[1]);
+                const rec = c && c.data.obs[parsed[2]];
+                if (!rec) return null;
+                world.camera.updateMatrixWorld();
+                const sp = world.projectToScreen(rec.x, rec.y + rec.h * 0.4, rec.z);
+                return sp ? { ...sp, x: rec.x, z: rec.z, r: rec.r } : null;
+            },
+            nearTrees: (range) => { const out = []; world.chunks.forEachInRange(world.ctl.x, world.ctl.z, range, (o) => { if (o.kind === 1) out.push({ id: o.id, x: o.x, z: o.z, r: o.r }); }); return out; },
+            blockedAt: (x, z, r) => world.chunks.blockedAt(x, z, r),
+            walkable: (x, z) => world.walk.walkable(x, z),
+            findPath: (x, z) => { const r = world.nav.findPath(world.ctl.x, world.ctl.z, x, z); return r && { complete: r.complete, points: r.points }; },
+            viewSize: () => { const r = stage.getBoundingClientRect(); return { w: r.width, h: r.height }; },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };
     }

@@ -74,6 +74,10 @@ return [
         'pack_max_lvl'      => 8,
         'load_slowdown'     => 0.55,
         'load_exponent'     => 1.2,
+        'road_bonus'        => [0, 0.10, 0.25, 0.45], // нет дороги, земля, камень, асфальт (ДЛ-08)
+        'boots_bonus'       => 0.10,
+        'move_slack'        => 1.35,      // допуск сервера на скорость: vMax × dt × slack + const (ДЛ-08)
+        'move_const_m'      => 3.0,
         'start_coins'       => 50,
         'weights_kg'        => ['log_min' => 4, 'log_max' => 10, 'plank' => 3, 'ore' => 8, 'ingot' => 5, 'stone' => 10, 'fish' => 1],
         'xp_base'           => 100,       // XP(l) = base * l^exp
