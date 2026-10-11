@@ -53,7 +53,7 @@ const tmpScale = new THREE.Vector3();
 
 /** Накопитель частей: превращает примитивы Three.js в плоские массивы вершин со скинингом. */
 function createBuilder(palette, detail) {
-    const pos = []; const nrm = []; const col = []; const bone = []; const index = [];
+    const pos = []; const nrm = []; const col = []; const bone = []; const index = []; const ow = [];
     const seg = SEG[detail];
     const hex = (c) => (typeof c === 'string' ? palette[c] : c);
 
@@ -86,7 +86,8 @@ function createBuilder(palette, detail) {
         for (let i = 0; i < p.length; i += 1) { pos.push(p[i]); nrm.push(n[i]); }
         for (let i = 0; i < colors.length; i += 1) col.push(colors[i]);
         const bi = B[o.bone];
-        for (let i = 0; i < count; i += 1) bone.push(bi);
+        const w = o.ow === undefined ? 1 : o.ow; // множитель контура: 0 = у детали нет своей обводки
+        for (let i = 0; i < count; i += 1) { bone.push(bi); ow.push(w); }
         const idx = geo.index.array;
         for (let i = 0; i < idx.length; i += 1) index.push(idx[i] + base);
         geo.dispose();
@@ -123,6 +124,7 @@ function createBuilder(palette, detail) {
                 colors: new Float32Array(col),
                 skinIndex,
                 skinWeight,
+                outlineW: new Float32Array(ow),
                 index: vcount > 65535 ? new Uint32Array(index) : new Uint16Array(index),
                 vertices: vcount,
                 triangles: index.length / 3,
@@ -138,19 +140,19 @@ function buildBody(b, hi) {
     const S = b.seg;
     // туловище и брюшко
     b.ell(S.big, 0, 0.62, 0, 0.36, 0.40, 0.32, 'fur', 'torso');
-    b.ell(S.mid, 0, 0.60, 0.12, 0.27, 0.32, 0.22, 'belly', 'torso');
+    b.ell(S.mid, 0, 0.60, 0.12, 0.27, 0.32, 0.22, 'belly', 'torso', { ow: 0 });
     // голова
     b.ell(S.big, 0, 1.06, 0.06, 0.315, 0.276, 0.30, 'fur', 'head');
-    b.ell(S.mid, 0, 0.99, 0.30, 0.17, 0.12, 0.14, 'belly', 'head');                 // мордочка
-    b.ell(S.tiny, 0, 1.035, 0.435, 0.055, 0.042, 0.04, 'nose', 'head');              // нос
-    b.box(0.05, 0.085, 0.03, 0.032, 0.915, 0.405, 'tooth', 'head');                  // резцы
-    b.box(0.05, 0.085, 0.03, -0.032, 0.915, 0.405, 'tooth', 'head');
+    b.ell(S.mid, 0, 0.99, 0.30, 0.17, 0.12, 0.14, 'belly', 'head', { ow: 0.5 });     // мордочка (контур тоньше)
+    b.ell(S.tiny, 0, 1.035, 0.435, 0.055, 0.042, 0.04, 'nose', 'head', { ow: 0 });              // нос
+    b.box(0.05, 0.085, 0.03, 0.032, 0.915, 0.405, 'tooth', 'head', { ow: 0 });                  // резцы
+    b.box(0.05, 0.085, 0.03, -0.032, 0.915, 0.405, 'tooth', 'head', { ow: 0 });
     for (const side of [1, -1]) {
-        b.ell(S.small, side * 0.13, 1.12, 0.305, 0.075, 0.075, 0.07, 'eyeWhite', 'head');   // глаза
-        b.ell(S.tiny, side * 0.13, 1.115, 0.362, 0.042, 0.045, 0.03, 'pupil', 'head');
+        b.ell(S.small, side * 0.13, 1.12, 0.305, 0.075, 0.075, 0.07, 'eyeWhite', 'head', { ow: 0 });   // глаза
+        b.ell(S.tiny, side * 0.13, 1.115, 0.362, 0.042, 0.045, 0.03, 'pupil', 'head', { ow: 0 });
         b.ell(S.small, side * 0.2, 1.31, 0.0, 0.08, 0.08, 0.05, 'fur', 'head');               // уши
-        b.ell(S.tiny, side * 0.2, 1.31, 0.035, 0.05, 0.05, 0.03, 'earInner', 'head');
-        if (hi) b.ell(S.small, side * 0.18, 0.98, 0.2, 0.1, 0.09, 0.09, 'fur', 'head');       // щёки
+        b.ell(S.tiny, side * 0.2, 1.31, 0.035, 0.05, 0.05, 0.03, 'earInner', 'head', { ow: 0 });
+        if (hi) b.ell(S.small, side * 0.18, 0.98, 0.2, 0.1, 0.09, 0.09, 'fur', 'head', { ow: 0 });       // щёки
     }
     // лапы и ноги
     for (const side of [1, -1]) {
@@ -161,17 +163,18 @@ function buildBody(b, hi) {
         b.cyl(0.10, 0.30, side * 0.15, 0.25, 0, 'fur', leg, { r2: 0.095 });
         b.ell(S.small, side * 0.15, 0.055, 0.10, 0.12, 0.055, 0.20, 'feet', leg);              // большая ступня
     }
-    // хвост: основание и плоская лопата
-    b.ell(S.small, 0, 0.26, -0.42, 0.10, 0.10, 0.15, 'furDark', 'tail1');
-    b.ell(S.mid, 0, 0.12, -0.76, 0.20, 0.035, 0.30, 'tail', 'tail2');
+    // хвост: основание уходит в тело, потом переходное звено и плоская лопата (без щелей)
+    b.ell(S.small, 0, 0.30, -0.33, 0.12, 0.12, 0.18, 'furDark', 'tail1');
+    b.ell(S.small, 0, 0.19, -0.52, 0.10, 0.085, 0.15, 'furDark', 'tail2');
+    b.ell(S.mid, 0, 0.13, -0.80, 0.20, 0.035, 0.30, 'tail', 'tail2');
     if (hi) {
         // узор «чешуек» на лопате: шашечки из плоских шестигранников
-        const rows = [-0.53, -0.63, -0.73, -0.83, -0.93];
+        const rows = [-0.58, -0.68, -0.78, -0.88, -0.98];
         rows.forEach((z, r) => {
             const xs = r % 2 === 0 ? [-0.08, 0.08] : [0, -0.15, 0.15];
             xs.forEach((x) => {
-                if ((x / 0.19) ** 2 + ((z + 0.76) / 0.29) ** 2 > 0.85) return;
-                b.cyl(0.042, 0.012, x, 0.158, z, 'tailPattern', 'tail2', { seg: 5 });
+                if ((x / 0.19) ** 2 + ((z + 0.80) / 0.29) ** 2 > 0.85) return;
+                b.cyl(0.042, 0.012, x, 0.162, z, 'tailPattern', 'tail2', { seg: 5 });
             });
         });
         // пучки жёсткого меха: на макушке и плечах
@@ -343,6 +346,7 @@ export function createBeaverGeometries(data) {
     hull.setAttribute('normal', new THREE.BufferAttribute(weldNormals(data.positions, data.normals), 3));
     hull.setAttribute('skinIndex', skinIndex);
     hull.setAttribute('skinWeight', skinWeight);
+    hull.setAttribute('outlineW', new THREE.BufferAttribute(data.outlineW, 1));
     hull.setIndex(index);
     hull.computeBoundingSphere();
     return { body, hull };
@@ -370,8 +374,8 @@ export function createOutlineMaterial(uniform) {
     mat.onBeforeCompile = (shader) => {
         shader.uniforms.uOutline = uniform;
         shader.vertexShader = shader.vertexShader
-            .replace('#include <common>', '#include <common>\nuniform float uOutline;')
-            .replace('#include <skinning_vertex>', '#include <skinning_vertex>\n\ttransformed += objectNormal * uOutline;');
+            .replace('#include <common>', '#include <common>\nuniform float uOutline;\nattribute float outlineW;')
+            .replace('#include <skinning_vertex>', '#include <skinning_vertex>\n\ttransformed += objectNormal * (uOutline * outlineW);');
     };
     mat.customProgramCacheKey = () => 'wfBeaverOutline';
     return mat;

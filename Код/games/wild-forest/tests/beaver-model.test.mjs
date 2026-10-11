@@ -160,8 +160,17 @@ test('материал контура раздувает оболочку пос
     const shader = { uniforms: {}, vertexShader: '#include <common>\nvoid main(){\n#include <skinning_vertex>\n}' };
     hull.material.onBeforeCompile(shader);
     assert.ok(shader.vertexShader.includes('uniform float uOutline'));
-    assert.ok(shader.vertexShader.includes('transformed += objectNormal * uOutline'));
+    assert.ok(shader.vertexShader.includes('transformed += objectNormal * (uOutline * outlineW)'));
     b.setOutlineWidth(0.05);
     assert.equal(shader.uniforms.uOutline.value, 0.05);
     b.dispose();
+});
+
+test('детали лица без своего контура, хвост соединён с телом', () => {
+    const d = buildBeaverData({ detail: 'high' });
+    assert.equal(d.outlineW.length, d.positions.length / 3);
+    const zero = d.outlineW.filter((v) => v === 0).length;
+    assert.ok(zero > 0 && zero < d.outlineW.length / 2, 'часть вершин без контура, но не большинство');
+    const { hull } = createBeaverGeometries(d);
+    assert.ok(hull.getAttribute('outlineW'));
 });
