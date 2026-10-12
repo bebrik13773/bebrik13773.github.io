@@ -7,34 +7,53 @@
 <meta name="theme-color" content="#16301f">
 <title>Бобёр Кликер: Дикий Лес — бета</title>
 <link rel="modulepreload" href="./vendor/three.module.min.js">
-<link rel="modulepreload" href="./src/audio/index.js">
 <link rel="modulepreload" href="./src/config.js">
+<link rel="modulepreload" href="./src/core/camera-rig.js">
 <link rel="modulepreload" href="./src/core/fps.js">
+<link rel="modulepreload" href="./src/core/gestures.js">
+<link rel="modulepreload" href="./src/core/input.js">
 <link rel="modulepreload" href="./src/core/loop.js">
 <link rel="modulepreload" href="./src/core/quality.js">
 <link rel="modulepreload" href="./src/core/renderer.js">
-<link rel="modulepreload" href="./src/entities/index.js">
+<link rel="modulepreload" href="./src/core/track.js">
+<link rel="modulepreload" href="./src/entities/beaver-anim.js">
+<link rel="modulepreload" href="./src/entities/beaver-model.js">
+<link rel="modulepreload" href="./src/entities/beaver.js">
+<link rel="modulepreload" href="./src/entities/hero.js">
+<link rel="modulepreload" href="./src/entities/skins.js">
 <link rel="modulepreload" href="./src/main.js">
 <link rel="modulepreload" href="./src/net/clientlog.js">
 <link rel="modulepreload" href="./src/net/health.js">
 <link rel="modulepreload" href="./src/net/index.js">
+<link rel="modulepreload" href="./src/shared/formulas.js">
+<link rel="modulepreload" href="./src/shared/rng.js">
+<link rel="modulepreload" href="./src/shared/worldgen.js">
 <link rel="modulepreload" href="./src/three.js">
 <link rel="modulepreload" href="./src/ui/beta.js">
 <link rel="modulepreload" href="./src/ui/debug.js">
+<link rel="modulepreload" href="./src/ui/dialog-logic.js">
+<link rel="modulepreload" href="./src/ui/dialog.js">
 <link rel="modulepreload" href="./src/ui/errors.js">
+<link rel="modulepreload" href="./src/ui/hud-logic.js">
+<link rel="modulepreload" href="./src/ui/hud.js">
+<link rel="modulepreload" href="./src/ui/inventory.js">
 <link rel="modulepreload" href="./src/ui/loading.js">
 <link rel="modulepreload" href="./src/ui/notice.js">
+<link rel="modulepreload" href="./src/ui/notify-center.js">
+<link rel="modulepreload" href="./src/ui/prefs.js">
 <link rel="modulepreload" href="./src/ui/settings.js">
+<link rel="modulepreload" href="./src/ui/strings.ru.js">
 <link rel="modulepreload" href="./src/update.js">
 <link rel="modulepreload" href="./src/world/chunk-build.js">
 <link rel="modulepreload" href="./src/world/chunks.js">
 <link rel="modulepreload" href="./src/world/gen.js">
 <link rel="modulepreload" href="./src/world/models.js">
+<link rel="modulepreload" href="./src/world/nav.js">
+<link rel="modulepreload" href="./src/world/picking.js">
 <link rel="modulepreload" href="./src/world/scene.js">
 <link rel="modulepreload" href="./src/world/spawn.js">
-<link rel="modulepreload" href="./src/shared/rng.js">
-<link rel="modulepreload" href="./src/shared/worldgen.js">
-<link rel="modulepreload" href="./src/core/demo-input.js">
+<link rel="modulepreload" href="./src/world/terrain-nav.js">
+<link rel="stylesheet" href="./src/ui/ui.css">
 <style>
 :root {
     --bg-top: #1c3b27;
@@ -171,7 +190,7 @@ html, body {
 /* Отладка и уведомления */
 #wfDebug {
     position: fixed;
-    top: calc(10px + var(--sat));
+    top: calc(104px + var(--sat));
     left: calc(10px + var(--sal));
     z-index: 7;
     padding: 6px 8px;
@@ -184,7 +203,7 @@ html, body {
 #wfNotice {
     position: fixed;
     left: 50%;
-    bottom: calc(18px + var(--sab));
+    bottom: calc(var(--hotbar-h, 64px) + 14px + var(--sab));
     transform: translateX(-50%);
     z-index: 12;
     width: min(380px, calc(100vw - 24px));
@@ -236,9 +255,71 @@ html, body {
         <button type="button" data-q="medium" aria-pressed="false">Среднее</button>
         <button type="button" data-q="high" aria-pressed="false">Высокое</button>
     </div>
+    <h2>Звук</h2>
+    <div class="wf-sound">
+        <label for="wfVolSfx">Звуки</label><output id="wfVolSfxOut" for="wfVolSfx"></output>
+        <input type="range" id="wfVolSfx" min="0" max="100" step="5" value="80">
+    </div>
+    <div class="wf-sound">
+        <label for="wfVolMusic">Музыка</label><output id="wfVolMusicOut" for="wfVolMusic"></output>
+        <input type="range" id="wfVolMusic" min="0" max="100" step="5" value="50">
+    </div>
+    <button type="button" class="wf-btn is-ghost" id="wfTutorialRepeat">Повторить обучение</button>
+    <button type="button" class="wf-btn is-ghost" id="wfExit">Выйти в старый кликер</button>
     <div class="wf-build" id="wfBuild" data-build-commit="__BUILD_COMMIT_SHA__"></div>
     <div class="wf-status" id="wfStatus" aria-live="polite"></div>
     <button type="button" class="wf-btn is-ghost" id="wfBetaOpen">О бета-версии</button>
+</section>
+
+<!-- HUD (ДЛ-09) -->
+<div class="wf-hud" id="wfHud" hidden>
+    <div class="wf-energy" id="wfEnergy" role="progressbar" aria-label="Энергия" aria-valuemin="0" data-level="ok">
+        <i id="wfEnergyFill"></i>
+        <span class="wf-energy-label"><span id="wfEnergyIcon" aria-hidden="true">⚡</span><span id="wfEnergyText"></span></span>
+    </div>
+    <div class="wf-chips">
+        <span class="wf-chip" id="wfChipPack" title="Рюкзак" data-level="ok"><span id="wfPackIcon" aria-hidden="true">🎒</span><span id="wfPackText"></span></span>
+        <span class="wf-chip" title="Монеты"><span aria-hidden="true">🪙</span><span id="wfCoinsText"></span></span>
+        <span class="wf-chip" title="Время суток"><span id="wfClockIcon" aria-hidden="true"></span><span id="wfClockText"></span></span>
+        <span class="wf-chip" title="Сезон"><span id="wfSeasonIcon" aria-hidden="true"></span><span id="wfSeasonText"></span></span>
+        <span class="wf-chip" id="wfChipWeather" title="Погода" hidden><span id="wfWeatherIcon" aria-hidden="true"></span><span id="wfWeatherText"></span></span>
+    </div>
+</div>
+<div class="wf-quick" id="wfQuick" hidden>
+    <button type="button" class="wf-qbtn" id="wfBell" aria-label="Уведомления" aria-expanded="false">🔔<span class="wf-badge-dot" id="wfBellBadge" hidden></span></button>
+    <button type="button" class="wf-qbtn" data-action="backpack" aria-label="Рюкзак">🎒</button>
+    <button type="button" class="wf-qbtn" data-action="build" aria-label="Строить">🔨</button>
+    <button type="button" class="wf-qbtn" data-action="helpers" aria-label="Помощники">🦫</button>
+</div>
+<div class="wf-hotbar" id="wfHotbar" role="group" aria-label="Быстрые слоты" hidden></div>
+<div class="wf-toasts" id="wfToasts" aria-live="polite"></div>
+
+<section class="wf-panel wf-center" id="wfNotifyPanel" aria-hidden="true">
+    <h2>Уведомления</h2>
+    <ul class="wf-notes" id="wfNotes"></ul>
+    <button type="button" class="wf-btn is-ghost" id="wfNotesClear">Очистить</button>
+</section>
+
+<section class="wf-sheet" id="wfInventory" aria-hidden="true">
+    <div class="wf-sheet-box" role="dialog" aria-modal="true" aria-label="Рюкзак">
+        <div class="wf-sheet-head"><h2>🎒 Рюкзак</h2><button type="button" class="wf-iconbtn" id="wfInvClose" aria-label="Закрыть">✕</button></div>
+        <div class="wf-inv-bar"><span id="wfInvWeight"></span><button type="button" class="wf-btn is-ghost" id="wfInvSort"></button></div>
+        <div class="wf-grid" id="wfInvGrid"></div>
+        <div id="wfInvDetail"></div>
+    </div>
+</section>
+
+<section class="wf-dialog" id="wfDialog" aria-hidden="true">
+    <div class="wf-dialog-box" role="dialog" aria-live="polite">
+        <div class="wf-portrait" id="wfDlgPortrait" aria-hidden="true">🦫</div>
+        <div>
+            <p class="wf-speaker" id="wfDlgSpeaker"></p>
+            <p class="wf-dlg-text" id="wfDlgText"></p>
+        </div>
+        <p class="wf-dlg-hint" id="wfDlgHint"></p>
+        <div class="wf-dlg-timer" id="wfDlgTimer" hidden><i id="wfDlgTimerFill"></i></div>
+        <div class="wf-choices" id="wfDlgChoices"></div>
+    </div>
 </section>
 
 <div id="wfNotice" role="status" aria-live="polite"></div>

@@ -15,6 +15,11 @@ import { createErrorUi } from './ui/errors.js';
 import { createSettingsUi } from './ui/settings.js';
 import { createBetaNotice } from './ui/beta.js';
 import { createDebugPanel, isDebugMode } from './ui/debug.js';
+import { createHud } from './ui/hud.js';
+import { createNotifyCenter } from './ui/notify-center.js';
+import { createInventory } from './ui/inventory.js';
+import { createDialog } from './ui/dialog.js';
+import { S } from './ui/strings.ru.js';
 
 window.__wfBooted = true;
 
@@ -112,7 +117,7 @@ async function boot() {
     // Единый слой ввода (ДЛ-08): слушает только холст, интерфейс поверх мира тапы не пропускает.
     installInput({
         host: stage,
-        isActive: () => state === STATES.PLAYING,
+        isActive: () => state === STATES.PLAYING && !document.documentElement.dataset.wfModal,
         onTap: (tap) => {
             const rect = stage.getBoundingClientRect();
             world.handleTap(tap.x - rect.left, tap.y - rect.top);
@@ -123,7 +128,39 @@ async function boot() {
         onKeyRotate: (d) => world.rotateCamera(d),
     });
 
-    const settings = createSettingsUi({ quality, onOpenBeta: () => beta.open() });
+    // Интерфейс поверх мира (ДЛ-09): HUD, уведомления, рюкзак, диалоги, настройки.
+    const $ = (id) => document.getElementById(id);
+    const notifyCenter = createNotifyCenter({
+        toastsEl: $('wfToasts'), panelEl: $('wfNotifyPanel'), listEl: $('wfNotes'),
+        badgeEl: $('wfBellBadge'), bellEl: $('wfBell'), clearEl: $('wfNotesClear'),
+    });
+    const notify = (options) => notifyCenter.push(options);
+    const dialog = createDialog();
+    const settings = createSettingsUi({
+        quality,
+        notice,
+        onOpenBeta: () => beta.open(),
+        onRepeatTutorial: () => notify({ text: S.settings.tutorialLater }),
+    });
+    let hud = null;
+    const inventory = createInventory({
+        onChange: ({ kg, capacity }) => { if (hud) hud.set({ packKg: kg, packCap: capacity }); },
+        // Пока сервер не присылает рюкзак (ДЛ-10, ДЛ-13), «бросить» убирает предметы только на экране.
+        onDrop: (key, qty) => { inventory.remove(key, qty); },
+        onEat: () => notify({ text: 'Еда заработает вместе с энергией чуть позже.' }),
+    });
+    hud = createHud({
+        onAction(id) {
+            if (id === 'backpack') { settings.close(); notifyCenter.close(); inventory.toggle(); }
+            else if (id === 'build') notify({ text: S.hud.soon.build });
+            else if (id === 'helpers') notify({ text: S.hud.soon.helpers });
+        },
+        onSlot: () => { /* выбор инструмента в руку подключится вместе с рубкой (ДЛ-11) */ },
+    });
+    hud.onWarn(notify);
+    hud.setHotbar([{ key: 'axe', icon: '🪓', name: S.items.axe.name }]);
+    $('wfGear').addEventListener('click', () => notifyCenter.close());
+    $('wfBell').addEventListener('click', () => settings.close());
 
     // Смена качества: пересоздание рендерера при смене сглаживания, остальное на лету.
     quality.subscribe((next) => {
@@ -162,6 +199,7 @@ async function boot() {
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
+            hud.tick(Date.now());
             const avg = fps.probe(now);
             if (avg !== null) suggestLower(avg);
             if (debug) {
@@ -236,6 +274,7 @@ async function boot() {
             walkable: (x, z) => world.walk.walkable(x, z),
             findPath: (x, z) => { const r = world.nav.findPath(world.ctl.x, world.ctl.z, x, z); return r && { complete: r.complete, points: r.points }; },
             viewSize: () => { const r = stage.getBoundingClientRect(); return { w: r.width, h: r.height }; },
+            ui: { hud, inventory, dialog, notify, notifyCenter, settings },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };
     }
@@ -254,6 +293,7 @@ async function boot() {
     setTimeout(() => {
         loading.hide();
         settings.show();
+        hud.show();
         beta.showIfDue();
     }, server.ok ? 150 : 600);
 }
