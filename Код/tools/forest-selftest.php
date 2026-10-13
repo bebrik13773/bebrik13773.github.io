@@ -5,6 +5,8 @@
  * Доступ: пароль администратора (тот же, что в админке). Новые проверки добавляются в своих пунктах плана.
  */
 require_once dirname(__DIR__) . '/api/forest/lib/common.php';
+require_once dirname(__DIR__) . '/api/forest/lib/player.php';
+require_once dirname(__DIR__) . '/api/forest/lib/sync.php';
 
 header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex, nofollow');
@@ -380,6 +382,125 @@ foreach ([0, 1] as $wfWorldIndex) {
         return wf_st_vec_result(count($rows), $bad);
     });
 }
+
+// 6. Появление игрока (ДЛ-10): те же места, что в JS (tests/vectors/spawn.json), проверка перемещения, уровни, запись игрока в БД
+function wf_st_spawn_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $raw = @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/spawn.json');
+        $v = $raw === false ? null : json_decode($raw, true);
+        if (!is_array($v) || empty($v['alone'])) {
+            throw new RuntimeException('нет или не разобран games/wild-forest/tests/vectors/spawn.json');
+        }
+    }
+    return $v;
+}
+wf_st_test($results, 'Появление: одиночные места совпадают с JS (122 игрока)', function () {
+    $w = wf_wg_world();
+    $bad = [];
+    $rows = wf_st_spawn_vectors()['alone'];
+    foreach ($rows as $r) {
+        $spot = wf_spawn_find($w, (int) $r['id'], function () { return true; });
+        $pond = $spot ? wf_spawn_pond((int) $r['id'], $spot['x'], $spot['z']) : null;
+        $okSpot = $spot && $spot['x'] === $r['spot']['x'] && $spot['z'] === $r['spot']['z'] && $spot['attempt'] === $r['spot']['attempt'];
+        $okPond = $pond && $pond['x'] === $r['pond']['x'] && $pond['z'] === $r['pond']['z'] && $pond['damX'] === $r['pond']['damX'] && $pond['damZ'] === $r['pond']['damZ'] && $pond['deg'] === $r['pond']['deg'];
+        if (!$okSpot || !$okPond) {
+            $bad[] = 'игрок ' . $r['id'] . ': ждали ' . json_encode($r['spot']) . ', получили ' . json_encode($spot);
+        }
+    }
+    return wf_st_vec_result(count($rows), $bad);
+});
+wf_st_test($results, 'Появление: цепочка из 60 игроков с занятыми местами совпадает с JS', function () {
+    $w = wf_wg_world();
+    $spots = [];
+    $cells = [];
+    $gapCfg = (int) forest_config('world.spawn_min_gap_m');
+    $isFree = function (int $x, int $z, int $gap) use (&$spots, &$cells) {
+        foreach ($spots as $s) {
+            if (abs($s['x'] - $x) <= $gap && abs($s['z'] - $z) <= $gap) {
+                return false;
+            }
+        }
+        $c = wf_spawn_cell($x, $z);
+        if (isset($cells[$c])) {
+            return false;
+        }
+        $cells[$c] = true;
+        return true;
+    };
+    $bad = [];
+    $rows = wf_st_spawn_vectors()['chain'];
+    foreach ($rows as $r) {
+        $spot = wf_spawn_find($w, (int) $r['id'], $isFree);
+        if ($spot) {
+            $spots[] = $spot;
+        }
+        if (!$spot || $spot['x'] !== $r['spot']['x'] || $spot['z'] !== $r['spot']['z'] || $spot['attempt'] !== $r['spot']['attempt']) {
+            $bad[] = 'игрок ' . $r['id'] . ': ждали ' . json_encode($r['spot']) . ', получили ' . json_encode($spot);
+        }
+    }
+    return wf_st_vec_result(count($rows), $bad);
+});
+wf_st_test($results, 'Появление: ключ клетки с отрицательными числами', function () {
+    return ['0:0,-1:-1,-1:0,1:-2', implode(',', [wf_spawn_cell(0, 0), wf_spawn_cell(-1, -1), wf_spawn_cell(-150, 149), wf_spawn_cell(150, -151)])];
+});
+wf_st_test($results, 'Уровни: кривая 100 × l^1.6 как в JS', function () {
+    $bad = [];
+    $v = wf_st_spawn_vectors();
+    foreach ($v['levels'] as $r) {
+        if (wf_xp_to_next((int) $r['level']) !== $r['next']) {
+            $bad[] = 'уровень ' . $r['level'] . ': ждали ' . $r['next'] . ', получили ' . wf_xp_to_next((int) $r['level']);
+        }
+    }
+    foreach ($v['xps'] as $r) {
+        $got = wf_level_from_xp((int) $r['xp']);
+        if ($got['level'] !== $r['level'] || $got['into'] !== $r['into'] || $got['need'] !== $r['need']) {
+            $bad[] = 'опыт ' . $r['xp'] . ': ждали ' . json_encode([$r['level'], $r['into'], $r['need']]) . ', получили ' . json_encode(array_values($got));
+        }
+    }
+    return wf_st_vec_result(count($v['levels']) + count($v['xps']), $bad);
+});
+wf_st_test($results, 'Перемещение в sync: честный шаг проходит, телепорт отклоняется', function () {
+    $ok = wf_sync_check_move(0, 0, 20, 0, 5.0)['ok'];          // 20 м за 5 с (допуск ~ 45 м)
+    $far = wf_sync_check_move(0, 0, 500, 0, 5.0)['ok'];        // 500 м за 5 с
+    $capped = wf_sync_check_move(0, 0, 5000, 0, 100000.0)['ok']; // долгий офлайн не даёт телепорта
+    return ['да,нет,нет', ($ok ? 'да' : 'нет') . ',' . ($far ? 'да' : 'нет') . ',' . ($capped ? 'да' : 'нет')];
+});
+wf_st_test($results, 'Разбор позиции sync и интервалы', function () {
+    $a = wf_sync_parse_pos(['x' => 10, 'z' => -5.5, 'ry' => 1.2]);
+    $okParse = $a === [10.0, -5.5, 1.2] && wf_sync_parse_pos(['x' => 'a', 'z' => 1]) === null && wf_sync_parse_pos(['x' => 1e9, 'z' => 0]) === null && wf_sync_parse_pos(null) === null;
+    $okNext = wf_sync_next_ms(0) === 8000 && wf_sync_next_ms(31) === 15000 && wf_sync_next_ms(0, true) === 60000;
+    return ['да', ($okParse && $okNext) ? 'да' : 'нет'];
+});
+wf_st_test($results, 'Игрок: join создаёт поляну, пруд, плотину; повтор безопасен (тестовый id, потом уборка)', function () use ($conn) {
+    $id = 2147000001;
+    $clean = function () use ($conn, $id) {
+        foreach (['forest_players' => 'player_id', 'forest_dams' => 'player_id', 'forest_inventory' => 'player_id', 'forest_log' => 'player_id', 'forest_chunk_changes' => 'by_player'] as $table => $col) {
+            $conn->query('DELETE FROM `' . $table . '` WHERE `' . $col . '` = ' . $id);
+        }
+    };
+    $clean();
+    try {
+        [$row, $created] = wf_player_join($conn, $id);
+        [$row2, $created2] = wf_player_join($conn, $id);
+        $full = wf_player_full_state($conn, $row2);
+        $dam = $conn->query('SELECT COUNT(*) FROM `forest_dams` WHERE `player_id` = ' . $id)->fetch_row()[0];
+        $notes = [];
+        if (!$created || $created2) { $notes[] = 'created=' . var_export($created, true) . '/' . var_export($created2, true); }
+        if (count($full['clearings']) !== 2) { $notes[] = 'поляны: ' . count($full['clearings']); }
+        if (!$full['pond'] || !isset($full['pond']['dam'])) { $notes[] = 'нет пруда'; }
+        if ((int) $dam !== 1) { $notes[] = 'плотин: ' . $dam; }
+        if ($full['state']['coins'] !== (int) forest_config('hero.start_coins') || (float) $full['state']['energy'] !== 100.0) { $notes[] = 'стартовое состояние'; }
+        $r = hypot($full['pos']['x'], $full['pos']['z']);
+        if ($r < 600 || $r > 6000) { $notes[] = 'дальность ' . round($r); }
+        if ($full['pos']['x'] !== $full['village']['x']) { $notes[] = 'позиция не на поляне'; }
+        return ['ok', $notes ? implode('; ', $notes) : 'ok'];
+    } finally {
+        $clean();
+    }
+});
+
 wf_st_test($results, 'Мир: время сверки векторов, секунд' . ($wfQuick ? ' (режим quick)' : ' (полный прогон)'), function () use ($wfStarted) {
     $sec = round(microtime(true) - $wfStarted, 1);
     return [(string) $sec, (string) $sec]; // информационная строка: всегда зелёная

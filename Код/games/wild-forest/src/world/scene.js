@@ -5,6 +5,7 @@ import { heroSpeed } from '../shared/formulas.js';
 import { createModels } from './models.js';
 import { createChunkManager } from './chunks.js';
 import { findDemoSpawn } from './spawn.js';
+import { createPondAndDam } from './village-props.js';
 import { createWalkGrid } from './terrain-nav.js';
 import { createNav } from './nav.js';
 import { pickObject } from './picking.js';
@@ -22,7 +23,8 @@ const MARK_GROUND = 0xffffff;
 const MARK_PARTIAL = 0xffb36b; // дойдём только до ближайшей достижимой точки
 const MARK_OBJECT = 0xf2b441;
 
-export function createWorldScene({ wg, onEvent = () => {} }) {
+/** start (необязательно): { x, z, clearings: [{x,z,r}], pond } с сервера; без него временная точка (оффлайн-режим). */
+export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(SKY);
     scene.fog = new THREE.Fog(SKY, 20, 160);
@@ -41,8 +43,12 @@ export function createWorldScene({ wg, onEvent = () => {} }) {
 
     const models = createModels();
     const chunks = createChunkManager({ scene, wg, models });
-    const spawn = findDemoSpawn(wg);
-    chunks.addClearing(spawn.x, spawn.z, 12); // временная поляна: настоящая приходит с сервером (ДЛ-10)
+    const spawn = start ? { x: start.x, z: start.z } : findDemoSpawn(wg);
+    if (start && Array.isArray(start.clearings) && start.clearings.length) {
+        start.clearings.forEach((c) => chunks.addClearing(c.x, c.z, c.r)); // поляна и место пруда с сервера (ДЛ-10)
+    } else {
+        chunks.addClearing(spawn.x, spawn.z, 12); // без сервера: временная поляна
+    }
 
     // Вода: одна плоскость на уровне воды, едет за героем (озёра и реки уже «вырезаны» рельефом).
     const water = new THREE.Mesh(
@@ -66,6 +72,16 @@ export function createWorldScene({ wg, onEvent = () => {} }) {
     scene.add(hero);
 
     let preset = null;
+
+    // Пруд и плотина игрока (ДЛ-10). Высота земли зависит от качества рельефа, поэтому при смене качества строим заново.
+    let pondProps = null;
+    function buildPond() {
+        if (!start || !start.pond) return;
+        if (pondProps) pondProps.dispose();
+        pondProps = createPondAndDam({ pond: start.pond, groundY: (x, z) => groundY(x, z) });
+        scene.add(pondProps.group);
+    }
+    buildPond();
     const rig = createCameraRig();
     const track = createPositionTrack();
     const size = { w: 390, h: 800 };           // размер холста в CSS-пикселях (для выбора объекта)
@@ -261,6 +277,8 @@ export function createWorldScene({ wg, onEvent = () => {} }) {
         },
         groundY,
         isWater,
+        /** Пруд и плотина (для отладки и тестов): число объектов и позиция воды, null без сервера. */
+        pondInfo() { return pondProps ? { children: pondProps.group.children.length, x: pondProps.group.children[0].position.x, z: pondProps.group.children[0].position.z } : null; },
         teleport,
         handleTap,
         pickAt,
@@ -356,6 +374,7 @@ export function createWorldScene({ wg, onEvent = () => {} }) {
             water.scale.set(size, 1, size);
             chunks.applyPreset(next);
             chunks.setCenter(ctl.x, ctl.z);
+            buildPond();
             // материалы пересоберутся под новое состояние теней
             chunks.material.needsUpdate = true;
             beaver.group.traverse((o) => { if (o.material) o.material.needsUpdate = true; });

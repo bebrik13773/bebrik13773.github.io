@@ -42,3 +42,22 @@ export function checkTrack(points, vMaxOf) {
     }
     return { ok: bad.length === 0, bad };
 }
+
+// Уровень игрока (ДЛ-10). Чтобы перейти с уровня l на l+1, нужно round(100 × l^1.6) опыта. Максимум 50.
+export const LEVEL = Object.freeze({ xpBase: 100, xpExp: 1.6, max: 50 });
+
+/** Опыт, нужный для перехода с уровня l на следующий. */
+export function xpToNext(l) {
+    return Math.round(LEVEL.xpBase * Math.pow(l, LEVEL.xpExp));
+}
+
+/** Уровень и остаток опыта по общему опыту. */
+export function levelFromXp(xp) {
+    let level = 1;
+    let rest = Math.max(0, Math.floor(xp));
+    while (level < LEVEL.max && rest >= xpToNext(level)) {
+        rest -= xpToNext(level);
+        level += 1;
+    }
+    return { level, into: rest, need: level >= LEVEL.max ? 0 : xpToNext(level) };
+}

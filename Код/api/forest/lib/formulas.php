@@ -44,3 +44,23 @@ function wf_check_track(array $points, $vMax)
     }
     return $bad;
 }
+
+/** Уровень игрока (ДЛ-10): с уровня l на l+1 нужно round(base × l^exp) опыта. Зеркало shared/formulas.js (xpToNext, levelFromXp). */
+function wf_xp_to_next(int $level): int
+{
+    return (int) round((float) forest_config('hero.xp_base') * pow($level, (float) forest_config('hero.xp_exp')));
+}
+
+/** ['level' => , 'into' => , 'need' => ] по общему опыту. */
+function wf_level_from_xp(int $xp): array
+{
+    $max = (int) forest_config('hero.level_max');
+    $level = 1;
+    $rest = max(0, $xp);
+    while ($level < $max && $rest >= wf_xp_to_next($level)) {
+        $rest -= wf_xp_to_next($level);
+        $level++;
+    }
+
+    return ['level' => $level, 'into' => $rest, 'need' => $level >= $max ? 0 : wf_xp_to_next($level)];
+}

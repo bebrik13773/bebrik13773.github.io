@@ -8,7 +8,7 @@ import { createWorldScene } from './world/scene.js';
 import { loadWorldGen } from './world/gen.js';
 import { installInput } from './core/input.js';
 import { checkTrack } from './shared/formulas.js';
-import { checkServer } from './net/index.js';
+import { openSession, createActionQueue, createSync, apiCall, applyLightState, startFromState } from './net/index.js';
 import { createLoadingScreen } from './ui/loading.js';
 import { createNotice } from './ui/notice.js';
 import { createErrorUi } from './ui/errors.js';
@@ -77,6 +77,8 @@ async function boot() {
         },
     });
 
+    // Сессия с сервером идёт параллельно с загрузкой мира: health → state → join.
+    const sessionPromise = openSession();
     let wg = null;
     try {
         wg = await loadWorldGen();
@@ -91,10 +93,16 @@ async function boot() {
         return;
     }
 
+    let prevNetStatus = 'idle';
+    const session = await sessionPromise;
+    const online = session.mode === 'online';
+    const start = online ? startFromState(session.full) : null;
+
     try {
         host.apply(quality.preset);
         world = createWorldScene({
             wg,
+            start,
             onEvent(e) {
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
@@ -275,16 +283,40 @@ async function boot() {
             findPath: (x, z) => { const r = world.nav.findPath(world.ctl.x, world.ctl.z, x, z); return r && { complete: r.complete, points: r.points }; },
             viewSize: () => { const r = stage.getBoundingClientRect(); return { w: r.width, h: r.height }; },
             ui: { hud, inventory, dialog, notify, notifyCenter, settings },
+            pondInfo: () => world.pondInfo(),
+            net: { session, get sync() { return sync; }, get queue() { return queue; } },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };
     }
 
-    // Шаг «сервер»: недоступность не фатальна (каркас работает и без сервера).
-    const server = await checkServer();
-    if (server.ok) {
-        loading.step('server', server.schemaOk ? 'done' : 'warn', server.schemaOk ? '' : 'Схема сервера ещё обновляется');
+    // Шаг «сервер» (ДЛ-10): сессия уже открыта; недоступность не фатальна, играем без сохранения.
+    let sync = null;
+    let queue = null;
+    if (online) {
+        loading.step('server', 'done');
+        applyLightState(session.full.state, { hud, inventory });
+        queue = createActionQueue(session.full.last_a || 0);
+        sync = createSync({
+            call: apiCall,
+            queue,
+            getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
+            isHidden: () => document.hidden,
+            onState: (st) => applyLightState(st, { hud, inventory }),
+            onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
+            onStatus: (st) => {
+                if (st === 'offline') notify({ text: S.net.offline });
+                else if (st === 'online' && prevNetStatus === 'offline') notify({ text: S.net.online });
+                else if (st === 'outdated') notice.show({ text: S.net.outdated, ttlMs: 0 });
+                else if (st === 'unauthorized') notice.show({ text: S.net.unauthorized, ttlMs: 0 });
+                prevNetStatus = st;
+            },
+        });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && sync.running) sync.flush(); });
+        sync.start(3000);
+        if (session.full.created) setTimeout(() => notify({ text: S.net.welcome }), 1500);
     } else {
-        loading.step('server', 'warn', 'Сервер недоступен, играем без него');
+        loading.step('server', 'warn', S.net[session.reason] || S.net.error);
+        setTimeout(() => notify({ text: S.net[session.reason] || S.net.error }), 1500);
     }
 
     setState(STATES.PLAYING);
@@ -295,7 +327,7 @@ async function boot() {
         settings.show();
         hud.show();
         beta.showIfDue();
-    }, server.ok ? 150 : 600);
+    }, online ? 150 : 600);
 }
 
 boot().catch((error) => {

@@ -47,6 +47,18 @@ return [
         'clearing_radius_m' => 12,
     ],
 
+    // ── Появление игрока (ДЛ-10) ────────────────────────────────────────
+    'spawn' => [
+        'core_min_m' => 800, 'core_max_m' => 2500, 'core_share' => 70, // 70% попыток в «золотой» зоне
+        'wide_max_m' => 6000,                // расширенный диапазон после обычных попыток
+        'ring_m' => 24,                      // вокруг точки только лес
+        'flat_m' => 5, 'flat_relaxed_m' => 8, // допустимый перепад высот, м
+        'attempts_wide' => 30, 'attempts_fallback' => 200,
+        'pond_dist_m' => 20, 'pond_radius_m' => 5, 'pond_clear_m' => 8,
+        'salts' => ['angle' => 9101, 'pick' => 9102, 'radius' => 9103, 'pond' => 9104],
+        'start_hotbar' => ['axe'],
+    ],
+
     // ── Время, сезоны ───────────────────────────────────────────────────
     'time' => [
         'game_day_seconds'  => 2880,      // 48 минут реального времени
@@ -320,6 +332,7 @@ return [
         'max_body_bytes'        => 16384,
         'move_tolerance_k'      => 1.35,
         'move_tolerance_m'      => 3,
+        'move_dt_cap_s'         => 120,   // дольше этого между sync позицию не «догоняем»
         'chop_reach_m'          => 3.5,
         'pickup_reach_m'        => 3.0,
         'strikes_window_s'      => 600,

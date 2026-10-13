@@ -102,6 +102,7 @@ export const ERRORS = Object.freeze({
 });
 
 export const OLD_GAME_URL = '../../pages/clicker/index.html';
+export const API_BASE = '../../api/forest/';
 export const HEALTH_URL = '../../api/forest/health.php';
 export const HEALTH_TIMEOUT_MS = 4000;
 
