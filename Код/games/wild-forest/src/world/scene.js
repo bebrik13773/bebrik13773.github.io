@@ -10,6 +10,7 @@ import { createWalkGrid } from './terrain-nav.js';
 import { createNav } from './nav.js';
 import { pickObject } from './picking.js';
 import { createBeaver } from '../entities/beaver.js';
+import { createDrops } from './drops.js';
 import { createHero } from '../entities/hero.js';
 import { createCameraRig, resolveCameraDistance } from '../core/camera-rig.js';
 import { createPositionTrack } from '../core/track.js';
@@ -50,6 +51,8 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         chunks.addClearing(spawn.x, spawn.z, 12); // без сервера: временная поляна
     }
 
+    if (start && Array.isArray(start.felled)) start.felled.forEach((id) => chunks.fell(id)); // уже срубленное (пока без потока изменений ДЛ-21)
+
     // Вода: одна плоскость на уровне воды, едет за героем (озёра и реки уже «вырезаны» рельефом).
     const water = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
@@ -82,6 +85,8 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         scene.add(pondProps.group);
     }
     buildPond();
+    const drops = createDrops({ scene, groundY: (x, z) => groundY(x, z) });
+    if (start && Array.isArray(start.drops)) drops.add(start.drops);
     const rig = createCameraRig();
     const track = createPositionTrack();
     const size = { w: 390, h: 800 };           // размер холста в CSS-пикселях (для выбора объекта)
@@ -276,6 +281,14 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             if (name) beaver.setState(name, opts);
         },
         groundY,
+        drops,
+        /** Верхушка дерева по id (для шкалы прочности): { x, y, z } или null, если чанк не загружен. */
+        treeTop(id) {
+            const parsed = id.split(':').map(Number);
+            const c = chunks.chunk(parsed[0], parsed[1]);
+            const rec = c && c.data.obs[parsed[2]];
+            return rec ? { x: rec.x, y: rec.y + rec.h, z: rec.z } : null;
+        },
         isWater,
         /** Пруд и плотина (для отладки и тестов): число объектов и позиция воды, null без сервера. */
         pondInfo() { return pondProps ? { children: pondProps.group.children.length, x: pondProps.group.children[0].position.x, z: pondProps.group.children[0].position.z } : null; },
@@ -380,6 +393,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             beaver.group.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
         },
         dispose() {
+            drops.dispose();
             beaver.dispose();
             chunks.dispose();
             scene.traverse((obj) => {

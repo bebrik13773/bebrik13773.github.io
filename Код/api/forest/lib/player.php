@@ -242,6 +242,43 @@ function wf_player_world_records($conn, int $playerId): array
     return $out;
 }
 
+/** Срубленные деревья и выпавшие предметы рядом с игроком (до потока изменений ДЛ-21: только при входе). */
+function wf_player_world_near($conn, array $row): array
+{
+    $cfg = forest_config('trees.chop');
+    $rad = (int) $cfg['state_radius_chunks'];
+    $cx = wf_wg_fdiv((int) floor((float) $row['pos_x']), 32);
+    $cz = wf_wg_fdiv((int) floor((float) $row['pos_z']), 32);
+    $x0 = $cx - $rad;
+    $x1 = $cx + $rad;
+    $z0 = $cz - $rad;
+    $z1 = $cz + $rad;
+    $limit = (int) $cfg['state_max'];
+    $felled = [];
+    $stmt = $conn->prepare('SELECT `ckey` FROM `forest_chunk_changes` WHERE `kind` = \'tree_felled\' AND `cx` BETWEEN ? AND ? AND `cz` BETWEEN ? AND ? ORDER BY `id` DESC LIMIT ?');
+    $stmt->bind_param('iiiii', $x0, $x1, $z0, $z1, $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($r = $res->fetch_assoc())) {
+        $felled[] = (string) $r['ckey'];
+    }
+    $stmt->close();
+
+    $drops = [];
+    $now = time();
+    $me = (int) $row['player_id'];
+    $stmt = $conn->prepare('SELECT `id`, `x`, `z`, `item_key`, `qty` FROM `forest_drops` WHERE `cx` BETWEEN ? AND ? AND `cz` BETWEEN ? AND ? AND `expires_at` > ? AND (`owner_id` = ? OR `owner_until` <= ?) ORDER BY `id` DESC LIMIT 200');
+    $stmt->bind_param('iiiiiii', $x0, $x1, $z0, $z1, $now, $me, $now);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($r = $res->fetch_assoc())) {
+        $drops[] = ['id' => (int) $r['id'], 'x' => round((float) $r['x'], 2), 'z' => round((float) $r['z'], 2), 'item' => (string) $r['item_key'], 'qty' => (int) $r['qty']];
+    }
+    $stmt->close();
+
+    return ['felled' => $felled, 'drops' => $drops];
+}
+
 /** Полное состояние для входа (forest/state). */
 function wf_player_full_state($conn, array $row): array
 {
@@ -249,6 +286,7 @@ function wf_player_full_state($conn, array $row): array
     $pack = wf_player_pack($conn, $id);
     $hotbar = json_decode((string) ($row['hotbar_json'] ?? ''), true);
     $records = wf_player_world_records($conn, $id);
+    $near = wf_player_world_near($conn, $row);
 
     return [
         'player_id' => $id,
@@ -261,6 +299,8 @@ function wf_player_full_state($conn, array $row): array
         'last_a' => (int) (wf_player_stats($row)['last_a'] ?? 0),
         'clearings' => $records['clearings'],
         'pond' => $records['pond'],
+        'felled' => $near['felled'],
+        'drops' => $near['drops'],
         'server_ts' => time(),
         'server_ms' => forest_now_ms(),
     ];

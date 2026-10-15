@@ -31,5 +31,7 @@ export function startFromState(full) {
         x: Number(full.pos.x), z: Number(full.pos.z),
         clearings: Array.isArray(full.clearings) ? full.clearings.map((c) => ({ x: Number(c.x), z: Number(c.z), r: Number(c.r) })) : [],
         pond: full.pond || null,
+        felled: Array.isArray(full.felled) ? full.felled.map(String) : [],
+        drops: Array.isArray(full.drops) ? full.drops : [],
     };
 }

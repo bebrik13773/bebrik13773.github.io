@@ -61,3 +61,69 @@ export function levelFromXp(xp) {
     }
     return { level, into: rest, need: level >= LEVEL.max ? 0 : xpToNext(level) };
 }
+
+// ── Рубка (ДЛ-11) ───────────────────────────────────────────────────────
+// Баланс совпадает с api/forest/config.php (trees.*, hero.cost_chop, limits.*); зеркало PHP: api/forest/lib/chop.php.
+// Порядок пород равен порядку в species.json (индекс породы в клетке мира).
+export const SPECIES_ORDER = Object.freeze(['spruce', 'pine', 'birch', 'aspen', 'maple', 'oak', 'black_alder', 'gold_birch', 'ancient_cedar', 'iron_oak']);
+export const TREES = Object.freeze({
+    hpBase: 8,
+    hpTierK: 0.30,
+    sizeK: Object.freeze([0.8, 1.0, 1.5]),               // малое, среднее, большое
+    costChop: 0.5,                                        // энергия за удар
+    maxTapsPerS: 6,
+    tapBucket: 40,
+    axePower: Object.freeze([0, 1.0, 1.4, 2.0, 2.8, 4.0, 5.6]), // по уровню топора, 0 не используется
+    // порода: [H, брёвна мал/ср/бол]
+    species: Object.freeze({
+        spruce: Object.freeze({ h: 1.0, logs: Object.freeze([2, 3, 5]) }),
+        pine: Object.freeze({ h: 0.9, logs: Object.freeze([2, 3, 4]) }),
+        birch: Object.freeze({ h: 0.7, logs: Object.freeze([1, 2, 3]) }),
+        aspen: Object.freeze({ h: 0.8, logs: Object.freeze([2, 3, 4]) }),
+        maple: Object.freeze({ h: 1.3, logs: Object.freeze([2, 3, 4]) }),
+        oak: Object.freeze({ h: 1.8, logs: Object.freeze([3, 4, 6]) }),
+        black_alder: Object.freeze({ h: 1.2, logs: Object.freeze([2, 3, 3]) }),
+        gold_birch: Object.freeze({ h: 2.5, logs: Object.freeze([2, 3, 4]) }),
+        ancient_cedar: Object.freeze({ h: 3.2, logs: Object.freeze([4, 6, 8]) }),
+        iron_oak: Object.freeze({ h: 4.5, logs: Object.freeze([5, 7, 10]) }),
+    }),
+});
+
+/** Сила топора по уровню (1..6). */
+export function axePower(level) {
+    const l = Math.max(1, Math.min(TREES.axePower.length - 1, level | 0));
+    return TREES.axePower[l];
+}
+
+/** Прочность дерева: 8 × H × k_размер × (1 + 0.30 × tier). speciesId строкой, size 0..2. */
+export function treeHp(speciesId, size, tier) {
+    const sp = TREES.species[speciesId];
+    if (!sp) return 0;
+    return TREES.hpBase * sp.h * TREES.sizeK[Math.max(0, Math.min(2, size | 0))] * (1 + TREES.hpTierK * Math.max(0, tier | 0));
+}
+
+/** Сколько ударов нужно топором данной силы (урон тапа = сила). Допуск 1e-9 против погрешностей плавающей точки. */
+export function chopNeed(hp, power) {
+    return Math.max(1, Math.ceil(hp / power - 1e-9));
+}
+
+/** Энергия за рубку дерева с need ударами. */
+export function chopCost(need) {
+    return need * TREES.costChop;
+}
+
+/** Число брёвен по породе и размеру. */
+export function treeLogs(speciesId, size) {
+    const sp = TREES.species[speciesId];
+    return sp ? sp.logs[Math.max(0, Math.min(2, size | 0))] : 0;
+}
+
+/**
+ * Бюджет тапов («ведро токенов»): вместимость 40, пополнение 6 в секунду. tokens и tsMs из прошлого состояния.
+ * Возвращает { ok, tokens } (tokens уже с пополнением; при ok списано want, иначе не списано).
+ */
+export function tapTake(tokens, tsMs, nowMs, want) {
+    const refill = Math.min(TREES.tapBucket, tokens + (Math.max(0, nowMs - tsMs) / 1000) * TREES.maxTapsPerS);
+    if (want <= refill + 1e-9) return { ok: true, tokens: refill - want };
+    return { ok: false, tokens: refill };
+}

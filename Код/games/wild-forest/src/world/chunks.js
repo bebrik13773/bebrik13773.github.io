@@ -228,6 +228,14 @@ export function createChunkManager({ scene, wg, models }) {
             if (stumps.add(id, rec.wx, rec.y, rec.wz, SIZE_SCALE[rec.size])) chunk.stumpIds.push(id);
             return true;
         },
+        /** Откат рубки, которую сервер не принял: дерево возвращается (чанк перестраивается). */
+        unfell(id) {
+            if (!felled.delete(id)) return false;
+            stumps.remove(id);
+            const parsed = parseTreeId(id);
+            if (parsed) enqueue(parsed.cx, parsed.cz, 'rebuild');
+            return true;
+        },
         /** Расчищенный круг (поляна, просека): деревья и камни внутри пропадают. */
         addClearing(x, z, r) {
             clearings.push({ x, z, r });

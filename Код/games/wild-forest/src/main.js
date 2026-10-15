@@ -19,6 +19,8 @@ import { createHud } from './ui/hud.js';
 import { createNotifyCenter } from './ui/notify-center.js';
 import { createInventory } from './ui/inventory.js';
 import { createDialog } from './ui/dialog.js';
+import { createChopBar } from './ui/chop-bar.js';
+import { createChopFlow } from './world/chop-flow.js';
 import { S } from './ui/strings.ru.js';
 
 window.__wfBooted = true;
@@ -98,12 +100,14 @@ async function boot() {
     const online = session.mode === 'online';
     const start = online ? startFromState(session.full) : null;
 
+    let chopFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
             wg,
             start,
             onEvent(e) {
+                if (chopFlow) chopFlow.onWorldEvent(e);
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
             },
@@ -170,6 +174,16 @@ async function boot() {
     $('wfGear').addEventListener('click', () => notifyCenter.close());
     $('wfBell').addEventListener('click', () => settings.close());
 
+    // Рубка (ДЛ-11): шкала над деревом, действие chop_done, разбор ответа сервера.
+    let lastEnergy = session.full && session.full.state ? Number(session.full.state.energy) : null;
+    let axeLevel = session.full && session.full.upgrades ? Number(session.full.upgrades.axe) || 1 : 1;
+    chopFlow = createChopFlow({
+        world, wg, bar: createChopBar(), notify, text: S.chop,
+        getQueue: () => queue, getSync: () => sync,
+        getAxeLevel: () => axeLevel,
+        getEnergy: () => (online ? lastEnergy : null),
+    });
+
     // Смена качества: пересоздание рендерера при смене сглаживания, остальное на лету.
     quality.subscribe((next) => {
         const preset = getPreset(next);
@@ -203,7 +217,7 @@ async function boot() {
     const debug = isDebugMode() ? createDebugPanel() : null;
 
     loop = createLoop({
-        update: (dt) => world.update(dt),
+        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); },
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
@@ -284,6 +298,8 @@ async function boot() {
             viewSize: () => { const r = stage.getBoundingClientRect(); return { w: r.width, h: r.height }; },
             ui: { hud, inventory, dialog, notify, notifyCenter, settings },
             pondInfo: () => world.pondInfo(),
+            chop: () => ({ active: chopFlow.chop.active, hits: chopFlow.chop.hits, frac: chopFlow.chop.frac, need: chopFlow.chop.info && chopFlow.chop.info.need, pending: [...chopFlow.pending.keys()] }),
+            drops: () => world.drops.list(),
             net: { session, get sync() { return sync; }, get queue() { return queue; } },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
         };
@@ -301,7 +317,8 @@ async function boot() {
             queue,
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
-            onState: (st) => applyLightState(st, { hud, inventory }),
+            onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory }); },
+            onResults: (results) => chopFlow.onResults(results),
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });

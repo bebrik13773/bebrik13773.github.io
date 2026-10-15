@@ -1,11 +1,12 @@
 <?php
 /**
  * POST /api/forest/sync: объединённый пакет клиента (ДЛ-10, версия 1): позиция, номера действий, ответ с состоянием.
- * Действия-заглушки: настоящие появятся с рубкой (ДЛ-11), подбором (ДЛ-13) и т.д. Повтор действия с тем же номером безопасен.
+ * Действия: chop_done (ДЛ-11); подбор (ДЛ-13), стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
  */
 
 require_once __DIR__ . '/lib/player.php';
 require_once __DIR__ . '/lib/sync.php';
+require_once __DIR__ . '/lib/actions.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -35,67 +36,99 @@ try {
 
     $seq = isset($in['seq']) && is_numeric($in['seq']) ? (int) $in['seq'] : 0;
     $background = !empty($in['background']);
-    $stats = wf_player_stats($row);
-    $lastA = (int) ($stats['last_a'] ?? 0);
-
-    // Действия: номера a растут, обработанные пропускаем (идемпотентность).
-    $results = [];
     $actions = isset($in['actions']) && is_array($in['actions']) ? $in['actions'] : [];
     if (count($actions) > (int) forest_config('limits.max_actions_per_sync')) {
         forest_error('bad_request', 'Слишком много действий в пакете.');
     }
-    $processed = 0;
-    foreach ($actions as $action) {
-        if (!is_array($action) || !isset($action['a']) || !is_numeric($action['a'])) {
-            continue;
-        }
-        $a = (int) $action['a'];
-        if ($a <= $lastA) {
-            $results[] = ['a' => $a, 'ok' => true, 'dup' => true];
-            continue;
-        }
-        $lastA = $a;
-        $processed++;
-        // Типы действий подключаются в своих пунктах плана; пока любой тип отклоняется понятным кодом.
-        $results[] = ['a' => $a, 'ok' => false, 'error' => 'bad_state'];
-    }
 
-    // Позиция: проверяем скорость, при нарушении возвращаем correct_pos.
-    $correct = null;
-    $moved = false;
-    $newX = (float) $row['pos_x'];
-    $newZ = (float) $row['pos_z'];
-    $newRy = (float) $row['pos_ry'];
-    $parsed = wf_sync_parse_pos($in['pos'] ?? null);
-    if ($parsed !== null) {
+    // Всё изменение игрока в одной транзакции с блокировкой строки: позиция, действия, энергия, награды.
+    $out = forest_tx($conn, function ($conn) use ($playerId, $in, $actions, $now, $background) {
+        $row = wf_player_row($conn, $playerId, true);
+        $stats = wf_player_stats($row);
+        $lastA = (int) ($stats['last_a'] ?? 0);
+        $prevX = (float) $row['pos_x'];
+        $prevZ = (float) $row['pos_z'];
+
+        // Позиция: проверяем скорость, при нарушении возвращаем correct_pos.
+        $correct = null;
+        $moved = false;
+        $newX = $prevX;
+        $newZ = $prevZ;
+        $newRy = (float) $row['pos_ry'];
         $dt = max(0, $now - (int) $row['last_seen']);
-        $check = wf_sync_check_move((float) $row['pos_x'], (float) $row['pos_z'], $parsed[0], $parsed[1], (float) $dt, wf_player_pack_capacity((int) $row['pack_lvl']));
-        if ($check['ok']) {
-            $moved = $check['dist'] > 0.5;
-            $newX = $parsed[0];
-            $newZ = $parsed[1];
-            $newRy = $parsed[2];
-        } else {
-            $correct = ['x' => (float) $row['pos_x'], 'z' => (float) $row['pos_z']];
-            forest_log($conn, $playerId, 'move_far', ['dist' => round($check['dist'], 1), 'allowed' => round($check['allowed'], 1), 'dt' => $dt]);
+        $capacity = wf_player_pack_capacity((int) $row['pack_lvl']);
+        $parsed = wf_sync_parse_pos($in['pos'] ?? null);
+        if ($parsed !== null) {
+            $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity);
+            if ($check['ok']) {
+                $moved = $check['dist'] > 0.5;
+                $newX = $parsed[0];
+                $newZ = $parsed[1];
+                $newRy = $parsed[2];
+            } else {
+                $correct = ['x' => $prevX, 'z' => $prevZ];
+                forest_log($conn, $playerId, 'move_far', ['dist' => round($check['dist'], 1), 'allowed' => round($check['allowed'], 1), 'dt' => $dt]);
+            }
         }
-    }
+        // Допуск перемещения за время между sync нужен действиям, привязанным к месту (рубка).
+        $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity)['allowed'];
+        $ctx = ['now' => $now, 'now_ms' => forest_now_ms(), 'prev' => ['x' => $prevX, 'z' => $prevZ], 'new' => ['x' => $newX, 'z' => $newZ], 'dt' => $dt, 'allow' => $allow];
 
-    $active = $moved || $processed > 0;
-    $idle = $now - ($active ? $now : (int) $row['last_action']);
-    $stats['last_a'] = $lastA;
-    $statsJson = json_encode($stats, JSON_UNESCAPED_UNICODE);
-    $lastAction = $active ? $now : (int) $row['last_action'];
-    // «Запас офлайна» плотины продлевают только настоящие действия, а не пассивные пинги открытой вкладки.
-    $grace = $active ? $now + (int) forest_config('dam.offline_grace_h') * 3600 : (int) $row['grace_until'];
+        // Действия: номера a растут, обработанные пропускаем (идемпотентность).
+        $results = [];
+        $processed = 0;
+        foreach ($actions as $action) {
+            if (!is_array($action) || !isset($action['a']) || !is_numeric($action['a'])) {
+                continue;
+            }
+            $a = (int) $action['a'];
+            if ($a <= $lastA) {
+                $results[] = ['a' => $a, 'ok' => true, 'dup' => true];
+                continue;
+            }
+            $lastA = $a;
+            $processed++;
+            $type = isset($action['type']) ? (string) $action['type'] : '';
+            if ((int) $row['blocked_until'] > $now) {
+                $results[] = ['a' => $a, 'ok' => false, 'error' => 'forbidden'];
+            } elseif ($type === 'chop_done') {
+                $results[] = wf_action_chop($conn, $row, $stats, $action, $ctx);
+            } else {
+                // Остальные типы подключаются в своих пунктах плана (подбор ДЛ-13, стройка ДЛ-16 и т.д.).
+                $results[] = ['a' => $a, 'ok' => false, 'error' => 'bad_state'];
+            }
+        }
 
-    $upd = $conn->prepare('UPDATE `forest_players` SET `pos_x` = ?, `pos_z` = ?, `pos_ry` = ?, `last_seen` = ?, `last_action` = ?, `grace_until` = ?, `stats_json` = ? WHERE `player_id` = ?');
-    $upd->bind_param('dddiiisi', $newX, $newZ, $newRy, $now, $lastAction, $grace, $statsJson, $playerId);
-    $upd->execute();
-    $upd->close();
+        $active = $moved || $processed > 0;
+        $idle = $now - ($active ? $now : (int) $row['last_action']);
+        $stats['last_a'] = $lastA;
+        $statsJson = json_encode($stats, JSON_UNESCAPED_UNICODE);
+        $lastAction = $active ? $now : (int) $row['last_action'];
+        // «Запас офлайна» плотины продлевают только настоящие действия, а не пассивные пинги открытой вкладки.
+        $grace = $active ? $now + (int) forest_config('dam.offline_grace_h') * 3600 : (int) $row['grace_until'];
+        // Энергия: пока без ДЛ-12 только восстановление «стоя в лесу» (wf_energy_now), чтобы игра не замирала.
+        $energy = wf_energy_now((float) $row['energy'], (int) $row['energy_ts'], $now, wf_player_energy_max((int) $row['stamina_lvl']));
+        $row['energy'] = $energy;
+        $xp = (int) $row['xp'];
+        $level = (int) $row['level'];
+        $coins = (int) $row['coins'];
+        $blocked = (int) $row['blocked_until'];
 
-    $row['pos_x'] = $newX;
-    $row['pos_z'] = $newZ;
+        $upd = $conn->prepare('UPDATE `forest_players` SET `pos_x` = ?, `pos_z` = ?, `pos_ry` = ?, `last_seen` = ?, `last_action` = ?, `grace_until` = ?, `stats_json` = ?, `energy` = ?, `energy_ts` = ?, `xp` = ?, `level` = ?, `coins` = ?, `blocked_until` = ? WHERE `player_id` = ?');
+        $upd->bind_param('dddiiisdiiiiii', $newX, $newZ, $newRy, $now, $lastAction, $grace, $statsJson, $energy, $now, $xp, $level, $coins, $blocked, $playerId);
+        $upd->execute();
+        $upd->close();
+
+        $row['pos_x'] = $newX;
+        $row['pos_z'] = $newZ;
+
+        return ['row' => $row, 'results' => $results, 'correct' => $correct, 'idle' => $idle];
+    });
+    $row = $out['row'];
+    $results = $out['results'];
+    $correct = $out['correct'];
+    $idle = $out['idle'];
+
     $pack = wf_player_pack($conn, $playerId);
     $payload = [
         'ack' => $seq,

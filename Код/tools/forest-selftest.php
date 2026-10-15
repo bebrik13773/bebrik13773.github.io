@@ -253,6 +253,114 @@ wf_st_test($results, 'Журнал позиций: честный проходи
     return ['0 1', count(wf_check_track($honest, 3.2)) . ' ' . count(wf_check_track($cheat, 3.2))];
 });
 
+// 4б. Рубка (ДЛ-11): формулы по тем же векторам, что и в JS (tests/chop.test.mjs), таблица кейсов проверки действия, страйки, находки
+require_once dirname(__DIR__) . '/api/forest/lib/chop.php';
+function wf_st_chop_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $raw = @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/chop.json');
+        $v = json_decode((string) $raw, true);
+        if (!is_array($v) || empty($v['trees'])) {
+            throw new RuntimeException('нет файла векторов рубки: games/wild-forest/tests/vectors/chop.json');
+        }
+    }
+    return $v;
+}
+wf_st_test($results, 'Рубка: прочность, число ударов, энергия и брёвна совпадают с JS на всех векторах', function () {
+    $bad = [];
+    $rows = wf_st_chop_vectors()['trees'];
+    foreach ($rows as $r) {
+        [$sp, $size, $tier, $axe, $hp, $need, $cost, $logs] = $r;
+        $power = wf_chop_power($axe);
+        $gotHp = wf_chop_hp($sp, $size, $tier);
+        $gotNeed = wf_chop_need($gotHp, $power);
+        if (abs($gotHp - $hp) > 1e-5 || $gotNeed !== (int) $need || abs(wf_chop_cost($gotNeed) - $cost) > 1e-5 || wf_chop_logs($sp, $size) !== (int) $logs) {
+            $bad[] = implode(',', $r);
+        }
+    }
+    return ['0 расхождений из ' . count($rows), count($bad) . ' расхождений из ' . count($rows) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Рубка: бюджет тапов (ведро 40, +6 в секунду) совпадает с JS', function () {
+    $bad = 0;
+    $rows = wf_st_chop_vectors()['taps'];
+    foreach ($rows as $r) {
+        $t = wf_tap_take((float) $r[0], (int) $r[1], (int) $r[2], (float) $r[3]);
+        if ((int) $t['ok'] !== (int) $r[4] || abs($t['tokens'] - $r[5]) > 1e-5) {
+            $bad++;
+        }
+    }
+    return ['0 расхождений', $bad . ' расхождений'];
+});
+$wfChopOk = ['kind' => 1, 'cleared' => false, 'felled' => false, 'dist_tree' => 2.0, 'dist_prev' => 2.5, 'dist_new' => 2.5, 'allow' => 20.0, 'hits' => 10, 'need' => 8, 'energy' => 50.0, 'cost' => 4.0, 'tokens' => 40.0, 'window_ms' => 2000.0];
+$wfChopCases = [
+    ['честная рубка принимается', [], null],
+    ['не дерево: no_tree', ['kind' => 0], 'no_tree'],
+    ['дерево в расчищенном круге: no_tree', ['cleared' => true], 'no_tree'],
+    ['дальше 3.5 м от дерева: too_far', ['dist_tree' => 4.0], 'too_far'],
+    ['заявленная позиция далеко от прошлой позиции сервера: too_far', ['dist_prev' => 99.0], 'too_far'],
+    ['заявленная позиция далеко от новой позиции: too_far', ['dist_new' => 99.0], 'too_far'],
+    ['дерево уже срублено: tree_gone', ['felled' => true], 'tree_gone'],
+    ['ударов меньше прочности: too_fast', ['hits' => 7], 'too_fast'],
+    ['слишком много ударов: bad_request', ['hits' => 200], 'bad_request'],
+    ['окно ударов короче возможного (8 ударов за 0.5 с): too_fast', ['window_ms' => 500.0], 'too_fast'],
+    ['не хватает энергии: no_energy', ['energy' => 3.0], 'no_energy'],
+    ['пустое ведро тапов: too_fast', ['tokens' => 5.0], 'too_fast'],
+];
+foreach ($wfChopCases as $case) {
+    wf_st_test($results, 'Рубка: ' . $case[0], function () use ($wfChopOk, $case) {
+        $v = wf_chop_validate(array_merge($wfChopOk, $case[1]));
+        return [(string) ($case[2] ?? 'ok'), (string) ($v['error'] ?? 'ok')];
+    });
+}
+wf_st_test($results, 'Рубка: tree_gone не страйк, too_far и too_fast страйк', function () use ($wfChopOk) {
+    $a = wf_chop_validate(array_merge($wfChopOk, ['felled' => true]))['cheat'];
+    $b = wf_chop_validate(array_merge($wfChopOk, ['dist_tree' => 9.0]))['cheat'];
+    $c = wf_chop_validate(array_merge($wfChopOk, ['hits' => 1]))['cheat'];
+    return ['0 1 1', (int) $a . ' ' . (int) $b . ' ' . (int) $c];
+});
+wf_st_test($results, 'Страйки: 1–3 мягко, 4–7 урезание награды, 8 блок, старые выходят из окна', function () {
+    $list = [];
+    $levels = [];
+    for ($i = 1; $i <= 8; $i++) {
+        $s = wf_strikes_add($list, 1000 + $i);
+        $list = $s['list'];
+        $levels[] = $s['level'];
+    }
+    $old = wf_strikes_add([1], 1000 + (int) forest_config('limits.strikes_window_s') + 5);
+    return ['soft soft soft cut cut cut cut block 1', implode(' ', $levels) . ' ' . $old['count']];
+});
+wf_st_test($results, 'Страйки: награда урезается вдвое только после 3 активных', function () {
+    return ['1 1 0.5', wf_strikes_reward_k(0) . ' ' . wf_strikes_reward_k(3) . ' ' . wf_strikes_reward_k(4)];
+});
+wf_st_test($results, 'Находка в сокровище и места выпадения детерминированы по дереву', function () {
+    $w = wf_wg_world();
+    $a = wf_chop_treasure($w, 3, -2, 17);
+    $b = wf_chop_treasure($w, 3, -2, 17);
+    $p1 = wf_chop_drop_points($w, 3, -2, 17, 100.0, -60.0, 4);
+    $p2 = wf_chop_drop_points($w, 3, -2, 17, 100.0, -60.0, 4);
+    $rMax = (float) forest_config('trees.chop.drop_r_max_m');
+    $inRing = true;
+    foreach ($p1 as $p) {
+        $d = hypot($p['x'] - 100.0, $p['z'] + 60.0);
+        $inRing = $inRing && $d >= (float) forest_config('trees.chop.drop_r_min_m') - 0.02 && $d <= $rMax + 0.02;
+    }
+    return ['1 1', (int) ($a === $b && $p1 === $p2) . ' ' . (int) $inRing];
+});
+wf_st_test($results, 'Находка в сокровище: монеты 50–300 либо предмет с количеством', function () {
+    $w = wf_wg_world();
+    $ok = true;
+    for ($ci = 0; $ci < 64; $ci++) {
+        $t = wf_chop_treasure($w, 5, 7, $ci);
+        if (isset($t['coins'])) {
+            $ok = $ok && $t['coins'] >= 50 && $t['coins'] <= 300;
+        } else {
+            $ok = $ok && !empty($t['item']) && $t['qty'] >= 1;
+        }
+    }
+    return ['1', (string) (int) $ok];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

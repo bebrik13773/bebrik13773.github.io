@@ -229,3 +229,12 @@
 @media (prefers-reduced-motion: reduce) {
     .wf-energy[data-level="critical"], .wf-toast { animation: none; }
 }
+
+/* Шкала прочности дерева (ДЛ-11) */
+.wf-chopbar {
+    position: fixed; left: 0; top: 0; z-index: 12; width: 64px; height: 8px;
+    border-radius: 5px; background: rgba(20, 24, 20, 0.7); border: 1px solid rgba(255, 255, 255, 0.55);
+    overflow: hidden; pointer-events: none; will-change: transform;
+}
+.wf-chopbar[hidden] { display: none; }
+.wf-chopbar-fill { height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, #8bd35a, #f2c14e); }
