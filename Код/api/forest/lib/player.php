@@ -204,9 +204,12 @@ function wf_player_pack($conn, int $playerId): array
 function wf_player_light_state(array $row, array $pack): array
 {
     $lv = wf_level_from_xp((int) $row['xp']);
+    $stats = wf_player_stats($row);
 
     return [
         'energy' => round((float) $row['energy'], 2),
+        'sleeping' => !empty($stats['sleep']),
+        'wake_energy' => (float) forest_config('hero.wake_energy'),
         'energy_max' => wf_player_energy_max((int) $row['stamina_lvl']),
         'coins' => (int) $row['coins'],
         'weight' => $pack['kg'],

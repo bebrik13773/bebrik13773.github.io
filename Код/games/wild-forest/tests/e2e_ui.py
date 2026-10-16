@@ -70,7 +70,7 @@ with sync_playwright() as p:
     # 3. Энергия: предупреждения и значок меняются
     page.evaluate("window.__wf.ui.hud.set({ energy: 18 })")
     check('энергия 18%: уровень low и значок 🪫', page.get_attribute('#wfEnergy', 'data-level') == 'low' and '🪫' in page.inner_text('#wfEnergyIcon'))
-    check('предупреждение об энергии в центре уведомлений', page.evaluate("window.__wf.ui.notifyCenter.count") == 1 and page.locator('.wf-toast').count() == 1)
+    check('предупреждение об энергии в центре уведомлений', page.locator('.wf-toast', has_text='Энергия на исходе').count() == 1)
     page.evaluate("window.__wf.ui.hud.set({ energy: 8 })")
     check('энергия 8%: critical и значок 💤', page.get_attribute('#wfEnergy', 'data-level') == 'critical' and '💤' in page.inner_text('#wfEnergyIcon'))
     page.evaluate("window.__wf.ui.hud.set({ energy: 100 })")

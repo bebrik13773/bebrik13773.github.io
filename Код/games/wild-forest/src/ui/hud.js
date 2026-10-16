@@ -32,7 +32,7 @@ export function createHud({ onAction = () => {}, onSlot = () => {}, serverNow = 
         return true;
     }
 
-    const state = { energy: 100, energyMax: 100, packKg: 0, packCap: 40, coins: 0, weather: null };
+    const state = { energy: 100, energyMax: 100, sleeping: false, packKg: 0, packCap: 40, coins: 0, weather: null };
     const warned = { energy: 'ok', pack: 'ok' };
     let warnHandler = () => {};
     let selected = 0;
@@ -55,7 +55,10 @@ export function createHud({ onAction = () => {}, onSlot = () => {}, serverNow = 
         put('energy.width', Math.round(share * 1000), (v) => { els.energyFill.style.width = `${v / 10}%`; });
         put('energy.level', level, (v) => {
             els.energy.dataset.level = v;
-            els.energyIcon.textContent = v === 'critical' ? '💤' : v === 'low' ? '🪫' : '⚡';
+        });
+        put('energy.icon', state.sleeping ? 'sleep' : level, (v) => {
+            els.energy.dataset.sleeping = v === 'sleep' ? '1' : '0';
+            els.energyIcon.textContent = v === 'sleep' ? '😴' : v === 'critical' ? '💤' : v === 'low' ? '🪫' : '⚡';
         });
         if (warned.energy !== level) {
             warned.energy = level;

@@ -1,12 +1,13 @@
 <?php
 /**
  * POST /api/forest/sync: объединённый пакет клиента (ДЛ-10, версия 1): позиция, номера действий, ответ с состоянием.
- * Действия: chop_done (ДЛ-11); подбор (ДЛ-13), стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
+ * Действия: chop_done (ДЛ-11), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета); подбор (ДЛ-13), стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
  */
 
 require_once __DIR__ . '/lib/player.php';
 require_once __DIR__ . '/lib/sync.php';
 require_once __DIR__ . '/lib/actions.php';
+require_once __DIR__ . '/lib/energy.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -57,22 +58,35 @@ try {
         $newRy = (float) $row['pos_ry'];
         $dt = max(0, $now - (int) $row['last_seen']);
         $capacity = wf_player_pack_capacity((int) $row['pack_lvl']);
+        $sleeping = !empty($stats['sleep']);
         $parsed = wf_sync_parse_pos($in['pos'] ?? null);
         if ($parsed !== null) {
             $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity);
-            if ($check['ok']) {
+            // Спящий бобёр не ходит: уход дальше метра откатывается без страйка.
+            if ($check['ok'] && !($sleeping && $check['dist'] > 1.0)) {
                 $moved = $check['dist'] > 0.5;
                 $newX = $parsed[0];
                 $newZ = $parsed[1];
                 $newRy = $parsed[2];
             } else {
                 $correct = ['x' => $prevX, 'z' => $prevZ];
-                forest_log($conn, $playerId, 'move_far', ['dist' => round($check['dist'], 1), 'allowed' => round($check['allowed'], 1), 'dt' => $dt]);
+                if (!$check['ok']) forest_log($conn, $playerId, 'move_far', ['dist' => round($check['dist'], 1), 'allowed' => round($check['allowed'], 1), 'dt' => $dt]);
             }
         }
         // Допуск перемещения за время между sync нужен действиям, привязанным к месту (рубка).
         $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity)['allowed'];
         $ctx = ['now' => $now, 'now_ms' => forest_now_ms(), 'prev' => ['x' => $prevX, 'z' => $prevZ], 'new' => ['x' => $newX, 'z' => $newZ], 'dt' => $dt, 'allow' => $allow];
+
+        // Энергия (ДЛ-12): ленивый расчёт за время с прошлого расчёта — расход на ходьбу, восстановление, засыпание и пробуждение.
+        $home = wf_energy_home($conn, $playerId, $newX, $newZ);
+        $tick = wf_energy_tick([
+            'energy' => (float) $row['energy'], 'max' => wf_player_energy_max((int) $row['stamina_lvl']),
+            'dt' => max(0, $now - (int) $row['energy_ts']), 'dist' => hypot($newX - $prevX, $newZ - $prevZ),
+            'still' => !$moved && count($actions) === 0, 'home' => $home, 'sleeping' => $sleeping, 'mult' => 1.0,
+        ]);
+        $row['energy'] = $tick['energy'];
+        $row['energy_ts'] = $now;
+        $stats['sleep'] = $tick['sleeping'] ? 1 : 0;
 
         // Действия: номера a растут, обработанные пропускаем (идемпотентность).
         $results = [];
@@ -91,6 +105,10 @@ try {
             $type = isset($action['type']) ? (string) $action['type'] : '';
             if ((int) $row['blocked_until'] > $now) {
                 $results[] = ['a' => $a, 'ok' => false, 'error' => 'forbidden'];
+            } elseif (!empty($stats['sleep']) && $type === 'chop_done') {
+                $results[] = ['a' => $a, 'ok' => false, 'tree' => isset($action['tree']) ? (string) $action['tree'] : '', 'error' => 'sleeping'];
+            } elseif ($type === 'eat') {
+                $results[] = wf_action_eat($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'chop_done') {
                 $results[] = wf_action_chop($conn, $row, $stats, $action, $ctx);
             } else {
@@ -99,16 +117,18 @@ try {
             }
         }
 
+        // Силы кончились (в том числе от последней рубки): засыпаем на месте.
+        $stats['sleep'] = wf_energy_settle((float) $row['energy'], !empty($stats['sleep'])) ? 1 : 0;
+
         $active = $moved || $processed > 0;
         $idle = $now - ($active ? $now : (int) $row['last_action']);
         $stats['last_a'] = $lastA;
         $statsJson = json_encode($stats, JSON_UNESCAPED_UNICODE);
+        $row['stats_json'] = $statsJson;
         $lastAction = $active ? $now : (int) $row['last_action'];
         // «Запас офлайна» плотины продлевают только настоящие действия, а не пассивные пинги открытой вкладки.
         $grace = $active ? $now + (int) forest_config('dam.offline_grace_h') * 3600 : (int) $row['grace_until'];
-        // Энергия: пока без ДЛ-12 только восстановление «стоя в лесу» (wf_energy_now), чтобы игра не замирала.
-        $energy = wf_energy_now((float) $row['energy'], (int) $row['energy_ts'], $now, wf_player_energy_max((int) $row['stamina_lvl']));
-        $row['energy'] = $energy;
+        $energy = (float) $row['energy'];
         $xp = (int) $row['xp'];
         $level = (int) $row['level'];
         $coins = (int) $row['coins'];

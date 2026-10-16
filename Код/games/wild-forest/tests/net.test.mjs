@@ -127,7 +127,7 @@ test('состояние сервера переносится в HUD, рюкз�
     const hud = { got: null, set(p) { this.got = p; } };
     const inv = { cap: 0, items: null, setCapacity(c) { this.cap = c; }, setItems(i) { this.items = i; } };
     applyLightState({ energy: 71.2, energy_max: 110, coins: 340, weight: 18.5, capacity: 50, pack: { log: 4, fish_small: 2 } }, { hud, inventory: inv });
-    assert.deepEqual(hud.got, { energy: 71.2, energyMax: 110, coins: 340, packKg: 18.5, packCap: 50 });
+    assert.deepEqual(hud.got, { energy: 71.2, energyMax: 110, sleeping: false, coins: 340, packKg: 18.5, packCap: 50 });
     assert.equal(inv.cap, 50);
     assert.deepEqual(inv.items.map((i) => [i.key, i.qty, i.edible]), [['log', 4, false], ['fish_small', 2, true]]);
     assert.deepEqual(packToItems({}), []);

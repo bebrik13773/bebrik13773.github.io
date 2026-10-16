@@ -361,6 +361,53 @@ wf_st_test($results, 'Находка в сокровище: монеты 50–30
     return ['1', (string) (int) $ok];
 });
 
+// 4в. Энергия, сон и еда (ДЛ-12): формулы по тем же векторам, что и в JS (tests/energy.test.mjs), кейсы сна и еды
+require_once dirname(__DIR__) . '/api/forest/lib/energy.php';
+wf_st_test($results, 'Энергия: шаг расчёта (ходьба, отдых, сон, дом, офлайн) совпадает с JS на всех векторах', function () {
+    $raw = @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/energy.json');
+    $v = json_decode((string) $raw, true);
+    if (!is_array($v) || empty($v['ticks'])) {
+        throw new RuntimeException('нет файла векторов энергии: games/wild-forest/tests/vectors/energy.json');
+    }
+    $bad = [];
+    foreach ($v['ticks'] as $r) {
+        $t = wf_energy_tick(['energy' => (float) $r[0], 'max' => (float) $r[1], 'dt' => (float) $r[2], 'dist' => (float) $r[3], 'still' => (bool) $r[4], 'home' => (bool) $r[5], 'sleeping' => (bool) $r[6], 'mult' => 1.0]);
+        if (abs($t['energy'] - $r[7]) > 1e-5 || (int) $t['sleeping'] !== (int) $r[8]) {
+            $bad[] = implode(',', $r);
+        }
+    }
+    return ['0 расхождений из ' . count($v['ticks']), count($bad) . ' расхождений из ' . count($v['ticks']) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Энергия: расход на ходьбу 0.015 за метр, погода умножает', function () {
+    return ['1.5 1.65', round(wf_energy_walk_cost(100), 4) . ' ' . round(wf_energy_walk_cost(100, 1.1), 4)];
+});
+wf_st_test($results, 'Энергия: скорость восстановления (стоя 0.1, сон 0.2, дом 1.0, в движении 0)', function () {
+    return ['0.1 0 1 0.2 1', implode(' ', [wf_energy_rate(false, false, true), wf_energy_rate(false, false, false), wf_energy_rate(false, true, true), wf_energy_rate(true, false, true), wf_energy_rate(true, true, true)])];
+});
+wf_st_test($results, 'Энергия: на нуле бобёр засыпает, к 20 просыпается (около 100 секунд)', function () {
+    $e = 0.0;
+    $sleep = true;
+    $t = 0;
+    while ($sleep && $t < 1000) {
+        $r = wf_energy_tick(['energy' => $e, 'max' => 100.0, 'dt' => 10.0, 'dist' => 0.0, 'still' => true, 'home' => false, 'sleeping' => true]);
+        $e = $r['energy'];
+        $sleep = $r['sleeping'];
+        $t += 10;
+    }
+    $fell = wf_energy_tick(['energy' => 0.5, 'max' => 100.0, 'dt' => 0.0, 'dist' => 100.0, 'still' => false, 'home' => false, 'sleeping' => false]);
+    return ['100 true', $t . ' ' . ($fell['sleeping'] ? 'true' : 'false')];
+});
+wf_st_test($results, 'Энергия: офлайн не копится (900 секунд засчитываются как 120)', function () {
+    $r = wf_energy_tick(['energy' => 10.0, 'max' => 100.0, 'dt' => 900.0, 'dist' => 0.0, 'still' => true, 'home' => false, 'sleeping' => false]);
+    return ['22', (string) round($r['energy'], 4)];
+});
+wf_st_test($results, 'Еда: рыба даёт 25 и 45, остальное не еда', function () {
+    return ['25 25 45 null', implode(' ', [wf_eat_gain('fish'), wf_eat_gain('fish_small'), wf_eat_gain('fish_big'), wf_eat_gain('log') === null ? 'null' : 'нет'])];
+});
+wf_st_test($results, 'Энергия: засыпание после действий (ноль энергии или уже спит)', function () {
+    return ['1 0 1', (int) wf_energy_settle(0.0, false) . ' ' . (int) wf_energy_settle(50.0, false) . ' ' . (int) wf_energy_settle(50.0, true)];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

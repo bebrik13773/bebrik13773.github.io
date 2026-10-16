@@ -13,7 +13,7 @@ export function applyLightState(state, { hud, inventory }) {
     if (!state) return;
     if (hud) {
         hud.set({
-            energy: Number(state.energy), energyMax: Number(state.energy_max) || 100,
+            energy: Number(state.energy), energyMax: Number(state.energy_max) || 100, sleeping: Boolean(state.sleeping),
             coins: Number(state.coins) || 0,
             packKg: Number(state.weight) || 0, packCap: Number(state.capacity) || 40,
         });

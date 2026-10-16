@@ -79,6 +79,11 @@ return [
         'cost_walk_per_m'   => 0.015,
         'regen_home_ps'     => 1.0,
         'regen_rest_ps'     => 0.1,
+        'regen_sleep_ps'    => 0.2,       // сон в лесу: до wake_energy около 100 секунд (ДЛ-12)
+        'energy_eps'        => 0.0001,
+        'eat_pause_s'       => 5,         // пауза между приёмами еды
+        'eat_anim_s'        => 3,         // длительность анимации еды на клиенте
+        'home_radius_m'     => 6,         // рядом с домом: отдых 1.0 в секунду (ДЛ-17)
         'wake_energy'       => 20,
         'fish_energy'       => ['small' => 25, 'big' => 45],
         'pack_base_kg'      => 40,
@@ -344,6 +349,7 @@ return [
     'limits' => [
         'max_taps_per_s'        => 6,
         'tap_bucket'            => 40,
+        'rest_credit_cap_s'     => 120,   // сколько секунд между sync засчитывается восстановление энергии (офлайн не копится)
         'sync_min_interval_s'   => 3,
         'sync_active_ms'        => 8000,
         'sync_idle_ms'          => 15000,

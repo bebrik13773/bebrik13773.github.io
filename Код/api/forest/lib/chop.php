@@ -227,10 +227,8 @@ function wf_strikes_reward_k(int $activeStrikes): float
     return $activeStrikes > (int) forest_config('limits.strikes_soft') ? (float) forest_config('trees.chop.strike_cut_reward') : 1.0;
 }
 
-/** Энергия с учётом восстановления «стоя в лесу» (временная замена до ДЛ-12): 0.1 в секунду до максимума. */
+/** Текущая энергия строки игрока: восстановление и расход считает wf_energy_tick в начале sync (ДЛ-12), здесь только ограничение сверху. */
 function wf_energy_now(float $energy, int $energyTs, int $now, float $max): float
 {
-    $dt = max(0, $now - $energyTs);
-
-    return min($max, $energy + $dt * (float) forest_config('hero.regen_rest_ps'));
+    return max(0.0, min($max, $energy));
 }

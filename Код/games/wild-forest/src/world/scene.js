@@ -91,6 +91,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
     const track = createPositionTrack();
     const size = { w: 390, h: 800 };           // размер холста в CSS-пикселях (для выбора объекта)
     let shownDist = rig.dist;                    // дальность камеры с учётом рельефа (сначала быстро ближе, потом плавно обратно)
+    let sleeping = false;                        // бобёр спит: тапы и клавиши не двигают (ДЛ-12)
     let stateOverride = null;                    // ручное состояние для отладки и тестов (null = по движению и работе)
     let lastRender = 0;
     let clock = 0;
@@ -236,6 +237,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
      * Возвращает описание для интерфейса и тестов.
      */
     function handleTap(px, py) {
+        if (sleeping) { onEvent({ type: 'sleepingTap' }); return { type: 'sleeping' }; }
         const obj = pickAt(px, py);
         if (obj) {
             if (ctl.mode === 'work' && ctl.obj && ctl.obj.id === obj.id) {
@@ -280,6 +282,16 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             stateOverride = name || null;
             if (name) beaver.setState(name, opts);
         },
+        /** Ручное проигрывание состояния (еда): держится, пока не вызван releaseBeaver. */
+        playBeaver(name) { stateOverride = name; beaver.setState(name, { auto: false }); },
+        releaseBeaver() { stateOverride = null; beaver.setState(autoState()); },
+        /** Сон в лесу (ДЛ-12): бобёр останавливается и ложится, ввод игнорируется до пробуждения. */
+        setSleeping(v) {
+            sleeping = Boolean(v);
+            if (sleeping) { ctl.stop(); marker.visible = false; stateOverride = 'sleep'; beaver.setState('sleep', { auto: false }); }
+            else { stateOverride = null; beaver.setState(autoState()); }
+        },
+        get sleeping() { return sleeping; },
         groundY,
         drops,
         /** Верхушка дерева по id (для шкалы прочности): { x, y, z } или null, если чанк не загружен. */
@@ -324,7 +336,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         get speedLimit() { return ctl.vMax; },
         update(dt) {
             clock += dt;
-            ctl.setInput(input.x, input.z, rig.yaw);
+            ctl.setInput(sleeping ? 0 : input.x, sleeping ? 0 : input.z, rig.yaw);
             ctl.update(dt);
             chunks.setCenter(ctl.x, ctl.z);
             track.sample(performance.now(), ctl.x, ctl.z);

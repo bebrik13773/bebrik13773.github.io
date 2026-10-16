@@ -127,3 +127,55 @@ export function tapTake(tokens, tsMs, nowMs, want) {
     if (want <= refill + 1e-9) return { ok: true, tokens: refill - want };
     return { ok: false, tokens: refill };
 }
+
+// ── Энергия, сон и еда (ДЛ-12) ───────────────────────────────────────
+// Зеркало api/forest/lib/energy.php; значения совпадают с config.php (hero.*, limits.rest_credit_cap_s).
+export const ENERGY = Object.freeze({
+    base: 100, perStaminaLvl: 10, staminaMaxLvl: 6,
+    walkPerM: 0.015,     // расход на метр пути
+    regenHome: 1.0,      // рядом с домом (стоя или во сне), в секунду
+    regenRest: 0.1,      // стоя в лесу
+    regenSleep: 0.2,     // сон в лесу
+    wake: 20,            // до этого значения бобёр спит
+    eps: 0.0001,         // «ноль» энергии
+    creditCapS: 120,     // сколько секунд между sync засчитывается восстановление
+    eatPauseS: 5,        // пауза между приёмами еды
+    eatAnimS: 3,         // анимация еды
+    homeRadiusM: 6,
+    fish: Object.freeze({ small: 25, big: 45 }),
+});
+
+/** Максимум энергии: 100 на 1 уровне выносливости, +10 за каждый следующий (до 6 уровня). */
+export function energyMax(staminaLvl = 1) {
+    const lvl = Math.max(1, Math.min(ENERGY.staminaMaxLvl, staminaLvl | 0));
+    return ENERGY.base + ENERGY.perStaminaLvl * (lvl - 1);
+}
+
+/** Расход на ходьбу: метры × 0.015 × множитель погоды. */
+export function walkCost(distM, mult = 1) {
+    return Math.max(0, distM) * ENERGY.walkPerM * mult;
+}
+
+/** Скорость восстановления, единиц в секунду: сон 0.2 (дома 1.0), стоя 0.1 (дома 1.0), в движении и за работой 0. */
+export function energyRate({ sleeping = false, home = false, still = false } = {}) {
+    if (sleeping) return home ? ENERGY.regenHome : ENERGY.regenSleep;
+    if (!still) return 0;
+    return home ? ENERGY.regenHome : ENERGY.regenRest;
+}
+
+/** Шаг ленивого расчёта между двумя sync: { energy, sleeping }. Восстановление ограничено creditCapS (офлайн не копится). */
+export function energyTick({ energy, max, dt, dist = 0, still = false, home = false, sleeping = false, mult = 1 }) {
+    let e = Math.max(0, energy - walkCost(dist, mult));
+    let sleep = Boolean(sleeping);
+    if (!sleep && e <= ENERGY.eps) sleep = true; // силы кончились: засыпает на месте
+    const t = Math.max(0, Math.min(dt, ENERGY.creditCapS));
+    e = Math.min(max, e + energyRate({ sleeping: sleep, home, still }) * t);
+    if (sleep && e >= ENERGY.wake) sleep = false;
+    return { energy: e, sleeping: sleep };
+}
+
+/** Сколько энергии даёт еда; null, если это не еда. */
+export function eatGain(item) {
+    const map = { fish: 'small', fish_small: 'small', fish_big: 'big' };
+    return map[item] ? ENERGY.fish[map[item]] : null;
+}
