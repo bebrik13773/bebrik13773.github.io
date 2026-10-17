@@ -17,7 +17,7 @@ export function createHero({ nav, x = 0, z = 0, vMax = 3.2, cfg = MOVE }) {
     };
     const handlers = {};
     const emit = (name, arg) => { if (handlers[name]) handlers[name](arg); };
-    const spotDist = (obj) => Math.max(cfg.interactReach, (obj.r || 0) + cfg.heroRadius + 0.5);
+    const spotDist = (obj) => (obj.reach !== undefined ? obj.reach : Math.max(cfg.interactReach, (obj.r || 0) + cfg.heroRadius + 0.5));
 
     function clearOrder() { s.path = []; s.idx = 0; s.goal = null; s.partial = false; s.replans = 0; s.replanFrom = null; s.stuckT = 0; s.strikes = 0; }
 
@@ -70,7 +70,7 @@ export function createHero({ nav, x = 0, z = 0, vMax = 3.2, cfg = MOVE }) {
         clearOrder();
         s.obj = obj;
         const D = spotDist(obj);
-        if (Math.hypot(obj.x - s.x, obj.z - s.z) <= D + 0.3) { s.mode = 'turn'; return { ok: true, partial: false }; }
+        if (Math.hypot(obj.x - s.x, obj.z - s.z) <= D + (obj.reach !== undefined ? 0.2 : 0.3)) { s.mode = 'turn'; return { ok: true, partial: false }; }
         const spot = nav.findSpot(obj, D, s.x, s.z);
         if (!spot || !startPath(spot.x, spot.z, 'approach')) { s.obj = null; s.mode = 'idle'; return { ok: false, partial: false }; }
         return { ok: true, partial: s.partial };

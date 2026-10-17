@@ -25,6 +25,8 @@ export function createChopFlow({ world, wg, getQueue, getSync, bar, notify, text
     function finishTree() {
         const done = chop.finish();
         if (!done) return;
+        const pos0 = world.heroPos;
+        if (world.fx) world.fx.fall(done.tree, pos0.x, pos0.z); // дерево падает от бобра, пень появится сразу
         world.chunks.fell(done.tree);
         world.ctl.cancelWork();
         if (bar) bar.hide();
@@ -65,9 +67,12 @@ export function createChopFlow({ world, wg, getQueue, getSync, bar, notify, text
             if (!chop.active) { if (bar) bar.hide(); return; }
             if (world.ctl.mode !== 'work' && world.ctl.mode !== 'turn' && world.ctl.mode !== 'approach') { chop.cancel(); if (bar) bar.hide(); return; }
             if (!bar) return;
-            const top = world.treeTop(chop.info.id);
-            const pt = top ? world.projectToScreen(top.x, top.y + 0.4, top.z) : null;
-            bar.set(chop.frac, pt);
+            const anchor = world.treeAnchor ? world.treeAnchor(chop.info.id) : null;
+            const top = anchor || world.treeTop(chop.info.id);
+            const sp = top ? world.projectToScreen(top.x, anchor ? top.y : top.y + 0.4, top.z) : null;
+            const shown = chop.shownFrac;
+            if (world.fx) world.fx.setProgress(chop.info.id, shown);
+            bar.set(shown, sp ? { x: sp.sx !== undefined ? sp.sx : sp.x, y: sp.sy !== undefined ? sp.sy : sp.y } : null);
         },
         /** Результаты sync: награды и откат отклонённых рубок. */
         onResults(results) {

@@ -103,7 +103,7 @@ function inClearing(clearings, x, z) {
  * @param wg генератор мира; models результат createModels(); preset пресет качества;
  * @param lod 0 простые деревья, 1 подробные; felled Set id срубленного/добытого; clearings [{x, z, r}] в метрах.
  */
-export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, clearings }) {
+export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, clearings, hidden = null }) {
     const seg = preset.terrainSeg;
     const terrain = buildTerrain(wg, cx, cz, seg);
     const vs = terrain.vs;
@@ -120,10 +120,8 @@ export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, cl
         if (inClearing(clearings, c.x, c.z)) continue;
         const isTree = c.kind === KIND.TREE;
         if (isTree && !keepByDensity(wg.seed, cx, cz, c.ci, preset.treeDensity)) continue;
-        if (felled.has(c.id)) {
-            if (isTree) stumps.push({ id: c.id, x: c.x, y: c.y, z: c.z, s: SIZE_SCALE[c.size] });
-            continue; // срублено или добыто: самого объекта нет
-        }
+        if (felled.has(c.id)) continue; // срублено или добыто: самого объекта нет (свежий пень ставит менеджер чанков, он живёт минуту)
+        if (hidden && hidden.has(c.id)) continue; // дерево сейчас показано отдельным мешем (рубка, падение)
         const h = hash(wg.seed, cx, cz, 1000 + c.ci);
         let tpl;
         let scale;
@@ -200,7 +198,7 @@ export function buildChunkData({ wg, models, cx, cz, preset, lod = 0, felled, cl
         };
         if (isTree) {
             treeCount += 1;
-            trees.set(c.id, { v0: vo, vN: tpl.verts, lx, y: c.y, lz, wx: c.x, wz: c.z, sp: c.species, size: c.size });
+            trees.set(c.id, { v0: vo, vN: tpl.verts, lx, y: c.y, lz, wx: c.x, wz: c.z, sp: c.species, size: c.size, angle, scale, tint, lod });
         } else {
             rockCount += 1;
         }

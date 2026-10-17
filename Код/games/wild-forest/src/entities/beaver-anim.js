@@ -1,11 +1,14 @@
-// Анимация 3D-бобра (ДЛ-07). Чистая логика без Three.js: из состояния и времени получается «поза» —
+// Анимация 3D-бобра (ДЛ-07, переработана в #61). Чистая логика без Three.js: из состояния и времени получается «поза» —
 // набор чисел (повороты костей, смещение таза, сжатие, видимость предметов). Дальше beaver.js
 // кладёт эти числа в кости. Так анимацию можно проверять в Node без графики.
 //
 // Оси модели: +Z вперёд, +Y вверх, +X налево (бобёр смотрит в +Z). Положительный поворот вокруг X
 // наклоняет верх вперёд, а у висящей руки или ноги отводит конец НАЗАД; вперёд и вверх руку поднимает минус.
+// Локоть сгибается минусом (предплечье уходит вперёд-вверх). У стопы плюс опускает носок, минус поднимает.
+// Топор лежит в кисти рукоятью вперёд, лезвием вниз; сумма углов плеча, локтя и кисти даёт наклон рукояти:
+// 0 горизонтально, минус поднимает головку вверх (−1.57 рукоять вертикально), плюс опускает.
 
-export const BONES = Object.freeze(['root', 'hips', 'torso', 'head', 'armL', 'armR', 'legL', 'legR', 'tail1', 'tail2', 'axe', 'logs', 'food']);
+export const BONES = Object.freeze(['root', 'hips', 'torso', 'head', 'armL', 'armR', 'foreL', 'foreR', 'legL', 'legR', 'footL', 'footR', 'tail1', 'tail2', 'axe', 'logs', 'food']);
 export const B = Object.freeze(Object.fromEntries(BONES.map((name, i) => [name, i])));
 
 // Каналы позы: по три угла (x, y, z) на каждую кость, дальше служебные.
@@ -36,24 +39,39 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (t) => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
 
-/** Кривая одного взмаха топором. p = 0..1: подъём, замах, удар, возврат. Возвращает углы руки, кисти и наклон корпуса. */
+/**
+ * Кривая одного взмаха топором. p = 0..1: подъём, замах, удар, возврат.
+ * Возвращает углы: arm (плечо), fore (локоть), wrist (кисть с топором), lean (наклон корпуса), twist (скрутка корпуса), step (выпад таза).
+ */
 export function chopCurve(p) {
-    let arm; let wrist; let lean;
-    if (p < 0.40) {            // подъём
+    let arm; let fore; let wrist; let lean; let twist; let step;
+    if (p < 0.40) {            // подъём: топор уходит за плечо, корпус прогибается назад
         const k = smooth(p / 0.40);
-        arm = lerp(-1.0, -3.1, k); wrist = lerp(0.2, -0.5, k); lean = lerp(0.10, -0.06, k);
-    } else if (p < 0.50) {     // замах: топор над головой
-        arm = -3.1; wrist = -0.5; lean = -0.06;
-    } else if (p < IMPACT_PHASE) { // удар вниз, ускоряется
+        arm = lerp(-0.7, -2.9, k); fore = lerp(-1.1, -0.65, k); wrist = lerp(0.9, 0.9, k);
+        lean = lerp(0.06, -0.20, k); twist = lerp(0, -0.40, k); step = lerp(0, -0.03, k);
+    } else if (p < 0.50) {     // замах: короткая пауза наверху, топор чуть уходит назад
+        const k = smooth((p - 0.40) / 0.10);
+        arm = lerp(-2.9, -3.05, k); fore = -0.65; wrist = 0.9;
+        lean = lerp(-0.20, -0.23, k); twist = lerp(-0.40, -0.44, k); step = -0.03;
+    } else if (p < IMPACT_PHASE) { // удар вниз: ускоряется, корпус бросается вперёд
         const k = (p - 0.5) / (IMPACT_PHASE - 0.5);
         const e = k * k;
-        arm = lerp(-3.1, -1.9, e); wrist = lerp(-0.5, 1.2, e); lean = lerp(-0.06, 0.36, e);
+        arm = lerp(-3.05, -1.25, e); fore = lerp(-0.65, -0.5, e); wrist = lerp(0.9, 1.05, e);
+        lean = lerp(-0.23, 0.42, e); twist = lerp(-0.44, 0.30, e); step = lerp(-0.03, 0.07, e);
     } else {                   // возврат
         const k = (p - IMPACT_PHASE) / (1 - IMPACT_PHASE);
         const e = 1 - (1 - k) * (1 - k);
-        arm = lerp(-1.9, -1.0, e); wrist = lerp(1.2, 0.2, e); lean = lerp(0.36, 0.10, e);
+        arm = lerp(-1.25, -0.7, e); fore = lerp(-0.5, -1.1, e); wrist = lerp(1.05, 0.9, e);
+        lean = lerp(0.42, 0.06, e); twist = lerp(0.30, 0, e); step = lerp(0.07, 0, e);
     }
-    return { arm, wrist, lean };
+    return { arm, fore, wrist, lean, twist, step };
+}
+
+// Хват топора правой лапой вне рубки: рукоять уходит вперёд-вверх, головка над плечом.
+function holdAxe(out, set, sway = 0, bob = 0) {
+    set('armR', -0.35 + sway, 0, 0.14);
+    set('foreR', -1.15 + bob * 0.5, 0, 0);
+    out[rot('axe', 0)] = 0.30 + bob; // сумма −1.2: рукоять почти вертикально
 }
 
 /**
@@ -64,24 +82,25 @@ export function buildPose(out, state, c) {
     out.fill(0);
     out[CH.VIS_AXE] = 1;
     const set = (bone, x = 0, y = 0, z = 0) => { out[rot(bone, 0)] = x; out[rot(bone, 1)] = y; out[rot(bone, 2)] = z; };
-    // Руки чуть разведены, топор в лапе держится «рукоятью вверх-вперёд».
-    set('armL', 0, 0, 0.06);
-    set('armR', 0, 0, -0.06);
-    out[rot('axe', 0)] = -2.6;
     const t = c.t;
 
     switch (state) {
     case 'idle': {
         const breath = Math.sin(TAU * t / 2.8);
-        out[CH.HIPS_Y] = 0.008 * breath;
-        out[rot('torso', 0)] = 0.012 * breath;
+        const shift = Math.sin(TAU * t / 7.0);              // медленный перенос веса с ноги на ногу
+        out[CH.HIPS_Y] = 0.008 * breath - 0.004 * Math.abs(shift);
+        out[CH.HIPS_X] = 0.012 * shift;
+        set('hips', 0, 0, 0.025 * shift);
+        set('torso', 0.012 * breath, 0.03 * Math.sin(TAU * t / 5.1), -0.02 * shift);
         const look = Math.sin(TAU * t / 6.5);
-        out[rot('head', 1)] = 0.38 * look * smooth(Math.abs(look) * 2.2);
-        out[rot('head', 0)] = 0.05 * Math.sin(TAU * t / 4.1);
-        out[rot('armL', 0)] = 0.03 * Math.sin(TAU * t / 2.8 + 0.5);
-        out[rot('armR', 0)] = 0.03 * Math.sin(TAU * t / 2.8 + 1.2);
-        out[rot('tail1', 1)] = 0.14 * Math.sin(TAU * t / 3.3);
-        out[rot('tail2', 1)] = 0.20 * Math.sin(TAU * t / 3.3 - 0.8);
+        set('head', 0.05 * Math.sin(TAU * t / 4.1) + 0.01 * breath, 0.38 * look * smooth(Math.abs(look) * 2.2), 0.03 * shift);
+        set('armL', 0.04 * Math.sin(TAU * t / 2.8 + 0.5), 0, 0.07);
+        set('foreL', -0.18 - 0.04 * breath, 0, 0);
+        holdAxe(out, set, 0.02 * Math.sin(TAU * t / 2.8 + 1.2), 0.03 * breath);
+        set('legL', 0.03 * shift, 0, 0); set('legR', -0.03 * shift, 0, 0);
+        set('footL', -0.03 * shift, 0, 0); set('footR', 0.03 * shift, 0, 0);
+        set('tail1', 0.03 * breath, 0.14 * Math.sin(TAU * t / 3.3), 0);
+        set('tail2', 0, 0.20 * Math.sin(TAU * t / 3.3 - 0.8), 0);
         break;
     }
     case 'walk': case 'run': case 'carry': {
@@ -90,16 +109,25 @@ export function buildPose(out, state, c) {
     }
     case 'chop': {
         const k = chopCurve(c.chopP);
-        out[rot('armR', 0)] = k.arm;
-        out[rot('axe', 0)] = k.wrist;
-        out[rot('torso', 0)] = k.lean;
-        out[rot('head', 0)] = 0.04 + 0.16 * smooth((k.lean - 0.1) / 0.26);
-        out[CH.HIPS_Z] = 0.05 * smooth((k.lean - 0.1) / 0.26);
-        set('armL', -0.9 + 0.25 * k.lean, 0, -0.30); // левая лапа придерживает рубку
-        set('legL', -0.30, 0, 0);
-        set('legR', 0.25, 0, 0);
-        out[rot('tail1', 0)] = 0.2;
-        out[rot('tail2', 0)] = 0.1;
+        const rec = c.impact;                                   // отдача после удара
+        set('armR', k.arm + 0.10 * rec, 0, 0.12);
+        set('foreR', k.fore, 0, 0);
+        out[rot('axe', 0)] = k.wrist - 0.12 * rec;
+        // левая лапа ведёт рукоять: идёт за правой с запасом хода
+        set('armL', 0.5 * k.arm - 0.15, 0, -0.30);
+        set('foreL', -0.75 + 0.25 * (k.fore + 0.8), 0, 0);
+        set('torso', k.lean + 0.05 * rec, k.twist, 0);
+        set('hips', 0, -0.35 * k.twist, 0);
+        out[CH.HIPS_Z] = k.step;
+        out[CH.HIPS_Y] = -0.055 * smooth((k.lean - 0.1) / 0.32);  // приседает на ударе
+        const stoop = smooth((k.lean - 0.1) / 0.32);
+        set('head', 0.06 + 0.12 * stoop - 0.5 * k.lean * 0.4, -0.5 * k.twist, 0);
+        set('legL', -0.34 - 0.10 * stoop, 0, 0.04);             // широкая устойчивая стойка
+        set('legR', 0.26 + 0.10 * stoop, 0, -0.04);
+        set('footL', 0.34 + 0.10 * stoop, 0, 0);
+        set('footR', -0.26 - 0.10 * stoop, 0, 0);
+        set('tail1', 0.25 - 0.45 * k.lean, 0.2 * k.twist, 0);   // хвост уравновешивает
+        set('tail2', 0.1 - 0.3 * k.lean, 0.3 * k.twist, 0);
         out[CH.SQUASH] = c.impact;
         break;
     }
@@ -110,10 +138,10 @@ export function buildPose(out, state, c) {
         set('hips', 0, 0, 1.42);
         set('torso', 0.55, 0, 0);
         set('head', 0.78 + 0.02 * breath, 0, -0.15);
-        set('armL', -1.0, 0, -0.5);
-        set('armR', -1.0, 0, 0.5);
-        set('legL', -1.4, 0, 0);
-        set('legR', -1.25, 0, 0);
+        set('armL', -1.0, 0, -0.5); set('foreL', -0.9, 0, 0);
+        set('armR', -1.0, 0, 0.5); set('foreR', -0.9, 0, 0);
+        set('legL', -1.4, 0, 0); set('legR', -1.25, 0, 0);
+        set('footL', 0.5, 0, 0); set('footR', 0.4, 0, 0);
         set('tail1', 0, 1.15, 0);
         set('tail2', 0, 1.0, 0);
         out[CH.SQUASH] = 0.04 * (0.5 + 0.5 * breath);
@@ -124,13 +152,13 @@ export function buildPose(out, state, c) {
         const hop = Math.max(0, Math.sin(TAU * 2.1 * t));
         out[CH.ROOT_Y] = 0.16 * hop;
         set('hips', 0, 0, 0.05 * Math.sin(TAU * 9 * t));
-        set('armL', -2.4, 0, 0.45);
-        set('armR', -2.4, 0, -0.45);
-        out[rot('axe', 0)] = -0.3;
+        set('armL', -2.4, 0, 0.45); set('foreL', -0.4, 0, 0);
+        set('armR', -2.4, 0, -0.45); set('foreR', -0.4, 0, 0);
+        out[rot('axe', 0)] = 0.2;
         set('head', -0.18 + 0.04 * Math.sin(TAU * 11 * t), 0, 0);
         set('torso', -0.12, 0, 0);
-        set('legL', -0.25 * hop, 0, 0);
-        set('legR', -0.25 * hop, 0, 0);
+        set('legL', -0.25 * hop, 0, 0); set('legR', -0.25 * hop, 0, 0);
+        set('footL', 0.25 * hop, 0, 0); set('footR', 0.25 * hop, 0, 0);
         set('tail1', 0.9, 0, 0);
         set('tail2', 0.3, 0, 0);
         break;
@@ -138,8 +166,8 @@ export function buildPose(out, state, c) {
     case 'eat': {
         const chew = Math.sin(TAU * 3.4 * t);
         out[CH.HIPS_Y] = 0.008 * chew;
-        set('armL', -1.9, 0, -0.5);
-        set('armR', -1.9, 0, 0.5);
+        set('armL', -1.25, 0, -0.45); set('foreL', -1.45, 0, 0);
+        set('armR', -1.25, 0, 0.45); set('foreR', -1.45, 0, 0);
         set('head', -0.12 + 0.10 * chew, 0, 0);
         set('torso', 0.05, 0, 0);
         set('tail1', 0, 0.14 * Math.sin(TAU * t / 2.4), 0);
@@ -155,7 +183,8 @@ export function buildPose(out, state, c) {
     return out;
 }
 
-// Ходьба, бег и ходьба с грузом: шаг, качание корпуса, хвост. Амплитуда растёт со скоростью (c.move).
+// Ходьба, бег и ходьба с грузом: шаг с перекатом стопы, покачивание таза, скрутка корпуса, ход рук с локтями, хвост.
+// Амплитуда растёт со скоростью (c.move).
 function locomotion(out, set, c, kind) {
     const m = c.move;
     const mm = Math.min(m, 1.3);
@@ -165,27 +194,36 @@ function locomotion(out, set, c, kind) {
     const carry = kind === 'carry';
     const legA = (run ? 1.05 : 0.72) * mm * (carry ? 0.8 : 1) * (1 - 0.18 * c.load);
     const armA = (run ? 0.9 : 0.5) * mm;
-    set('legL', -s * legA, 0, 0);
-    set('legR', s * legA, 0, 0);
+    const legL = -s * legA;
+    const legR = s * legA;
+    set('legL', legL, 0, 0);
+    set('legR', legR, 0, 0);
+    // стопа: пятка вперёд, потом перекат на носок; в воздухе носок подтянут
+    const foot = (leg) => (leg < 0 ? -leg * 0.75 : -leg * 0.35 + 0.22 * Math.min(1, mm) * Math.sin(Math.min(1, leg / 0.5) * Math.PI));
+    set('footL', foot(legL), 0, 0);
+    set('footR', foot(legR), 0, 0);
     // шаг: тело проседает, когда ноги широко расставлены; на беге подпрыгивает
     out[CH.HIPS_Y] = run ? 0.05 * m * (Math.abs(s) - 0.5) : -0.035 * m * (1 - Math.abs(cs));
     const sway = Math.min(m, 1);
-    set('hips', 0, 0.12 * s * sway, 0.06 * s * sway);
-    set('torso', (run ? 0.18 + 0.2 * c.load : 0.04 + 0.16 * c.load) * sway, -0.07 * s * sway, 0);
-    set('head', 0.03 * cs * sway - (run ? 0.05 : 0), -0.05 * s * sway, 0);
+    out[CH.HIPS_X] = 0.014 * s * sway;                             // переваливается с боку на бок
+    set('hips', 0, 0.12 * s * sway, 0.07 * s * sway);
+    set('torso', (run ? 0.18 + 0.2 * c.load : 0.04 + 0.16 * c.load) * sway, -0.09 * s * sway, -0.045 * s * sway);
+    set('head', 0.03 * cs * sway - (run ? 0.05 : 0), -0.05 * s * sway, 0.03 * s * sway);
     set('tail1', run ? 0.25 : 0.05 * sway, 0.30 * Math.sin(TAU * c.gait - 1.0) * sway, 0);
     set('tail2', run ? 0.1 : 0, 0.42 * Math.sin(TAU * c.gait - 1.9) * sway, 0);
     if (carry) {
         // обе лапы держат охапку брёвен перед грудью
-        set('armL', -1.15 + 0.04 * cs, 0, -0.35);
-        set('armR', -1.15 + 0.04 * cs, 0, 0.35);
+        set('armL', -1.15 + 0.04 * cs, 0, -0.35); set('foreL', -0.75, 0, 0);
+        set('armR', -1.15 + 0.04 * cs, 0, 0.35); set('foreR', -0.75, 0, 0);
         out[rot('torso', 0)] = -0.10 - 0.08 * c.load + 0.02 * s * sway;
         out[CH.VIS_LOGS] = 1;
         out[CH.VIS_AXE] = 0;
     } else {
-        set('armL', s * armA, 0, 0.06);
-        set('armR', -s * armA, 0, -0.06);
-        if (run) { out[rot('armL', 0)] += 0.35; out[rot('armR', 0)] += 0.35; }
+        // левая лапа машет с согнутым локтем; правая держит топор на весу
+        set('armL', s * armA, 0, 0.07);
+        set('foreL', -(0.22 + 0.45 * mm * (0.5 + 0.5 * cs * (run ? 1 : 0.6))), 0, 0);
+        holdAxe(out, set, -0.1 * s * mm, 0.06 * cs * mm);
+        if (run) { out[rot('armL', 0)] += 0.35; out[rot('armR', 0)] += -0.10; }
     }
 }
 

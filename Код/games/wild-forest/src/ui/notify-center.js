@@ -3,13 +3,22 @@ import { S } from './strings.ru.js';
 const LEVEL_ICON = { info: 'ℹ️', warn: '⚠️', danger: '🛑' };
 const MAX_ITEMS = 30;
 const MAX_TOASTS = 3;
+const NOTE_TTL_MS = 60000; // уведомление живёт минуту, потом пропадает из списка (липкие предупреждения остаются)
 
 // Уведомления: короткие всплывающие подсказки (тосты) и центр уведомлений со списком (для предупреждений плотины и т.п.).
 // Уровень показан значком, а не только цветом. Уведомление с key заменяет прежнее с тем же key; sticky держится, пока не вызван resolve(key).
-export function createNotifyCenter({ toastsEl, panelEl, listEl, badgeEl, bellEl, clearEl, now = () => Date.now() }) {
+export function createNotifyCenter({ toastsEl, panelEl, listEl, badgeEl, bellEl, clearEl, now = () => Date.now(), ttlMs = NOTE_TTL_MS }) {
     let items = [];
     let seq = 0;
     let open = false;
+
+    /** Убирает уведомления старше минуты (кроме липких). Возвращает true, если что-то убрали. */
+    function prune() {
+        const t = now();
+        const before = items.length;
+        items = items.filter((i) => i.sticky || t - i.ts < ttlMs);
+        return items.length !== before;
+    }
 
     function unread() { return items.filter((i) => !i.read).length; }
 
@@ -79,10 +88,15 @@ export function createNotifyCenter({ toastsEl, panelEl, listEl, badgeEl, bellEl,
 
     paintBadge();
     paintList();
+    if (typeof setInterval === 'function') {
+        const timer = setInterval(() => { if (prune()) { if (open) paintList(); paintBadge(); } }, 5000);
+        if (timer && typeof timer.unref === 'function') timer.unref();
+    }
 
     return {
         /** Показать уведомление. Возвращает его номер. */
         push({ text, level = 'info', key = null, sticky = false, ttlMs = 4200, silent = false }) {
+            prune();
             const clean = String(text || '').trim();
             if (!clean) return 0;
             const lv = LEVEL_ICON[level] ? level : 'info';
@@ -111,6 +125,7 @@ export function createNotifyCenter({ toastsEl, panelEl, listEl, badgeEl, bellEl,
             items = items.filter((i) => i.key !== key);
             if (items.length !== before) { paintList(); paintBadge(); }
         },
+        prune,
         open: () => setOpen(true),
         close: () => setOpen(false),
         get isOpen() { return open; },

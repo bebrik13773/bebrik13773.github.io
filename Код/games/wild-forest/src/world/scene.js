@@ -11,6 +11,7 @@ import { createNav } from './nav.js';
 import { pickObject } from './picking.js';
 import { createBeaver } from '../entities/beaver.js';
 import { createDrops } from './drops.js';
+import { createTreeFx } from './tree-fx.js';
 import { createHero } from '../entities/hero.js';
 import { createCameraRig, resolveCameraDistance } from '../core/camera-rig.js';
 import { createPositionTrack } from '../core/track.js';
@@ -51,7 +52,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         chunks.addClearing(spawn.x, spawn.z, 12); // без сервера: временная поляна
     }
 
-    if (start && Array.isArray(start.felled)) start.felled.forEach((id) => chunks.fell(id)); // уже срубленное (пока без потока изменений ДЛ-21)
+    if (start && Array.isArray(start.felled)) start.felled.forEach((id) => chunks.fell(id, { stump: false })); // уже срубленное (пока без потока изменений ДЛ-21)
 
     // Вода: одна плоскость на уровне воды, едет за героем (озёра и реки уже «вырезаны» рельефом).
     const water = new THREE.Mesh(
@@ -64,7 +65,8 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
 
     // Герой: 3D-бобёр. Поворот лицом по ходу движения плавный, анимация идёт от реального кадра, а не от шага логики.
     const hero = new THREE.Group();
-    const beaver = createBeaver({ detail: 'high' });
+    let workTree = null;                                  // id дерева, которое сейчас рубим (для дрожания и щепок)
+    const beaver = createBeaver({ detail: 'high', onEvent: (e) => { if (e.type === 'hit' && workTree && fx) fx.impact(workTree); } });
     hero.add(beaver.group);
     const blob = new THREE.Mesh(
         new THREE.CircleGeometry(0.7, 16).rotateX(-Math.PI / 2),
@@ -83,10 +85,17 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         if (pondProps) pondProps.dispose();
         pondProps = createPondAndDam({ pond: start.pond, groundY: (x, z) => groundY(x, z) });
         scene.add(pondProps.group);
+        // пруд и плотина непроходимы: в воду не зайти, через брёвна не пройти
+        chunks.clearBlockers();
+        chunks.addBlocker(start.pond.x, start.pond.z, start.pond.r + 0.1);
+        const dam = start.pond.dam || { x: start.pond.x + start.pond.r, z: start.pond.z };
+        const yaw = -((start.pond.deg || 0) * Math.PI) / 180 + Math.PI / 2;
+        for (let off = -1.9; off <= 1.91; off += 0.55) chunks.addBlocker(dam.x + Math.cos(yaw) * off, dam.z - Math.sin(yaw) * off, 0.5);
     }
     buildPond();
     const drops = createDrops({ scene, groundY: (x, z) => groundY(x, z) });
     if (start && Array.isArray(start.drops)) drops.add(start.drops);
+    const fx = createTreeFx({ scene, chunks, models, groundY: (x, z) => groundY(x, z) });
     const rig = createCameraRig();
     const track = createPositionTrack();
     const size = { w: 390, h: 800 };           // размер холста в CSS-пикселях (для выбора объекта)
@@ -126,7 +135,10 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
     const ctl = createHero({ nav, x: spawn.x, z: spawn.z, vMax: heroSpeed(speedMods) });
     ctl.on('arrive', (e) => { marker.visible = false; onEvent({ type: 'arrive', ...e }); });
     ctl.on('blocked', (e) => { marker.visible = false; onEvent({ type: 'blocked', ...e }); });
-    ctl.on('ready', (obj) => onEvent({ type: 'ready', obj }));
+    ctl.on('ready', (obj) => {
+        if (obj && obj.kind === 'tree' && fx.begin(obj.id, ctl.x, ctl.z)) workTree = obj.id;
+        onEvent({ type: 'ready', obj });
+    });
 
     // Метка цели: кольцо на земле (белое = точка, оранжевое = дойдём только до ближайшей, золотое = объект).
     const marker = new THREE.Mesh(
@@ -196,7 +208,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         const list = [];
         chunks.forEachInRange(ctl.x, ctl.z, 70, (o) => {
             if (!pickKinds.has(o.kind)) return;
-            list.push({ id: o.id, kind: 'tree', x: o.x, y: o.y, z: o.z, h: o.h, r: o.r, pickR: INPUT.pickTreeWorldR });
+            list.push({ id: o.id, kind: 'tree', x: o.x, y: o.y, z: o.z, h: o.h, r: o.r, pickR: INPUT.pickTreeWorldR, reach: o.r + MOVE.chopReach });
         });
         for (const d of dynamicTargets.values()) list.push(d);
         return list;
@@ -294,6 +306,15 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         get sleeping() { return sleeping; },
         groundY,
         drops,
+        fx,
+        /** Точка у ствола на уровне головы бобра (для шкалы прочности): { x, y, z } или null. */
+        treeAnchor(id) {
+            const parsed = id.split(':').map(Number);
+            const c = chunks.chunk(parsed[0], parsed[1]);
+            const rec = c && c.data.obs[parsed[2]];
+            if (rec) return { x: rec.x, y: rec.y + Math.min(rec.h * 0.4, 2.6) + 0.5, z: rec.z };
+            return null;
+        },
         /** Верхушка дерева по id (для шкалы прочности): { x, y, z } или null, если чанк не загружен. */
         treeTop(id) {
             const parsed = id.split(':').map(Number);
@@ -357,7 +378,14 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
                 else if (beaver.state === 'chop' || !['carry', 'sleep', 'scared', 'eat'].includes(beaver.state)) beaver.setState(autoState());
             }
             beaver.update(frameDt);
-            beaver.setOutlineWidth(0.02 * Math.min(2.4, Math.max(0.85, rig.dist / 9)));
+            // дерево под топором: ушёл от него или перестал рубить, дерево возвращается в чанк
+            if (workTree && !(ctl.obj && ctl.obj.id === workTree && (ctl.mode === 'work' || ctl.mode === 'turn' || ctl.mode === 'approach'))) {
+                if (fx.isStanding(workTree)) fx.cancel(workTree);
+                workTree = null;
+            }
+            fx.update(frameDt);
+            // контур тоньше и растёт с расстоянием медленно: далеко от бобра линия не должна «жиреть»
+            beaver.setOutlineWidth(0.017 * Math.min(1.5, Math.max(0.8, Math.sqrt(rig.dist / 9))));
             water.material.color.setHex(WATER_COLOR).offsetHSL(0, 0, Math.sin(clock * 0.8) * 0.015);
             if (marker.visible) {
                 if (ctl.mode === 'idle') marker.visible = false;
@@ -406,6 +434,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         },
         dispose() {
             drops.dispose();
+            fx.dispose();
             beaver.dispose();
             chunks.dispose();
             scene.traverse((obj) => {

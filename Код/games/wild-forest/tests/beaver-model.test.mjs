@@ -112,7 +112,7 @@ test('createBeaver: два вызова отрисовки, подмена ск�
     const b = createBeaver({ detail: 'high' });
     let info = b.info();
     assert.equal(info.drawCalls, 2);
-    assert.equal(info.bones, 13);
+    assert.equal(info.bones, 17);
     const tri0 = info.triangles;
     b.setGear({ lamp: 3 });
     info = b.info();

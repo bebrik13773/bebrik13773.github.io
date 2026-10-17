@@ -61,11 +61,17 @@ function createStumpPool(scene, material) {
     };
 }
 
+const stumpObstacle = (id, st) => ({ id, kind: 'stump', x: st.x, y: st.y, z: st.z, h: 0.55 * st.s, r: 0.4 * st.s, size: st.size, sp: -1 });
+
 export function createChunkManager({ scene, wg, models }) {
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
     const stumps = createStumpPool(scene, material);
     const chunks = new Map(); // key -> { cx, cz, mesh, geometry, data, lod, stumpIds }
     const felled = new Set();
+    const hidden = new Set();          // деревья, которые сейчас показаны отдельным мешем (рубка, падение): в буфере чанка их нет
+    const detached = new Map();        // id -> { info для пня и мэша, saved: исходные позиции вершин }
+    const freshStumps = new Map();     // id -> { x, y, z, s, until, cx, cz, ci }: свежие пни живут минуту и мешают ходить
+    const blockers = [];               // круглые препятствия вне генерации: пруд, плотина ({ x, z, r })
     const obsIndex = new Map(); // числовой ключ чанка -> массив препятствий по клеткам (для навигации, ДЛ-08)
     const okey = (cx, cz) => (cx + 16384) * 32768 + (cz + 16384);
     const clearings = [];
@@ -94,7 +100,7 @@ export function createChunkManager({ scene, wg, models }) {
     function build(cx, cz) {
         const key = chunkKey(cx, cz);
         const lod = lodFor(cx, cz);
-        const data = buildChunkData({ wg, models, cx, cz, preset, lod, felled, clearings });
+        const data = buildChunkData({ wg, models, cx, cz, preset, lod, felled, clearings, hidden });
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(data.pos, 3));
         geometry.setAttribute('normal', new THREE.BufferAttribute(data.nrm, 3));
@@ -111,8 +117,10 @@ export function createChunkManager({ scene, wg, models }) {
         const old = chunks.get(key);
         if (old) disposeChunk(old);
         const chunk = { cx, cz, mesh, geometry, data, lod, stumpIds: [] };
-        for (const st of data.stumps) {
-            if (stumps.add(st.id, st.x, st.y, st.z, st.s)) chunk.stumpIds.push(st.id);
+        for (const [id, st] of freshStumps) {
+            if (st.cx !== cx || st.cz !== cz) continue;
+            if (stumps.add(id, st.x, st.y, st.z, st.s)) chunk.stumpIds.push(id);
+            data.obs[st.ci] = stumpObstacle(id, st);
         }
         scene.add(mesh);
         chunks.set(key, chunk);
@@ -173,6 +181,22 @@ export function createChunkManager({ scene, wg, models }) {
         queue.sort((a, b) => distTo(a.cx, a.cz) - distTo(b.cx, b.cz));
     }
 
+    /** Убирает свежие пни, которым вышла минута: пень и препятствие исчезают. */
+    function expireStumps(now) {
+        for (const [id, st] of freshStumps) {
+            if (now < st.until) continue;
+            freshStumps.delete(id);
+            stumps.remove(id);
+            const chunk = chunks.get(chunkKey(st.cx, st.cz));
+            if (chunk) {
+                const i = chunk.stumpIds.indexOf(id);
+                if (i >= 0) chunk.stumpIds.splice(i, 1);
+                const o = chunk.data.obs[st.ci];
+                if (o && o.id === id) chunk.data.obs[st.ci] = null;
+            }
+        }
+    }
+
     return {
         /** Новый пресет качества: мир перестраивается (меняются радиус, детализация рельефа и плотность леса). */
         applyPreset(next) {
@@ -197,6 +221,7 @@ export function createChunkManager({ scene, wg, models }) {
         /** Строит чанки из очереди, пока не вышел бюджет (но минимум один за вызов). Возвращает число построенных. */
         pump(budgetMs = WORLD.chunkBuildBudgetMs) {
             const t0 = performance.now();
+            expireStumps(t0);
             let built = 0;
             while (queue.length) {
                 const job = queue.shift();
@@ -210,30 +235,81 @@ export function createChunkManager({ scene, wg, models }) {
             }
             return built;
         },
-        /** Срубленное дерево (или добытый камень): прячем и ставим пень. Возвращает true, если чанк был на экране. */
-        fell(id) {
+        /**
+         * Срубленное дерево (или добытый камень): прячем и ставим пень на минуту. Возвращает true, если чанк был на экране.
+         * opts.stump = false: пень не ставить (изменение пришло с сервера при входе, а не рубка на глазах).
+         */
+        fell(id, opts = {}) {
             if (felled.has(id)) return false;
             felled.add(id);
             const parsed = parseTreeId(id);
+            const det = detached.get(id);
+            detached.delete(id);
+            hidden.delete(id);
             if (!parsed) return false;
             const chunk = chunks.get(chunkKey(parsed.cx, parsed.cz));
             if (!chunk) return false;
             chunk.data.obs[parsed.ci] = null; // срублено или добыто: больше не препятствие
             const rec = chunk.data.trees.get(id);
-            if (!rec) { enqueue(parsed.cx, parsed.cz, 'rebuild'); return true; } // камень или руда: перестраиваем чанк
-            collapseTree(chunk.data.pos, rec);
-            chunk.geometry.attributes.position.needsUpdate = true;
-            chunk.data.trees.delete(id);
-            chunk.data.treeCount -= 1;
-            if (stumps.add(id, rec.wx, rec.y, rec.wz, SIZE_SCALE[rec.size])) chunk.stumpIds.push(id);
+            if (!rec && !det) { enqueue(parsed.cx, parsed.cz, 'rebuild'); return true; } // камень или руда: перестраиваем чанк
+            if (rec) {
+                collapseTree(chunk.data.pos, rec);
+                chunk.geometry.attributes.position.needsUpdate = true;
+                chunk.data.trees.delete(id);
+                chunk.data.treeCount -= 1;
+            }
+            const info = det ? det.info : { x: rec.wx, y: rec.y, z: rec.wz, size: rec.size };
+            if (opts.stump !== false) {
+                const st = { x: info.x, y: info.y, z: info.z, s: SIZE_SCALE[info.size], size: info.size, until: performance.now() + WORLD.stumpLifeMs, cx: parsed.cx, cz: parsed.cz, ci: parsed.ci };
+                freshStumps.set(id, st);
+                if (stumps.add(id, st.x, st.y, st.z, st.s)) chunk.stumpIds.push(id);
+                chunk.data.obs[parsed.ci] = stumpObstacle(id, st);
+            }
             return true;
         },
         /** Откат рубки, которую сервер не принял: дерево возвращается (чанк перестраивается). */
         unfell(id) {
             if (!felled.delete(id)) return false;
             stumps.remove(id);
+            freshStumps.delete(id);
             const parsed = parseTreeId(id);
             if (parsed) enqueue(parsed.cx, parsed.cz, 'rebuild');
+            return true;
+        },
+        /**
+         * Снимает дерево с чанка, чтобы показать его отдельным мешем (рубка: дрожит, падает). Дерево остаётся препятствием.
+         * Возвращает { id, x, y, z, size, sp, angle, scale, tint, lod } или null (чанк не загружен, дерева нет или уже снято).
+         */
+        detachTree(id) {
+            if (felled.has(id) || detached.has(id)) return null;
+            const parsed = parseTreeId(id);
+            if (!parsed) return null;
+            const chunk = chunks.get(chunkKey(parsed.cx, parsed.cz));
+            const rec = chunk && chunk.data.trees.get(id);
+            if (!rec) return null;
+            const saved = chunk.data.pos.slice(rec.v0 * 3, (rec.v0 + rec.vN) * 3);
+            collapseTree(chunk.data.pos, rec);
+            chunk.geometry.attributes.position.needsUpdate = true;
+            hidden.add(id);
+            const info = { id, x: rec.wx, y: rec.y, z: rec.wz, size: rec.size, sp: rec.sp, angle: rec.angle, scale: rec.scale, tint: rec.tint, lod: rec.lod };
+            detached.set(id, { info, saved, chunk });
+            return info;
+        },
+        /** Вернуть снятое дерево на место (бобёр ушёл, не дорубив). Без перестройки чанка, если он остался прежним. */
+        attachTree(id) {
+            const det = detached.get(id);
+            if (!det) return false;
+            detached.delete(id);
+            hidden.delete(id);
+            const parsed = parseTreeId(id);
+            const chunk = parsed && chunks.get(chunkKey(parsed.cx, parsed.cz));
+            const rec = chunk && chunk.data.trees.get(id);
+            if (chunk && chunk === det.chunk && rec) {
+                chunk.data.pos.set(det.saved, rec.v0 * 3);
+                chunk.geometry.attributes.position.needsUpdate = true;
+            } else if (parsed) {
+                enqueue(parsed.cx, parsed.cz, 'rebuild');
+            }
             return true;
         },
         /** Расчищенный круг (поляна, просека): деревья и камни внутри пропадают. */
@@ -268,8 +344,19 @@ export function createChunkManager({ scene, wg, models }) {
             const arr = obsIndex.get(okey(cx, cz));
             return arr ? arr[(gz - cz * 8) * 8 + (gx - cx * 8)] : null;
         },
-        /** Попадает ли круг (x, z, r) в какое-либо препятствие (стволы, камни, руда). Деревья и камни только в загруженных чанках. */
+        /** Круглое препятствие вне генерации мира: пруд, плотина (нельзя зайти в воду и пройти сквозь брёвна). */
+        addBlocker(x, z, r) { blockers.push({ id: `blocker:${blockers.length}`, kind: 'blocker', x, z, r }); },
+        clearBlockers() { blockers.length = 0; },
+        get blockerCount() { return blockers.length; },
+        /** Попадает ли круг (x, z, r) в какое-либо препятствие (стволы, пни, камни, руда, пруд, плотина). Деревья и камни только в загруженных чанках. */
         blockedAt(x, z, r) {
+            for (let i = 0; i < blockers.length; i += 1) {
+                const o = blockers[i];
+                const ex = x - o.x;
+                const ez = z - o.z;
+                const m = r + o.r;
+                if (ex * ex + ez * ez < m * m) return true;
+            }
             const gx = Math.floor(x / 4);
             const gz = Math.floor(z / 4);
             for (let dz = -1; dz <= 1; dz += 1) {
@@ -286,6 +373,10 @@ export function createChunkManager({ scene, wg, models }) {
         },
         /** Препятствия рядом с точкой (клетки вокруг, достаточно для радиусов до ~2 м). */
         forEachNear(x, z, range, cb) {
+            for (let i = 0; i < blockers.length; i += 1) {
+                const o = blockers[i];
+                if (Math.abs(o.x - x) <= range + o.r + 1 && Math.abs(o.z - z) <= range + o.r + 1) cb(o);
+            }
             const span = Math.max(1, Math.ceil((range + 1.5) / 4));
             const gx = Math.floor(x / 4);
             const gz = Math.floor(z / 4);
@@ -317,6 +408,8 @@ export function createChunkManager({ scene, wg, models }) {
         get loaded() { return chunks.size; },
         get pending() { return queue.length; },
         get stumpCount() { return stumps.size; },
+        /** Свежие пни и их срок (для тестов и отладки). */
+        stumpInfo() { return [...freshStumps].map(([id, st]) => ({ id, x: st.x, z: st.z, left: Math.max(0, st.until - performance.now()) })); },
         get treeCount() {
             let n = 0;
             for (const chunk of chunks.values()) n += chunk.data.treeCount;
