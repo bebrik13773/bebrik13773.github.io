@@ -408,6 +408,80 @@ wf_st_test($results, 'Энергия: засыпание после действ
     return ['1 0 1', (int) wf_energy_settle(0.0, false) . ' ' . (int) wf_energy_settle(50.0, false) . ' ' . (int) wf_energy_settle(50.0, true)];
 });
 
+// 4г. Рюкзак, вес ноши и подбор (ДЛ-13): чистые функции по тем же векторам, что и в JS (tests/pack.test.mjs)
+require_once dirname(__DIR__) . '/api/forest/lib/pack_weight.php';
+function wf_st_pack_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $v = json_decode((string) @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/pack.json'), true);
+        if (!is_array($v) || empty($v['fits'])) {
+            throw new RuntimeException('нет файла векторов рюкзака: games/wild-forest/tests/vectors/pack.json');
+        }
+    }
+    return $v;
+}
+wf_st_test($results, 'Рюкзак: вес штуки и набора совпадает с JS на всех векторах', function () {
+    $v = wf_st_pack_vectors();
+    $bad = [];
+    foreach ($v['kg'] as $r) {
+        if (abs(wf_pack_item_kg((string) $r[0]) - (float) $r[1]) > 1e-9) {
+            $bad[] = $r[0];
+        }
+    }
+    foreach ($v['kgs'] as $r) {
+        if (abs(wf_pack_kg((array) $r[0]) - (float) $r[1]) > 1e-6) {
+            $bad[] = json_encode($r[0]);
+        }
+    }
+    $n = count($v['kg']) + count($v['kgs']);
+    return ['0 расхождений из ' . $n, count($bad) . ' расхождений из ' . $n . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Рюкзак: сколько влезет совпадает с JS на всех векторах', function () {
+    $v = wf_st_pack_vectors();
+    $bad = [];
+    foreach ($v['fits'] as $r) {
+        if (wf_pack_fit((float) $r[0], (float) $r[1], (string) $r[2], (int) $r[3]) !== (int) $r[4]) {
+            $bad[] = implode(',', $r);
+        }
+    }
+    return ['0 расхождений из ' . count($v['fits']), count($bad) . ' расхождений из ' . count($v['fits']) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Рюкзак: груз для проверки скорости (брошенное в пакете вычитается) совпадает с JS', function () {
+    $v = wf_st_pack_vectors();
+    $bad = [];
+    foreach ($v['loads'] as $r) {
+        if (abs(wf_pack_move_load((array) $r[0], (array) $r[1]) - (float) $r[2]) > 1e-6) {
+            $bad[] = json_encode($r);
+        }
+    }
+    return ['0 расхождений из ' . count($v['loads']), count($bad) . ' расхождений из ' . count($v['loads']) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 2)) . ')' : '')];
+});
+wf_st_test($results, 'Рюкзак: скорость с грузом совпадает с JS (вес замедляет бобра)', function () {
+    $v = wf_st_pack_vectors();
+    $bad = [];
+    foreach ($v['speeds'] as $r) {
+        if (abs(wf_hero_speed((float) $r[0], (float) $r[1]) - (float) $r[2]) > 1e-5) {
+            $bad[] = implode(',', $r);
+        }
+    }
+    return ['0 расхождений из ' . count($v['speeds']), count($bad) . ' расхождений из ' . count($v['speeds']) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Рюкзак: вместимость по уровню 40, 50, 110, 110', function () {
+    $v = wf_st_pack_vectors();
+    $got = [];
+    foreach ($v['capacities'] as $r) {
+        $got[] = wf_player_pack_capacity((int) $r[0]);
+    }
+    return ['40 50 110 110', implode(' ', $got)];
+});
+wf_st_test($results, 'Рюкзак: полный рюкзак не проходит проверку движения на скорости пустого', function () {
+    $free = wf_sync_check_move(0, 0, 25.0, 0, 8.0, 40.0, 0.0)['ok'];   // 25 м за 8 с налегке
+    $full = wf_sync_check_move(0, 0, 25.0, 0, 8.0, 40.0, 40.0)['ok'];  // то же с полным рюкзаком
+    $slow = wf_sync_check_move(0, 0, 10.0, 0, 8.0, 40.0, 40.0)['ok'];  // 10 м за 8 с с полным рюкзаком (честно)
+    return ['1 0 1', (int) $free . ' ' . (int) $full . ' ' . (int) $slow];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

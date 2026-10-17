@@ -53,6 +53,7 @@
 <link rel="modulepreload" href="./src/world/gen.js">
 <link rel="modulepreload" href="./src/world/models.js">
 <link rel="modulepreload" href="./src/world/nav.js">
+<link rel="modulepreload" href="./src/world/pack-flow.js">
 <link rel="modulepreload" href="./src/world/picking.js">
 <link rel="modulepreload" href="./src/world/scene.js">
 <link rel="modulepreload" href="./src/world/spawn.js">
@@ -268,6 +269,8 @@ html, body {
         <label for="wfVolMusic">Музыка</label><output id="wfVolMusicOut" for="wfVolMusic"></output>
         <input type="range" id="wfVolMusic" min="0" max="100" step="5" value="50">
     </div>
+    <h2>Игра</h2>
+    <label class="wf-check"><input type="checkbox" id="wfAutoPickup" checked> <span>Автоподбор брёвен</span></label>
     <button type="button" class="wf-btn is-ghost" id="wfTutorialRepeat">Повторить обучение</button>
     <button type="button" class="wf-btn is-ghost" id="wfExit">Выйти в старый кликер</button>
     <div class="wf-build" id="wfBuild" data-build-commit="__BUILD_COMMIT_SHA__"></div>

@@ -10,6 +10,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && @realpath((string) $_SERVER['SCRIPT_FI
 require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/formulas.php';
 require_once __DIR__ . '/spawn.php';
+require_once __DIR__ . '/pack_weight.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -190,14 +191,7 @@ function wf_player_pack($conn, int $playerId): array
     }
     $stmt->close();
 
-    $w = forest_config('hero.weights_kg');
-    $kg = 0.0;
-    foreach ($items as $key => $qty) {
-        $per = $key === 'log' ? ((float) $w['log_min'] + (float) $w['log_max']) / 2 : (float) ($w[$key] ?? 1);
-        $kg += $per * $qty;
-    }
-
-    return ['items' => $items, 'kg' => round($kg, 2)];
+    return ['items' => $items, 'kg' => wf_pack_kg($items)];
 }
 
 /** Лёгкая часть состояния (приходит в каждом sync). */
@@ -269,13 +263,17 @@ function wf_player_world_near($conn, array $row): array
 
     $drops = [];
     $now = time();
+    $gc = $conn->prepare('DELETE FROM `forest_drops` WHERE `expires_at` <= ? LIMIT ' . (int) forest_config('pack.gc_limit'));
+    $gc->bind_param('i', $now);
+    $gc->execute();
+    $gc->close();
     $me = (int) $row['player_id'];
-    $stmt = $conn->prepare('SELECT `id`, `x`, `z`, `item_key`, `qty` FROM `forest_drops` WHERE `cx` BETWEEN ? AND ? AND `cz` BETWEEN ? AND ? AND `expires_at` > ? AND (`owner_id` = ? OR `owner_until` <= ?) ORDER BY `id` DESC LIMIT 200');
+    $stmt = $conn->prepare('SELECT `id`, `x`, `z`, `item_key`, `qty`, `expires_at` FROM `forest_drops` WHERE `cx` BETWEEN ? AND ? AND `cz` BETWEEN ? AND ? AND `expires_at` > ? AND (`owner_id` = ? OR `owner_until` <= ?) ORDER BY `id` DESC LIMIT 200');
     $stmt->bind_param('iiiiiii', $x0, $x1, $z0, $z1, $now, $me, $now);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($res && ($r = $res->fetch_assoc())) {
-        $drops[] = ['id' => (int) $r['id'], 'x' => round((float) $r['x'], 2), 'z' => round((float) $r['z'], 2), 'item' => (string) $r['item_key'], 'qty' => (int) $r['qty']];
+        $drops[] = ['id' => (int) $r['id'], 'x' => round((float) $r['x'], 2), 'z' => round((float) $r['z'], 2), 'item' => (string) $r['item_key'], 'qty' => (int) $r['qty'], 'ttl' => max(0, (int) $r['expires_at'] - $now)];
     }
     $stmt->close();
 

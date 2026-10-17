@@ -1,13 +1,14 @@
 <?php
 /**
  * POST /api/forest/sync: объединённый пакет клиента (ДЛ-10, версия 1): позиция, номера действий, ответ с состоянием.
- * Действия: chop_done (ДЛ-11), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета); подбор (ДЛ-13), стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
+ * Действия: chop_done (ДЛ-11), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета), pickup и drop (ДЛ-13); стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
  */
 
 require_once __DIR__ . '/lib/player.php';
 require_once __DIR__ . '/lib/sync.php';
 require_once __DIR__ . '/lib/actions.php';
 require_once __DIR__ . '/lib/energy.php';
+require_once __DIR__ . '/lib/pack.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -59,9 +60,11 @@ try {
         $dt = max(0, $now - (int) $row['last_seen']);
         $capacity = wf_player_pack_capacity((int) $row['pack_lvl']);
         $sleeping = !empty($stats['sleep']);
+        // Вес ноши для проверки скорости: рюкзак минус брошенное в этом же пакете.
+        $load = wf_pack_move_load(wf_player_pack($conn, $playerId)['items'], $actions);
         $parsed = wf_sync_parse_pos($in['pos'] ?? null);
         if ($parsed !== null) {
-            $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity);
+            $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity, $load);
             // Спящий бобёр не ходит: уход дальше метра откатывается без страйка.
             if ($check['ok'] && !($sleeping && $check['dist'] > 1.0)) {
                 $moved = $check['dist'] > 0.5;
@@ -74,7 +77,7 @@ try {
             }
         }
         // Допуск перемещения за время между sync нужен действиям, привязанным к месту (рубка).
-        $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity)['allowed'];
+        $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity, $load)['allowed'];
         $ctx = ['now' => $now, 'now_ms' => forest_now_ms(), 'prev' => ['x' => $prevX, 'z' => $prevZ], 'new' => ['x' => $newX, 'z' => $newZ], 'dt' => $dt, 'allow' => $allow];
 
         // Энергия (ДЛ-12): ленивый расчёт за время с прошлого расчёта — расход на ходьбу, восстановление, засыпание и пробуждение.
@@ -107,6 +110,12 @@ try {
                 $results[] = ['a' => $a, 'ok' => false, 'error' => 'forbidden'];
             } elseif (!empty($stats['sleep']) && $type === 'chop_done') {
                 $results[] = ['a' => $a, 'ok' => false, 'tree' => isset($action['tree']) ? (string) $action['tree'] : '', 'error' => 'sleeping'];
+            } elseif (!empty($stats['sleep']) && ($type === 'pickup' || $type === 'drop')) {
+                $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'drop' => isset($action['drop']) ? (int) $action['drop'] : 0, 'item' => isset($action['item']) ? (string) $action['item'] : '', 'error' => 'sleeping'];
+            } elseif ($type === 'pickup') {
+                $results[] = wf_action_pickup($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'drop') {
+                $results[] = wf_action_drop($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'eat') {
                 $results[] = wf_action_eat($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'chop_done') {

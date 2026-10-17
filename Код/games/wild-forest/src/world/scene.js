@@ -93,7 +93,15 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         for (let off = -1.9; off <= 1.91; off += 0.55) chunks.addBlocker(dam.x + Math.cos(yaw) * off, dam.z - Math.sin(yaw) * off, 0.5);
     }
     buildPond();
-    const drops = createDrops({ scene, groundY: (x, z) => groundY(x, z) });
+    const dynamicTargets = new Map();            // объекты, которые можно выбрать тапом помимо деревьев (предметы, позже NPC, постройки, помощники)
+    const dropTargetId = (id) => `drop:${id}`;
+    const drops = createDrops({
+        scene,
+        groundY: (x, z) => groundY(x, z),
+        // Лежащий предмет можно выбрать тапом: бобёр подойдёт и подберёт (ДЛ-13).
+        onAdd: (d) => dynamicTargets.set(dropTargetId(d.id), { id: dropTargetId(d.id), kind: 'drop', dropId: d.id, x: d.x, y: groundY(d.x, d.z), z: d.z, h: 0.6, r: 0.35, pickR: 1.0, reach: 1.3 }),
+        onRemove: (id) => dynamicTargets.delete(dropTargetId(id)),
+    });
     if (start && Array.isArray(start.drops)) drops.add(start.drops);
     const fx = createTreeFx({ scene, chunks, models, groundY: (x, z) => groundY(x, z) });
     const rig = createCameraRig();
@@ -105,7 +113,6 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
     let lastRender = 0;
     let clock = 0;
     const input = { x: 0, z: 0 };                // движение клавишами: x вправо, z вперёд
-    const dynamicTargets = new Map();            // объекты, которые добавят следующие пункты (NPC, предметы, постройки, помощники)
     let speedMods = { load: 0, capacity: 40, road: 0, boots: false, weather: 1 };
     const pickKinds = new Set([KIND.TREE]);       // что можно выбрать тапом (камни и руда придут вместе с киркой)
     let sized = false;

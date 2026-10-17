@@ -223,6 +223,8 @@
 /* Настройки: ползунки и кнопки */
 .wf-panel { max-height: calc(100vh - 80px - var(--sat) - var(--sab)); overflow: auto; }
 .wf-panel h2 + .wf-quality { margin-bottom: 12px; }
+.wf-check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 8px; }
+.wf-check input { width: 22px; height: 22px; }
 .wf-sound { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin-bottom: 8px; font-size: 14px; }
 .wf-sound input[type="range"] { grid-column: 1 / -1; width: 100%; min-height: 32px; accent-color: var(--accent); }
 

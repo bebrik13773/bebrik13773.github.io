@@ -135,6 +135,14 @@ export function createInventory({ onDrop = () => {}, onEat = () => {}, onChange 
             paint();
             return n;
         },
+        /** Добавить qty штук (оптимистично, до ответа сервера). */
+        add(key, qty, kg) {
+            const n = Math.max(0, Math.floor(qty));
+            if (!n) return;
+            const item = items.find((i) => i.key === key);
+            if (item) item.qty += n; else items.push({ key, qty: n, kg: Number(kg) || 1, edible: key.startsWith('fish') });
+            paint();
+        },
         setCapacity(kg) { capacity = Number(kg) || 0; paint(); },
         get items() { return items.map((i) => ({ ...i })); },
         get weight() { return totalWeight(items); },

@@ -2,6 +2,7 @@
 export const PREF_DEFAULTS = Object.freeze({
     'wf.vol.sfx': 0.8,
     'wf.vol.music': 0.5,
+    'wf.autopickup': 1,   // 1 = брёвна подбираются сами рядом с бобром (ДЛ-13)
 });
 
 export function clamp01(value, fallback = 0) {

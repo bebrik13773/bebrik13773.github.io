@@ -9,7 +9,7 @@ const VOLUMES = [
 
 // Меню настроек (ДЛ-09): качество графики, громкость звуков и музыки, повтор обучения, выход, окно беты.
 // Громкость сохраняется в localStorage и сообщается через onVolume (менеджер звука придёт в ДЛ-31).
-export function createSettingsUi({ quality, notice, onOpenBeta, onVolume = () => {}, onRepeatTutorial = () => {} }) {
+export function createSettingsUi({ quality, notice, onOpenBeta, onVolume = () => {}, onAutoPickup = () => {}, onRepeatTutorial = () => {} }) {
     const gear = document.getElementById('wfGear');
     const panel = document.getElementById('wfPanel');
     const group = document.getElementById('wfQuality');
@@ -56,6 +56,12 @@ export function createSettingsUi({ quality, notice, onOpenBeta, onVolume = () =>
         });
     });
 
+    const auto = document.getElementById('wfAutoPickup');
+    if (auto) {
+        auto.checked = getPref('wf.autopickup') >= 0.5;
+        auto.addEventListener('change', () => { setPref('wf.autopickup', auto.checked ? 1 : 0); onAutoPickup(auto.checked); });
+    }
+
     tutorialBtn.addEventListener('click', () => {
         setOpen(false);
         onRepeatTutorial();
@@ -79,6 +85,7 @@ export function createSettingsUi({ quality, notice, onOpenBeta, onVolume = () =>
         hide() { gear.hidden = true; setOpen(false); },
         close() { setOpen(false); },
         get isOpen() { return panel.classList.contains('is-open'); },
+        autoPickup: () => getPref('wf.autopickup') >= 0.5,
         volumes: () => ({ sfx: getPref('wf.vol.sfx'), music: getPref('wf.vol.music') }),
     };
 }

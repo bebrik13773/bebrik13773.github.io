@@ -1,11 +1,12 @@
 // Перенос состояния сервера в интерфейс (ДЛ-10). Чистая логика: объекты hud, inventory, world передаются снаружи.
 // Вес одной штуки для панели рюкзака (бревно среднее: сервер считает по размеру дерева, итог веса берёт с сервера).
+import { itemKg } from '../shared/formulas.js';
 export const ITEM_KG = Object.freeze({ log: 7, plank: 3, ore: 8, ingot: 5, stone: 10, boulder: 10, fish_small: 1, fish_big: 1, fish: 1, seed: 0.1 });
 const EDIBLE = new Set(['fish', 'fish_small', 'fish_big']);
 
 /** { key: qty } → список для панели рюкзака. */
 export function packToItems(pack) {
-    return Object.keys(pack || {}).map((key) => ({ key, qty: pack[key], kg: ITEM_KG[key] != null ? ITEM_KG[key] : 1, edible: EDIBLE.has(key) }));
+    return Object.keys(pack || {}).map((key) => ({ key, qty: pack[key], kg: itemKg(key), edible: EDIBLE.has(key) }));
 }
 
 /** Применяет легкое состояние (энергия, монеты, вес, рюкзак, уровень) к HUD и панели рюкзака. */

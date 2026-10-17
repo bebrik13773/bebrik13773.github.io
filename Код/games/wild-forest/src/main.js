@@ -22,6 +22,7 @@ import { createDialog } from './ui/dialog.js';
 import { createChopBar } from './ui/chop-bar.js';
 import { createChopFlow } from './world/chop-flow.js';
 import { createEnergyFlow } from './world/energy-flow.js';
+import { createPackFlow } from './world/pack-flow.js';
 import { S } from './ui/strings.ru.js';
 
 window.__wfBooted = true;
@@ -102,6 +103,7 @@ async function boot() {
     const start = online ? startFromState(session.full) : null;
 
     let chopFlow = null;
+    let packFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -109,6 +111,7 @@ async function boot() {
             start,
             onEvent(e) {
                 if (chopFlow) chopFlow.onWorldEvent(e);
+                if (packFlow) packFlow.onWorldEvent(e);
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
                 else if (e.type === 'sleepingTap') notice.show({ text: S.energy.sleepingTap, ttlMs: 2200 });
@@ -155,13 +158,14 @@ async function boot() {
         notice,
         onOpenBeta: () => beta.open(),
         onRepeatTutorial: () => notify({ text: S.settings.tutorialLater }),
+        onAutoPickup: () => {},
     });
     let hud = null;
     let energyFlow = null;
     const inventory = createInventory({
-        onChange: ({ kg, capacity }) => { if (hud) hud.set({ packKg: kg, packCap: capacity }); },
-        // Пока сервер не присылает рюкзак (ДЛ-10, ДЛ-13), «бросить» убирает предметы только на экране.
-        onDrop: (key, qty) => { inventory.remove(key, qty); },
+        // Вес ноши замедляет бобра по общей с сервером формуле (ДЛ-13).
+        onChange: ({ kg, capacity }) => { if (hud) hud.set({ packKg: kg, packCap: capacity }); world.setSpeedMods({ load: kg, capacity }); },
+        onDrop: (key, qty) => { if (packFlow) packFlow.dropItem(key, qty); else notify({ text: S.pack.offline }); },
         onEat: (key) => { if (energyFlow) energyFlow.eat(key); else notify({ text: S.energy.offline }); },
     });
     hud = createHud({
@@ -185,6 +189,15 @@ async function boot() {
         getQueue: () => queue, getSync: () => sync,
         getAxeLevel: () => axeLevel,
         getEnergy: () => (online ? lastEnergy : null),
+    });
+
+    // Рюкзак (ДЛ-13): подбор тапом и автоподбор брёвен, бросание груза.
+    packFlow = createPackFlow({
+        world, notify, text: S.pack,
+        names: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].name.toLowerCase()])),
+        getQueue: () => queue, getSync: () => sync,
+        getInventory: () => inventory, getCapacity: () => (hud ? hud.values.packCap : 40),
+        isAuto: () => settings.autoPickup(), isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
     });
 
     // Энергия, сон и еда (ДЛ-12): сервер присылает sleeping, бобёр ложится; еда уходит действием eat.
@@ -228,7 +241,7 @@ async function boot() {
     const debug = isDebugMode() ? createDebugPanel() : null;
 
     loop = createLoop({
-        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); },
+        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); },
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
@@ -311,6 +324,9 @@ async function boot() {
             pondInfo: () => world.pondInfo(),
             chop: () => ({ active: chopFlow.chop.active, hits: chopFlow.chop.hits, frac: chopFlow.chop.frac, need: chopFlow.chop.info && chopFlow.chop.info.need, pending: [...chopFlow.pending.keys()] }),
             drops: () => world.drops.list(),
+            pack: () => ({ pending: [...packFlow.pending.keys()], throwing: packFlow.throwing, speed: world.speedLimit }),
+            pickup: (id) => packFlow.pickup(id),
+            dropItem: (key, qty) => packFlow.dropItem(key, qty),
             energy: () => ({ sleeping: energyFlow.sleeping, value: lastEnergy }),
             eat: (key) => energyFlow.eat(key),
             beaverStateName: () => world.beaver.state,
@@ -332,7 +348,7 @@ async function boot() {
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });

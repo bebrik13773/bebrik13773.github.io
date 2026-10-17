@@ -193,7 +193,7 @@ function wf_action_chop($conn, array &$row, array &$stats, array $action, array 
         $qty = $it['item'] === 'log' ? 1 : $it['qty'];
         for ($u = 0; $u < $units; $u++) {
             $p = $points[$pi++];
-            $drops[] = ['id' => wf_action_add_drop($conn, $cx, $cz, $p['x'], $p['z'], $it['item'], $qty, (int) $row['player_id'], $ctx['now']), 'x' => $p['x'], 'z' => $p['z'], 'item' => $it['item'], 'qty' => $qty];
+            $drops[] = ['id' => wf_action_add_drop($conn, $cx, $cz, $p['x'], $p['z'], $it['item'], $qty, (int) $row['player_id'], $ctx['now']), 'x' => $p['x'], 'z' => $p['z'], 'item' => $it['item'], 'qty' => $qty, 'ttl' => (int) forest_config('trees.chop.drop_ttl_s')];
         }
     }
 

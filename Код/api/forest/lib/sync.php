@@ -12,12 +12,13 @@ require_once __DIR__ . '/formulas.php';
 /**
  * Проверка перемещения: расстояние от прошлой позиции не больше vMax × dt × 1.35 + 3 м.
  * $dtSec ограничен limits.move_dt_cap_s. Возвращает ['ok' => bool, 'dist' => , 'allowed' => ].
- * До появления дорог и сапог (ДЛ-24, ДЛ-18) берём самый щедрый vMax, чтобы честных игроков не откатывать.
+ * $load — вес ноши, кг: тяжёлый рюкзак снижает допустимую скорость по той же формуле, что и у клиента.
  */
-function wf_sync_check_move(float $fromX, float $fromZ, float $toX, float $toZ, float $dtSec, float $capacity = 40.0): array
+function wf_sync_check_move(float $fromX, float $fromZ, float $toX, float $toZ, float $dtSec, float $capacity = 40.0, float $load = 0.0): array
 {
     $dt = max(0.0, min((float) forest_config('limits.move_dt_cap_s'), $dtSec));
-    $vMax = wf_hero_speed(0.0, $capacity, 3, true);
+    // Груз замедляет бобра (ДЛ-13). Дороги и сапоги появятся в ДЛ-24 и ДЛ-18, тогда сюда придут их настоящие значения.
+    $vMax = wf_hero_speed($load, $capacity, 0, false);
     $allowed = wf_move_allowance($vMax, $dt);
     $dist = hypot($toX - $fromX, $toZ - $fromZ);
 

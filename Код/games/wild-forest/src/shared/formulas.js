@@ -179,3 +179,56 @@ export function eatGain(item) {
     const map = { fish: 'small', fish_small: 'small', fish_big: 'big' };
     return map[item] ? ENERGY.fish[map[item]] : null;
 }
+
+// ── Рюкзак и вес ноши (ДЛ-13) ──────────────────────────────────────────
+// Баланс совпадает с api/forest/config.php (hero.weights_kg, pack.*); зеркало PHP: api/forest/lib/pack_weight.php.
+export const PACK = Object.freeze({
+    baseKg: 40,
+    perLvlKg: 10,
+    maxLvl: 8,
+    pickupR: 3.0,        // сервер принимает подбор не дальше 3 м
+    autoPickupR: 1.5,    // автоподбор брёвен на клиенте
+    logMinKg: 4,
+    logMaxKg: 10,
+    weights: Object.freeze({ plank: 3, ore: 8, ingot: 5, stone: 10, boulder: 10, fish: 1, fish_small: 1, fish_big: 1, seed: 0.1, seed_rare: 0.1 }),
+});
+
+/** Вместимость рюкзака, кг, по уровню: 40 и +10 за уровень (до 8). */
+export function packCapacity(lvl = 1) {
+    const l = Math.max(1, Math.min(PACK.maxLvl, lvl | 0));
+    return PACK.baseKg + PACK.perLvlKg * (l - 1);
+}
+
+/** Вес одной штуки, кг (бревно среднее, 7). */
+export function itemKg(item) {
+    if (item === 'log') return (PACK.logMinKg + PACK.logMaxKg) / 2;
+    return PACK.weights[item] !== undefined ? PACK.weights[item] : 1;
+}
+
+/** Вес набора { предмет: штук }, кг, до сотых. */
+export function packKg(items) {
+    let kg = 0;
+    for (const key of Object.keys(items || {})) kg += itemKg(key) * Math.max(0, Math.floor(items[key]));
+    return Math.round(kg * 100) / 100;
+}
+
+/** Сколько штук предмета ещё влезет (0…qty). */
+export function packFit(capacity, loadKg, item, qty) {
+    const per = itemKg(item);
+    if (per <= 0) return Math.max(0, qty);
+    const room = capacity - loadKg;
+    if (room <= 0) return 0;
+    return Math.max(0, Math.min(qty, Math.floor(room / per + 1e-9)));
+}
+
+/** Груз для проверки скорости: рюкзак минус брошенное в том же пакете (зеркало wf_pack_move_load). */
+export function moveLoad(items, actions) {
+    const left = {};
+    for (const key of Object.keys(items || {})) left[key] = Math.max(0, Math.floor(items[key]));
+    for (const a of actions || []) {
+        if (!a || a.type !== 'drop' || typeof a.item !== 'string') continue;
+        const q = Math.floor(Number(a.qty));
+        if (left[a.item] !== undefined && q > 0) left[a.item] = Math.max(0, left[a.item] - q);
+    }
+    return packKg(left);
+}

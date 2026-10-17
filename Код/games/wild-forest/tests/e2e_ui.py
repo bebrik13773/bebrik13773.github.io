@@ -100,9 +100,10 @@ with sync_playwright() as p:
     page.click('.wf-cell[data-key=log]')
     check('выбор показывает действия', page.locator('#wfInvDetail .wf-btn').count() >= 2)
     page.click('text=Бросить 1')
-    check('бросить 1: осталось 4 бревна', [i['qty'] for i in page.evaluate("window.__wf.ui.inventory.items") if i['key'] == 'log'] == [4])
-    page.click('.wf-cell[data-key=log]'); page.click('text=Бросить всё')
-    check('бросить всё: брёвен нет', not any(i['key'] == 'log' for i in page.evaluate("window.__wf.ui.inventory.items")))
+    # Без связи с сервером бросить нельзя (ДЛ-13: бросок идёт действием drop), рюкзак не меняется
+    check('бросить без сервера: рюкзак не меняется', [i['qty'] for i in page.evaluate("window.__wf.ui.inventory.items") if i['key'] == 'log'] == [5])
+    page.evaluate("window.__wf.ui.inventory.remove('log', 5)")
+    check('убрать предметы из панели (локально): брёвен нет', not any(i['key'] == 'log' for i in page.evaluate("window.__wf.ui.inventory.items")))
     page.screenshot(path=f'{OUT}/ui_inventory.png')
     page.click('#wfInvSort')
     check('кнопка сортировки меняет режим', 'названию' in page.inner_text('#wfInvSort') or 'количеству' in page.inner_text('#wfInvSort'))
