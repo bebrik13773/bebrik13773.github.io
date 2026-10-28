@@ -261,6 +261,16 @@ function wf_player_world_near($conn, array $row): array
     }
     $stmt->close();
 
+    $uprooted = [];
+    $stmt = $conn->prepare('SELECT `ckey` FROM `forest_chunk_changes` WHERE `kind` = \'stump_uprooted\' AND `cx` BETWEEN ? AND ? AND `cz` BETWEEN ? AND ? ORDER BY `id` DESC LIMIT ?');
+    $stmt->bind_param('iiiii', $x0, $x1, $z0, $z1, $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($r = $res->fetch_assoc())) {
+        $uprooted[] = (string) $r['ckey'];
+    }
+    $stmt->close();
+
     $drops = [];
     $now = time();
     $gc = $conn->prepare('DELETE FROM `forest_drops` WHERE `expires_at` <= ? LIMIT ' . (int) forest_config('pack.gc_limit'));
@@ -277,7 +287,7 @@ function wf_player_world_near($conn, array $row): array
     }
     $stmt->close();
 
-    return ['felled' => $felled, 'drops' => $drops];
+    return ['felled' => $felled, 'uprooted' => $uprooted, 'drops' => $drops];
 }
 
 /** Полное состояние для входа (forest/state). */
@@ -301,6 +311,7 @@ function wf_player_full_state($conn, array $row): array
         'clearings' => $records['clearings'],
         'pond' => $records['pond'],
         'felled' => $near['felled'],
+        'uprooted' => $near['uprooted'],
         'drops' => $near['drops'],
         'server_ts' => time(),
         'server_ms' => forest_now_ms(),

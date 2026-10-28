@@ -21,6 +21,7 @@ import { createInventory } from './ui/inventory.js';
 import { createDialog } from './ui/dialog.js';
 import { createChopBar } from './ui/chop-bar.js';
 import { createChopFlow } from './world/chop-flow.js';
+import { createUprootFlow } from './world/uproot-flow.js';
 import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
 import { S } from './ui/strings.ru.js';
@@ -104,6 +105,7 @@ async function boot() {
 
     let chopFlow = null;
     let packFlow = null;
+    let uprootFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -112,6 +114,7 @@ async function boot() {
             onEvent(e) {
                 if (chopFlow) chopFlow.onWorldEvent(e);
                 if (packFlow) packFlow.onWorldEvent(e);
+                if (uprootFlow) uprootFlow.onWorldEvent(e);
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
                 else if (e.type === 'sleepingTap') notice.show({ text: S.energy.sleepingTap, ttlMs: 2200 });
@@ -177,7 +180,9 @@ async function boot() {
         onSlot: () => { /* выбор инструмента в руку подключится вместе с рубкой (ДЛ-11) */ },
     });
     hud.onWarn(notify);
-    hud.setHotbar([{ key: 'axe', icon: '🪓', name: S.items.axe.name }]);
+    // Быстрые слоты по данным сервера (по умолчанию топор); инструмент в руке выбирает игрок.
+    const hotbarKeys = (session.full && Array.isArray(session.full.hotbar) && session.full.hotbar.length ? session.full.hotbar : ['axe']).map(String).filter((k) => S.items[k]);
+    hud.setHotbar(hotbarKeys.map((k) => ({ key: k, icon: S.items[k].icon, name: S.items[k].name })));
     $('wfGear').addEventListener('click', () => notifyCenter.close());
     $('wfBell').addEventListener('click', () => settings.close());
 
@@ -188,6 +193,14 @@ async function boot() {
         world, wg, bar: createChopBar(), notify, text: S.chop,
         getQueue: () => queue, getSync: () => sync,
         getAxeLevel: () => axeLevel,
+        getEnergy: () => (online ? lastEnergy : null),
+    });
+
+    // Выкорчёвывание пней (#64): тап по пню с киркой в руке, шкала ударов, действие uproot.
+    uprootFlow = createUprootFlow({
+        world, bar: createChopBar(), notify, text: S.uproot,
+        getQueue: () => queue, getSync: () => sync,
+        hasPickaxe: () => hotbarKeys[hud.selected] === 'pickaxe',
         getEnergy: () => (online ? lastEnergy : null),
     });
 
@@ -241,7 +254,7 @@ async function boot() {
     const debug = isDebugMode() ? createDebugPanel() : null;
 
     loop = createLoop({
-        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); },
+        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); if (uprootFlow) uprootFlow.update(); },
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
@@ -348,7 +361,7 @@ async function boot() {
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });

@@ -34,39 +34,48 @@ function setup() {
     return { scene, mgr, chunk, id };
 }
 
-test('срубленное дерево оставляет пень, который мешает ходить и пропадает через минуту', () => {
+test('срубленное дерево оставляет пень навсегда: он мешает ходить, цвет по породе', () => {
     const { mgr, chunk, id } = setup();
-    const real = performance.now;
-    let fake = 1000;
-    performance.now = () => fake;
-    try {
-        const rec = chunk.data.trees.get(id);
-        const x = rec.wx; const z = rec.wz;
-        assert.equal(mgr.fell(id), true);
-        assert.equal(mgr.stumpCount, 1);
-        assert.equal(mgr.blockedAt(x, z, 0.1), true, 'пень это препятствие');
-        const o = mgr.obstacleInCell(Math.floor(x / 4), Math.floor(z / 4));
-        assert.equal(o.kind, 'stump', 'а не ствол: тапом по нему рубить нельзя');
-        fake += WORLD.stumpLifeMs - 1;
-        mgr.pump(1);
-        assert.equal(mgr.stumpCount, 1);
-        fake += 2;
-        mgr.pump(1);
-        assert.equal(mgr.stumpCount, 0, 'через минуту пня нет');
-        assert.equal(mgr.blockedAt(x, z, 0.1), false, 'и пройти можно');
-    } finally { performance.now = real; }
+    const rec = chunk.data.trees.get(id);
+    const x = rec.wx; const z = rec.wz;
+    assert.equal(mgr.fell(id), true);
+    assert.equal(mgr.stumpCount, 1);
+    assert.equal(mgr.blockedAt(x, z, 0.1), true, 'пень это препятствие');
+    const o = mgr.obstacleInCell(Math.floor(x / 4), Math.floor(z / 4));
+    assert.equal(o.kind, 'stump', 'а не ствол: тапом по нему рубить нельзя');
+    assert.equal(o.sp, rec.sp, 'порода пня совпадает с породой дерева');
+    assert.equal(mgr.stumpInfo()[0].sp, rec.sp);
+    mgr.pump(1);
+    assert.equal(mgr.stumpCount, 1, 'сам по себе пень не исчезает');
+    assert.equal(mgr.blockedAt(x, z, 0.1), true);
 });
 
-test('пень переживает перестройку чанка, а срубленное при входе пня не даёт', () => {
+test('пни разных пород разного цвета', async () => {
+    const { createStumpGeometry, STUMP_COLORS } = await import('../src/world/models.js');
+    const a = createStumpGeometry(2).getAttribute('color').array;
+    const b = createStumpGeometry(6).getAttribute('color').array;
+    assert.notDeepEqual(Array.from(a.slice(0, 3)), Array.from(b.slice(0, 3)), 'кора берёзы и ольхи разная');
+    assert.equal(STUMP_COLORS.length, 10, 'по цвету на каждую породу');
+});
+
+test('пень переживает перестройку чанка и появляется у срубленного при входе; выкорчеванный пропадает навсегда', () => {
     const { mgr, chunk, id } = setup();
     const ids = [...chunk.data.trees.keys()];
-    mgr.fell(ids[1], { stump: false });
-    assert.equal(mgr.stumpCount, 0);
+    mgr.fell(ids[1]);
     mgr.fell(id);
-    assert.equal(mgr.stumpCount, 1);
+    assert.equal(mgr.stumpCount, 2);
     mgr.setChanges({ felled: [ids[1], id], clearings: [] }); // перестройка видимого
     for (let i = 0; i < 80 && mgr.pending > 0; i += 1) mgr.pump(1000);
-    assert.equal(mgr.stumpCount, 1, 'свежий пень на месте после перестройки');
+    assert.equal(mgr.stumpCount, 2, 'пни на месте после перестройки');
+    assert.equal(mgr.uproot(id), true);
+    assert.equal(mgr.stumpCount, 1, 'выкорчеванный убран');
+    assert.equal(mgr.uproot(id), false, 'повтор игнорируется');
+    mgr.setChanges({ felled: [ids[1], id], clearings: [] });
+    for (let i = 0; i < 80 && mgr.pending > 0; i += 1) mgr.pump(1000);
+    assert.equal(mgr.stumpCount, 1, 'после перестройки выкорчеванный не вернулся');
+    assert.equal(mgr.unuproot(id), true, 'откат отказа сервера');
+    for (let i = 0; i < 80 && mgr.pending > 0; i += 1) mgr.pump(1000);
+    assert.equal(mgr.stumpCount, 2, 'пень вернулся');
 });
 
 test('пруд и плотина непроходимы', () => {

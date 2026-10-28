@@ -52,7 +52,8 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         chunks.addClearing(spawn.x, spawn.z, 12); // без сервера: временная поляна
     }
 
-    if (start && Array.isArray(start.felled)) start.felled.forEach((id) => chunks.fell(id, { stump: false })); // уже срубленное (пока без потока изменений ДЛ-21)
+    if (start && Array.isArray(start.felled)) start.felled.forEach((id) => chunks.fell(id)); // уже срубленное (пока без потока изменений ДЛ-21); пни строятся при сборке чанков
+    if (start && Array.isArray(start.uprooted)) start.uprooted.forEach((id) => chunks.uproot(id));
 
     // Вода: одна плоскость на уровне воды, едет за героем (озёра и реки уже «вырезаны» рельефом).
     const water = new THREE.Mesh(
@@ -114,7 +115,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
     let clock = 0;
     const input = { x: 0, z: 0 };                // движение клавишами: x вправо, z вперёд
     let speedMods = { load: 0, capacity: 40, road: 0, boots: false, weather: 1 };
-    const pickKinds = new Set([KIND.TREE]);       // что можно выбрать тапом (камни и руда придут вместе с киркой)
+    const pickKinds = new Set([KIND.TREE, 'stump']); // что можно выбрать тапом: деревья и пни (камни и руда придут вместе с киркой)
     let sized = false;
     let workHits = 0;                             // сколько тапов по объекту в режиме работы (ДЛ-11 заменит настоящей рубкой)
 
@@ -215,7 +216,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         const list = [];
         chunks.forEachInRange(ctl.x, ctl.z, 70, (o) => {
             if (!pickKinds.has(o.kind)) return;
-            list.push({ id: o.id, kind: 'tree', x: o.x, y: o.y, z: o.z, h: o.h, r: o.r, pickR: INPUT.pickTreeWorldR, reach: o.r + MOVE.chopReach });
+            list.push({ id: o.id, kind: o.kind === 'stump' ? 'stump' : 'tree', x: o.x, y: o.y, z: o.z, h: o.h, r: o.r, pickR: INPUT.pickTreeWorldR, reach: o.r + MOVE.chopReach, size: o.size });
         });
         for (const d of dynamicTargets.values()) list.push(d);
         return list;

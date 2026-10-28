@@ -89,6 +89,19 @@ export const TREES = Object.freeze({
     }),
 });
 
+// Выкорчёвывание пня киркой (зеркало config.php trees.uproot): ударов по размеру пня, энергия за удар.
+export const UPROOT = Object.freeze({ hits: Object.freeze([4, 6, 9]), costHit: 0.4, tool: 'pickaxe' });
+
+/** Сколько ударов киркой нужно, чтобы выкорчевать пень размера size (0..2). */
+export function uprootNeed(size) {
+    return UPROOT.hits[Math.max(0, Math.min(2, size | 0))];
+}
+
+/** Энергия за выкорчёвывание пня размера size. */
+export function uprootCost(size) {
+    return uprootNeed(size) * UPROOT.costHit;
+}
+
 /** Сила топора по уровню (1..6). */
 export function axePower(level) {
     const l = Math.max(1, Math.min(TREES.axePower.length - 1, level | 0));

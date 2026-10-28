@@ -9,6 +9,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && @realpath((string) $_SERVER['SCRIPT_FI
  */
 require_once __DIR__ . '/player.php';
 require_once __DIR__ . '/chop.php';
+require_once __DIR__ . '/uproot.php';
 
 /** Деревья «не существуют» внутри расчищенных кругов (clearing). */
 function wf_action_in_clearing($conn, int $cx, int $cz, float $x, float $z): bool

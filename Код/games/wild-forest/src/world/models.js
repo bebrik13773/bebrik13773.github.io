@@ -218,11 +218,26 @@ function buildOre(variant) {
     return finish(t, 1.2, 0.9);
 }
 
-/** Геометрия пня для общего InstancedMesh: цилиндр коры и светлый срез сверху. Цвет в вершинах. */
-export function createStumpGeometry() {
+/** Цвета пня по породе (индекс как в species.json): кора и срез. */
+export const STUMP_COLORS = Object.freeze([
+    { bark: 0x5a3d26, cut: 0xd9b87c }, // ель
+    { bark: 0x7a4a2a, cut: 0xe0a566 }, // сосна
+    { bark: 0xe8e4dc, cut: 0xf0dcae }, // берёза
+    { bark: 0x9a9486, cut: 0xe9d9b0 }, // осина
+    { bark: 0x6d5238, cut: 0xe3c58e }, // клён
+    { bark: 0x4d3a28, cut: 0xcaa066 }, // дуб
+    { bark: 0x3a2e2a, cut: 0xc8663a }, // чёрная ольха (срез краснеет)
+    { bark: 0xd8b94a, cut: 0xffe9a0 }, // золотая берёза
+    { bark: 0x7c3f26, cut: 0xb5532e }, // древний кедр
+    { bark: 0x2c2c30, cut: 0x8c8f99 }, // железный дуб
+]);
+
+/** Геометрия пня для InstancedMesh одной породы: цилиндр коры и срез сверху. Цвет в вершинах по породе. */
+export function createStumpGeometry(species = 0) {
+    const c = STUMP_COLORS[species] || STUMP_COLORS[0];
     const t = createTemplate();
-    addPart(t, new THREE.CylinderGeometry(0.34, 0.42, 0.5, 7, 1), { y: 0.25, color: 0x6b4a2b });
-    addPart(t, new THREE.CylinderGeometry(0.3, 0.3, 0.04, 7, 1), { y: 0.52, color: 0xd9b77d });
+    addPart(t, new THREE.CylinderGeometry(0.34, 0.42, 0.5, 7, 1), { y: 0.25, color: c.bark });
+    addPart(t, new THREE.CylinderGeometry(0.3, 0.3, 0.04, 7, 1), { y: 0.52, color: c.cut });
     const m = finish(t, 0.55, 0.42);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));

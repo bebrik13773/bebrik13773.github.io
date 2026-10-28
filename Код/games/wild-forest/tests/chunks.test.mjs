@@ -88,13 +88,17 @@ test('высота вершины рельефа равна высоте ген�
     }
 });
 
-test('срубленное дерево исчезает из чанка (пень ставит менеджер на минуту); расчищенный круг убирает деревья без пней', () => {
+test('срубленное дерево исчезает из чанка и оставляет пень; выкорчеванный и расчищенный круг пней не дают', () => {
     const base = buildChunkData({ wg, models, cx: FX, cz: FZ, preset: medium, lod: 1, ...empty });
     const id = [...base.trees.keys()][0];
     const felled = buildChunkData({ wg, models, cx: FX, cz: FZ, preset: medium, lod: 1, felled: new Set([id]), clearings: [] });
     assert.equal(felled.treeCount, base.treeCount - 1);
     assert.ok(!felled.trees.has(id));
-    assert.equal(felled.stumps.length, 0, 'свежие пни живут в менеджере чанков, не в данных чанка');
+    assert.equal(felled.stumps.length, 1, 'от срубленного дерева остаётся пень');
+    assert.equal(felled.stumps[0].id, id);
+    assert.equal(felled.stumps[0].sp, base.trees.get(id).sp, 'порода пня = порода дерева');
+    const rooted = buildChunkData({ wg, models, cx: FX, cz: FZ, preset: medium, lod: 1, felled: new Set([id]), uprooted: new Set([id]), clearings: [] });
+    assert.equal(rooted.stumps.length, 0, 'выкорчеванный пень не строится');
     const hidden = buildChunkData({ wg, models, cx: FX, cz: FZ, preset: medium, lod: 1, felled: new Set(), clearings: [], hidden: new Set([id]) });
     assert.ok(!hidden.trees.has(id) && hidden.treeCount === base.treeCount - 1, 'дерево под топором рисуется отдельным мешем');
     assert.ok(felled.vertexCount < base.vertexCount);

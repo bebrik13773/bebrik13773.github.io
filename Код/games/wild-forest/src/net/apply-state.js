@@ -33,6 +33,7 @@ export function startFromState(full) {
         clearings: Array.isArray(full.clearings) ? full.clearings.map((c) => ({ x: Number(c.x), z: Number(c.z), r: Number(c.r) })) : [],
         pond: full.pond || null,
         felled: Array.isArray(full.felled) ? full.felled.map(String) : [],
+        uprooted: Array.isArray(full.uprooted) ? full.uprooted.map(String) : [],
         drops: Array.isArray(full.drops) ? full.drops : [],
     };
 }

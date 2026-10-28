@@ -11,9 +11,9 @@ import { createStumpGeometry } from './models.js';
 //  - срубленное дерево прячется внутри готового буфера и получает пень, без пересборки чанка;
 //  - ближние чанки получают подробные модели деревьев, дальние простые (смена подробности = перестройка чанка).
 
-/** Общий пул пней: один InstancedMesh на весь мир. */
-function createStumpPool(scene, material) {
-    const geometry = createStumpGeometry();
+/** Пул пней одной породы: один InstancedMesh (цвет коры и среза зашит в геометрию). */
+function createStumpPool(scene, material, species) {
+    const geometry = createStumpGeometry(species);
     const mesh = new THREE.InstancedMesh(geometry, material, WORLD.stumpCapacity);
     mesh.count = 0;
     mesh.frustumCulled = false; // у инстансов ограничивающая сфера считается по одной модели, поэтому отсечение отключаем
@@ -61,16 +61,41 @@ function createStumpPool(scene, material) {
     };
 }
 
-const stumpObstacle = (id, st) => ({ id, kind: 'stump', x: st.x, y: st.y, z: st.z, h: 0.55 * st.s, r: 0.4 * st.s, size: st.size, sp: -1 });
+/** Пни всех пород: по пулу на породу, создаются лениво (до 10 вызовов отрисовки, пустые не рисуются). */
+function createStumpPools(scene, material) {
+    const pools = new Map();   // порода -> пул
+    const where = new Map();   // id -> порода
+    return {
+        get size() { return where.size; },
+        add(id, x, y, z, scale, sp) {
+            if (where.has(id)) return true;
+            let pool = pools.get(sp);
+            if (!pool) { pool = createStumpPool(scene, material, sp); pools.set(sp, pool); }
+            if (!pool.add(id, x, y, z, scale)) return false;
+            where.set(id, sp);
+            return true;
+        },
+        remove(id) {
+            const sp = where.get(id);
+            if (sp === undefined) return;
+            pools.get(sp).remove(id);
+            where.delete(id);
+        },
+        dispose() { for (const pool of pools.values()) pool.dispose(); pools.clear(); where.clear(); },
+    };
+}
+
+const stumpObstacle = (id, st) => ({ id, kind: 'stump', x: st.x, y: st.y, z: st.z, h: 0.55 * st.s, r: 0.4 * st.s, size: st.size, sp: st.sp });
 
 export function createChunkManager({ scene, wg, models }) {
     const material = new THREE.MeshLambertMaterial({ vertexColors: true });
-    const stumps = createStumpPool(scene, material);
+    const stumps = createStumpPools(scene, material);
     const chunks = new Map(); // key -> { cx, cz, mesh, geometry, data, lod, stumpIds }
     const felled = new Set();
+    const uprooted = new Set();        // выкорчеванные пни: от дерева ничего не осталось
     const hidden = new Set();          // деревья, которые сейчас показаны отдельным мешем (рубка, падение): в буфере чанка их нет
     const detached = new Map();        // id -> { info для пня и мэша, saved: исходные позиции вершин }
-    const freshStumps = new Map();     // id -> { x, y, z, s, until, cx, cz, ci }: свежие пни живут минуту и мешают ходить
+    const stumpRecs = new Map();       // id -> { x, y, z, s, size, sp, cx, cz, ci }: пни на экране (стоят навсегда и мешают ходить)
     const blockers = [];               // круглые препятствия вне генерации: пруд, плотина ({ x, z, r })
     const obsIndex = new Map(); // числовой ключ чанка -> массив препятствий по клеткам (для навигации, ДЛ-08)
     const okey = (cx, cz) => (cx + 16384) * 32768 + (cz + 16384);
@@ -93,14 +118,20 @@ export function createChunkManager({ scene, wg, models }) {
         if (obsIndex.get(okey(chunk.cx, chunk.cz)) === chunk.data.obs) obsIndex.delete(okey(chunk.cx, chunk.cz));
         scene.remove(chunk.mesh);
         chunk.geometry.dispose();
-        for (const id of chunk.stumpIds) stumps.remove(id);
+        for (const id of chunk.stumpIds) { stumps.remove(id); stumpRecs.delete(id); }
         chunk.stumpIds = [];
+    }
+
+    /** Ставит пень на экран и в препятствия чанка. */
+    function putStump(chunk, id, st) {
+        if (stumps.add(id, st.x, st.y, st.z, st.s, st.sp)) { chunk.stumpIds.push(id); stumpRecs.set(id, st); }
+        chunk.data.obs[st.ci] = stumpObstacle(id, st);
     }
 
     function build(cx, cz) {
         const key = chunkKey(cx, cz);
         const lod = lodFor(cx, cz);
-        const data = buildChunkData({ wg, models, cx, cz, preset, lod, felled, clearings, hidden });
+        const data = buildChunkData({ wg, models, cx, cz, preset, lod, felled, clearings, hidden, uprooted });
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(data.pos, 3));
         geometry.setAttribute('normal', new THREE.BufferAttribute(data.nrm, 3));
@@ -117,11 +148,7 @@ export function createChunkManager({ scene, wg, models }) {
         const old = chunks.get(key);
         if (old) disposeChunk(old);
         const chunk = { cx, cz, mesh, geometry, data, lod, stumpIds: [] };
-        for (const [id, st] of freshStumps) {
-            if (st.cx !== cx || st.cz !== cz) continue;
-            if (stumps.add(id, st.x, st.y, st.z, st.s)) chunk.stumpIds.push(id);
-            data.obs[st.ci] = stumpObstacle(id, st);
-        }
+        for (const sr of data.stumps) putStump(chunk, sr.id, { x: sr.x, y: sr.y, z: sr.z, s: SIZE_SCALE[sr.size], size: sr.size, sp: sr.sp, cx, cz, ci: sr.ci });
         scene.add(mesh);
         chunks.set(key, chunk);
         obsIndex.set(okey(cx, cz), data.obs);
@@ -181,22 +208,6 @@ export function createChunkManager({ scene, wg, models }) {
         queue.sort((a, b) => distTo(a.cx, a.cz) - distTo(b.cx, b.cz));
     }
 
-    /** Убирает свежие пни, которым вышла минута: пень и препятствие исчезают. */
-    function expireStumps(now) {
-        for (const [id, st] of freshStumps) {
-            if (now < st.until) continue;
-            freshStumps.delete(id);
-            stumps.remove(id);
-            const chunk = chunks.get(chunkKey(st.cx, st.cz));
-            if (chunk) {
-                const i = chunk.stumpIds.indexOf(id);
-                if (i >= 0) chunk.stumpIds.splice(i, 1);
-                const o = chunk.data.obs[st.ci];
-                if (o && o.id === id) chunk.data.obs[st.ci] = null;
-            }
-        }
-    }
-
     return {
         /** Новый пресет качества: мир перестраивается (меняются радиус, детализация рельефа и плотность леса). */
         applyPreset(next) {
@@ -221,7 +232,6 @@ export function createChunkManager({ scene, wg, models }) {
         /** Строит чанки из очереди, пока не вышел бюджет (но минимум один за вызов). Возвращает число построенных. */
         pump(budgetMs = WORLD.chunkBuildBudgetMs) {
             const t0 = performance.now();
-            expireStumps(t0);
             let built = 0;
             while (queue.length) {
                 const job = queue.shift();
@@ -259,11 +269,9 @@ export function createChunkManager({ scene, wg, models }) {
                 chunk.data.treeCount -= 1;
             }
             const info = det ? det.info : { x: rec.wx, y: rec.y, z: rec.wz, size: rec.size };
-            if (opts.stump !== false) {
-                const st = { x: info.x, y: info.y, z: info.z, s: SIZE_SCALE[info.size], size: info.size, until: performance.now() + WORLD.stumpLifeMs, cx: parsed.cx, cz: parsed.cz, ci: parsed.ci };
-                freshStumps.set(id, st);
-                if (stumps.add(id, st.x, st.y, st.z, st.s)) chunk.stumpIds.push(id);
-                chunk.data.obs[parsed.ci] = stumpObstacle(id, st);
+            if (!uprooted.has(id) && !opts.noStump) {
+                const sp = rec ? rec.sp : det.info.sp;
+                putStump(chunk, id, { x: info.x, y: info.y, z: info.z, s: SIZE_SCALE[info.size], size: info.size, sp: sp === undefined ? 0 : sp, cx: parsed.cx, cz: parsed.cz, ci: parsed.ci });
             }
             return true;
         },
@@ -271,7 +279,30 @@ export function createChunkManager({ scene, wg, models }) {
         unfell(id) {
             if (!felled.delete(id)) return false;
             stumps.remove(id);
-            freshStumps.delete(id);
+            stumpRecs.delete(id);
+            const parsed = parseTreeId(id);
+            if (parsed) enqueue(parsed.cx, parsed.cz, 'rebuild');
+            return true;
+        },
+        /** Пень выкорчеван (киркой): пня и препятствия больше нет, навсегда. */
+        uproot(id) {
+            if (uprooted.has(id)) return false;
+            uprooted.add(id);
+            stumps.remove(id);
+            stumpRecs.delete(id);
+            const parsed = parseTreeId(id);
+            const chunk = parsed ? chunks.get(chunkKey(parsed.cx, parsed.cz)) : null;
+            if (chunk) {
+                const i = chunk.stumpIds.indexOf(id);
+                if (i >= 0) chunk.stumpIds.splice(i, 1);
+                const o = chunk.data.obs[parsed.ci];
+                if (o && o.id === id) chunk.data.obs[parsed.ci] = null;
+            }
+            return true;
+        },
+        /** Откат выкорчёвывания, которое сервер не принял: пень возвращается (чанк перестраивается). */
+        unuproot(id) {
+            if (!uprooted.delete(id)) return false;
             const parsed = parseTreeId(id);
             if (parsed) enqueue(parsed.cx, parsed.cz, 'rebuild');
             return true;
@@ -408,8 +439,8 @@ export function createChunkManager({ scene, wg, models }) {
         get loaded() { return chunks.size; },
         get pending() { return queue.length; },
         get stumpCount() { return stumps.size; },
-        /** Свежие пни и их срок (для тестов и отладки). */
-        stumpInfo() { return [...freshStumps].map(([id, st]) => ({ id, x: st.x, z: st.z, left: Math.max(0, st.until - performance.now()) })); },
+        /** Пни на экране (для тестов и отладки). */
+        stumpInfo() { return [...stumpRecs].map(([id, st]) => ({ id, x: st.x, z: st.z, sp: st.sp })); },
         get treeCount() {
             let n = 0;
             for (const chunk of chunks.values()) n += chunk.data.treeCount;
