@@ -185,6 +185,13 @@
 .wf-hint { margin: 0; color: var(--muted); font-size: 14px; }
 .wf-inv-title { margin: 0 0 8px; font-weight: 700; }
 
+/* Ящик-тайник (ДЛ-14) */
+.wf-crate-title { margin: 10px 0 6px; font-size: 15px; }
+.wf-crate-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.wf-crate-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.wf-crate-name { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-crate-btn { min-width: 44px; min-height: 44px; padding: 4px 10px; }
+
 /* Диалог */
 .wf-dialog {
     position: fixed;

@@ -24,6 +24,8 @@ import { createChopFlow } from './world/chop-flow.js';
 import { createUprootFlow } from './world/uproot-flow.js';
 import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
+import { createCrateFlow } from './world/crate-flow.js';
+import { createCrateUi } from './ui/crate-ui.js';
 import { S } from './ui/strings.ru.js';
 
 window.__wfBooted = true;
@@ -106,6 +108,7 @@ async function boot() {
     let chopFlow = null;
     let packFlow = null;
     let uprootFlow = null;
+    let crateFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -114,6 +117,7 @@ async function boot() {
             onEvent(e) {
                 if (chopFlow) chopFlow.onWorldEvent(e);
                 if (packFlow) packFlow.onWorldEvent(e);
+                if (crateFlow) crateFlow.onWorldEvent(e);
                 if (uprootFlow) uprootFlow.onWorldEvent(e);
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
@@ -212,6 +216,16 @@ async function boot() {
         getInventory: () => inventory, getCapacity: () => (hud ? hud.values.packCap : 40),
         isAuto: () => settings.autoPickup(), isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
     });
+
+    // Ящик-тайник и скупщик на поляне (ДЛ-14): сдать, взять, продать брёвна и рыбу.
+    crateFlow = createCrateFlow({
+        world, dialog, inventory, notify, text: S.crate, buyerText: S.buyer,
+        crateUi: createCrateUi({ onMove: (m) => crateFlow.move(m) }),
+        names: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].name])),
+        getQueue: () => queue, getSync: () => sync,
+        isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
+    });
+    if (start && start.village && start.village.buyer) crateFlow.setPrices(start.village.buyer.prices);
 
     // Энергия, сон и еда (ДЛ-12): сервер присылает sleeping, бобёр ложится; еда уходит действием eat.
     energyFlow = createEnergyFlow({
@@ -342,6 +356,10 @@ async function boot() {
             dropItem: (key, qty) => packFlow.dropItem(key, qty),
             energy: () => ({ sleeping: energyFlow.sleeping, value: lastEnergy }),
             eat: (key) => energyFlow.eat(key),
+            stalls: () => world.scene.getObjectByName('village-stalls') ? world.scene.getObjectByName('village-stalls').children.length : 0,
+            crate: () => ({ pack: crateFlow.pack, box: crateFlow.box, buyerLeft: crateFlow.buyerLeft }),
+            crateMove: (from, item, qty) => crateFlow.move({ from, item, qty }),
+            sellAll: () => crateFlow.sell(Object.keys(crateFlow.pack).map((item) => ({ item, qty: crateFlow.pack[item] }))),
             beaverStateName: () => world.beaver.state,
             net: { session, get sync() { return sync; }, get queue() { return queue; } },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
@@ -353,15 +371,15 @@ async function boot() {
     let queue = null;
     if (online) {
         loading.step('server', 'done');
-        applyLightState(session.full.state, { hud, inventory });
+        applyLightState(session.full.state, { hud, inventory, crate: crateFlow });
         queue = createActionQueue(session.full.last_a || 0);
         sync = createSync({
             call: apiCall,
             queue,
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
-            onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); },
+            onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow }); energyFlow.onState(st); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });

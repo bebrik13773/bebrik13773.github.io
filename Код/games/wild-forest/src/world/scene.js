@@ -5,7 +5,7 @@ import { heroSpeed } from '../shared/formulas.js';
 import { createModels } from './models.js';
 import { createChunkManager } from './chunks.js';
 import { findDemoSpawn } from './spawn.js';
-import { createPondAndDam } from './village-props.js';
+import { createPondAndDam, createVillageStalls } from './village-props.js';
 import { createWalkGrid } from './terrain-nav.js';
 import { createNav } from './nav.js';
 import { pickObject } from './picking.js';
@@ -81,20 +81,44 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
 
     // Пруд и плотина игрока (ДЛ-10). Высота земли зависит от качества рельефа, поэтому при смене качества строим заново.
     let pondProps = null;
+    let stallProps = null;
     function buildPond() {
-        if (!start || !start.pond) return;
+        chunks.clearBlockers();
+        if (stallProps) { stallProps.dispose(); stallProps = null; }
+        if (start && start.village && (start.village.crate || start.village.buyer)) {
+            // Ящик-тайник и подвода скупщика (ДЛ-14): модели, тап-цели и непроходимые пятачки.
+            const v = start.village;
+            stallProps = createVillageStalls({ crate: v.crate, buyer: v.buyer, groundY: (x, z) => groundY(x, z) });
+            scene.add(stallProps.group);
+        }
+        if (!start || !start.pond) { addStallTargets(); return; }
         if (pondProps) pondProps.dispose();
         pondProps = createPondAndDam({ pond: start.pond, groundY: (x, z) => groundY(x, z) });
         scene.add(pondProps.group);
         // пруд и плотина непроходимы: в воду не зайти, через брёвна не пройти
-        chunks.clearBlockers();
         chunks.addBlocker(start.pond.x, start.pond.z, start.pond.r + 0.1);
         const dam = start.pond.dam || { x: start.pond.x + start.pond.r, z: start.pond.z };
         const yaw = -((start.pond.deg || 0) * Math.PI) / 180 + Math.PI / 2;
         for (let off = -1.9; off <= 1.91; off += 0.55) chunks.addBlocker(dam.x + Math.cos(yaw) * off, dam.z - Math.sin(yaw) * off, 0.5);
+        addStallTargets();
     }
-    buildPond();
+    function addStallTargets() {
+        const v = start && start.village;
+        if (!v) return;
+        // Ящик и подвода выбираются тапом; бобёр подходит на reach и сообщает событием ready (kind crate или buyer).
+        if (v.crate) {
+            const y = groundY(v.crate.x, v.crate.z);
+            dynamicTargets.set('crate', { id: 'crate', kind: 'crate', x: v.crate.x, y, z: v.crate.z, h: 0.9, r: 0.6, pickR: 1.2, reach: 1.9 });
+            chunks.addBlocker(v.crate.x, v.crate.z, 0.65);
+        }
+        if (v.buyer) {
+            const y = groundY(v.buyer.x, v.buyer.z);
+            dynamicTargets.set('buyer', { id: 'buyer', kind: 'buyer', x: v.buyer.x, y, z: v.buyer.z, h: 1.6, r: 1.0, pickR: 1.5, reach: 2.4 });
+            chunks.addBlocker(v.buyer.x, v.buyer.z, 0.9);
+        }
+    }
     const dynamicTargets = new Map();            // объекты, которые можно выбрать тапом помимо деревьев (предметы, позже NPC, постройки, помощники)
+    buildPond();
     const dropTargetId = (id) => `drop:${id}`;
     const drops = createDrops({
         scene,

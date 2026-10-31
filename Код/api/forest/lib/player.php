@@ -11,6 +11,7 @@ require_once __DIR__ . '/common.php';
 require_once __DIR__ . '/formulas.php';
 require_once __DIR__ . '/spawn.php';
 require_once __DIR__ . '/pack_weight.php';
+require_once __DIR__ . '/crate.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -178,20 +179,25 @@ function wf_player_join($conn, int $playerId): array
     return [wf_player_row($conn, $playerId), (bool) $created];
 }
 
-/** Содержимое рюкзака: [item_key => qty] и вес, кг. */
+/** Содержимое рюкзака [item_key => qty] с весом, кг, и ящика на поляне (ДЛ-14) одним запросом. */
 function wf_player_pack($conn, int $playerId): array
 {
     $items = [];
-    $stmt = $conn->prepare('SELECT `item_key`, `qty` FROM `forest_inventory` WHERE `player_id` = ? AND `container` = \'pack\' AND `qty` > 0');
+    $crate = [];
+    $stmt = $conn->prepare('SELECT `container`, `item_key`, `qty` FROM `forest_inventory` WHERE `player_id` = ? AND `container` IN (\'pack\', \'crate\') AND `qty` > 0');
     $stmt->bind_param('i', $playerId);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($res && ($r = $res->fetch_assoc())) {
-        $items[(string) $r['item_key']] = (int) $r['qty'];
+        if ($r['container'] === 'crate') {
+            $crate[(string) $r['item_key']] = (int) $r['qty'];
+        } else {
+            $items[(string) $r['item_key']] = (int) $r['qty'];
+        }
     }
     $stmt->close();
 
-    return ['items' => $items, 'kg' => wf_pack_kg($items)];
+    return ['items' => $items, 'kg' => wf_pack_kg($items), 'crate' => $crate];
 }
 
 /** Лёгкая часть состояния (приходит в каждом sync). */
@@ -199,6 +205,7 @@ function wf_player_light_state(array $row, array $pack): array
 {
     $lv = wf_level_from_xp((int) $row['xp']);
     $stats = wf_player_stats($row);
+    $crate = isset($pack['crate']) && is_array($pack['crate']) ? $pack['crate'] : [];
 
     return [
         'energy' => round((float) $row['energy'], 2),
@@ -209,6 +216,10 @@ function wf_player_light_state(array $row, array $pack): array
         'weight' => $pack['kg'],
         'capacity' => wf_player_pack_capacity((int) $row['pack_lvl']),
         'pack' => (object) $pack['items'],
+        // Ящик-тайник и скупщик на поляне (ДЛ-14)
+        'crate' => (object) $crate,
+        'crate_cap' => (int) forest_config('economy.crate_capacity'),
+        'buyer_left' => wf_buyer_left($stats, time()),
         'level' => $lv['level'],
         'xp_into' => $lv['into'],
         'xp_need' => $lv['need'],
@@ -298,10 +309,15 @@ function wf_player_full_state($conn, array $row): array
     $hotbar = json_decode((string) ($row['hotbar_json'] ?? ''), true);
     $records = wf_player_world_records($conn, $id);
     $near = wf_player_world_near($conn, $row);
+    $spots = wf_village_spots((float) $row['spawn_x'], (float) $row['spawn_z']);
 
     return [
         'player_id' => $id,
-        'village' => ['name' => (string) $row['village_name'], 'x' => (float) $row['spawn_x'], 'z' => (float) $row['spawn_z']],
+        'village' => [
+            'name' => (string) $row['village_name'], 'x' => (float) $row['spawn_x'], 'z' => (float) $row['spawn_z'],
+            'crate' => ['x' => $spots['crate'][0], 'z' => $spots['crate'][1]],
+            'buyer' => ['x' => $spots['buyer'][0], 'z' => $spots['buyer'][1], 'prices' => (object) wf_buyer_prices(), 'cap' => (int) forest_config('economy.starter_buyer_daily_cap')],
+        ],
         'pos' => ['x' => (float) $row['pos_x'], 'z' => (float) $row['pos_z'], 'ry' => (float) $row['pos_ry']],
         'state' => wf_player_light_state($row, $pack),
         'upgrades' => ['axe' => (int) $row['axe_lvl'], 'pack' => (int) $row['pack_lvl'], 'stamina' => (int) $row['stamina_lvl'], 'lamp' => (int) $row['lamp_lvl']],

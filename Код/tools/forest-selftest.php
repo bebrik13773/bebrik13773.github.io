@@ -482,6 +482,52 @@ wf_st_test($results, 'Рюкзак: полный рюкзак не проход�
     return ['1 0 1', (int) $free . ' ' . (int) $full . ' ' . (int) $slow];
 });
 
+// 4д. Ящик-тайник и скупщик на поляне (ДЛ-14): чистые функции цены, лимита, вместимости и мест (tests/crate.test.mjs проверяет клиентскую часть)
+require_once dirname(__DIR__) . '/api/forest/lib/crate.php';
+wf_st_test($results, 'Скупщик: цена штуки 60% базовой, чужой товар не берёт', function () {
+    return ['6 10.8 0', wf_buyer_unit('log') . ' ' . wf_buyer_unit('fish_small') . ' ' . wf_buyer_unit('plank')];
+});
+wf_st_test($results, 'Скупщик: выручка округляется вниз по итогу пачки', function () {
+    return ['396 32 0', wf_buyer_total('log', 66) . ' ' . wf_buyer_total('fish_small', 3) . ' ' . wf_buyer_total('plank', 5)];
+});
+wf_st_test($results, 'Скупщик: сколько возьмёт под остаток лимита', function () {
+    $got = [wf_buyer_max_qty('log', 100, 400), wf_buyer_max_qty('log', 100, 5), wf_buyer_max_qty('log', 100, 6), wf_buyer_max_qty('log', 3, 400), wf_buyer_max_qty('plank', 5, 400), wf_buyer_max_qty('log', 5, 0)];
+    return ['66 0 1 3 0 0', implode(' ', $got)];
+});
+wf_st_test($results, 'Скупщик: выручка за взятое не превышает остаток лимита ни при каком количестве', function () {
+    for ($left = 0; $left <= 400; $left += 7) {
+        foreach (['log', 'fish_small', 'fish_big'] as $item) {
+            $q = wf_buyer_max_qty($item, 1000, $left);
+            if ($q > 0 && wf_buyer_total($item, $q) > $left) {
+                return ['не больше ' . $left, wf_buyer_total($item, $q) . ' (' . $item . ' × ' . $q . ')'];
+            }
+            if (wf_buyer_total($item, $q + 1) <= $left && $q < 1000) {
+                return ['взято максимум', $item . ' × ' . $q . ' при ' . $left . ': влезло бы ещё'];
+            }
+        }
+    }
+    return ['ok', 'ok'];
+});
+wf_st_test($results, 'Скупщик: остаток лимита по суткам (другой день сбрасывает, этот вычитает)', function () {
+    $now = 1759950000; // 2025-10-09 по Омску
+    $today = wf_day_key($now);
+    $a = wf_buyer_left(['sold' => [$today, 150]], $now);
+    $b = wf_buyer_left(['sold' => ['2000-01-01', 150]], $now);
+    $c = wf_buyer_left([], $now);
+    $d = wf_buyer_left(['sold' => [$today, 999]], $now);
+    return ['250 400 400 0', $a . ' ' . $b . ' ' . $c . ' ' . $d];
+});
+wf_st_test($results, 'Сутки: граница по часовому поясу игры (Омск, полночь в 18:00 UTC)', function () {
+    return ['2025-10-08 2025-10-09', wf_day_key(1759946399) . ' ' . wf_day_key(1759946400)];
+});
+wf_st_test($results, 'Ящик: вместимость и занятые места', function () {
+    return ['5 2 0 5', wf_crate_units(['log' => 3, 'plank' => 2]) . ' ' . wf_crate_fit(100, 98, 5) . ' ' . wf_crate_fit(100, 100, 1) . ' ' . wf_crate_fit(100, 0, 5)];
+});
+wf_st_test($results, 'Поляна: места ящика и подводы от центра', function () {
+    $s = wf_village_spots(100.0, 200.0);
+    return ['103.5,197.5 96,203', $s['crate'][0] . ',' . $s['crate'][1] . ' ' . $s['buyer'][0] . ',' . $s['buyer'][1]];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

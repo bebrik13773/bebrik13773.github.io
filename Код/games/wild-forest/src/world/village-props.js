@@ -71,3 +71,80 @@ export function createPondAndDam({ pond, groundY }) {
         },
     };
 }
+
+// ── Ящик-тайник и подвода скупщика на поляне (ДЛ-14): простые процедурные модели без текстур ──
+const WOOD_COLOR = 0xa8743a;
+const WOOD_DARK = 0x6e4a22;
+const IRON_COLOR = 0x4a4a52;
+const SACK_COLOR = 0xd9c58f;
+const CLOTH_COLOR = 0xb8442f;
+const FUR_COLOR = 0x8a5a3a;
+
+/**
+ * Строит ящик и подводу скупщика. crate и buyer: { x, z }. groundY(x, z) даёт высоту земли.
+ * Возвращает { group, dispose } (геометрии и материалы освобождаются вместе с группой).
+ */
+export function createVillageStalls({ crate, buyer, groundY }) {
+    const group = new THREE.Group();
+    group.name = 'village-stalls';
+    const geos = [];
+    const mats = [];
+    const mat = (color) => { const m = new THREE.MeshLambertMaterial({ color }); mats.push(m); return m; };
+    const mesh = (geo, material, x, y, z, parent = group) => { geos.push(geo); const m = new THREE.Mesh(geo, material); m.position.set(x, y, z); parent.add(m); return m; };
+    const wood = mat(WOOD_COLOR);
+    const dark = mat(WOOD_DARK);
+    const iron = mat(IRON_COLOR);
+    const sack = mat(SACK_COLOR);
+    const cloth = mat(CLOTH_COLOR);
+    const fur = mat(FUR_COLOR);
+
+    // Ящик: короб из досок, крышка чуть шире, две железные полосы и замок.
+    if (crate) {
+        const g = new THREE.Group();
+        g.position.set(crate.x, groundY(crate.x, crate.z), crate.z);
+        mesh(new THREE.BoxGeometry(1.0, 0.7, 0.7), wood, 0, 0.35, 0, g);
+        mesh(new THREE.BoxGeometry(1.08, 0.12, 0.78), dark, 0, 0.76, 0, g);
+        for (const dx of [-0.32, 0.32]) mesh(new THREE.BoxGeometry(0.08, 0.72, 0.74), iron, dx, 0.36, 0, g);
+        mesh(new THREE.BoxGeometry(0.14, 0.16, 0.06), iron, 0, 0.62, 0.38, g);
+        g.rotation.y = 0.35;
+        group.add(g);
+    }
+
+    // Подвода: короб на двух колёсах, мешки с зерном, оглобли, навес-тент и сам скупщик (бобёр-торговец в красной шапке).
+    if (buyer) {
+        const g = new THREE.Group();
+        g.position.set(buyer.x, groundY(buyer.x, buyer.z), buyer.z);
+        mesh(new THREE.BoxGeometry(1.7, 0.5, 1.0), wood, 0, 0.62, 0, g);
+        for (const dz of [-0.62, 0.62]) {
+            const wheel = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.1, 14).rotateX(Math.PI / 2), dark, -0.1, 0.42, dz, g);
+            wheel.name = 'wheel';
+            mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.14, 8).rotateX(Math.PI / 2), iron, -0.1, 0.42, dz, g);
+        }
+        for (const dz of [-0.35, 0.35]) mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6).rotateZ(Math.PI / 2), dark, 1.5, 0.5, dz, g);
+        for (const [x, z] of [[-0.45, -0.2], [0.05, 0.2], [0.5, -0.15]]) mesh(new THREE.SphereGeometry(0.3, 9, 7).scale(1, 0.85, 1), sack, x, 1.0, z, g);
+        // Тент на двух стойках.
+        for (const dz of [-0.46, 0.46]) mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), dark, -0.78, 1.15, dz, g);
+        mesh(new THREE.BoxGeometry(1.1, 0.06, 1.15), cloth, -0.78, 1.82, 0, g);
+        // Скупщик: тело-конус, голова, шапка, хвост.
+        const man = new THREE.Group();
+        man.position.set(1.0, 0, -1.0);
+        mesh(new THREE.CylinderGeometry(0.22, 0.34, 0.8, 10), fur, 0, 0.4, 0, man);
+        mesh(new THREE.SphereGeometry(0.24, 10, 8), fur, 0, 1.0, 0, man);
+        mesh(new THREE.CylinderGeometry(0.16, 0.26, 0.2, 10), cloth, 0, 1.24, 0, man);
+        mesh(new THREE.SphereGeometry(0.06, 6, 5), dark, 0, 1.0, 0.23, man);
+        mesh(new THREE.BoxGeometry(0.3, 0.06, 0.5), dark, 0, 0.12, -0.38, man);
+        man.rotation.y = -0.9;
+        g.add(man);
+        g.rotation.y = 0.5;
+        group.add(g);
+    }
+
+    return {
+        group,
+        dispose() {
+            group.removeFromParent();
+            geos.forEach((geo) => geo.dispose());
+            mats.forEach((m) => m.dispose());
+        },
+    };
+}

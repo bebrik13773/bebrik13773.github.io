@@ -10,7 +10,7 @@ export function packToItems(pack) {
 }
 
 /** Применяет легкое состояние (энергия, монеты, вес, рюкзак, уровень) к HUD и панели рюкзака. */
-export function applyLightState(state, { hud, inventory }) {
+export function applyLightState(state, { hud, inventory, crate }) {
     if (!state) return;
     if (hud) {
         hud.set({
@@ -23,6 +23,8 @@ export function applyLightState(state, { hud, inventory }) {
         inventory.setCapacity(Number(state.capacity) || 40);
         inventory.setItems(packToItems(state.pack));
     }
+    // Ящик-тайник и остаток суточного лимита скупщика (ДЛ-14)
+    if (crate && typeof crate.onState === 'function') crate.onState(state);
 }
 
 /** Начальные данные для сцены из полного состояния: позиция, поляна, пруд. */
@@ -32,8 +34,20 @@ export function startFromState(full) {
         x: Number(full.pos.x), z: Number(full.pos.z),
         clearings: Array.isArray(full.clearings) ? full.clearings.map((c) => ({ x: Number(c.x), z: Number(c.z), r: Number(c.r) })) : [],
         pond: full.pond || null,
+        village: normalizeVillage(full.village),
         felled: Array.isArray(full.felled) ? full.felled.map(String) : [],
         uprooted: Array.isArray(full.uprooted) ? full.uprooted.map(String) : [],
         drops: Array.isArray(full.drops) ? full.drops : [],
     };
+}
+
+/** Места ящика и подводы из ответа сервера: { name, x, z, crate: {x,z}, buyer: {x,z,prices,cap} } или null. */
+export function normalizeVillage(v) {
+    if (!v || typeof v !== 'object') return null;
+    const spot = (p) => (p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.z)) ? { x: Number(p.x), z: Number(p.z) } : null);
+    const crate = spot(v.crate);
+    const buyerSpot = spot(v.buyer);
+    const buyer = buyerSpot ? { ...buyerSpot, prices: { ...((v.buyer && v.buyer.prices) || {}) }, cap: Number(v.buyer && v.buyer.cap) || 0 } : null;
+    if (!crate && !buyer) return null;
+    return { name: String(v.name || ''), crate, buyer };
 }
