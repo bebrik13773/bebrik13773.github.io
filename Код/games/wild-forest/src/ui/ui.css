@@ -247,3 +247,15 @@
 }
 .wf-chopbar[hidden] { display: none; }
 .wf-chopbar-fill { height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, #8bd35a, #f2c14e); }
+
+/* Подсказки обучения (ДЛ-15) */
+.wf-tutor { position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 64px); display: flex; justify-content: center; z-index: 40; pointer-events: none; }
+.wf-tutor[hidden] { display: none; }
+.wf-tutor-card { pointer-events: none; max-width: min(440px, 92vw); margin: 0 12px; padding: 10px 14px; border-radius: 14px; background: rgba(30, 24, 16, 0.88); color: #fff6df; border: 2px solid #f2b441; font-size: 15px; line-height: 1.35; text-align: center; }
+.wf-tutor-card p { margin: 0 0 8px; }
+.wf-tutor-skip { pointer-events: auto; min-height: 36px; padding: 4px 12px; font-size: 13px; opacity: 0.85; }
+.wf-tutor-arrow { position: fixed; left: 0; top: 0; z-index: 39; font-size: 38px; line-height: 1; pointer-events: none; animation: wf-tutor-bob 0.9s ease-in-out infinite; will-change: transform; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
+.wf-tutor-arrow[hidden] { display: none; }
+.wf-tutor-arrow[data-off="1"] { opacity: 0.8; }
+@keyframes wf-tutor-bob { 0%, 100% { margin-top: 0; } 50% { margin-top: -8px; } }
+@media (prefers-reduced-motion: reduce) { .wf-tutor-arrow { animation: none; } }

@@ -37,7 +37,7 @@ def state():
 FULL = {
     'player_id': 7, 'pos': {'x': SP['x'], 'z': SP['z'], 'ry': 0}, 'state': state(), 'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0},
     'village': {'name': 'Поляна 7', 'x': SP['x'], 'z': SP['z'], 'crate': CRATE, 'buyer': {**BUYER, 'prices': {'log': 6, 'fish_small': 10.8, 'fish_big': 24}, 'cap': 400}},
-    'hotbar': ['axe'], 'tutorial_step': 1, 'last_a': 0, 'clearings': [{'x': SP['x'], 'z': SP['z'], 'r': 12}], 'pond': None, 'drops': [], 'server_ts': 1, 'server_ms': 1,
+    'hotbar': ['axe'], 'tutorial_step': 12, 'last_a': 0, 'clearings': [{'x': SP['x'], 'z': SP['z'], 'r': 12}], 'pond': None, 'drops': [], 'server_ts': 1, 'server_ms': 1,
 }
 UNIT = {'log': 6.0, 'fish_small': 10.8}
 

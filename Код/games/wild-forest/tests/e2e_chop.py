@@ -24,7 +24,7 @@ SP = {'x': 900, 'z': 400}
 FULL = {
     'player_id': 7, 'village': {'name': 'Поляна 7', 'x': SP['x'], 'z': SP['z']}, 'pos': {'x': SP['x'], 'z': SP['z'], 'ry': 0},
     'state': {'energy': 71.5, 'energy_max': 100, 'coins': 340, 'weight': 14, 'capacity': 40, 'pack': {'log': 2}, 'level': 1, 'xp_into': 0, 'xp_need': 100},
-    'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 0, 'last_a': 4,
+    'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 12, 'last_a': 4,
     'clearings': [{'x': SP['x'], 'z': SP['z'], 'r': 12}, {'x': SP['x'] + 20, 'z': SP['z'], 'r': 8}],
     'pond': {'x': SP['x'] + 20, 'z': SP['z'], 'r': 5, 'deg': 0, 'dam': {'x': SP['x'] + 25, 'z': SP['z'], 'level': 1}},
     'server_ts': 1, 'server_ms': 1,

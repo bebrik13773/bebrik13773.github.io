@@ -211,3 +211,32 @@ function wf_action_chop($conn, array &$row, array &$stats, array $action, array 
 
     return $res;
 }
+
+/**
+ * Обучение (ДЛ-15): клиент сообщает, сколько шагов наставника пройдено (step), или сбрасывает обучение (reset) для повтора.
+ * Шаг только растёт (повтор и обгон безопасны), потолок tutorial.steps — «обучение пройдено или пропущено».
+ */
+function wf_action_tutorial($conn, array &$row, array &$stats, array $action, array $ctx): array
+{
+    $a = (int) $action['a'];
+    $max = (int) forest_config('tutorial.steps');
+    $cur = (int) $row['tutorial_step'];
+    $res = ['a' => $a, 'ok' => true, 'type' => 'tutorial'];
+    if (!empty($action['reset'])) {
+        $row['tutorial_step'] = 0;
+        $res['step'] = 0;
+
+        return $res;
+    }
+    $step = isset($action['step']) && is_numeric($action['step']) ? (int) $action['step'] : -1;
+    if ($step < 0 || $step > $max) {
+        $res['ok'] = false;
+        $res['error'] = 'bad_state';
+
+        return $res;
+    }
+    $row['tutorial_step'] = max($cur, $step);
+    $res['step'] = (int) $row['tutorial_step'];
+
+    return $res;
+}

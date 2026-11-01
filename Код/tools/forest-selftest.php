@@ -528,6 +528,44 @@ wf_st_test($results, 'Поляна: места ящика и подводы от
     return ['103.5,197.5 96,203', $s['crate'][0] . ',' . $s['crate'][1] . ' ' . $s['buyer'][0] . ',' . $s['buyer'][1]];
 });
 
+// 4е. Имена из двух слов (ДЛ-15): PHP даёт те же имена, что JS (золотые векторы tests/vectors/names.json), и согласует род
+require_once dirname(__DIR__) . '/api/forest/lib/names.php';
+wf_st_test($results, 'Имена: векторы JS и PHP совпадают', function () {
+    $raw = @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/names.json');
+    $v = json_decode((string) $raw, true);
+    if (!is_array($v) || empty($v['names'])) {
+        throw new RuntimeException('нет файла векторов имён: games/wild-forest/tests/vectors/names.json');
+    }
+    $bad = [];
+    foreach ($v['names'] as $row) {
+        $got = wf_names_make((string) $row[0], (int) $row[1], (int) $row[2]);
+        if ($got !== $row[3]) {
+            $bad[] = $row[0] . ' ' . $row[1] . '/' . $row[2] . ': ' . $row[3] . ' ≠ ' . $got;
+            if (count($bad) >= 5) {
+                break;
+            }
+        }
+    }
+    return ['0 расхождений из ' . count($v['names']), count($bad) . ' расхождений из ' . count($v['names']) . ($bad ? ' (' . implode('; ', $bad) . ')' : '')];
+});
+wf_st_test($results, 'Имена: уникальность и номер при исчерпании попыток', function () {
+    $first = wf_names_make('village', 5, 0);
+    $second = wf_names_unique('village', 5, static function ($n) use ($first) { return $n === $first; });
+    $last = wf_names_unique('village', 5, static function () { return true; }, 3);
+    return [$first . '|' . wf_names_make('village', 5, 1) . '|4', $first . '|' . $second . '|' . substr($last, -1)];
+});
+wf_st_test($results, 'Имена: длина не больше 24 и нет пробелов по краям у 3000 имён', function () {
+    for ($s = 1; $s <= 1000; $s++) {
+        foreach (['village', 'character', 'mentor'] as $kind) {
+            $n = wf_names_make($kind, $s * 3, $s % 4);
+            if (mb_strlen($n) > 24 || trim($n) !== $n || substr_count($n, ' ') !== 1) {
+                return ['ok', 'плохое имя: ' . $n];
+            }
+        }
+    }
+    return ['ok', 'ok'];
+});
+
 // 5. Генерация мира (ДЛ-05): PHP должен давать те же числа, что и JS, на золотых тест-векторах
 require_once dirname(__DIR__) . '/api/forest/lib/worldgen.php';
 @set_time_limit(120);

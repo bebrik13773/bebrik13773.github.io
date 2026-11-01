@@ -1,7 +1,7 @@
 <?php
 /**
  * POST /api/forest/sync: объединённый пакет клиента (ДЛ-10, версия 1): позиция, номера действий, ответ с состоянием.
- * Действия: chop_done (ДЛ-11), uproot (#64, выкорчёвывание пня киркой), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета), pickup и drop (ДЛ-13), crate_put, crate_take и sell (ДЛ-14: ящик и скупщик на поляне); стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
+ * Действия: chop_done (ДЛ-11), uproot (#64, выкорчёвывание пня киркой), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета), pickup и drop (ДЛ-13), crate_put, crate_take и sell (ДЛ-14: ящик и скупщик на поляне), tutorial (ДЛ-15: шаг обучения наставника); стройка (ДЛ-16) и прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
  */
 
 require_once __DIR__ . '/lib/player.php';
@@ -125,6 +125,8 @@ try {
                 $results[] = wf_action_sell($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'eat') {
                 $results[] = wf_action_eat($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'tutorial') {
+                $results[] = wf_action_tutorial($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'chop_done') {
                 $results[] = wf_action_chop($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'uproot') {
@@ -151,9 +153,10 @@ try {
         $level = (int) $row['level'];
         $coins = (int) $row['coins'];
         $blocked = (int) $row['blocked_until'];
+        $tutorial = (int) $row['tutorial_step'];
 
-        $upd = $conn->prepare('UPDATE `forest_players` SET `pos_x` = ?, `pos_z` = ?, `pos_ry` = ?, `last_seen` = ?, `last_action` = ?, `grace_until` = ?, `stats_json` = ?, `energy` = ?, `energy_ts` = ?, `xp` = ?, `level` = ?, `coins` = ?, `blocked_until` = ? WHERE `player_id` = ?');
-        $upd->bind_param('dddiiisdiiiiii', $newX, $newZ, $newRy, $now, $lastAction, $grace, $statsJson, $energy, $now, $xp, $level, $coins, $blocked, $playerId);
+        $upd = $conn->prepare('UPDATE `forest_players` SET `pos_x` = ?, `pos_z` = ?, `pos_ry` = ?, `last_seen` = ?, `last_action` = ?, `grace_until` = ?, `stats_json` = ?, `energy` = ?, `energy_ts` = ?, `xp` = ?, `level` = ?, `coins` = ?, `blocked_until` = ?, `tutorial_step` = ? WHERE `player_id` = ?');
+        $upd->bind_param('dddiiisdiiiiiii', $newX, $newZ, $newRy, $now, $lastAction, $grace, $statsJson, $energy, $now, $xp, $level, $coins, $blocked, $tutorial, $playerId);
         $upd->execute();
         $upd->close();
 

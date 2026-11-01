@@ -26,6 +26,8 @@ import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
 import { createCrateFlow } from './world/crate-flow.js';
 import { createCrateUi } from './ui/crate-ui.js';
+import { createTutorHint } from './ui/tutor-hint.js';
+import { createTutorialFlow } from './world/tutorial-flow.js';
 import { S } from './ui/strings.ru.js';
 
 window.__wfBooted = true;
@@ -160,11 +162,12 @@ async function boot() {
     });
     const notify = (options) => notifyCenter.push(options);
     const dialog = createDialog();
+    let tutorialFlow = null;
     const settings = createSettingsUi({
         quality,
         notice,
         onOpenBeta: () => beta.open(),
-        onRepeatTutorial: () => notify({ text: S.settings.tutorialLater }),
+        onRepeatTutorial: () => { if (tutorialFlow) tutorialFlow.restart(); else notify({ text: S.settings.tutorialLater }); },
         onAutoPickup: () => {},
     });
     let hud = null;
@@ -235,6 +238,17 @@ async function boot() {
     });
     if (session.full && session.full.state) energyFlow.onState(session.full.state);
 
+    // Наставник Седой Дуб (ДЛ-15): обучение по шагам, шаг хранится на сервере (tutorial_step).
+    tutorialFlow = createTutorialFlow({
+        world, dialog, hint: createTutorHint(), text: S.tutorial,
+        getQueue: () => queue,
+        getPack: () => crateFlow.pack, getBox: () => crateFlow.box,
+        getSpots: () => ({ crate: start && start.village ? start.village.crate : null, buyer: start && start.village ? start.village.buyer : null }),
+        // без поля tutorial_step в ответе (старые сервера и тестовые заглушки) обучение считается пройденным
+        startStep: online && session.full && session.full.tutorial_step !== undefined ? Number(session.full.tutorial_step) || 0 : 12,
+        size: () => { const r = stage.getBoundingClientRect(); return { w: r.width, h: r.height }; },
+    });
+
     // Смена качества: пересоздание рендерера при смене сглаживания, остальное на лету.
     quality.subscribe((next) => {
         const preset = getPreset(next);
@@ -268,7 +282,7 @@ async function boot() {
     const debug = isDebugMode() ? createDebugPanel() : null;
 
     loop = createLoop({
-        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); if (uprootFlow) uprootFlow.update(); },
+        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); if (uprootFlow) uprootFlow.update(); if (tutorialFlow) tutorialFlow.update(); },
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
@@ -360,6 +374,10 @@ async function boot() {
             crate: () => ({ pack: crateFlow.pack, box: crateFlow.box, buyerLeft: crateFlow.buyerLeft }),
             crateMove: (from, item, qty) => crateFlow.move({ from, item, qty }),
             sellAll: () => crateFlow.sell(Object.keys(crateFlow.pack).map((item) => ({ item, qty: crateFlow.pack[item] }))),
+            tutorial: () => ({ step: tutorialFlow.step, done: tutorialFlow.done, waiting: tutorialFlow.waiting, target: tutorialFlow.target }),
+            tutorialEvent: (e) => tutorialFlow.event(e),
+            tutorialSkip: () => tutorialFlow.skip(),
+            tutorialRestart: () => tutorialFlow.restart(),
             beaverStateName: () => world.beaver.state,
             net: { session, get sync() { return sync; }, get queue() { return queue; } },
             throwError: (message) => setTimeout(() => { throw new Error(message || 'тестовая ошибка'); }, 0),
@@ -379,7 +397,7 @@ async function boot() {
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); tutorialFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });
@@ -391,7 +409,10 @@ async function boot() {
         });
         document.addEventListener('visibilitychange', () => { if (!document.hidden && sync.running) sync.flush(); });
         sync.start(3000);
-        if (session.full.created) setTimeout(() => notify({ text: S.net.welcome }), 1500);
+        const villageName = session.full.village && session.full.village.name;
+        if (session.full.created) setTimeout(() => notify({ text: villageName ? S.net.welcomeNamed(villageName) : S.net.welcome }), 1500);
+        // Обучение стартует чуть позже приветствия; пройденное или пропущенное не повторяется.
+        setTimeout(() => { if (tutorialFlow && !tutorialFlow.done) tutorialFlow.start(); }, 2600);
     } else {
         loading.step('server', 'warn', S.net[session.reason] || S.net.error);
         setTimeout(() => notify({ text: S.net[session.reason] || S.net.error }), 1500);

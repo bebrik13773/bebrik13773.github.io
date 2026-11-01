@@ -24,7 +24,7 @@ SP = {'x': 900, 'z': 400}
 STATE = {'energy': 3, 'energy_max': 100, 'sleeping': True, 'wake_energy': 20, 'coins': 10, 'weight': 2, 'capacity': 40, 'pack': {'fish_small': 2}, 'level': 1, 'xp_into': 0, 'xp_need': 100}
 FULL = {
     'player_id': 7, 'village': {'name': 'Поляна 7', 'x': SP['x'], 'z': SP['z']}, 'pos': {'x': SP['x'], 'z': SP['z'], 'ry': 0},
-    'state': STATE, 'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 1, 'last_a': 0,
+    'state': STATE, 'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 12, 'last_a': 0,
     'clearings': [{'x': SP['x'], 'z': SP['z'], 'r': 12}], 'pond': None, 'server_ts': 1, 'server_ms': 1,
 }
 

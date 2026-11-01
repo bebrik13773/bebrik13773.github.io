@@ -45,12 +45,13 @@
 <link rel="modulepreload" href="./src/ui/prefs.js">
 <link rel="modulepreload" href="./src/ui/settings.js">
 <link rel="modulepreload" href="./src/ui/strings.ru.js">
+<link rel="modulepreload" href="./src/ui/tutor-hint.js">
 <link rel="modulepreload" href="./src/update.js">
 <link rel="modulepreload" href="./src/world/chop-flow.js">
 <link rel="modulepreload" href="./src/world/chop.js">
-<link rel="modulepreload" href="./src/world/crate-flow.js">
 <link rel="modulepreload" href="./src/world/chunk-build.js">
 <link rel="modulepreload" href="./src/world/chunks.js">
+<link rel="modulepreload" href="./src/world/crate-flow.js">
 <link rel="modulepreload" href="./src/world/drops.js">
 <link rel="modulepreload" href="./src/world/gen.js">
 <link rel="modulepreload" href="./src/world/models.js">
@@ -60,6 +61,8 @@
 <link rel="modulepreload" href="./src/world/scene.js">
 <link rel="modulepreload" href="./src/world/spawn.js">
 <link rel="modulepreload" href="./src/world/terrain-nav.js">
+<link rel="modulepreload" href="./src/world/tutorial-flow.js">
+<link rel="modulepreload" href="./src/world/tutorial-logic.js">
 <link rel="stylesheet" href="./src/ui/ui.css">
 <style>
 :root {
@@ -330,6 +333,11 @@ html, body {
         <div class="wf-choices" id="wfDlgChoices"></div>
     </div>
 </section>
+
+<div class="wf-tutor" id="wfTutor" hidden>
+    <div class="wf-tutor-card"><p id="wfTutorText"></p><button type="button" class="wf-btn wf-tutor-skip" id="wfTutorSkip">Пропустить обучение</button></div>
+</div>
+<div class="wf-tutor-arrow" id="wfTutorArrow" hidden aria-hidden="true">👇</div>
 
 <div id="wfNotice" role="status" aria-live="polite"></div>
 

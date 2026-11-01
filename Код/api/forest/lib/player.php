@@ -12,6 +12,7 @@ require_once __DIR__ . '/formulas.php';
 require_once __DIR__ . '/spawn.php';
 require_once __DIR__ . '/pack_weight.php';
 require_once __DIR__ . '/crate.php';
+require_once __DIR__ . '/names.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -92,10 +93,25 @@ function wf_spawn_neighbor_exists($conn, int $x, int $z, int $gap, int $exceptPl
     return $found;
 }
 
-/** Имя деревни. Заглушка до генератора имён из двух слов (ДЛ-15). */
-function wf_player_village_name(int $playerId): string
+/** Занято ли имя деревни другим игроком. */
+function wf_player_village_name_taken($conn, string $name, int $exceptId): bool
 {
-    return 'Поляна ' . $playerId;
+    $stmt = $conn->prepare('SELECT 1 FROM `forest_players` WHERE `village_name` = ? AND `player_id` <> ? LIMIT 1');
+    $stmt->bind_param('si', $name, $exceptId);
+    $stmt->execute();
+    $stmt->store_result();
+    $found = $stmt->num_rows > 0;
+    $stmt->close();
+
+    return $found;
+}
+
+/** Имя деревни из двух слов (ДЛ-15), уникальное среди деревень: при совпадении берётся следующая попытка генератора. */
+function wf_player_village_name($conn, int $playerId): string
+{
+    return wf_names_unique('village', $playerId, static function (string $name) use ($conn, $playerId): bool {
+        return wf_player_village_name_taken($conn, $name, $playerId);
+    });
 }
 
 /**
@@ -157,7 +173,7 @@ function wf_player_join($conn, int $playerId): array
         $dam->execute();
         $dam->close();
 
-        $name = wf_player_village_name($playerId);
+        $name = wf_player_village_name($conn, $playerId);
         $energy = wf_player_energy_max(1);
         $coins = (int) forest_config('hero.start_coins');
         $hotbar = json_encode(array_values((array) forest_config('spawn.start_hotbar')), JSON_UNESCAPED_UNICODE);

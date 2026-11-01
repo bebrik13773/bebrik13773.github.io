@@ -33,7 +33,7 @@ def state():
     return {'energy': 80, 'energy_max': 100, 'sleeping': False, 'wake_energy': 20, 'coins': 10, 'weight': kg, 'capacity': 40, 'pack': dict(pack), 'level': 1, 'xp_into': 0, 'xp_need': 100}
 FULL = {
     'player_id': 7, 'village': {'name': 'Поляна 7', 'x': SP['x'], 'z': SP['z']}, 'pos': {'x': SP['x'], 'z': SP['z'], 'ry': 0},
-    'state': state(), 'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 1, 'last_a': 0,
+    'state': state(), 'upgrades': {'axe': 1, 'pack': 1, 'stamina': 1, 'lamp': 0}, 'hotbar': ['axe'], 'tutorial_step': 12, 'last_a': 0,
     'clearings': [{'x': SP['x'], 'z': SP['z'], 'r': 12}], 'pond': None, 'drops': DROPS, 'server_ts': 1, 'server_ms': 1,
 }
 
