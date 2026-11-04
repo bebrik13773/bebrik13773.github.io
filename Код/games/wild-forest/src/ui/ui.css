@@ -259,3 +259,27 @@
 .wf-tutor-arrow[data-off="1"] { opacity: 0.8; }
 @keyframes wf-tutor-bob { 0%, 100% { margin-top: 0; } 50% { margin-top: -8px; } }
 @media (prefers-reduced-motion: reduce) { .wf-tutor-arrow { animation: none; } }
+
+/* Стройка (ДЛ-16) */
+.wf-build-intro { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+.wf-build-list { display: flex; flex-direction: column; gap: 8px; }
+.wf-build-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.wf-build-card.is-off { opacity: 0.7; }
+.wf-build-head { font-size: 16px; font-weight: 600; }
+.wf-build-about { font-size: 13px; color: var(--muted); }
+.wf-build-cost { display: flex; flex-wrap: wrap; gap: 6px; }
+.wf-chip-cost { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+.wf-chip-cost.is-lack { border-color: #e0503c; color: #e0503c; }
+.wf-build-pick { min-height: 44px; }
+.wf-placebar { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 30; display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.wf-placebar-text { font-size: 14px; }
+.wf-placebar-text.is-bad { color: #e0503c; }
+.wf-placebar-btns { display: flex; gap: 8px; align-items: center; }
+.wf-placebar-btns .wf-btn { min-height: 44px; flex: 1; }
+.wf-placebar-ok:disabled { opacity: 0.45; }
+.wf-buildpanel { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 25; width: min(340px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.wf-buildpanel-head { display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; }
+.wf-buildpanel-track { height: 10px; border-radius: 6px; background: rgba(127,127,127,.25); overflow: hidden; }
+.wf-buildpanel-fill { height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: #f2b441; transition: transform .15s linear; }
+.wf-buildpanel-hint { font-size: 13px; color: var(--muted); min-height: 1.2em; }
+.wf-buildpanel .wf-btn { min-height: 44px; }

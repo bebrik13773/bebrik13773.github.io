@@ -216,24 +216,39 @@ return [
         'crate_capacity'    => 100,
     ],
 
-    // ── Постройки: бревна/доски/слитки/монеты/тапы ──────────────────────
+    // ── Постройки: бревна/доски/слитки/монеты/тапы (ДЛ-16) ────────────────
+    // r: радиус габарита, м (круг); h: высота модели, м; unlock: с какого уровня игрока постройка доступна;
+    // max: сколько таких построек можно (по умолчанию одна). Ресурсы logs/planks/ingots = предметы log/plank/ingot.
     'buildings' => [
-        'warehouse' => ['logs' => 30, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 150, 'capacity' => 300],
-        'house'     => ['logs' => 40, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 250, 'beds' => 2, 'beds_per_lvl' => 1, 'beds_max' => 6],
-        'sawmill'   => ['logs' => 40, 'planks' => 0,  'ingots' => 4,  'coins' => 0,    'taps' => 300],
-        'market'    => ['logs' => 20, 'planks' => 16, 'ingots' => 0,  'coins' => 0,    'taps' => 250],
-        'workshop'  => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 0,    'taps' => 400],
-        'garden'    => ['logs' => 15, 'planks' => 6,  'ingots' => 0,  'coins' => 0,    'taps' => 120, 'slots' => 6, 'slots_per_lvl' => 4],
-        'smelter'   => ['logs' => 30, 'planks' => 20, 'ingots' => 8,  'coins' => 2500, 'taps' => 600],
-        'forge'     => ['logs' => 20, 'planks' => 30, 'ingots' => 10, 'coins' => 3500, 'taps' => 700],
-        'quarry'    => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 1500, 'taps' => 500],
-        'max_dist_from_village_m' => 60,
+        'warehouse' => ['logs' => 30, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 150, 'r' => 2.6, 'h' => 3.2, 'unlock' => 1, 'max' => 3, 'capacity' => 300],
+        'house'     => ['logs' => 40, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.8, 'h' => 4.2, 'unlock' => 1, 'max' => 1, 'beds' => 2, 'beds_per_lvl' => 1, 'beds_max' => 6],
+        'garden'    => ['logs' => 15, 'planks' => 6,  'ingots' => 0,  'coins' => 0,    'taps' => 120, 'r' => 3.2, 'h' => 1.6, 'unlock' => 2, 'max' => 1, 'slots' => 6, 'slots_per_lvl' => 4],
+        'sawmill'   => ['logs' => 40, 'planks' => 0,  'ingots' => 4,  'coins' => 0,    'taps' => 300, 'r' => 3.0, 'h' => 3.6, 'unlock' => 3, 'max' => 1],
+        'market'    => ['logs' => 20, 'planks' => 16, 'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.6, 'h' => 3.0, 'unlock' => 3, 'max' => 1],
+        'workshop'  => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 0,    'taps' => 400, 'r' => 2.8, 'h' => 3.8, 'unlock' => 4, 'max' => 1],
+        'quarry'    => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 1500, 'taps' => 500, 'r' => 3.0, 'h' => 2.6, 'unlock' => 5, 'max' => 1],
+        'smelter'   => ['logs' => 30, 'planks' => 20, 'ingots' => 8,  'coins' => 2500, 'taps' => 600, 'r' => 2.4, 'h' => 4.4, 'unlock' => 6, 'max' => 1],
+        'forge'     => ['logs' => 20, 'planks' => 30, 'ingots' => 10, 'coins' => 3500, 'taps' => 700, 'r' => 2.4, 'h' => 4.0, 'unlock' => 8, 'max' => 1],
+        'max_dist_from_village_m' => 60,   // центр постройки не дальше от центра поляны
+        'min_dist_foreign_village_m' => 40, // и не ближе к центру чужой деревни
         'max_slope_deg'           => 12,
-        'cancel_full_refund_until' => 0.20,
-        'cancel_partial_until'     => 0.70,
-        'demolish_refund'          => 0.50,
+        'gap_m'                   => 0.4,   // зазор между габаритами построек и объектов поляны
+        'tree_trunk_m'            => 0.6,   // радиус ствола при проверке «дерево в габарите»
+        'max_total_base'          => 8,     // сколько построек всего: base + per_level × (уровень − 1), не больше max_total_cap
+        'max_total_per_level'     => 1,
+        'max_total_cap'           => 40,
+        'stage_walls_at'          => 0.33,  // видимые стадии: фундамент, стены (с 33%), крыша (с 66%), готово (100%)
+        'stage_roof_at'           => 0.66,
+        'cancel_full_refund_until' => 0.20, // отмена до 20% прогресса: 100% ресурсов
+        'cancel_partial_refund'    => 0.70, // после 20% и до готовности: 70%
+        'demolish_refund'          => 0.50, // снос готовой постройки: 50%
+        'tap_reach_m'              => 4.0,  // стройка тапами: не дальше 4 м от габарита постройки
+        'tap_max_per_action'       => 120,  // ударов в одном действии
+        'rot_step_deg'             => 15,
         'helper_build_ps'          => 0.4,
         'max_warehouses'           => 3,
+        'state_radius_chunks'      => 4,    // каких построек (своих и чужих) касается состояние при входе
+        'state_max'                => 120,
     ],
 
     // ── Улучшения бобра ─────────────────────────────────────────────────

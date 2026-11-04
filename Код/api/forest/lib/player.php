@@ -12,6 +12,7 @@ require_once __DIR__ . '/formulas.php';
 require_once __DIR__ . '/spawn.php';
 require_once __DIR__ . '/pack_weight.php';
 require_once __DIR__ . '/crate.php';
+require_once __DIR__ . '/build.php';
 require_once __DIR__ . '/names.php';
 
 /** Максимальная энергия по уровню выносливости. */
@@ -340,11 +341,16 @@ function wf_player_full_state($conn, array $row): array
         'hotbar' => is_array($hotbar) ? array_values($hotbar) : [],
         'tutorial_step' => (int) $row['tutorial_step'],
         'last_a' => (int) (wf_player_stats($row)['last_a'] ?? 0),
+        'spawn' => ['x' => (float) $row['spawn_x'], 'z' => (float) $row['spawn_z']], // центр поляны: от него считается дальность стройки (ДЛ-16)
         'clearings' => $records['clearings'],
         'pond' => $records['pond'],
         'felled' => $near['felled'],
         'uprooted' => $near['uprooted'],
         'drops' => $near['drops'],
+        // Постройки (ДЛ-16): каталог с ценами, правила места и возврата, постройки вокруг игрока (своих и чужих)
+        'catalog' => wf_build_catalog(),
+        'build_rules' => wf_build_rules((int) $row['level']),
+        'buildings' => wf_build_near($conn, $row),
         'server_ts' => time(),
         'server_ms' => forest_now_ms(),
     ];

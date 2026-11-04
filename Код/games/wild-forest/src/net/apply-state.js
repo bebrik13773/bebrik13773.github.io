@@ -10,7 +10,7 @@ export function packToItems(pack) {
 }
 
 /** Применяет легкое состояние (энергия, монеты, вес, рюкзак, уровень) к HUD и панели рюкзака. */
-export function applyLightState(state, { hud, inventory, crate }) {
+export function applyLightState(state, { hud, inventory, crate, build }) {
     if (!state) return;
     if (hud) {
         hud.set({
@@ -25,6 +25,8 @@ export function applyLightState(state, { hud, inventory, crate }) {
     }
     // Ящик-тайник и остаток суточного лимита скупщика (ДЛ-14)
     if (crate && typeof crate.onState === 'function') crate.onState(state);
+    // Уровень игрока для доступности построек (ДЛ-16)
+    if (build && typeof build.onState === 'function') build.onState(state);
 }
 
 /** Начальные данные для сцены из полного состояния: позиция, поляна, пруд. */
@@ -33,6 +35,11 @@ export function startFromState(full) {
     return {
         x: Number(full.pos.x), z: Number(full.pos.z),
         clearings: Array.isArray(full.clearings) ? full.clearings.map((c) => ({ x: Number(c.x), z: Number(c.z), r: Number(c.r) })) : [],
+        spawn: full.spawn && Number.isFinite(Number(full.spawn.x)) ? { x: Number(full.spawn.x), z: Number(full.spawn.z) } : null,
+        catalog: Array.isArray(full.catalog) ? full.catalog : null,
+        buildRules: full.build_rules && typeof full.build_rules === 'object' ? full.build_rules : null,
+        buildings: Array.isArray(full.buildings) ? full.buildings : [],
+        level: full.state && Number.isFinite(Number(full.state.level)) ? Number(full.state.level) : 1,
         pond: full.pond || null,
         village: normalizeVillage(full.village),
         felled: Array.isArray(full.felled) ? full.felled.map(String) : [],

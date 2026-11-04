@@ -11,6 +11,7 @@ import { createNav } from './nav.js';
 import { pickObject } from './picking.js';
 import { createBeaver } from '../entities/beaver.js';
 import { createDrops } from './drops.js';
+import { createBuildings } from './buildings.js';
 import { createTreeFx } from './tree-fx.js';
 import { createHero } from '../entities/hero.js';
 import { createCameraRig, resolveCameraDistance } from '../core/camera-rig.js';
@@ -91,7 +92,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             stallProps = createVillageStalls({ crate: v.crate, buyer: v.buyer, groundY: (x, z) => groundY(x, z) });
             scene.add(stallProps.group);
         }
-        if (!start || !start.pond) { addStallTargets(); return; }
+        if (!start || !start.pond) { addStallTargets(); if (buildings) buildings.reblock(); return; }
         if (pondProps) pondProps.dispose();
         pondProps = createPondAndDam({ pond: start.pond, groundY: (x, z) => groundY(x, z) });
         scene.add(pondProps.group);
@@ -101,6 +102,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         const yaw = -((start.pond.deg || 0) * Math.PI) / 180 + Math.PI / 2;
         for (let off = -1.9; off <= 1.91; off += 0.55) chunks.addBlocker(dam.x + Math.cos(yaw) * off, dam.z - Math.sin(yaw) * off, 0.5);
         addStallTargets();
+        if (buildings) buildings.reblock(); // постройки (ДЛ-16): вернуть непроходимые пятачки и поправить высоту после смены качества
     }
     function addStallTargets() {
         const v = start && start.village;
@@ -117,8 +119,10 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             chunks.addBlocker(v.buyer.x, v.buyer.z, 0.9);
         }
     }
-    const dynamicTargets = new Map();            // объекты, которые можно выбрать тапом помимо деревьев (предметы, позже NPC, постройки, помощники)
+    const dynamicTargets = new Map();            // объекты, которые можно выбрать тапом помимо деревьев (предметы, NPC, постройки, помощники)
+    let buildings = null;                        // постройки игрока и чужие (ДЛ-16), создаются ниже
     buildPond();
+    buildings = createBuildings({ scene, chunks, groundY: (x, z) => groundY(x, z), addTarget: (t) => dynamicTargets.set(t.id, t), removeTarget: (id) => dynamicTargets.delete(id) });
     const dropTargetId = (id) => `drop:${id}`;
     const drops = createDrops({
         scene,
@@ -416,6 +420,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
                 workTree = null;
             }
             fx.update(frameDt);
+            buildings.update(frameDt);
             // контур тоньше и растёт с расстоянием медленно: далеко от бобра линия не должна «жиреть»
             beaver.setOutlineWidth(0.017 * Math.min(1.5, Math.max(0.8, Math.sqrt(rig.dist / 9))));
             water.material.color.setHex(WATER_COLOR).offsetHSL(0, 0, Math.sin(clock * 0.8) * 0.015);
@@ -443,6 +448,10 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             camera.updateProjectionMatrix();
         },
         pickGround,
+        /** Постройки в мире (ДЛ-16): set, upsert, remove, призрак. */
+        get buildings() { return buildings; },
+        /** Точка земли под пальцем (px, py в CSS-пикселях относительно холста) или null. */
+        groundFromScreen(px, py) { return pickGround((px / size.w) * 2 - 1, -((py / size.h) * 2 - 1)); },
         /** Пресет качества: дальность, туман, плотность леса, рельеф, тени. */
         applyQuality(next) {
             preset = next;
@@ -465,6 +474,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             beaver.group.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
         },
         dispose() {
+            buildings.dispose();
             drops.dispose();
             fx.dispose();
             beaver.dispose();

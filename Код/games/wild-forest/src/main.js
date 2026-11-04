@@ -26,6 +26,8 @@ import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
 import { createCrateFlow } from './world/crate-flow.js';
 import { createCrateUi } from './ui/crate-ui.js';
+import { createBuildFlow, fixedCircles } from './world/build-flow.js';
+import { createBuildUi } from './ui/build-ui.js';
 import { createTutorHint } from './ui/tutor-hint.js';
 import { createTutorialFlow } from './world/tutorial-flow.js';
 import { S } from './ui/strings.ru.js';
@@ -111,6 +113,7 @@ async function boot() {
     let packFlow = null;
     let uprootFlow = null;
     let crateFlow = null;
+    let buildFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -120,6 +123,7 @@ async function boot() {
                 if (chopFlow) chopFlow.onWorldEvent(e);
                 if (packFlow) packFlow.onWorldEvent(e);
                 if (crateFlow) crateFlow.onWorldEvent(e);
+                if (buildFlow) buildFlow.onWorldEvent(e);
                 if (uprootFlow) uprootFlow.onWorldEvent(e);
                 if (e.type === 'blocked') notice.show({ text: 'Не получается пройти: что-то мешает. Попробуй другой путь.', ttlMs: 2200 });
                 else if (e.type === 'unreachable') notice.show({ text: 'К этому не подобраться.', ttlMs: 1800 });
@@ -146,6 +150,7 @@ async function boot() {
         isActive: () => state === STATES.PLAYING && !document.documentElement.dataset.wfModal,
         onTap: (tap) => {
             const rect = stage.getBoundingClientRect();
+            if (buildFlow && buildFlow.onScreenTap(tap.x - rect.left, tap.y - rect.top)) return; // выбор места постройки (ДЛ-16)
             world.handleTap(tap.x - rect.left, tap.y - rect.top);
         },
         onOrbit: (dYaw, dPitch) => world.orbitCamera(dYaw, dPitch),
@@ -181,7 +186,7 @@ async function boot() {
     hud = createHud({
         onAction(id) {
             if (id === 'backpack') { settings.close(); notifyCenter.close(); inventory.toggle(); }
-            else if (id === 'build') notify({ text: S.hud.soon.build });
+            else if (id === 'build') { if (buildFlow && online) { settings.close(); notifyCenter.close(); inventory.close && inventory.close(); buildFlow.openCatalog(); } else notify({ text: S.build.errors.offline }); }
             else if (id === 'helpers') notify({ text: S.hud.soon.helpers });
         },
         onSlot: () => { /* выбор инструмента в руку подключится вместе с рубкой (ДЛ-11) */ },
@@ -229,6 +234,29 @@ async function boot() {
         isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
     });
     if (start && start.village && start.village.buyer) crateFlow.setPrices(start.village.buyer.prices);
+
+    // Постройки (ДЛ-16): каталог, призрак на земле, чертёж, стройка тапами, отмена и снос.
+    const buildText = { ...S.build, itemIcons: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].icon || ''])) };
+    buildFlow = createBuildFlow({
+        world, dialog, notify, text: buildText,
+        buildUi: createBuildUi({
+            onPick: (type) => buildFlow.pick(type),
+            onRotate: (d) => buildFlow.rotate(d),
+            onConfirm: () => buildFlow.confirm(),
+            onCancelPlace: () => buildFlow.cancelPlacement(),
+            onCancelBuild: (id) => buildFlow.askCancel(id),
+            onDemolish: (id) => buildFlow.askDemolish(id),
+        }),
+        names: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].name])),
+        village: start && start.spawn ? start.spawn : (start ? { x: start.x, z: start.z } : null),
+        fixed: fixedCircles(start),
+        getQueue: () => queue, getSync: () => sync,
+        getHave: () => { const have = {}; for (const src of [crateFlow.pack, crateFlow.box]) for (const [k, n] of Object.entries(src || {})) have[k] = (have[k] || 0) + (Number(n) || 0); return have; },
+        getCoins: () => (hud ? hud.values.coins : 0),
+        getEnergy: () => (online ? lastEnergy : null),
+        isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
+    });
+    if (start) buildFlow.init({ catalog: start.catalog, rules: start.buildRules, buildings: start.buildings, level: start.level });
 
     // Энергия, сон и еда (ДЛ-12): сервер присылает sleeping, бобёр ложится; еда уходит действием eat.
     energyFlow = createEnergyFlow({
@@ -282,7 +310,7 @@ async function boot() {
     const debug = isDebugMode() ? createDebugPanel() : null;
 
     loop = createLoop({
-        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); if (uprootFlow) uprootFlow.update(); if (tutorialFlow) tutorialFlow.update(); },
+        update: (dt) => { world.update(dt); if (chopFlow) chopFlow.update(); if (packFlow) packFlow.update(); if (uprootFlow) uprootFlow.update(); if (buildFlow) buildFlow.update(); if (tutorialFlow) tutorialFlow.update(); },
         render: (alpha, now) => {
             world.render(host.renderer, alpha);
             fps.tick(now);
@@ -389,15 +417,15 @@ async function boot() {
     let queue = null;
     if (online) {
         loading.step('server', 'done');
-        applyLightState(session.full.state, { hud, inventory, crate: crateFlow });
+        applyLightState(session.full.state, { hud, inventory, crate: crateFlow, build: buildFlow });
         queue = createActionQueue(session.full.last_a || 0);
         sync = createSync({
             call: apiCall,
             queue,
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
-            onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); tutorialFlow.onResults(results); },
+            onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow, build: buildFlow }); energyFlow.onState(st); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); tutorialFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st) => {
                 if (st === 'offline') notify({ text: S.net.offline });

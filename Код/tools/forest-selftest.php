@@ -528,6 +528,112 @@ wf_st_test($results, 'Поляна: места ящика и подводы от
     return ['103.5,197.5 96,203', $s['crate'][0] . ',' . $s['crate'][1] . ' ' . $s['buyer'][0] . ',' . $s['buyer'][1]];
 });
 
+// 4ж. Постройки (ДЛ-16): чистые функции по тем же векторам, что и в JS (tests/build.test.mjs, tests/vectors/build.json)
+require_once dirname(__DIR__) . '/api/forest/lib/build.php';
+function wf_st_build_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $v = json_decode((string) @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/build.json'), true);
+        if (!is_array($v) || empty($v['places'])) {
+            throw new RuntimeException('нет файла векторов построек: games/wild-forest/tests/vectors/build.json');
+        }
+    }
+    return $v;
+}
+wf_st_test($results, 'Постройки: цены и монеты из config.php совпадают с каталогом JS', function () {
+    $v = wf_st_build_vectors();
+    $bad = [];
+    foreach ($v['costs'] as $r) {
+        $spec = wf_build_spec((string) $r[0]);
+        $got = $spec ? wf_build_cost($spec) : null;
+        $want = (array) $r[1];
+        if ($got === null) {
+            $bad[] = $r[0] . ': нет в конфиге';
+            continue;
+        }
+        ksort($got);
+        ksort($want);
+        if ($got != $want || wf_build_coins($spec) !== (int) $r[2]) {
+            $bad[] = $r[0];
+        }
+    }
+    return ['0 расхождений из ' . count($v['costs']), count($bad) . ' расхождений из ' . count($v['costs']) . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Постройки: наклон, стадии и повороты совпадают с JS на всех векторах', function () {
+    $v = wf_st_build_vectors();
+    $bad = [];
+    foreach ($v['slopes'] as $r) {
+        if (abs(wf_build_slope_deg((array) $r[0], (float) $r[1]) - (float) $r[2]) > 1e-5) {
+            $bad[] = 'наклон ' . json_encode($r[0]);
+        }
+    }
+    foreach ($v['stages'] as $r) {
+        if (wf_build_stage((int) $r[0], (int) $r[1]) !== (string) $r[2]) {
+            $bad[] = 'стадия ' . $r[0] . '/' . $r[1];
+        }
+    }
+    foreach ($v['rots'] as $r) {
+        if (wf_build_rot((float) $r[0]) !== (int) $r[1]) {
+            $bad[] = 'поворот ' . $r[0];
+        }
+    }
+    foreach ($v['circles'] as $r) {
+        if (wf_build_circles_overlap((float) $r[0], (float) $r[1], (float) $r[2], (float) $r[3], (float) $r[4], (float) $r[5], (float) $r[6]) !== (bool) $r[7]) {
+            $bad[] = 'круги ' . json_encode($r);
+        }
+    }
+    $n = count($v['slopes']) + count($v['stages']) + count($v['rots']) + count($v['circles']);
+    return ['0 расхождений из ' . $n, count($bad) . ' расхождений из ' . $n . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Постройки: возврат ресурсов при отмене и сносе совпадает с JS', function () {
+    $v = wf_st_build_vectors();
+    $bad = [];
+    foreach ($v['refunds'] as $r) {
+        $k = wf_build_refund_k((string) $r[0], (int) $r[1], (int) $r[2]);
+        if ($r[3] === null ? $k !== null : ($k === null || abs($k - (float) $r[3]) > 1e-9)) {
+            $bad[] = 'доля ' . json_encode($r);
+        }
+    }
+    foreach ($v['refund_items'] as $r) {
+        $got = wf_build_refund((array) wf_build_spec((string) $r[0]), (float) $r[1]);
+        $want = (array) $r[2];
+        $wi = (array) $want['items'];
+        $gi = $got['items'];
+        ksort($wi);
+        ksort($gi);
+        if ($gi != $wi || $got['coins'] !== (int) $want['coins']) {
+            $bad[] = 'возврат ' . $r[0] . ' x' . $r[1];
+        }
+    }
+    $n = count($v['refunds']) + count($v['refund_items']);
+    return ['0 расхождений из ' . $n, count($bad) . ' расхождений из ' . $n . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+wf_st_test($results, 'Постройки: тапы, списание из запасов и проверка места совпадают с JS', function () {
+    $v = wf_st_build_vectors();
+    $bad = [];
+    foreach ($v['taps'] as $r) {
+        $t = wf_build_tap_plan((int) $r[0], (int) $r[1], (float) $r[2], (float) $r[3], (float) $r[4]);
+        if ($t['n'] !== (int) $r[5] || $t['limit'] !== (string) $r[6]) {
+            $bad[] = 'тапы ' . json_encode($r);
+        }
+    }
+    foreach ($v['takes'] as $r) {
+        $plan = wf_build_plan_take((array) $r[0], (array) $r[1]);
+        if (json_encode($plan) !== json_encode($r[2])) {
+            $bad[] = 'списание ' . json_encode($r[1]);
+        }
+    }
+    foreach ($v['places'] as $r) {
+        $err = wf_build_place_error((array) $r[0]);
+        if ($err !== $r[1]) {
+            $bad[] = 'место ' . json_encode($r[1]);
+        }
+    }
+    $n = count($v['taps']) + count($v['takes']) + count($v['places']);
+    return ['0 расхождений из ' . $n, count($bad) . ' расхождений из ' . $n . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
+});
+
 // 4е. Имена из двух слов (ДЛ-15): PHP даёт те же имена, что JS (золотые векторы tests/vectors/names.json), и согласует род
 require_once dirname(__DIR__) . '/api/forest/lib/names.php';
 wf_st_test($results, 'Имена: векторы JS и PHP совпадают', function () {
