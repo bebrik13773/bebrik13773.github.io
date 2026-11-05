@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16301f">
+<title>Дикий Лес — прогресс разработки</title>
+<style>
+  :root { --bg:#16301f; --card:#1f4029; --line:#2f5a3b; --text:#f2f7ee; --muted:#a9c4ac; --accent:#8fd26a; --accent2:#e8b24a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh;
+    padding: max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom)); }
+  .card { width:100%; max-width:480px; background:var(--card); border:1px solid var(--line);
+    border-radius:20px; padding:28px 22px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+  .emoji { font-size:44px; line-height:1; }
+  h1 { font-size:22px; margin:10px 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0 0 22px; }
+  .percent { font-size:64px; font-weight:800; line-height:1; color:var(--accent); }
+  .bar { height:20px; background:#0f2216; border-radius:999px; overflow:hidden; margin:18px 0 10px; border:1px solid var(--line); }
+  .fill { height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:999px; transition:width 1s ease-out; }
+  .count { color:var(--muted); font-size:15px; }
+  .msg { color:var(--muted); font-size:14px; margin-top:6px; }
+  .err { color:#ffb4a8; }
+  a { color:var(--accent); }
+  .foot { margin-top:22px; font-size:12px; color:var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .fill { transition:none; } }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="emoji">🦫🌲</div>
+  <h1>Бобёр Кликер: Дикий Лес</h1>
+  <p class="sub">Как идёт разработка новой игры</p>
+
+  <div class="percent" id="percent">…</div>
+  <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar">
+    <div class="fill" id="fill"></div>
+  </div>
+  <div class="count" id="count">Загружаю…</div>
+  <div class="msg" id="msg"></div>
+
+  <p class="foot">Считаются пункты плана игры. Данные берутся с GitHub.<br>
+    <a href="../">Открыть Дикий Лес</a></p>
+</main>
+
+<script>
+(function () {
+  var REPO = 'bebrik13773/bebrik13773.github.io';
+  var PLAN = [];
+  var i;
+  for (i = 14; i <= 53; i++) PLAN.push(i);
+  PLAN.push(56, 59, 62, 63); // 44 пункта плана
+  var TOTAL = PLAN.length;
+  var CACHE_KEY = 'wf.progress.v1';
+  var CACHE_MS = 10 * 60 * 1000;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function show(done, note) {
+    var pct = Math.floor(done * 100 / TOTAL);
+    $('percent').textContent = pct + '%';
+    $('fill').style.width = pct + '%';
+    $('bar').setAttribute('aria-valuenow', String(pct));
+    $('count').textContent = 'Готово ' + done + ' из ' + TOTAL + ' пунктов';
+    $('msg').textContent = note || '';
+    $('msg').className = 'msg';
+  }
+
+  function fail(text) {
+    $('percent').textContent = '—';
+    $('count').textContent = 'Не получилось узнать прогресс';
+    $('msg').textContent = text;
+    $('msg').className = 'msg err';
+  }
+
+  function readCache() {
+    try {
+      var c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (c && typeof c.done === 'number') return c;
+    } catch (e) {}
+    return null;
+  }
+
+  function writeCache(done) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ done: done, ts: Date.now() })); } catch (e) {}
+  }
+
+  function countDone(page, acc) {
+    var url = 'https://api.github.com/repos/' + REPO + '/issues?state=closed&per_page=100&page=' + page;
+    return fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status === 403 ? 'limit' : 'http');
+        return r.json();
+      })
+      .then(function (list) {
+        list.forEach(function (it) {
+          if (!it.pull_request && PLAN.indexOf(it.number) !== -1) acc[it.number] = true;
+        });
+        if (list.length === 100 && page < 10) return countDone(page + 1, acc);
+        return acc;
+      });
+  }
+
+  var cached = readCache();
+  if (cached && Date.now() - cached.ts < CACHE_MS) {
+    show(cached.done);
+    return;
+  }
+
+  countDone(1, {}).then(function (acc) {
+    var done = Object.keys(acc).length;
+    writeCache(done);
+    show(done);
+  }).catch(function (e) {
+    if (cached) {
+      show(cached.done, 'Свежие данные сейчас недоступны, показаны последние известные.');
+    } else if (e && e.message === 'limit') {
+      fail('GitHub временно ограничил запросы. Загляни сюда через час.');
+    } else {
+      fail('Нет связи с GitHub. Попробуй обновить страницу позже.');
+    }
+  });
+})();
+</script>
+</body>
+</html>
