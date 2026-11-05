@@ -37,6 +37,7 @@ export function startFromState(full) {
         clearings: Array.isArray(full.clearings) ? full.clearings.map((c) => ({ x: Number(c.x), z: Number(c.z), r: Number(c.r) })) : [],
         spawn: full.spawn && Number.isFinite(Number(full.spawn.x)) ? { x: Number(full.spawn.x), z: Number(full.spawn.z) } : null,
         catalog: Array.isArray(full.catalog) ? full.catalog : null,
+        buildUpgrades: full.build_upgrades && typeof full.build_upgrades === 'object' ? full.build_upgrades : null,
         buildRules: full.build_rules && typeof full.build_rules === 'object' ? full.build_rules : null,
         buildings: Array.isArray(full.buildings) ? full.buildings : [],
         level: full.state && Number.isFinite(Number(full.state.level)) ? Number(full.state.level) : 1,

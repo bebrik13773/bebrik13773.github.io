@@ -1,8 +1,10 @@
 // Связка построек (ДЛ-16): каталог, выбор места призраком, постановка чертежа, стройка тапами, отмена и снос.
+// ДЛ-17: меню готовой постройки (склад, дом, рынок, мастерская), улучшение уровней тапами, перенос предметов на склад, отдых у дома.
 // Клиент предлагает, сервер решает: действия build_place, build_tap, build_cancel и build_demolish уходят в очередь sync,
 // настоящее состояние (прогресс, ресурсы, монеты) приходит в ответе. Тапы стройки копятся пачкой и показываются сразу.
 // Все зависимости передаются снаружи, поэтому логика проверяется в node без браузера.
-import { BUILD_CATALOG, BUILD_RULES, buildCost, buildCoins, findSpec, normRot, refundK, refund, shortage } from '../shared/build.js';
+import { BUILD_CATALOG, BUILD_RULES, BUILD_UPGRADES, buildCost, buildCoins, findSpec, houseBeds, maxLevel, normRot, refundK, refund, shortage, upgradeSpec, warehouseCap } from '../shared/build.js';
+import { itemKg } from '../shared/formulas.js';
 import { checkSpot } from './build-check.js';
 
 const MIN_FLUSH_GAP_MS = 3200; // сервер принимает sync не чаще раза в 3 секунды
@@ -23,7 +25,7 @@ export function fixedCircles(start) {
     return out;
 }
 
-export function createBuildFlow({ world, buildUi, dialog, notify, text, names = {}, village = null, fixed = [], getQueue, getSync, getHave = () => ({}), getCoins = () => 0, getEnergy = () => null, isSleeping = () => false, onStaged = () => {}, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createBuildFlow({ world, buildUi, dialog, notify, text, names = {}, village = null, fixed = [], getQueue, getSync, menuUi = null, storeUi = null, inventory = null, getPack = () => ({}), getEnergyMax = () => null, getHave = () => ({}), getCoins = () => 0, getEnergy = () => null, isSleeping = () => false, onStaged = () => {}, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
     let catalog = BUILD_CATALOG;
     let rules = BUILD_RULES;
     let level = 1;
@@ -36,6 +38,10 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
     let flushTimer = 0;
     let warnedOffline = false;
     let confirming = false;
+    let upgrades = BUILD_UPGRADES;   // цены улучшений уровней
+    let stores = {};                 // содержимое складов по id постройки (по данным сервера)
+    let storeId = null;              // какой склад открыт сейчас
+    let restId = null;               // у какого дома бобёр отдыхает
 
     const nameOf = (item) => names[item] || item;
     const meta = (type) => text.names[type] || { name: type, icon: '🏠', about: '' };
@@ -57,6 +63,138 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
     const counts = (type) => { const m = mine(); return { total: m.length, same: m.filter((b) => b.type === type).length }; };
     const pending = (id) => (queued.get(id) || 0) + inflight.filter((x) => x.id === id).reduce((a, x) => a + x.n, 0);
     const pctOf = (b, shown) => Math.min(100, Math.floor((shown / Math.max(1, b.needed)) * 100));
+
+    // ── Меню готовой постройки (ДЛ-17) ───────────────────────────────────
+    const units = (m) => Object.values(m || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+    const storeBox = (id) => stores[String(id)] || {};
+    const storeCap = (b) => Number(b.cap) > 0 ? Number(b.cap) : warehouseCap(b.level || 1);
+    const listOf = (m) => Object.keys(m || {}).filter((k) => m[k] > 0).sort().map((key) => ({ key, qty: m[key] }));
+
+    function upgradeModel(b) {
+        const spec = findSpec(catalog, b.type);
+        const max = Number(b.max_level) || maxLevel(spec);
+        if (max <= 1) return null;
+        const to = (b.level || 1) + 1;
+        if (to > max) return { to, status: 'max', cost: [], taps: 0 };
+        const up = upgradeSpec(upgrades, b.type, to);
+        if (!up) return null;
+        const have = getHave();
+        const coins = getCoins();
+        const lack = shortage(up, have, coins);
+        const cost = Object.entries(buildCost(up)).map(([item, qty]) => ({ icon: (text.itemIcons && text.itemIcons[item]) || '', qty, have: have[item] || 0, lack: lack[item] || 0 }));
+        if (buildCoins(up) > 0) cost.push({ icon: '🪙', qty: buildCoins(up), have: coins, lack: lack.coins || 0 });
+        const lackText = Object.keys(lack).map((k) => (k === 'coins' ? `${lack[k]} ${text.coins}` : `${nameOf(k).toLowerCase()} ${lack[k]}`)).join(', ');
+        return { to, status: Object.keys(lack).length ? 'lack' : 'ok', cost, taps: up.taps, lackText, note: text.menu.upgradeNote };
+    }
+    function menuModel(b) {
+        const m = meta(b.type);
+        const M = text.menu;
+        const spec = findSpec(catalog, b.type);
+        const lines = [];
+        const actions = [];
+        if (b.type === 'warehouse') {
+            lines.push(...M.lines.warehouse(storeCap(b), units(storeBox(b.id))));
+            actions.push({ id: 'open', label: `📦 ${M.actions.open}` });
+        } else if (b.type === 'house') {
+            lines.push(...M.lines.house(Number(b.beds) || houseBeds(b.level || 1)));
+            actions.push({ id: 'sleep', label: `🛏️ ${M.actions.sleep}` });
+        } else if (b.type === 'market') {
+            lines.push(...M.lines.market(Number(b.places) || 3));
+        } else if (b.type === 'workshop') {
+            lines.push(...M.lines.workshop());
+            actions.push({ id: 'bench', label: `🔨 ${M.actions.bench}` });
+        } else if (m.about) lines.push(m.about);
+        return { id: b.id, name: m.name, icon: m.icon, level: b.level || 1, maxLevel: Number(b.max_level) || maxLevel(spec), lines, actions, upgrade: upgradeModel(b) };
+    }
+    function openMenu(b) {
+        if (!menuUi) { cur = { id: b.id }; paintPanel(); return; }
+        menuUi.open(menuModel(b));
+    }
+    function refreshMenu() {
+        if (!menuUi || !menuUi.isOpen) return;
+        const b = world.buildings.get(menuUi.currentId);
+        if (b) menuUi.refresh(menuModel(b)); else menuUi.close();
+    }
+    function startUpgrade(id) {
+        const b = world.buildings.get(id);
+        if (!b || !b.mine || b.state !== 'ready') return;
+        if (isSleeping()) { notify({ text: text.errors.sleeping }); return; }
+        const q = queueOrWarn();
+        if (!q) return;
+        q.push('build_upgrade', { building: id, ...heroXZ() });
+        requestFlush();
+    }
+    function nearHero(b, extra) {
+        const r = (findSpec(catalog, b.type) || { r: 2.8 }).r + extra;
+        const p = world.heroPos;
+        return Math.hypot(p.x - b.x, p.z - b.z) <= r;
+    }
+
+    // ── Склад ───────────────────────────────────────────────────────────
+    function paintStore() {
+        if (!storeUi || storeId === null) return;
+        const b = world.buildings.get(storeId);
+        if (!b) { storeUi.close(); storeId = null; return; }
+        storeUi.set({ pack: listOf(getPack()), box: listOf(storeBox(storeId)), used: units(storeBox(storeId)), cap: storeCap(b) });
+    }
+    function openStore(b) {
+        if (!storeUi) return;
+        if (isSleeping()) { notify({ text: text.store.sleeping }); return; }
+        if (!getQueue()) { notify({ text: text.store.offline }); return; }
+        storeId = b.id;
+        storeUi.setTitle(`${text.store.title}`, meta('warehouse').icon);
+        paintStore();
+        storeUi.open();
+    }
+    function moveStore({ from, item, qty }) {
+        if (storeId === null) return false;
+        const b = world.buildings.get(storeId);
+        if (!b) return false;
+        if (isSleeping()) { notify({ text: text.store.sleeping }); return false; }
+        const q = queueOrWarn();
+        if (!q) return false;
+        const pack = getPack();
+        const box = storeBox(storeId);
+        const src = from === 'pack' ? pack : box;
+        let n = Math.min(qty, src[item] || 0);
+        if (from === 'pack') n = Math.min(n, Math.max(0, storeCap(b) - units(box)));
+        if (n <= 0) { notify({ text: from === 'pack' ? text.store.noSpaceBox : text.store.noItems }); return false; }
+        src[item] = (src[item] || 0) - n;
+        const dst = from === 'pack' ? (stores[String(storeId)] = stores[String(storeId)] || {}) : pack;
+        dst[item] = (dst[item] || 0) + n;
+        if (inventory) { if (from === 'pack') inventory.remove(item, n); else inventory.add(item, n, itemKg(item)); }
+        paintStore();
+        q.push(from === 'pack' ? 'wh_put' : 'wh_take', { building: storeId, item, qty: n, ...heroXZ() });
+        requestFlush();
+        return true;
+    }
+
+    // ── Дом: отдых ──────────────────────────────────────────────────────
+    function stopRest(announce) {
+        if (restId === null) return;
+        restId = null;
+        world.releaseBeaver();
+        if (announce) notify({ text: text.menu.rest.end });
+    }
+    function restAtHome(b) {
+        if (isSleeping()) { notify({ text: text.errors.sleeping }); return; }
+        if (!nearHero(b, 3.2)) { notify({ text: text.menu.rest.far }); return; }
+        const e = getEnergy();
+        const max = getEnergyMax();
+        if (e !== null && max !== null && e >= max - 0.5) { notify({ text: text.menu.rest.full }); return; }
+        world.ctl.cancelWork();
+        restId = b.id;
+        world.playBeaver('sleep');
+        notify({ text: text.menu.rest.start });
+    }
+    function onAction(act, id) {
+        const b = world.buildings.get(id);
+        if (!b || !b.mine) return;
+        if (act === 'open') { menuUi.close(); openStore(b); } else if (act === 'sleep') { menuUi.close(); restAtHome(b); } else if (act === 'bench') {
+            menuUi.close();
+            dialog.say({ speaker: text.menu.bench.title, portrait: meta('workshop').icon, text: `${text.menu.bench.about}\n${text.menu.bench.list.join('\n')}`, choices: [{ id: 'ok', label: text.menu.close }] });
+        }
+    }
 
     // ── Каталог ─────────────────────────────────────────────────────────
     function catalogModel() {
@@ -133,7 +271,7 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         if (!b) { buildUi.hidePanel(); return; }
         const m = meta(b.type);
         const shown = b.state === 'ready' ? b.needed : Math.min(b.needed, b.progress + pending(b.id));
-        buildUi.showPanel({ id: b.id, name: m.name, icon: m.icon, pct: pctOf(b, shown), ready: b.state === 'ready', hint: b.state === 'ready' ? '' : text.keepTapping });
+        buildUi.showPanel({ id: b.id, name: m.name, icon: m.icon, pct: pctOf(b, shown), ready: b.state === 'ready', hideAct: b.state === 'upgrading', hint: b.state === 'ready' ? '' : text.keepTapping });
     }
     function stopWork() {
         if (cur) flushTaps();
@@ -223,7 +361,8 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         } else {
             if (batch && r.accepted < batch.n) notify({ text: r.limit === 'energy' ? text.errors.no_energy : text.errors.too_fast });
             if (r.building && r.building.state === 'ready') {
-                notify({ text: text.done(meta(r.building.type).name) + (r.xp ? ` ${text.xp(r.xp)}` : '') });
+                notify({ text: (r.upgraded ? text.menu.upgraded(meta(r.building.type).name, r.building.level) : text.done(meta(r.building.type).name)) + (r.xp ? ` ${text.xp(r.xp)}` : '') });
+                if (r.migrated && Object.keys(r.migrated).length) notify({ text: text.store.migrated });
                 if (cur && cur.id === bid) { world.ctl.cancelWork(); cur = null; buildUi.hidePanel(); }
             }
         }
@@ -246,20 +385,53 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         if (r.refund && r.refund.dropped && Object.keys(r.refund.dropped).length) notify({ text: text.refundDropped });
         refreshCatalog();
     }
-    function refreshCatalog() { if (buildUi.catalogOpen) buildUi.refreshCatalog(catalogModel()); }
+    function onUpgradeResult(r) {
+        if (!r.ok) {
+            if (r.building) world.buildings.upsert(r.building);
+            if (r.error === 'no_building') world.buildings.remove(r.building_id);
+            const code = r.error || 'failed';
+            if (code === 'no_items' && r.need) notify({ text: `${text.errors.no_items} ${refundText(r.need, 0)}` });
+            else notify({ text: text.menu.errors[code] || text.errors[code] || text.errors.failed });
+            return;
+        }
+        world.buildings.upsert(r.building);
+        notify({ text: text.menu.started(meta(r.building.type).name, r.to_level) });
+        cur = { id: r.building.id };
+        paintPanel();
+        refreshCatalog();
+    }
+    function onStoreResult(r) {
+        if (r.ok) {
+            if (r.left > 0) notify({ text: r.type === 'wh_put' ? text.store.partialPut : text.store.partialTake });
+            return;
+        }
+        const put = r.type === 'wh_put';
+        const code = r.error || 'failed';
+        notify({ text: code === 'no_space' ? (put ? text.store.noSpaceBox : text.store.noSpacePack) : code === 'no_items' ? text.store.noItems : code === 'too_far' ? text.store.far : code === 'sleeping' ? text.store.sleeping : text.store.failed });
+    }
+    function refreshCatalog() { if (buildUi.catalogOpen) buildUi.refreshCatalog(catalogModel()); refreshMenu(); }
 
     return {
         get placing() { return Boolean(placing); },
         get level() { return level; },
+        get stores() { return stores; },
         /** Каталог, правила и постройки из полного состояния сервера. */
-        init({ catalog: c, rules: r, buildings: list, level: lv } = {}) {
+        init({ catalog: c, rules: r, buildings: list, level: lv, upgrades: up } = {}) {
+            if (up && typeof up === 'object') upgrades = up;
             if (Array.isArray(c) && c.length) catalog = c;
             if (r && typeof r === 'object') rules = { ...BUILD_RULES, ...r };
             if (Number.isFinite(Number(lv))) level = Number(lv);
             world.buildings.setCatalog(catalog);
             world.buildings.set(Array.isArray(list) ? list : []);
         },
-        onState(st) { if (st && Number.isFinite(Number(st.level))) level = Number(st.level); refreshCatalog(); },
+        onState(st) {
+            if (st && Number.isFinite(Number(st.level))) level = Number(st.level);
+            if (st && st.stores && typeof st.stores === 'object') { stores = {}; for (const [id, m] of Object.entries(st.stores)) stores[id] = { ...m }; paintStore(); }
+            refreshCatalog();
+        },
+        moveStore,
+        startUpgrade,
+        onMenuAction: onAction,
         openCatalog() { if (isSleeping()) { notify({ text: text.errors.sleeping }); return; } buildUi.openCatalog(catalogModel()); },
         pick: startPlacement,
         rotate(dir) { if (!placing) return; placing.rot = normRot(placing.rot + dir * rules.rot_step, rules.rot_step); recheck(); },
@@ -269,6 +441,7 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         askDemolish: (id) => askRemove(id, true),
         /** Тап по экрану в режиме выбора места: двигает призрак. Возвращает true, если тап съеден. */
         onScreenTap(px, py) {
+            if (restId !== null) stopRest(true);
             if (!placing) return false;
             const hit = world.groundFromScreen(px, py);
             if (hit) { placing.x = Math.round(hit.x * 10) / 10; placing.z = Math.round(hit.z * 10) / 10; recheck(); }
@@ -283,6 +456,7 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
             if (e.type === 'ready') {
                 if (!b.mine) { world.ctl.cancelWork(); return; }
                 if (isSleeping()) { world.ctl.cancelWork(); notify({ text: text.errors.sleeping }); return; }
+                if (b.state === 'ready' && menuUi) { world.ctl.cancelWork(); openMenu(b); return; }
                 cur = { id: b.id };
                 paintPanel();
             } else if (e.type === 'workTap') {
@@ -293,6 +467,7 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         },
         /** Каждый кадр: ушёл от постройки, панель закрывается, оставшиеся тапы уходят. */
         update() {
+            if (restId !== null && world.ctl.mode !== 'idle') stopRest(true);
             if (!cur) return;
             const m = world.ctl.mode;
             if (m !== 'work' && m !== 'turn' && m !== 'approach') stopWork();
@@ -303,8 +478,10 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
                 if (r.type === 'build_place') onPlaceResult(r);
                 else if (r.type === 'build_tap') onTapResult(r);
                 else if (r.type === 'build_cancel' || r.type === 'build_demolish') onRemoveResult(r);
+                else if (r.type === 'build_upgrade') onUpgradeResult(r);
+                else if (r.type === 'wh_put' || r.type === 'wh_take') onStoreResult(r);
             }
         },
-        dispose() { clearTimer(flushTimer); clearTimer(batchTimer); },
+        dispose() { clearTimer(flushTimer); clearTimer(batchTimer); stopRest(false); },
     };
 }

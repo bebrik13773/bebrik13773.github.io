@@ -7,6 +7,7 @@ export function createBuildings({ scene, chunks, groundY, addTarget, removeTarge
     const items = new Map();        // id → { data, view, shown }
     let specs = catalog;
     let ghost = null;               // { view, type }
+    let outline = true;             // чёрный контур у построек (на слабом качестве выключаем)
     const targetId = (id) => `bld:${id}`;
 
     const specOf = (type) => findSpec(specs, type) || { r: 2.8, h: 3.5 };
@@ -31,13 +32,17 @@ export function createBuildings({ scene, chunks, groundY, addTarget, removeTarge
     function paint(it) {
         const d = it.data;
         const shown = it.shown !== undefined ? it.shown : d.progress;
-        if (d.state === 'ready') it.view.setStage('ready', false);
+        it.view.setLevel(d.level || 1);
+        it.view.setUpgrading(d.state === 'upgrading');
+        it.view.setOutline(outline);
+        if (d.state === 'ready' || d.state === 'upgrading') it.view.setStage('ready', false);
         else it.view.setStage(buildStage(shown, d.needed), shown <= 0);
     }
 
     function add(data) {
         const s = specOf(data.type);
         const view = createBuildingView({ type: data.type, r: s.r, h: s.h });
+        view.setOutline(outline);
         place(view, data.x, data.z, data.rot || 0);
         scene.add(view.group);
         const it = { data: { ...data }, view, shown: undefined };
@@ -50,6 +55,7 @@ export function createBuildings({ scene, chunks, groundY, addTarget, removeTarge
 
     return {
         setCatalog(list) { specs = list; },
+        setOutline(on) { outline = Boolean(on); for (const it of items.values()) it.view.setOutline(outline); },
         get size() { return items.size; },
         get(id) { return items.get(id) ? items.get(id).data : null; },
         list() { return Array.from(items.values(), (it) => it.data); },

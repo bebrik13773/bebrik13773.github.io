@@ -25,18 +25,41 @@ export const BUILD_RULES = Object.freeze({
 
 /** Каталог по умолчанию (как в config.php). */
 export const BUILD_CATALOG = Object.freeze([
-    { type: 'warehouse', logs: 30, planks: 0, ingots: 0, coins: 0, taps: 150, r: 2.6, h: 3.2, unlock: 1, max: 3 },
-    { type: 'house', logs: 40, planks: 0, ingots: 0, coins: 0, taps: 250, r: 2.8, h: 4.2, unlock: 1, max: 1 },
+    { type: 'warehouse', logs: 30, planks: 0, ingots: 0, coins: 0, taps: 150, r: 2.6, h: 3.2, unlock: 1, max: 3, levels: 3 },
+    { type: 'house', logs: 40, planks: 0, ingots: 0, coins: 0, taps: 250, r: 2.8, h: 4.2, unlock: 1, max: 1, levels: 3 },
     { type: 'garden', logs: 15, planks: 6, ingots: 0, coins: 0, taps: 120, r: 3.2, h: 1.6, unlock: 2, max: 1 },
     { type: 'sawmill', logs: 40, planks: 0, ingots: 4, coins: 0, taps: 300, r: 3.0, h: 3.6, unlock: 3, max: 1 },
-    { type: 'market', logs: 20, planks: 16, ingots: 0, coins: 0, taps: 250, r: 2.6, h: 3.0, unlock: 3, max: 1 },
-    { type: 'workshop', logs: 20, planks: 20, ingots: 6, coins: 0, taps: 400, r: 2.8, h: 3.8, unlock: 4, max: 1 },
+    { type: 'market', logs: 20, planks: 16, ingots: 0, coins: 0, taps: 250, r: 2.6, h: 3.0, unlock: 3, max: 1, levels: 3 },
+    { type: 'workshop', logs: 20, planks: 20, ingots: 6, coins: 0, taps: 400, r: 2.8, h: 3.8, unlock: 4, max: 1, levels: 3 },
     { type: 'quarry', logs: 20, planks: 20, ingots: 6, coins: 1500, taps: 500, r: 3.0, h: 2.6, unlock: 5, max: 1 },
     { type: 'smelter', logs: 30, planks: 20, ingots: 8, coins: 2500, taps: 600, r: 2.4, h: 4.4, unlock: 6, max: 1 },
     { type: 'forge', logs: 20, planks: 30, ingots: 10, coins: 3500, taps: 700, r: 2.4, h: 4.0, unlock: 8, max: 1 },
 ]);
 
-export const BUILD_STATES = Object.freeze(['blueprint', 'building', 'ready', 'flooded']);
+export const BUILD_STATES = Object.freeze(['blueprint', 'building', 'upgrading', 'ready', 'flooded']);
+
+/** Улучшения по умолчанию (как в config.php, buildings.upgrades): { тип: { уровень: { logs, planks, ingots, coins, taps } } }. */
+export const BUILD_UPGRADES = Object.freeze({
+    warehouse: { 2: { logs: 40, planks: 10, ingots: 0, coins: 0, taps: 120 }, 3: { logs: 80, planks: 30, ingots: 4, coins: 0, taps: 220 } },
+    house: { 2: { logs: 50, planks: 20, ingots: 0, coins: 0, taps: 200 }, 3: { logs: 90, planks: 40, ingots: 4, coins: 0, taps: 320 } },
+    market: { 2: { logs: 30, planks: 24, ingots: 0, coins: 0, taps: 180 }, 3: { logs: 60, planks: 48, ingots: 4, coins: 400, taps: 300 } },
+    workshop: { 2: { logs: 30, planks: 30, ingots: 6, coins: 300, taps: 300 }, 3: { logs: 60, planks: 60, ingots: 12, coins: 900, taps: 480 } },
+});
+
+/** Сколько уровней у типа (1 = улучшений нет). */
+export function maxLevel(spec) { return Math.max(1, Math.trunc(Number(spec && spec.levels) || 1)); }
+
+/** Вместимость склада на уровне: 300 × 2^(уровень − 1) (как wf_wh_capacity). */
+export function warehouseCap(level, base = 300, mult = 2) { return base * Math.pow(Math.max(1, mult), Math.max(1, level) - 1); }
+
+/** Кроватей в доме на уровне: 2 + 1 за уровень, не больше 6 (как wf_house_beds). */
+export function houseBeds(level, base = 2, perLevel = 1, max = 6) { return Math.min(max, base + perLevel * (Math.max(1, level) - 1)); }
+
+/** Цена улучшения до уровня `to` или null. */
+export function upgradeSpec(upgrades, type, to) {
+    const u = upgrades && upgrades[type] && (upgrades[type][to] || upgrades[type][String(to)]);
+    return u || null;
+}
 
 /** Ресурсы постройки предметами: { log: 30, ... } (только больше нуля). Монеты отдельно, buildCoins. */
 export function buildCost(spec) {

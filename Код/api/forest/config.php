@@ -220,15 +220,22 @@ return [
     // r: радиус габарита, м (круг); h: высота модели, м; unlock: с какого уровня игрока постройка доступна;
     // max: сколько таких построек можно (по умолчанию одна). Ресурсы logs/planks/ingots = предметы log/plank/ingot.
     'buildings' => [
-        'warehouse' => ['logs' => 30, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 150, 'r' => 2.6, 'h' => 3.2, 'unlock' => 1, 'max' => 3, 'capacity' => 300],
-        'house'     => ['logs' => 40, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.8, 'h' => 4.2, 'unlock' => 1, 'max' => 1, 'beds' => 2, 'beds_per_lvl' => 1, 'beds_max' => 6],
+        'warehouse' => ['logs' => 30, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 150, 'r' => 2.6, 'h' => 3.2, 'unlock' => 1, 'max' => 3, 'capacity' => 300, 'cap_mult' => 2, 'levels' => 3],
+        'house'     => ['logs' => 40, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.8, 'h' => 4.2, 'unlock' => 1, 'max' => 1, 'beds' => 2, 'beds_per_lvl' => 1, 'beds_max' => 6, 'levels' => 3],
         'garden'    => ['logs' => 15, 'planks' => 6,  'ingots' => 0,  'coins' => 0,    'taps' => 120, 'r' => 3.2, 'h' => 1.6, 'unlock' => 2, 'max' => 1, 'slots' => 6, 'slots_per_lvl' => 4],
         'sawmill'   => ['logs' => 40, 'planks' => 0,  'ingots' => 4,  'coins' => 0,    'taps' => 300, 'r' => 3.0, 'h' => 3.6, 'unlock' => 3, 'max' => 1],
-        'market'    => ['logs' => 20, 'planks' => 16, 'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.6, 'h' => 3.0, 'unlock' => 3, 'max' => 1],
-        'workshop'  => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 0,    'taps' => 400, 'r' => 2.8, 'h' => 3.8, 'unlock' => 4, 'max' => 1],
+        'market'    => ['logs' => 20, 'planks' => 16, 'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.6, 'h' => 3.0, 'unlock' => 3, 'max' => 1, 'queue_places' => 3, 'levels' => 3],
+        'workshop'  => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 0,    'taps' => 400, 'r' => 2.8, 'h' => 3.8, 'unlock' => 4, 'max' => 1, 'levels' => 3],
         'quarry'    => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 1500, 'taps' => 500, 'r' => 3.0, 'h' => 2.6, 'unlock' => 5, 'max' => 1],
         'smelter'   => ['logs' => 30, 'planks' => 20, 'ingots' => 8,  'coins' => 2500, 'taps' => 600, 'r' => 2.4, 'h' => 4.4, 'unlock' => 6, 'max' => 1],
         'forge'     => ['logs' => 20, 'planks' => 30, 'ingots' => 10, 'coins' => 3500, 'taps' => 700, 'r' => 2.4, 'h' => 4.0, 'unlock' => 8, 'max' => 1],
+        // Улучшение уровня (ДЛ-17): цена и тапы за переход на уровень N. Стройка тапами, как и сама постройка.
+        'upgrades' => [
+            'warehouse' => [2 => ['logs' => 40, 'planks' => 10, 'ingots' => 0, 'coins' => 0,   'taps' => 120], 3 => ['logs' => 80, 'planks' => 30, 'ingots' => 4, 'coins' => 0,   'taps' => 220]],
+            'house'     => [2 => ['logs' => 50, 'planks' => 20, 'ingots' => 0, 'coins' => 0,   'taps' => 200], 3 => ['logs' => 90, 'planks' => 40, 'ingots' => 4, 'coins' => 0,   'taps' => 320]],
+            'market'    => [2 => ['logs' => 30, 'planks' => 24, 'ingots' => 0, 'coins' => 0,   'taps' => 180], 3 => ['logs' => 60, 'planks' => 48, 'ingots' => 4, 'coins' => 400, 'taps' => 300]],
+            'workshop'  => [2 => ['logs' => 30, 'planks' => 30, 'ingots' => 6, 'coins' => 300, 'taps' => 300], 3 => ['logs' => 60, 'planks' => 60, 'ingots' => 12, 'coins' => 900, 'taps' => 480]],
+        ],
         'max_dist_from_village_m' => 60,   // центр постройки не дальше от центра поляны
         'min_dist_foreign_village_m' => 40, // и не ближе к центру чужой деревни
         'max_slope_deg'           => 12,

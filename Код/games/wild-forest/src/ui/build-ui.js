@@ -127,7 +127,7 @@ export function createBuildUi({ onPick = () => {}, onRotate = () => {}, onConfir
         hidePlacing() { bar.hidden = true; },
         get placing() { return !bar.hidden; },
         /** Плавающая панель постройки: { id, name, icon, pct, ready, hint }. */
-        showPanel({ id, name, icon, pct, ready, hint }) {
+        showPanel({ id, name, icon, pct, ready, hint, hideAct = false }) {
             panelId = id; panelReady = Boolean(ready);
             panel.hidden = false;
             bpName.textContent = `${icon} ${name}`;
@@ -135,6 +135,7 @@ export function createBuildUi({ onPick = () => {}, onRotate = () => {}, onConfir
             bpFill.style.transform = `scaleX(${Math.max(0, Math.min(1, pct / 100))})`;
             bpHint.textContent = hint || '';
             bpAct.textContent = ready ? B.demolish : B.cancel;
+            bpAct.hidden = Boolean(hideAct);
         },
         hidePanel() { panel.hidden = true; panelId = null; },
         get panelId() { return panelId; },

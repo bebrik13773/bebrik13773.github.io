@@ -201,20 +201,23 @@ function wf_player_pack($conn, int $playerId): array
 {
     $items = [];
     $crate = [];
-    $stmt = $conn->prepare('SELECT `container`, `item_key`, `qty` FROM `forest_inventory` WHERE `player_id` = ? AND `container` IN (\'pack\', \'crate\') AND `qty` > 0');
+    $stores = [];
+    $stmt = $conn->prepare('SELECT `container`, `item_key`, `qty` FROM `forest_inventory` WHERE `player_id` = ? AND (`container` IN (\'pack\', \'crate\') OR `container` LIKE \'bld:%\') AND `qty` > 0');
     $stmt->bind_param('i', $playerId);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($res && ($r = $res->fetch_assoc())) {
         if ($r['container'] === 'crate') {
             $crate[(string) $r['item_key']] = (int) $r['qty'];
+        } elseif (strpos((string) $r['container'], 'bld:') === 0) {
+            $stores[substr((string) $r['container'], 4)][(string) $r['item_key']] = (int) $r['qty'];
         } else {
             $items[(string) $r['item_key']] = (int) $r['qty'];
         }
     }
     $stmt->close();
 
-    return ['items' => $items, 'kg' => wf_pack_kg($items), 'crate' => $crate];
+    return ['items' => $items, 'kg' => wf_pack_kg($items), 'crate' => $crate, 'stores' => $stores];
 }
 
 /** Лёгкая часть состояния (приходит в каждом sync). */
@@ -236,6 +239,8 @@ function wf_player_light_state(array $row, array $pack): array
         // Ящик-тайник и скупщик на поляне (ДЛ-14)
         'crate' => (object) $crate,
         'crate_cap' => (int) forest_config('economy.crate_capacity'),
+        // Склады деревни (ДЛ-17): содержимое по id постройки
+        'stores' => (object) array_map(static function ($m) { return (object) $m; }, isset($pack['stores']) && is_array($pack['stores']) ? $pack['stores'] : []),
         'buyer_left' => wf_buyer_left($stats, time()),
         'level' => $lv['level'],
         'xp_into' => $lv['into'],
@@ -350,6 +355,7 @@ function wf_player_full_state($conn, array $row): array
         // Постройки (ДЛ-16): каталог с ценами, правила места и возврата, постройки вокруг игрока (своих и чужих)
         'catalog' => wf_build_catalog(),
         'build_rules' => wf_build_rules((int) $row['level']),
+        'build_upgrades' => wf_build_upgrades_out(),
         'buildings' => wf_build_near($conn, $row),
         'server_ts' => time(),
         'server_ms' => forest_now_ms(),

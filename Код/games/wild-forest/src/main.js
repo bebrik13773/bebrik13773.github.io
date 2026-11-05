@@ -26,6 +26,7 @@ import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
 import { createCrateFlow } from './world/crate-flow.js';
 import { createCrateUi } from './ui/crate-ui.js';
+import { createBuildingMenuUi } from './ui/building-menu-ui.js';
 import { createBuildFlow, fixedCircles } from './world/build-flow.js';
 import { createBuildUi } from './ui/build-ui.js';
 import { createTutorHint } from './ui/tutor-hint.js';
@@ -238,7 +239,10 @@ async function boot() {
     // Постройки (ДЛ-16): каталог, призрак на земле, чертёж, стройка тапами, отмена и снос.
     const buildText = { ...S.build, itemIcons: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].icon || ''])) };
     buildFlow = createBuildFlow({
-        world, dialog, notify, text: buildText,
+        world, dialog, notify, text: { ...buildText, menu: S.menu, store: S.store }, inventory,
+        menuUi: createBuildingMenuUi({ onAction: (act, id) => buildFlow.onMenuAction(act, id), onUpgrade: (id) => buildFlow.startUpgrade(id), onDemolish: (id) => buildFlow.askDemolish(id) }),
+        storeUi: createCrateUi({ id: 'wfStore', title: S.store.title, icon: '🏚️', onMove: (m) => buildFlow.moveStore(m) }),
+        getPack: () => crateFlow.pack, getEnergyMax: () => (hud && hud.values ? hud.values.energyMax || null : null),
         buildUi: createBuildUi({
             onPick: (type) => buildFlow.pick(type),
             onRotate: (d) => buildFlow.rotate(d),
@@ -251,12 +255,12 @@ async function boot() {
         village: start && start.spawn ? start.spawn : (start ? { x: start.x, z: start.z } : null),
         fixed: fixedCircles(start),
         getQueue: () => queue, getSync: () => sync,
-        getHave: () => { const have = {}; for (const src of [crateFlow.pack, crateFlow.box]) for (const [k, n] of Object.entries(src || {})) have[k] = (have[k] || 0) + (Number(n) || 0); return have; },
+        getHave: () => { const have = {}; for (const src of [crateFlow.pack, crateFlow.box, ...Object.values(buildFlow ? buildFlow.stores : {})]) for (const [k, n] of Object.entries(src || {})) have[k] = (have[k] || 0) + (Number(n) || 0); return have; },
         getCoins: () => (hud ? hud.values.coins : 0),
         getEnergy: () => (online ? lastEnergy : null),
         isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
     });
-    if (start) buildFlow.init({ catalog: start.catalog, rules: start.buildRules, buildings: start.buildings, level: start.level });
+    if (start) buildFlow.init({ catalog: start.catalog, rules: start.buildRules, buildings: start.buildings, level: start.level, upgrades: start.buildUpgrades });
 
     // Энергия, сон и еда (ДЛ-12): сервер присылает sleeping, бобёр ложится; еда уходит действием eat.
     energyFlow = createEnergyFlow({

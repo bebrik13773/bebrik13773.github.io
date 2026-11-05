@@ -77,7 +77,7 @@ function wf_energy_home($conn, int $playerId, float $x, float $z): bool
 {
     $r = (float) forest_config('hero.home_radius_m');
     $r2 = $r * $r;
-    $stmt = $conn->prepare('SELECT 1 FROM `forest_buildings` WHERE `player_id` = ? AND `type` = \'house\' AND `state` = \'ready\' AND ((`x` - ?) * (`x` - ?) + (`z` - ?) * (`z` - ?)) <= ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT 1 FROM `forest_buildings` WHERE `player_id` = ? AND `type` = \'house\' AND `state` IN (\'ready\', \'upgrading\') AND ((`x` - ?) * (`x` - ?) + (`z` - ?) * (`z` - ?)) <= ? LIMIT 1');
     $stmt->bind_param('idddddd', $playerId, $x, $x, $z, $z, $r2);
     $stmt->execute();
     $res = $stmt->get_result();

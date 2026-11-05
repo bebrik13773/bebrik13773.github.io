@@ -468,6 +468,7 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
             water.scale.set(size, 1, size);
             chunks.applyPreset(next);
             chunks.setCenter(ctl.x, ctl.z);
+            if (buildings) buildings.setOutline(next.outline !== 'hero'); // контур построек (ДЛ-17): на слабом качестве выключен
             buildPond();
             // материалы пересоберутся под новое состояние теней
             chunks.material.needsUpdate = true;

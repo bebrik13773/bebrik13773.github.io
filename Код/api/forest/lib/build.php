@@ -262,7 +262,7 @@ function wf_build_catalog(): array
         $s = (array) wf_build_spec($type);
         $out[] = [
             'type' => $type, 'logs' => (int) $s['logs'], 'planks' => (int) $s['planks'], 'ingots' => (int) $s['ingots'], 'coins' => (int) $s['coins'],
-            'taps' => (int) $s['taps'], 'r' => (float) $s['r'], 'h' => (float) $s['h'], 'unlock' => (int) $s['unlock'], 'max' => (int) $s['max'],
+            'taps' => (int) $s['taps'], 'r' => (float) $s['r'], 'h' => (float) $s['h'], 'unlock' => (int) $s['unlock'], 'max' => (int) $s['max'], 'levels' => max(1, (int) ($s['levels'] ?? 1)),
         ];
     }
 
@@ -301,7 +301,7 @@ function wf_build_out(array $r, int $me): array
         'level' => (int) $r['level'], 'state' => (string) $r['state'],
         'progress' => (int) $r['progress'], 'needed' => (int) $r['needed'],
         'mine' => (int) $r['player_id'] === $me, 'owner' => (int) $r['player_id'],
-    ];
+    ] + wf_build_extra($r);
 }
 
 /** Постройки (своих и чужих) в радиусе чанков вокруг игрока: для входа в игру. */
@@ -718,12 +718,13 @@ function wf_action_build_tap($conn, array &$row, array &$stats, array $action, a
 
         return $res;
     }
-    if ($b['state'] !== 'blueprint' && $b['state'] !== 'building') {
+    if ($b['state'] !== 'blueprint' && $b['state'] !== 'building' && $b['state'] !== 'upgrading') {
         $res['error'] = 'bad_state';
         $res['building'] = wf_build_out($b, $pid);
 
         return $res;
     }
+    $upgrading = $b['state'] === 'upgrading';
     $spec = wf_build_spec((string) $b['type']);
     $r = $spec ? (float) $spec['r'] : 3.0;
     [$near, $dist] = wf_crate_near($action, $ctx, (float) $b['x'], (float) $b['z'], $r + (float) forest_config('buildings.tap_reach_m'));
@@ -756,21 +757,37 @@ function wf_action_build_tap($conn, array &$row, array &$stats, array $action, a
     }
 
     $progress += $n;
-    $state = $progress >= $needed ? 'ready' : 'building';
+    $done = $progress >= $needed;
+    $state = $done ? 'ready' : ($upgrading ? 'upgrading' : 'building');
+    $level = (int) $b['level'] + ($upgrading && $done ? 1 : 0);
     $now = (int) $ctx['now'];
-    $upd = $conn->prepare('UPDATE `forest_buildings` SET `progress` = ?, `state` = ?, `updated_at` = ? WHERE `id` = ?');
-    $upd->bind_param('isii', $progress, $state, $now, $id);
+    $upd = $conn->prepare('UPDATE `forest_buildings` SET `progress` = ?, `state` = ?, `level` = ?, `updated_at` = ? WHERE `id` = ?');
+    $upd->bind_param('isiii', $progress, $state, $level, $now, $id);
     $upd->execute();
     $upd->close();
     $b['progress'] = $progress;
     $b['state'] = $state;
+    $b['level'] = $level;
 
     $res['ok'] = true;
     $res['accepted'] = $n;
     $res['limit'] = $plan['limit'];
     $res['building'] = wf_build_out($b, $pid);
     if ($state === 'ready') {
-        $xp = $spec ? wf_build_xp($spec) : 0;
+        $upSpec = $upgrading ? wf_build_upgrade_spec((string) $b['type'], $level) : null;
+        $xp = $upgrading ? ($upSpec ? wf_build_xp($upSpec) : 0) : ($spec ? wf_build_xp($spec) : 0);
+        $res['upgraded'] = $upgrading;
+        if (!$upgrading && (string) $b['type'] === 'warehouse') {
+            // Первый готовый склад забирает содержимое ящика-тайника (что не влезло, остаётся в ящике).
+            $others = $conn->prepare('SELECT COUNT(*) FROM `forest_buildings` WHERE `player_id` = ? AND `type` = \'warehouse\' AND `state` = \'ready\' AND `id` <> ?');
+            $others->bind_param('ii', $pid, $id);
+            $others->execute();
+            $cnt = $others->get_result()->fetch_row();
+            $others->close();
+            if ((int) ($cnt[0] ?? 0) === 0) {
+                $res['migrated'] = (object) wf_wh_migrate_crate($conn, $pid, $id, $level);
+            }
+        }
         $row['xp'] = (int) $row['xp'] + $xp;
         $row['level'] = wf_level_from_xp((int) $row['xp'])['level'];
         $stats['built'] = (int) ($stats['built'] ?? 0) + 1;
@@ -847,3 +864,5 @@ function wf_action_build_remove($conn, array &$row, array &$stats, array $action
 
     return $res;
 }
+
+require_once __DIR__ . '/storage.php';

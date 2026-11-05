@@ -243,3 +243,33 @@ test('состояние: каталог, правила, постройки и 
     assert.equal(got.energy, 10);
     assert.deepEqual(fixedCircles({ village: { crate: { x: 1, z: 1 }, buyer: { x: 2, z: 2 } }, pond: { x: 3, z: 3, r: 4, dam: { x: 9, z: 9 } } }), [[1, 1, 0.9], [2, 2, 1.6], [3, 3, 4.6], [9, 9, 2.4]]);
 });
+
+// ── ДЛ-17: уровни, склад, кровати, улучшения ─────────────────────────
+import { BUILD_UPGRADES, houseBeds, maxLevel, upgradeSpec, warehouseCap, shortage as shortage17 } from '../src/shared/build.js';
+
+test('склад: вместимость удваивается с уровнем', () => {
+    assert.equal(warehouseCap(1), 300);
+    assert.equal(warehouseCap(2), 600);
+    assert.equal(warehouseCap(3), 1200);
+    assert.equal(warehouseCap(0), 300);
+});
+
+test('дом: кровати 2 + 1 за уровень, не больше 6', () => {
+    assert.equal(houseBeds(1), 2);
+    assert.equal(houseBeds(2), 3);
+    assert.equal(houseBeds(3), 4);
+    assert.equal(houseBeds(99), 6);
+});
+
+test('улучшения: цены по уровням и уровни типа', () => {
+    for (const type of ['warehouse', 'house', 'market', 'workshop']) {
+        assert.ok(upgradeSpec(BUILD_UPGRADES, type, 2), type);
+        assert.ok(upgradeSpec(BUILD_UPGRADES, type, 3), type);
+        assert.equal(upgradeSpec(BUILD_UPGRADES, type, 4), null);
+        assert.equal(upgradeSpec(BUILD_UPGRADES, type, 1), null);
+    }
+    assert.equal(maxLevel({ levels: 3 }), 3);
+    assert.equal(maxLevel({}), 1);
+    const lack = shortage17(upgradeSpec(BUILD_UPGRADES, 'workshop', 2), { log: 30, plank: 10 }, 0);
+    assert.deepEqual(lack, { plank: 20, ingot: 6, coins: 300 });
+});
