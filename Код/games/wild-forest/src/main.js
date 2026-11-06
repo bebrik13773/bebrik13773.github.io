@@ -21,6 +21,7 @@ import { createInventory } from './ui/inventory.js';
 import { createDialog } from './ui/dialog.js';
 import { createChopBar } from './ui/chop-bar.js';
 import { createChopFlow } from './world/chop-flow.js';
+import { logClient } from './net/clientlog.js';
 import { createUprootFlow } from './world/uproot-flow.js';
 import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
@@ -207,6 +208,7 @@ async function boot() {
         getQueue: () => queue, getSync: () => sync,
         getAxeLevel: () => axeLevel,
         getEnergy: () => (online ? lastEnergy : null),
+        onFelled: () => { if (tutorialFlow) tutorialFlow.event('felled'); },
     });
 
     // Выкорчёвывание пней (#64): тап по пню с киркой в руке, шкала ударов, действие uproot.
@@ -431,8 +433,8 @@ async function boot() {
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow, build: buildFlow }); energyFlow.onState(st); },
             onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); tutorialFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
-            onStatus: (st) => {
-                if (st === 'offline') notify({ text: S.net.offline });
+            onStatus: (st, why) => {
+                if (st === 'offline') { notify({ text: why ? S.net.offlineWhy(why) : S.net.offline }); logClient('sync', `offline: ${why ? why.error + ' ' + why.status + ' ' + why.message : '?'}`); }
                 else if (st === 'online' && prevNetStatus === 'offline') notify({ text: S.net.online });
                 else if (st === 'outdated') notice.show({ text: S.net.outdated, ttlMs: 0 });
                 else if (st === 'unauthorized') notice.show({ text: S.net.unauthorized, ttlMs: 0 });

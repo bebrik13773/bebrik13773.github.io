@@ -10,8 +10,9 @@ export function createSync({ call, queue, getPos, onState, onCorrect, onResults,
     let offset = 0;        // серверное время минус клиентское, мс (медиана последних ответов)
     const offsets = [];
     let status = 'idle';
+    let lastError = null;  // { error, status, message } последнего неудачного ответа
 
-    const setStatus = (s) => { if (s !== status) { status = s; if (onStatus) onStatus(s); } };
+    const setStatus = (s) => { if (s !== status) { status = s; if (onStatus) onStatus(s, lastError); } };
 
     function median(arr) { const a = arr.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; }
 
@@ -28,6 +29,7 @@ export function createSync({ call, queue, getPos, onState, onCorrect, onResults,
         if (res.ok) {
             const d = res.data;
             backoff = 0;
+            lastError = null;
             queue.ack(d.results || []);
             if (typeof d.server_ms === 'number') {
                 offsets.push(d.server_ms - Math.round((sentAt + now()) / 2));
@@ -51,6 +53,7 @@ export function createSync({ call, queue, getPos, onState, onCorrect, onResults,
             return;
         } else {
             // сеть или сервер: действия остаются в очереди, повторяем с нарастающей паузой
+            lastError = { error: String(res.error || 'unknown'), status: Number(res.status) || 0, message: String(res.message || '') };
             queue.fail();
             backoff = Math.min(maxBackoffMs, backoff ? backoff * 2 : baseMs);
             nextMs = backoff;
@@ -71,6 +74,7 @@ export function createSync({ call, queue, getPos, onState, onCorrect, onResults,
         /** Срочная отправка (например, перед закрытием диалога торга). */
         flush() { clearTimer(timer); return tick(); },
         get status() { return status; },
+        get lastError() { return lastError; },
         get seq() { return seq; },
         get offsetMs() { return offset; },
         get running() { return running; },

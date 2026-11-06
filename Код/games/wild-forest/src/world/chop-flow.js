@@ -6,7 +6,7 @@ import { TREES, axePower, chopCost } from '../shared/formulas.js';
 const isTree = (obj) => Boolean(obj) && (obj.kind === 'tree' || obj.kind === 1); // сцена отдаёт kind строкой
 const MIN_FLUSH_GAP_MS = 3200; // сервер принимает sync не чаще раза в 3 секунды
 
-export function createChopFlow({ world, wg, getQueue, getSync, bar, notify, text, getAxeLevel = () => 1, getEnergy = () => null, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout, powerOf = axePower }) {
+export function createChopFlow({ world, wg, getQueue, getSync, bar, notify, text, getAxeLevel = () => 1, getEnergy = () => null, onFelled = () => {}, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout, powerOf = axePower }) {
     const chop = createChop({ wg, getPower: () => powerOf(getAxeLevel()), now });
     const pending = new Map(); // id дерева → число отправленных, но не подтверждённых рубок
     let lastFlush = 0;
@@ -28,6 +28,7 @@ export function createChopFlow({ world, wg, getQueue, getSync, bar, notify, text
         const pos0 = world.heroPos;
         if (world.fx) world.fx.fall(done.tree, pos0.x, pos0.z); // дерево падает от бобра, пень появится сразу
         world.chunks.fell(done.tree);
+        onFelled(done.tree); // обучение засчитывает падение сразу, не дожидаясь ответа сервера
         world.ctl.cancelWork();
         if (bar) bar.hide();
         notify({ text: text.done });
