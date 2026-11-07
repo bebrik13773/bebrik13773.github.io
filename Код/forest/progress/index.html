@@ -52,6 +52,7 @@
   var i;
   for (i = 14; i <= 53; i++) PLAN.push(i);
   PLAN.push(56, 59, 62, 63); // 44 пункта плана
+  for (i = 67; i <= 74; i++) PLAN.push(i); // РТ-01…РТ-08, realtime-слой (раздел 15), всего 52 пункта
   var TOTAL = PLAN.length;
   var CACHE_KEY = 'wf.progress.v1';
   var CACHE_MS = 10 * 60 * 1000;
