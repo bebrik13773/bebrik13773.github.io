@@ -1,0 +1,16 @@
+{
+  "name": "bober-realtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Realtime-сервер Бобёр Кликер: Дикий Лес (РТ-01: каркас, /health, wss hello)",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node --max-old-space-size=120 server.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  }
+}
