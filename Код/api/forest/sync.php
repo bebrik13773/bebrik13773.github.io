@@ -1,7 +1,7 @@
 <?php
 /**
  * POST /api/forest/sync: объединённый пакет клиента (ДЛ-10, версия 1): позиция, номера действий, ответ с состоянием.
- * Действия: chop_done (ДЛ-11), uproot (#64, выкорчёвывание пня киркой), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета), pickup и drop (ДЛ-13), crate_put, crate_take и sell (ДЛ-14: ящик и скупщик на поляне), tutorial (ДЛ-15: шаг обучения наставника), build_place, build_tap, build_cancel и build_demolish (ДЛ-16: постройки), wh_put, wh_take и build_upgrade (ДЛ-17: склад и улучшение уровня); прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
+ * Действия: chop_done (ДЛ-11), uproot (#64, выкорчёвывание пня киркой), eat (ДЛ-12; энергия, сон и еда считаются лениво в начале пакета), pickup и drop (ДЛ-13), crate_put, crate_take и sell (ДЛ-14: ящик и скупщик на поляне), tutorial (ДЛ-15: шаг обучения наставника), build_place, build_tap, build_cancel и build_demolish (ДЛ-16: постройки), wh_put, wh_take и build_upgrade (ДЛ-17: склад и улучшение уровня), plant, water, sapling_clear и sapling_chop (ДЛ-19: сад); прочие подключаются в своих пунктах. Повтор действия с тем же номером безопасен.
  */
 
 require_once __DIR__ . '/lib/player.php';
@@ -12,6 +12,7 @@ require_once __DIR__ . '/lib/pack.php';
 require_once __DIR__ . '/lib/crate.php';
 require_once __DIR__ . '/lib/build.php';
 require_once __DIR__ . '/lib/upgrades.php';
+require_once __DIR__ . '/lib/garden.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -115,7 +116,7 @@ try {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'tree' => isset($action['tree']) ? (string) $action['tree'] : '', 'error' => 'sleeping'];
             } elseif (!empty($stats['sleep']) && ($type === 'crate_put' || $type === 'crate_take' || $type === 'sell')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'item' => isset($action['item']) ? (string) $action['item'] : '', 'error' => 'sleeping'];
-            } elseif (!empty($stats['sleep']) && ($type === 'build_place' || $type === 'build_tap' || $type === 'build_cancel' || $type === 'build_demolish' || $type === 'build_upgrade' || $type === 'upgrade_buy' || $type === 'wh_put' || $type === 'wh_take')) {
+            } elseif (!empty($stats['sleep']) && ($type === 'build_place' || $type === 'build_tap' || $type === 'build_cancel' || $type === 'build_demolish' || $type === 'build_upgrade' || $type === 'upgrade_buy' || $type === 'wh_put' || $type === 'wh_take' || $type === 'plant' || $type === 'water' || $type === 'sapling_clear' || $type === 'sapling_chop')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'building_id' => isset($action['building']) ? (int) $action['building'] : 0, 'error' => 'sleeping'];
             } elseif (!empty($stats['sleep']) && ($type === 'pickup' || $type === 'drop')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'drop' => isset($action['drop']) ? (int) $action['drop'] : 0, 'item' => isset($action['item']) ? (string) $action['item'] : '', 'error' => 'sleeping'];
@@ -139,6 +140,14 @@ try {
                 $results[] = wf_action_warehouse($conn, $row, $stats, $action, $ctx, $type);
             } elseif ($type === 'build_cancel' || $type === 'build_demolish') {
                 $results[] = wf_action_build_remove($conn, $row, $stats, $action, $ctx, $type);
+            } elseif ($type === 'plant') {
+                $results[] = wf_action_plant($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'water') {
+                $results[] = wf_action_water($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'sapling_clear') {
+                $results[] = wf_action_sapling_clear($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'sapling_chop') {
+                $results[] = wf_action_sapling_chop($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'eat') {
                 $results[] = wf_action_eat($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'tutorial') {
@@ -195,6 +204,8 @@ try {
         'state' => wf_player_light_state($row, $pack),
         'next_sync_ms' => wf_sync_next_ms($idle, $background),
     ];
+    // Сад (ДЛ-19): саженцы с пересчитанным ростом (один запрос; пусто, если ничего не посажено).
+    $payload['saplings'] = wf_garden_list_out(wf_garden_load($conn, $playerId, $now), $now, (int) $row['axe_lvl']);
     if ($correct !== null) {
         $payload['correct_pos'] = $correct;
     }

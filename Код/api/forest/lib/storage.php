@@ -72,6 +72,8 @@ function wf_build_extra(array $b): array
         $out['cap'] = wf_wh_capacity($lvl);
     } elseif ($type === 'house') {
         $out['beds'] = wf_house_beds($lvl);
+    } elseif ($type === 'garden') {
+        $out['slots'] = wf_garden_slots($lvl);
     } elseif ($type === 'market') {
         $out['places'] = (int) forest_config('buildings.market.queue_places');
     }

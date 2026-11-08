@@ -689,6 +689,87 @@ wf_st_test($results, 'Улучшения: выбор покупки (следу�
     return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
 });
 
+// 4и. Сад (ДЛ-19): места посадки, сезон, рост по корзинам времени и засыхание (чистые функции без БД)
+require_once dirname(__DIR__) . '/api/forest/lib/garden.php';
+wf_st_test($results, 'Сад: места посадки и семена', function () {
+    $bad = [];
+    if (wf_garden_slots(1) !== 6 || wf_garden_slots(2) !== 10 || wf_garden_slots(3) !== 14) {
+        $bad[] = 'места по уровням';
+    }
+    [$x, $z] = wf_garden_slot_pos(0.0, 0.0, 0);
+    if (abs($x - 4.8) > 0.001 || abs($z) > 0.001) {
+        $bad[] = 'место 0';
+    }
+    if (wf_garden_seed_species('seed_oak') !== 'oak' || wf_garden_seed_species('seed_rock') !== null || wf_garden_seed_species('log') !== null) {
+        $bad[] = 'семена';
+    }
+    if (wf_garden_grow_seconds('birch') !== 3 * 86400 || wf_garden_grow_seconds('iron_oak') !== 7 * 86400) {
+        $bad[] = 'дни роста';
+    }
+    if (wf_garden_stage(0.0) !== 0 || wf_garden_stage(0.4) !== 1 || wf_garden_stage(0.7) !== 2 || wf_garden_stage(1.0) !== 3) {
+        $bad[] = 'стадии';
+    }
+    if (wf_garden_size(0) !== 1 || wf_garden_size(2) !== 2) {
+        $bad[] = 'размер';
+    }
+    if (wf_pack_item_kg('seed_oak') !== 0.1) {
+        $bad[] = 'вес семени';
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Сад: сезонный множитель роста', function () {
+    $off = 6 * 3600; // Омск
+    $jan = gmmktime(12, 0, 0, 1, 15, 2027);
+    $apr = gmmktime(12, 0, 0, 4, 15, 2027);
+    $jul = gmmktime(12, 0, 0, 7, 15, 2027);
+    $oct = gmmktime(12, 0, 0, 10, 15, 2026);
+    $dec = gmmktime(20, 0, 0, 11, 30, 2026); // 1 декабря по Омску
+    return ['0.3|0.8|1|0.8|0.3', wf_garden_season_k($jan) . '|' . wf_garden_season_k($apr) . '|' . wf_garden_season_k($jul) . '|' . wf_garden_season_k($oct) . '|' . wf_garden_season_k($dec)];
+});
+wf_st_test($results, 'Сад: рост лениво (час лета, ночь в офлайне, зима медленнее)', function () {
+    $t0 = gmmktime(0, 0, 0, 7, 10, 2027);
+    $s = ['id' => 5, 'growth' => 0, 'grow_seconds' => 3 * 86400, 'state' => 'growing', 'last_calc' => $t0, 'watered_until' => $t0 + 100 * 86400];
+    $bad = [];
+    $a = wf_garden_advance($s, $t0 + 3600);
+    if (abs($a['growth'] - 3600) > 1 || $a['state'] !== 'growing') {
+        $bad[] = 'час лета ' . $a['growth'];
+    }
+    // тот же интервал кусками даёт тот же итог (ленивый расчёт не зависит от частоты обращений)
+    $b = wf_garden_advance(wf_garden_advance($s, $t0 + 1000), $t0 + 3600);
+    if (abs($b['growth'] - $a['growth']) > 1) {
+        $bad[] = 'кусками ' . $b['growth'];
+    }
+    $w0 = gmmktime(0, 0, 0, 1, 10, 2027);
+    $sw = ['id' => 5, 'growth' => 0, 'grow_seconds' => 3 * 86400, 'state' => 'growing', 'last_calc' => $w0, 'watered_until' => $w0 + 100 * 86400];
+    $aw = wf_garden_advance($sw, $w0 + 3600);
+    if (abs($aw['growth'] - 1080) > 1) {
+        $bad[] = 'зима ' . $aw['growth'];
+    }
+    $done = wf_garden_advance($s, $t0 + 4 * 86400);
+    if ($done['state'] !== 'grown' || (float) $done['growth'] !== (float) (3 * 86400)) {
+        $bad[] = 'выросло ' . $done['state'];
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Сад: засыхание (без полива бывает, с поливом нет, бросок детерминирован)', function () {
+    $t0 = gmmktime(0, 0, 0, 7, 10, 2027);
+    $dry = 0;
+    $dry2 = 0;
+    $wetDry = 0;
+    for ($id = 1; $id <= 200; $id++) {
+        $s = ['id' => $id, 'growth' => 0, 'grow_seconds' => 40 * 86400, 'state' => 'growing', 'last_calc' => $t0, 'watered_until' => 0];
+        $a = wf_garden_advance($s, $t0 + 12 * 86400);
+        $b = wf_garden_advance($s, $t0 + 12 * 86400);
+        $dry += $a['state'] === 'dry' ? 1 : 0;
+        $dry2 += $b['state'] === 'dry' ? 1 : 0;
+        $s['watered_until'] = $t0 + 100 * 86400;
+        $wetDry += wf_garden_advance($s, $t0 + 12 * 86400)['state'] === 'dry' ? 1 : 0;
+    }
+    // шанс 5% в сутки за 12 суток: около 46%, допускаем широкую вилку
+    $ok = $dry > 40 && $dry < 160 && $dry === $dry2 && $wetDry === 0;
+    return ['ok', $ok ? 'ok' : 'засохло ' . $dry . ' из 200, повтор ' . $dry2 . ', политых ' . $wetDry];
+});
+
 // 4е. Имена из двух слов (ДЛ-15): PHP даёт те же имена, что JS (золотые векторы tests/vectors/names.json), и согласует род
 require_once dirname(__DIR__) . '/api/forest/lib/names.php';
 wf_st_test($results, 'Имена: векторы JS и PHP совпадают', function () {

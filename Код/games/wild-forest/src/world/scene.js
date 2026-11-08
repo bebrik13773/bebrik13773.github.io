@@ -341,6 +341,9 @@ export function createWorldScene({ wg, start = null, onEvent = () => {} }) {
         },
         get sleeping() { return sleeping; },
         groundY,
+        /** Добавить или убрать свой объект в сцене (саженцы сада, ДЛ-19). */
+        addObject(o) { scene.add(o); },
+        removeObject(o) { scene.remove(o); },
         drops,
         fx,
         /** Точка у ствола на уровне головы бобра (для шкалы прочности): { x, y, z } или null. */

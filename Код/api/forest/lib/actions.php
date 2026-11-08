@@ -180,6 +180,11 @@ function wf_action_chop($conn, array &$row, array &$stats, array $action, array 
     if ($coins > 0) {
         $row['coins'] = (int) $row['coins'] + $coins;
     }
+    // Семя той же породы (ДЛ-19): шанс trees.seed_drop_chance, бросок детерминирован по клетке дерева.
+    [$sgx, $sgz] = wf_chop_cell_xy($cx, $cz, $ci);
+    if ($isTree && wf_wg_hash($w['seed'], $sgx, $sgz, 9210) % 1000 < (int) round((float) forest_config('trees.seed_drop_chance') * 1000)) {
+        $items[] = ['item' => 'seed_' . $speciesId, 'qty' => 1];
+    }
 
     // Выпадение: каждое бревно отдельным предметом вокруг пня, остальное (находки) одной записью.
     $count = 0;

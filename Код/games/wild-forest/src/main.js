@@ -32,6 +32,8 @@ import { createBenchFlow } from './world/bench-flow.js';
 import { createBuildingMenuUi } from './ui/building-menu-ui.js';
 import { createBuildFlow, fixedCircles } from './world/build-flow.js';
 import { createBuildUi } from './ui/build-ui.js';
+import { createGardenUi } from './ui/garden-ui.js';
+import { createGardenFlow } from './world/garden-flow.js';
 import { createTutorHint } from './ui/tutor-hint.js';
 import { createTutorialFlow } from './world/tutorial-flow.js';
 import { S } from './ui/strings.ru.js';
@@ -119,6 +121,7 @@ async function boot() {
     let crateFlow = null;
     let buildFlow = null;
     let benchFlow = null;
+    let gardenFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -265,6 +268,7 @@ async function boot() {
     const buildText = { ...S.build, itemIcons: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].icon || ''])) };
     buildFlow = createBuildFlow({
         onBench: () => benchFlow.open(),
+        onGarden: (b) => gardenFlow.open(b),
         world, dialog, notify, text: { ...buildText, menu: S.menu, store: S.store }, inventory,
         menuUi: createBuildingMenuUi({ onAction: (act, id) => buildFlow.onMenuAction(act, id), onUpgrade: (id) => buildFlow.startUpgrade(id), onDemolish: (id) => buildFlow.askDemolish(id) }),
         storeUi: createCrateUi({ id: 'wfStore', title: S.store.title, icon: '🏚️', onMove: (m) => buildFlow.moveStore(m) }),
@@ -287,6 +291,19 @@ async function boot() {
         isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
     });
     if (start) buildFlow.init({ catalog: start.catalog, rules: start.buildRules, buildings: start.buildings, level: start.level, upgrades: start.buildUpgrades });
+
+    // Сад (ДЛ-19): посадка, полив, рост по серверному времени и рубка выросшего дерева.
+    gardenFlow = createGardenFlow({
+        world, notify, text: S.garden,
+        ui: createGardenUi({
+            onPlant: (slot, item) => gardenFlow.plant(slot, item), onWater: (id) => gardenFlow.water(id), onClear: (id) => gardenFlow.clear(id),
+            onChopStart: (id) => gardenFlow.chopStart(id), onChopTap: () => gardenFlow.chopTap(), onChopStop: () => gardenFlow.chopStop(),
+        }),
+        getQueue: () => queue, getSync: () => sync,
+        getPack: () => crateFlow.pack, getBuilding: (id) => world.buildings.get(id),
+        isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
+    });
+    if (start && start.saplings) gardenFlow.setSaplings(start.saplings);
 
     // Энергия, сон и еда (ДЛ-12): сервер присылает sleeping, бобёр ложится; еда уходит действием eat.
     energyFlow = createEnergyFlow({
@@ -455,7 +472,8 @@ async function boot() {
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow, build: buildFlow }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); benchFlow.onResults(results); tutorialFlow.onResults(results); },
+            onSaplings: (list) => gardenFlow.setSaplings(list),
+            onResults: (results) => { gardenFlow.onResults(results); chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); benchFlow.onResults(results); tutorialFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st, why) => {
                 if (st === 'offline') { notify({ text: why ? S.net.offlineWhy(why) : S.net.offline }); logClient('sync', `offline: ${why ? why.error + ' ' + why.status + ' ' + why.message : '?'}`); }

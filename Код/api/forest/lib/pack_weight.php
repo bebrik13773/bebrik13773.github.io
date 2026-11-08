@@ -17,6 +17,10 @@ function wf_pack_item_kg(string $item): float
         return ((float) $w['log_min'] + (float) $w['log_max']) / 2;
     }
 
+    if (strncmp($item, 'seed_', 5) === 0) {
+        return (float) $w['seed'];
+    }
+
     return (float) ($w[$item] ?? 1.0);
 }
 

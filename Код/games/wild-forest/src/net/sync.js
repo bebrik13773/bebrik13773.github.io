@@ -1,6 +1,6 @@
 // Цикл sync (ДЛ-10): раз в next_sync_ms отправляет позицию и накопленные действия, применяет ответ сервера.
 // Зависимости (вызов API, таймер, часы) передаются снаружи, поэтому логика проверяется без браузера.
-export function createSync({ call, queue, getPos, onState, onCorrect, onResults, onStatus, setTimer = setTimeout, clearTimer = clearTimeout, now = () => Date.now(), isHidden = () => false, baseMs = 8000, maxBackoffMs = 30000 }) {
+export function createSync({ call, queue, getPos, onState, onCorrect, onResults, onSaplings, onStatus, setTimer = setTimeout, clearTimer = clearTimeout, now = () => Date.now(), isHidden = () => false, baseMs = 8000, maxBackoffMs = 30000 }) {
     let seq = 0;
     let timer = 0;
     let running = false;
@@ -37,6 +37,7 @@ export function createSync({ call, queue, getPos, onState, onCorrect, onResults,
                 offset = median(offsets);
             }
             if (d.state && onState) onState(d.state);
+            if (Array.isArray(d.saplings) && onSaplings) onSaplings(d.saplings);
             if (d.correct_pos && onCorrect) onCorrect(d.correct_pos);
             if (d.results && d.results.length && onResults) onResults(d.results);
             nextMs = Math.max(2000, Number(d.next_sync_ms) || baseMs);

@@ -10,7 +10,7 @@
 
 require_once __DIR__ . '/db.php';
 
-const FOREST_SCHEMA_VERSION = 4;
+const FOREST_SCHEMA_VERSION = 5;
 
 /** Конфиг баланса (Код/api/forest/config.php), читается один раз за запрос. */
 function forest_config($path = null)
@@ -133,6 +133,7 @@ function forest_ensure_schema($conn)
             2 => 'forest_migration_2',
             3 => 'forest_migration_3',
             4 => 'forest_migration_4',
+            5 => 'forest_migration_5',
         ];
 
         foreach ($migrations as $version => $fn) {
@@ -453,4 +454,25 @@ function forest_migration_4($conn)
         `granted_by` VARCHAR(64) NOT NULL DEFAULT 'admin',
         `granted_at` INT UNSIGNED NOT NULL
     ){$t}", 'forest_admins');
+}
+
+/** Миграция 5 (ДЛ-19, сад): место посадки и полив у саженцев. Идемпотентна: колонки добавляются, только если их нет. */
+function forest_migration_5($conn)
+{
+    $add = [
+        'slot' => 'ALTER TABLE `forest_saplings` ADD COLUMN `slot` TINYINT UNSIGNED NOT NULL DEFAULT 0',
+        'building_id' => 'ALTER TABLE `forest_saplings` ADD COLUMN `building_id` BIGINT UNSIGNED NOT NULL DEFAULT 0',
+        'watered_until' => 'ALTER TABLE `forest_saplings` ADD COLUMN `watered_until` INT UNSIGNED NOT NULL DEFAULT 0',
+        'watered_n' => 'ALTER TABLE `forest_saplings` ADD COLUMN `watered_n` SMALLINT UNSIGNED NOT NULL DEFAULT 0',
+    ];
+    foreach ($add as $col => $sql) {
+        $res = $conn->query("SHOW COLUMNS FROM `forest_saplings` LIKE '" . $col . "'");
+        $has = $res instanceof mysqli_result && $res->num_rows > 0;
+        if ($res instanceof mysqli_result) {
+            $res->free();
+        }
+        if (!$has) {
+            $conn->query($sql);
+        }
+    }
 }

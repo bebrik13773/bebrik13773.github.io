@@ -222,7 +222,7 @@ return [
     'buildings' => [
         'warehouse' => ['logs' => 30, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 150, 'r' => 2.6, 'h' => 3.2, 'unlock' => 1, 'max' => 3, 'capacity' => 300, 'cap_mult' => 2, 'levels' => 3],
         'house'     => ['logs' => 40, 'planks' => 0,  'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.8, 'h' => 4.2, 'unlock' => 1, 'max' => 1, 'beds' => 2, 'beds_per_lvl' => 1, 'beds_max' => 6, 'levels' => 3],
-        'garden'    => ['logs' => 15, 'planks' => 6,  'ingots' => 0,  'coins' => 0,    'taps' => 120, 'r' => 3.2, 'h' => 1.6, 'unlock' => 2, 'max' => 1, 'slots' => 6, 'slots_per_lvl' => 4],
+        'garden'    => ['logs' => 15, 'planks' => 6,  'ingots' => 0,  'coins' => 0,    'taps' => 120, 'r' => 3.2, 'h' => 1.6, 'unlock' => 2, 'max' => 1, 'slots' => 6, 'slots_per_lvl' => 4, 'levels' => 3],
         'sawmill'   => ['logs' => 40, 'planks' => 0,  'ingots' => 4,  'coins' => 0,    'taps' => 300, 'r' => 3.0, 'h' => 3.6, 'unlock' => 3, 'max' => 1],
         'market'    => ['logs' => 20, 'planks' => 16, 'ingots' => 0,  'coins' => 0,    'taps' => 250, 'r' => 2.6, 'h' => 3.0, 'unlock' => 3, 'max' => 1, 'queue_places' => 3, 'levels' => 3],
         'workshop'  => ['logs' => 20, 'planks' => 20, 'ingots' => 6,  'coins' => 0,    'taps' => 400, 'r' => 2.8, 'h' => 3.8, 'unlock' => 4, 'max' => 1, 'levels' => 3],
@@ -234,6 +234,7 @@ return [
             'warehouse' => [2 => ['logs' => 40, 'planks' => 10, 'ingots' => 0, 'coins' => 0,   'taps' => 120], 3 => ['logs' => 80, 'planks' => 30, 'ingots' => 4, 'coins' => 0,   'taps' => 220]],
             'house'     => [2 => ['logs' => 50, 'planks' => 20, 'ingots' => 0, 'coins' => 0,   'taps' => 200], 3 => ['logs' => 90, 'planks' => 40, 'ingots' => 4, 'coins' => 0,   'taps' => 320]],
             'market'    => [2 => ['logs' => 30, 'planks' => 24, 'ingots' => 0, 'coins' => 0,   'taps' => 180], 3 => ['logs' => 60, 'planks' => 48, 'ingots' => 4, 'coins' => 400, 'taps' => 300]],
+            'garden'    => [2 => ['logs' => 30, 'planks' => 12, 'ingots' => 0, 'coins' => 0,   'taps' => 150], 3 => ['logs' => 60, 'planks' => 30, 'ingots' => 2, 'coins' => 0,   'taps' => 260]],
             'workshop'  => [2 => ['logs' => 30, 'planks' => 30, 'ingots' => 6, 'coins' => 300, 'taps' => 300], 3 => ['logs' => 60, 'planks' => 60, 'ingots' => 12, 'coins' => 900, 'taps' => 480]],
         ],
         'max_dist_from_village_m' => 60,   // центр постройки не дальше от центра поляны
@@ -256,6 +257,24 @@ return [
         'max_warehouses'           => 3,
         'state_radius_chunks'      => 4,    // каких построек (своих и чужих) касается состояние при входе
         'state_max'                => 120,
+    ],
+
+    // ── Сад (ДЛ-19): саженцы растут лениво, по 20-минутным корзинам времени ───────────────
+    // Множитель роста = сезон × погода (погоду подключит ДЛ-28: wf_garden_weather_k сейчас даёт 1.0).
+    'garden' => [
+        'bucket_s'        => 1200,
+        'season_k'        => ['winter' => 0.3, 'spring' => 0.8, 'summer' => 1.0, 'autumn' => 0.8],
+        'dry_permille'    => ['winter' => 20, 'spring' => 30, 'summer' => 50, 'autumn' => 30],   // шанс засохнуть за реальные сутки, ‰
+        'water_s'         => 86400,     // полив защищает от засыхания на сутки
+        'water_cost'      => 0.3,       // энергия за полив
+        'reach_extra_m'   => 4.5,       // дальше от края сада посадка и полив не принимаются
+        'ring_r_extra_m'  => 1.6,       // места посадки стоят кольцом на этом расстоянии от края сада
+        'ring_slots'      => 14,        // всего мест на кольце (максимум: slots + slots_per_lvl × (levels − 1))
+        'max_catch_days'  => 21,        // дольше пересчитывать за один раз не нужно (рост максимум неделя)
+        'salts'           => ['dry' => 9500],
+        'plain_seeds'     => ['spruce', 'pine', 'birch', 'aspen', 'maple', 'oak'],
+        'seed_price'      => 12,        // обычные семена в городе (ДЛ-23)
+        'large_if_watered' => true,     // политое хотя бы раз дерево вырастает большим
     ],
 
     // ── Улучшения бобра ─────────────────────────────────────────────────

@@ -215,6 +215,7 @@ export function packCapacity(lvl = 1) {
 /** Вес одной штуки, кг (бревно среднее, 7). */
 export function itemKg(item) {
     if (item === 'log') return (PACK.logMinKg + PACK.logMaxKg) / 2;
+    if (String(item).startsWith('seed_')) return PACK.weights.seed;
     return PACK.weights[item] !== undefined ? PACK.weights[item] : 1;
 }
 

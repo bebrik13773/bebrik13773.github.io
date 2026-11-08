@@ -15,6 +15,7 @@ require_once __DIR__ . '/crate.php';
 require_once __DIR__ . '/build.php';
 require_once __DIR__ . '/names.php';
 require_once __DIR__ . '/upgrades.php';
+require_once __DIR__ . '/garden.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -359,6 +360,9 @@ function wf_player_full_state($conn, array $row): array
         'catalog' => wf_build_catalog(),
         'build_rules' => wf_build_rules((int) $row['level']),
         'build_upgrades' => wf_build_upgrades_out(),
+        // Сад (ДЛ-19): саженцы с пересчитанным ростом, каталог семян (порода, дни роста, брёвна)
+        'saplings' => wf_garden_list_out(wf_garden_load($conn, (int) $row['player_id'], time()), time(), (int) $row['axe_lvl']),
+        'seed_catalog' => (object) wf_garden_seed_catalog(),
         'buildings' => wf_build_near($conn, $row),
         'server_ts' => time(),
         'server_ms' => forest_now_ms(),

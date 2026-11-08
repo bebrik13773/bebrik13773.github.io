@@ -46,6 +46,7 @@ export function startFromState(full) {
         felled: Array.isArray(full.felled) ? full.felled.map(String) : [],
         uprooted: Array.isArray(full.uprooted) ? full.uprooted.map(String) : [],
         drops: Array.isArray(full.drops) ? full.drops : [],
+        saplings: Array.isArray(full.saplings) ? full.saplings : [],
     };
 }
 

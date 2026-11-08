@@ -27,7 +27,7 @@ export const BUILD_RULES = Object.freeze({
 export const BUILD_CATALOG = Object.freeze([
     { type: 'warehouse', logs: 30, planks: 0, ingots: 0, coins: 0, taps: 150, r: 2.6, h: 3.2, unlock: 1, max: 3, levels: 3 },
     { type: 'house', logs: 40, planks: 0, ingots: 0, coins: 0, taps: 250, r: 2.8, h: 4.2, unlock: 1, max: 1, levels: 3 },
-    { type: 'garden', logs: 15, planks: 6, ingots: 0, coins: 0, taps: 120, r: 3.2, h: 1.6, unlock: 2, max: 1 },
+    { type: 'garden', logs: 15, planks: 6, ingots: 0, coins: 0, taps: 120, r: 3.2, h: 1.6, unlock: 2, max: 1, levels: 3 },
     { type: 'sawmill', logs: 40, planks: 0, ingots: 4, coins: 0, taps: 300, r: 3.0, h: 3.6, unlock: 3, max: 1 },
     { type: 'market', logs: 20, planks: 16, ingots: 0, coins: 0, taps: 250, r: 2.6, h: 3.0, unlock: 3, max: 1, levels: 3 },
     { type: 'workshop', logs: 20, planks: 20, ingots: 6, coins: 0, taps: 400, r: 2.8, h: 3.8, unlock: 4, max: 1, levels: 3 },
