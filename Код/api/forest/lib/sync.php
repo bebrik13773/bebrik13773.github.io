@@ -14,11 +14,11 @@ require_once __DIR__ . '/formulas.php';
  * $dtSec ограничен limits.move_dt_cap_s. Возвращает ['ok' => bool, 'dist' => , 'allowed' => ].
  * $load — вес ноши, кг: тяжёлый рюкзак снижает допустимую скорость по той же формуле, что и у клиента.
  */
-function wf_sync_check_move(float $fromX, float $fromZ, float $toX, float $toZ, float $dtSec, float $capacity = 40.0, float $load = 0.0): array
+function wf_sync_check_move(float $fromX, float $fromZ, float $toX, float $toZ, float $dtSec, float $capacity = 40.0, float $load = 0.0, bool $boots = false): array
 {
     $dt = max(0.0, min((float) forest_config('limits.move_dt_cap_s'), $dtSec));
-    // Груз замедляет бобра (ДЛ-13). Дороги и сапоги появятся в ДЛ-24 и ДЛ-18, тогда сюда придут их настоящие значения.
-    $vMax = wf_hero_speed($load, $capacity, 0, false);
+    // Груз замедляет бобра (ДЛ-13). Дороги появятся в ДЛ-24; сапоги (ДЛ-18) передаёт вызывающий.
+    $vMax = wf_hero_speed($load, $capacity, 0, $boots);
     $allowed = wf_move_allowance($vMax, $dt);
     $dist = hypot($toX - $fromX, $toZ - $fromZ);
 

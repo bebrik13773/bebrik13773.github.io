@@ -25,7 +25,7 @@ export function fixedCircles(start) {
     return out;
 }
 
-export function createBuildFlow({ world, buildUi, dialog, notify, text, names = {}, village = null, fixed = [], getQueue, getSync, menuUi = null, storeUi = null, inventory = null, getPack = () => ({}), getEnergyMax = () => null, getHave = () => ({}), getCoins = () => 0, getEnergy = () => null, isSleeping = () => false, onStaged = () => {}, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createBuildFlow({ onBench = null, world, buildUi, dialog, notify, text, names = {}, village = null, fixed = [], getQueue, getSync, menuUi = null, storeUi = null, inventory = null, getPack = () => ({}), getEnergyMax = () => null, getHave = () => ({}), getCoins = () => 0, getEnergy = () => null, isSleeping = () => false, onStaged = () => {}, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
     let catalog = BUILD_CATALOG;
     let rules = BUILD_RULES;
     let level = 1;
@@ -192,6 +192,7 @@ export function createBuildFlow({ world, buildUi, dialog, notify, text, names = 
         if (!b || !b.mine) return;
         if (act === 'open') { menuUi.close(); openStore(b); } else if (act === 'sleep') { menuUi.close(); restAtHome(b); } else if (act === 'bench') {
             menuUi.close();
+            if (onBench) { onBench(b); return; }
             dialog.say({ speaker: text.menu.bench.title, portrait: meta('workshop').icon, text: `${text.menu.bench.about}\n${text.menu.bench.list.join('\n')}`, choices: [{ id: 'ok', label: text.menu.close }] });
         }
     }

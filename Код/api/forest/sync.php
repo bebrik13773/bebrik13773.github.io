@@ -11,6 +11,7 @@ require_once __DIR__ . '/lib/energy.php';
 require_once __DIR__ . '/lib/pack.php';
 require_once __DIR__ . '/lib/crate.php';
 require_once __DIR__ . '/lib/build.php';
+require_once __DIR__ . '/lib/upgrades.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -66,7 +67,7 @@ try {
         $load = wf_pack_move_load(wf_player_pack($conn, $playerId)['items'], $actions);
         $parsed = wf_sync_parse_pos($in['pos'] ?? null);
         if ($parsed !== null) {
-            $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity, $load);
+            $check = wf_sync_check_move($prevX, $prevZ, $parsed[0], $parsed[1], (float) $dt, $capacity, $load, wf_upg_has_boots($row));
             // Спящий бобёр не ходит: уход дальше метра откатывается без страйка.
             if ($check['ok'] && !($sleeping && $check['dist'] > 1.0)) {
                 $moved = $check['dist'] > 0.5;
@@ -79,7 +80,7 @@ try {
             }
         }
         // Допуск перемещения за время между sync нужен действиям, привязанным к месту (рубка).
-        $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity, $load)['allowed'];
+        $allow = wf_sync_check_move($prevX, $prevZ, $prevX, $prevZ, (float) $dt, $capacity, $load, wf_upg_has_boots($row))['allowed'];
         $ctx = ['now' => $now, 'now_ms' => forest_now_ms(), 'prev' => ['x' => $prevX, 'z' => $prevZ], 'new' => ['x' => $newX, 'z' => $newZ], 'dt' => $dt, 'allow' => $allow];
 
         // Энергия (ДЛ-12): ленивый расчёт за время с прошлого расчёта — расход на ходьбу, восстановление, засыпание и пробуждение.
@@ -114,7 +115,7 @@ try {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'tree' => isset($action['tree']) ? (string) $action['tree'] : '', 'error' => 'sleeping'];
             } elseif (!empty($stats['sleep']) && ($type === 'crate_put' || $type === 'crate_take' || $type === 'sell')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'item' => isset($action['item']) ? (string) $action['item'] : '', 'error' => 'sleeping'];
-            } elseif (!empty($stats['sleep']) && ($type === 'build_place' || $type === 'build_tap' || $type === 'build_cancel' || $type === 'build_demolish' || $type === 'build_upgrade' || $type === 'wh_put' || $type === 'wh_take')) {
+            } elseif (!empty($stats['sleep']) && ($type === 'build_place' || $type === 'build_tap' || $type === 'build_cancel' || $type === 'build_demolish' || $type === 'build_upgrade' || $type === 'upgrade_buy' || $type === 'wh_put' || $type === 'wh_take')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'building_id' => isset($action['building']) ? (int) $action['building'] : 0, 'error' => 'sleeping'];
             } elseif (!empty($stats['sleep']) && ($type === 'pickup' || $type === 'drop')) {
                 $results[] = ['a' => $a, 'ok' => false, 'type' => $type, 'drop' => isset($action['drop']) ? (int) $action['drop'] : 0, 'item' => isset($action['item']) ? (string) $action['item'] : '', 'error' => 'sleeping'];
@@ -132,6 +133,8 @@ try {
                 $results[] = wf_action_build_tap($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'build_upgrade') {
                 $results[] = wf_action_build_upgrade($conn, $row, $stats, $action, $ctx);
+            } elseif ($type === 'upgrade_buy') {
+                $results[] = wf_action_upgrade_buy($conn, $row, $stats, $action, $ctx);
             } elseif ($type === 'wh_put' || $type === 'wh_take') {
                 $results[] = wf_action_warehouse($conn, $row, $stats, $action, $ctx, $type);
             } elseif ($type === 'build_cancel' || $type === 'build_demolish') {

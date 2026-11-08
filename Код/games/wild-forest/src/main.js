@@ -27,6 +27,8 @@ import { createEnergyFlow } from './world/energy-flow.js';
 import { createPackFlow } from './world/pack-flow.js';
 import { createCrateFlow } from './world/crate-flow.js';
 import { createCrateUi } from './ui/crate-ui.js';
+import { createBenchUi } from './ui/bench-ui.js';
+import { createBenchFlow } from './world/bench-flow.js';
 import { createBuildingMenuUi } from './ui/building-menu-ui.js';
 import { createBuildFlow, fixedCircles } from './world/build-flow.js';
 import { createBuildUi } from './ui/build-ui.js';
@@ -116,6 +118,7 @@ async function boot() {
     let uprootFlow = null;
     let crateFlow = null;
     let buildFlow = null;
+    let benchFlow = null;
     try {
         host.apply(quality.preset);
         world = createWorldScene({
@@ -238,9 +241,30 @@ async function boot() {
     });
     if (start && start.village && start.village.buyer) crateFlow.setPrices(start.village.buyer.prices);
 
+    // Верстак (ДЛ-18): улучшения бобра за монеты и ресурсы, уровни и снаряжение от сервера.
+    benchFlow = createBenchFlow({
+        world, ui: createBenchUi({ onBuy: (id, to) => benchFlow.buy(id, to) }), notify, text: S.bench,
+        icons: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].icon || ''])),
+        getQueue: () => queue, getSync: () => sync,
+        getHave: () => { const have = {}; for (const src of [crateFlow.pack, crateFlow.box, ...Object.values(buildFlow ? buildFlow.stores : {})]) for (const [k, n] of Object.entries(src || {})) have[k] = (have[k] || 0) + (Number(n) || 0); return have; },
+        getCoins: () => (hud ? hud.values.coins : 0),
+        isSleeping: () => (energyFlow ? energyFlow.sleeping : false),
+        slots: 6,
+        onChange: (v) => {
+            axeLevel = v.levels.axe || 1;
+            world.setSpeedMods({ boots: Boolean(v.gear.boots) });
+            world.beaver.setGear(v.beaverGear);
+            const keys = v.hotbar.filter((k) => S.items[k]);
+            hud.setHotbar(keys.map((k) => ({ key: k, icon: S.items[k].icon, name: S.items[k].name })));
+            hotbarKeys.length = 0; hotbarKeys.push(...keys);
+        },
+    });
+    if (session.full) benchFlow.init(session.full);
+
     // Постройки (ДЛ-16): каталог, призрак на земле, чертёж, стройка тапами, отмена и снос.
     const buildText = { ...S.build, itemIcons: Object.fromEntries(Object.keys(S.items).map((k) => [k, S.items[k].icon || ''])) };
     buildFlow = createBuildFlow({
+        onBench: () => benchFlow.open(),
         world, dialog, notify, text: { ...buildText, menu: S.menu, store: S.store }, inventory,
         menuUi: createBuildingMenuUi({ onAction: (act, id) => buildFlow.onMenuAction(act, id), onUpgrade: (id) => buildFlow.startUpgrade(id), onDemolish: (id) => buildFlow.askDemolish(id) }),
         storeUi: createCrateUi({ id: 'wfStore', title: S.store.title, icon: '🏚️', onMove: (m) => buildFlow.moveStore(m) }),
@@ -431,7 +455,7 @@ async function boot() {
             getPos: () => ({ x: Math.round(world.heroPos.x * 100) / 100, z: Math.round(world.heroPos.z * 100) / 100, ry: Math.round(world.ctl.yaw * 100) / 100 }),
             isHidden: () => document.hidden,
             onState: (st) => { lastEnergy = Number(st.energy); applyLightState(st, { hud, inventory, crate: crateFlow, build: buildFlow }); energyFlow.onState(st); },
-            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); tutorialFlow.onResults(results); },
+            onResults: (results) => { chopFlow.onResults(results); energyFlow.onResults(results); packFlow.onResults(results); uprootFlow.onResults(results); crateFlow.onResults(results); buildFlow.onResults(results); benchFlow.onResults(results); tutorialFlow.onResults(results); },
             onCorrect: (p) => { world.teleport(p.x, p.z); notify({ text: S.net.corrected }); },
             onStatus: (st, why) => {
                 if (st === 'offline') { notify({ text: why ? S.net.offlineWhy(why) : S.net.offline }); logClient('sync', `offline: ${why ? why.error + ' ' + why.status + ' ' + why.message : '?'}`); }

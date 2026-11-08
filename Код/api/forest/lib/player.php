@@ -14,6 +14,7 @@ require_once __DIR__ . '/pack_weight.php';
 require_once __DIR__ . '/crate.php';
 require_once __DIR__ . '/build.php';
 require_once __DIR__ . '/names.php';
+require_once __DIR__ . '/upgrades.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -343,6 +344,8 @@ function wf_player_full_state($conn, array $row): array
         'pos' => ['x' => (float) $row['pos_x'], 'z' => (float) $row['pos_z'], 'ry' => (float) $row['pos_ry']],
         'state' => wf_player_light_state($row, $pack),
         'upgrades' => ['axe' => (int) $row['axe_lvl'], 'pack' => (int) $row['pack_lvl'], 'stamina' => (int) $row['stamina_lvl'], 'lamp' => (int) $row['lamp_lvl']],
+        'gear' => (object) wf_upg_gear($row),
+        'upgrade_catalog' => wf_upg_out(),
         'hotbar' => is_array($hotbar) ? array_values($hotbar) : [],
         'tutorial_step' => (int) $row['tutorial_step'],
         'last_a' => (int) (wf_player_stats($row)['last_a'] ?? 0),

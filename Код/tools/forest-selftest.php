@@ -634,6 +634,61 @@ wf_st_test($results, 'Постройки: тапы, списание из зап
     return ['0 расхождений из ' . $n, count($bad) . ' расхождений из ' . $n . ($bad ? ' (' . implode(' | ', array_slice($bad, 0, 3)) . ')' : '')];
 });
 
+// 4з. Улучшения бобра (ДЛ-18): цены из config.php и выбор покупки (чистые функции без БД)
+require_once dirname(__DIR__) . '/api/forest/lib/upgrades.php';
+wf_st_test($results, 'Улучшения: цены топора, рюкзака, выносливости и фонаря из config.php', function () {
+    $bad = [];
+    $axe = wf_upg_spec('axe', 3);
+    if ($axe === null || $axe['coins'] !== 1200 || ($axe['items']['ingot'] ?? 0) !== 5) {
+        $bad[] = 'топор 3';
+    }
+    if (wf_upg_spec('axe', 1) !== null || wf_upg_spec('axe', 7) !== null) {
+        $bad[] = 'границы топора';
+    }
+    $pack = wf_upg_spec('pack', 8);
+    if ($pack === null || $pack['coins'] !== 12000 || $pack['items'] !== []) {
+        $bad[] = 'рюкзак 8';
+    }
+    $lamp = wf_upg_spec('lamp', 4);
+    if ($lamp === null || $lamp['coins'] !== 8000 || ($lamp['items']['ingot'] ?? 0) !== 8 || wf_upg_spec('lamp', 0) !== null) {
+        $bad[] = 'фонарь';
+    }
+    if (wf_upg_max('axe') !== 6 || wf_upg_max('pack') !== 8 || wf_upg_max('stamina') !== 6 || wf_upg_max('lamp') !== 4) {
+        $bad[] = 'максимумы';
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Улучшения: выбор покупки (следующий уровень, максимум, разовые вещи)', function () {
+    $lv = ['axe' => 1, 'pack' => 8, 'stamina' => 1, 'lamp' => 0];
+    $bad = [];
+    $r = wf_upg_resolve('axe', 2, $lv, [], ['axe']);
+    if (!$r['ok'] || $r['to'] !== 2 || $r['spec']['coins'] !== 400) {
+        $bad[] = 'топор 2';
+    }
+    if (wf_upg_resolve('axe', 3, $lv, [], ['axe'])['error'] !== 'stale') {
+        $bad[] = 'stale';
+    }
+    if (wf_upg_resolve('pack', null, $lv, [], ['axe'])['error'] !== 'max_level') {
+        $bad[] = 'max_level';
+    }
+    if (wf_upg_resolve('lamp', null, $lv, [], ['axe'])['spec']['coins'] !== 150) {
+        $bad[] = 'фонарь 1';
+    }
+    if (wf_upg_resolve('pickaxe', null, $lv, [], ['axe', 'pickaxe'])['error'] !== 'owned') {
+        $bad[] = 'кирка есть';
+    }
+    if (wf_upg_resolve('pickaxe', null, $lv, [], ['a', 'b', 'c', 'd', 'e', 'f'])['error'] !== 'no_space') {
+        $bad[] = 'нет слота';
+    }
+    if (wf_upg_resolve('boots', null, $lv, ['boots' => 1], ['axe'])['error'] !== 'owned' || !wf_upg_resolve('boots', null, $lv, [], ['axe'])['ok']) {
+        $bad[] = 'сапоги';
+    }
+    if (wf_upg_resolve('sword', null, $lv, [], ['axe'])['error'] !== 'unknown') {
+        $bad[] = 'unknown';
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+
 // 4е. Имена из двух слов (ДЛ-15): PHP даёт те же имена, что JS (золотые векторы tests/vectors/names.json), и согласует род
 require_once dirname(__DIR__) . '/api/forest/lib/names.php';
 wf_st_test($results, 'Имена: векторы JS и PHP совпадают', function () {
