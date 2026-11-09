@@ -46,13 +46,13 @@ npm start
 Без Docker тоже можно: `npm ci --omit=dev && npm start` под systemd, а перед ним любой прокси с wss (Caddy, nginx). Встроенный TLS через `WF_TLS_CERT` и `WF_TLS_KEY` оставлен на крайний случай.
 
 ## Чек-лист владельца (ручная проверка)
-- [ ] VPS арендован, поддомен DuckDNS указывает на его IP.
-- [ ] `setup.sh` отработал, `https://ДОМЕН/health` отвечает JSON.
+- [x] VPS арендован, поддомен DuckDNS указывает на его IP.
+- [x] `setup.sh` отработал, `https://ДОМЕН/health` отвечает JSON.
 - [ ] На странице игры в консоли: `const w=new WebSocket('wss://ДОМЕН'); w.onmessage=e=>console.log(e.data)` → приходит `hello`.
 - [ ] То же с телефона в мобильной сети (не по Wi-Fi).
-- [ ] После перезагрузки VPS сервис поднимается сам (`restart: unless-stopped`).
+- [x] После перезагрузки VPS сервис поднимается сам (`restart: unless-stopped`).
 
 ## Заполнить после аренды
-- Провайдер и тариф: …
-- IP, ОС, ОЗУ: …
-- Домен: …
+- Провайдер и тариф: Aeza, Promo
+- IP, ОС, ОЗУ: 109.120.155.195, Ubuntu 26.04, 4 gb
+- Домен: https://bober-forest.duckdns.org/
