@@ -1,0 +1,4 @@
+{$WF_DOMAIN} {
+	encode gzip
+	reverse_proxy realtime:8080
+}

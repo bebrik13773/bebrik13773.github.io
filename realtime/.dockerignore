@@ -1,3 +1,6 @@
 node_modules
 test
 README.md
+deploy
+docker-compose.yml
+.env

@@ -1,0 +1,42 @@
+# VPS-деплой: Caddy сам получает и продлевает сертификат Let's Encrypt (нужны открытые 80 и 443),
+# realtime-сервер работает внутри за Caddy обычным HTTP.
+services:
+  realtime:
+    build:
+      context: .
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+    restart: unless-stopped
+    mem_limit: 160m
+    environment:
+      PORT: "8080"
+      BUILD_SHA: ${BUILD_SHA:-dev}
+      WF_ORIGINS: ${WF_ORIGINS:-https://bober-api.gt.tc}
+      WF_MAX_CONN: ${WF_MAX_CONN:-150}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    depends_on:
+      - realtime
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WF_DOMAIN: ${WF_DOMAIN:?задай WF_DOMAIN в .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
