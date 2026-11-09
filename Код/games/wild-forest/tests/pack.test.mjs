@@ -6,12 +6,12 @@ import { PACK, itemKg, packKg, packFit, moveLoad, packCapacity, heroSpeed, moveA
 import { PACK_VECTORS_PATH, buildPackVectors } from './pack-lib.mjs';
 import { createPackFlow } from '../src/world/pack-flow.js';
 
-test('вес: бревно 7 кг, остальное по таблице, неизвестное 1 кг', () => {
-    assert.equal(itemKg('log'), 7);
+test('вес: бревно 3 кг, остальное по таблице, неизвестное 1 кг', () => {
+    assert.equal(itemKg('log'), 3);
     assert.equal(itemKg('ore'), 8);
     assert.equal(itemKg('seed'), 0.1);
     assert.equal(itemKg('чудо'), 1);
-    assert.equal(packKg({ log: 3, plank: 2 }), 27);
+    assert.equal(packKg({ log: 3, plank: 2 }), 15);
     assert.equal(packKg({}), 0);
 });
 
@@ -22,8 +22,8 @@ test('вместимость: 40 кг и +10 за уровень до 8', () => 
 });
 
 test('сколько влезет: по весу, не больше запрошенного, 0 при полном', () => {
-    assert.equal(packFit(40, 0, 'log', 10), 5);
-    assert.equal(packFit(40, 33, 'log', 3), 1);
+    assert.equal(packFit(40, 0, 'log', 10), 10);
+    assert.equal(packFit(40, 33, 'log', 3), 2);
     assert.equal(packFit(40, 40, 'log', 1), 0);
     assert.equal(packFit(40, 45, 'log', 1), 0);
     assert.equal(packFit(40, 0, 'log', 2), 2);
@@ -31,9 +31,9 @@ test('сколько влезет: по весу, не больше запрош
 });
 
 test('груз для проверки скорости: брошенное в том же пакете вычитается, лишнее не уходит в минус', () => {
-    assert.equal(moveLoad({ log: 5, plank: 2 }, [{ type: 'drop', item: 'log', qty: 2 }]), 27);
+    assert.equal(moveLoad({ log: 5, plank: 2 }, [{ type: 'drop', item: 'log', qty: 2 }]), 15);
     assert.equal(moveLoad({ log: 5 }, [{ type: 'drop', item: 'log', qty: 9 }]), 0);
-    assert.equal(moveLoad({ log: 2 }, [{ type: 'pickup', drop: 1 }]), 14);
+    assert.equal(moveLoad({ log: 2 }, [{ type: 'pickup', drop: 1 }]), 6);
 });
 
 test('вес замедляет бобра, а сервер даёт ровно такой допуск (без дорог и сапог)', () => {
@@ -93,13 +93,13 @@ test('подбор: действие в очереди, предмет сраз�
     assert.equal(h.flow.pickup(5), true);
     assert.deepEqual(h.pushed[0], { type: 'pickup', drop: 5, px: 0, pz: 0 });
     assert.equal(h.drops.size, 0);
-    assert.equal(h.inv.weight, 7);
+    assert.equal(h.inv.weight, 3);
     assert.equal(h.flow.pickup(5), false, 'повторно нельзя');
     assert.equal(h.flushes, 1);
 });
 
 test('подбор: рюкзак полон, на клиенте отказ без запроса', () => {
-    const h = harness({ items: [{ key: 'log', qty: 5, kg: 7 }] });
+    const h = harness({ items: [{ key: 'log', qty: 13, kg: 3 }] });
     h.world.drops.add([{ id: 6, x: 0, z: 0, item: 'log', qty: 1 }]);
     assert.equal(h.flow.pickup(6), false);
     assert.equal(h.pushed.length, 0);
@@ -141,10 +141,10 @@ test('автоподбор: выключен или бобёр спит — ни
 });
 
 test('бросание: предмет уходит из рюкзака, действие drop в очереди; ответ кладёт предмет на землю без автоподбора', () => {
-    const h = harness({ items: [{ key: 'log', qty: 3, kg: 7 }] });
+    const h = harness({ items: [{ key: 'log', qty: 3, kg: 3 }] });
     assert.equal(h.flow.dropItem('log', 2), true);
     assert.deepEqual(h.pushed[0], { type: 'drop', item: 'log', qty: 2 });
-    assert.equal(h.inv.weight, 7);
+    assert.equal(h.inv.weight, 3);
     h.flow.onResults([{ a: 1, type: 'drop', ok: true, drop: { id: 50, x: 1, z: 1, item: 'log', qty: 2, ttl: 900 } }]);
     assert.equal(h.drops.get(50).qty, 2);
     assert.equal(h.noAuto.has(50), true);
@@ -153,15 +153,15 @@ test('бросание: предмет уходит из рюкзака, дей�
 });
 
 test('бросание: без связи и без предмета ничего не происходит', () => {
-    const off = harness({ items: [{ key: 'log', qty: 1, kg: 7 }], withQueue: false });
+    const off = harness({ items: [{ key: 'log', qty: 1, kg: 3 }], withQueue: false });
     assert.equal(off.flow.dropItem('log', 1), false);
-    assert.equal(off.inv.weight, 7);
+    assert.equal(off.inv.weight, 3);
     const none = harness();
     assert.equal(none.flow.dropItem('log', 1), false);
     assert.equal(none.pushed.length, 0);
-    const asleep = harness({ items: [{ key: 'log', qty: 1, kg: 7 }], sleeping: true });
+    const asleep = harness({ items: [{ key: 'log', qty: 1, kg: 3 }], sleeping: true });
     assert.equal(asleep.flow.dropItem('log', 1), false);
-    assert.equal(asleep.inv.weight, 7);
+    assert.equal(asleep.inv.weight, 3);
 });
 
 test('ответ сервера: успех — одно сообщение; нет предмета — не возвращаем; слишком далеко — возвращаем без автоподбора', () => {

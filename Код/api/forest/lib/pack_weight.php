@@ -9,7 +9,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && @realpath((string) $_SERVER['SCRIPT_FI
  */
 require_once __DIR__ . '/common.php';
 
-/** Вес одной штуки, кг. Бревно считается средним (4–10), точный вес по размеру дерева придёт позже. */
+/** Вес одной штуки, кг. Бревно считается средним (2–4), точный вес по размеру дерева придёт позже. */
 function wf_pack_item_kg(string $item): float
 {
     $w = forest_config('hero.weights_kg');

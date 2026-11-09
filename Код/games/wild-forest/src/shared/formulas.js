@@ -201,8 +201,8 @@ export const PACK = Object.freeze({
     maxLvl: 8,
     pickupR: 3.0,        // сервер принимает подбор не дальше 3 м
     autoPickupR: 1.5,    // автоподбор брёвен на клиенте
-    logMinKg: 4,
-    logMaxKg: 10,
+    logMinKg: 2,
+    logMaxKg: 4,
     weights: Object.freeze({ plank: 3, ore: 8, ingot: 5, stone: 10, boulder: 10, fish: 1, fish_small: 1, fish_big: 1, seed: 0.1, seed_rare: 0.1 }),
 });
 
@@ -212,7 +212,7 @@ export function packCapacity(lvl = 1) {
     return PACK.baseKg + PACK.perLvlKg * (l - 1);
 }
 
-/** Вес одной штуки, кг (бревно среднее, 7). */
+/** Вес одной штуки, кг (бревно среднее, 3). */
 export function itemKg(item) {
     if (item === 'log') return (PACK.logMinKg + PACK.logMaxKg) / 2;
     if (String(item).startsWith('seed_')) return PACK.weights.seed;

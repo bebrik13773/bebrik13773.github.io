@@ -96,7 +96,7 @@ return [
         'move_slack'        => 1.35,      // допуск сервера на скорость: vMax × dt × slack + const (ДЛ-08)
         'move_const_m'      => 3.0,
         'start_coins'       => 50,
-        'weights_kg'        => ['log_min' => 4, 'log_max' => 10, 'plank' => 3, 'ore' => 8, 'ingot' => 5, 'stone' => 10, 'boulder' => 10, 'fish' => 1, 'fish_small' => 1, 'fish_big' => 1, 'seed' => 0.1, 'seed_rare' => 0.1],
+        'weights_kg'        => ['log_min' => 2, 'log_max' => 4, 'plank' => 3, 'ore' => 8, 'ingot' => 5, 'stone' => 10, 'boulder' => 10, 'fish' => 1, 'fish_small' => 1, 'fish_big' => 1, 'seed' => 0.1, 'seed_rare' => 0.1],
         'xp_base'           => 100,       // XP(l) = base * l^exp
         'xp_exp'            => 1.6,
         'level_max'         => 50,

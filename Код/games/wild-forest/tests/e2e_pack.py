@@ -119,7 +119,7 @@ with sync_playwright() as p:
     before = page.evaluate('window.__wf.ui.inventory.weight')
     check('dropItem принят', page.evaluate("window.__wf.dropItem('log', 1)") is True)
     after = page.evaluate('window.__wf.ui.inventory.weight')
-    check('вес упал на 7 кг сразу', abs((before - after) - 7) < 0.01, f'{before} → {after}')
+    check('вес упал на 3 кг сразу', abs((before - after) - 3) < 0.01, f'{before} → {after}')
     check('sync понёс drop', wait_for(lambda: sent('drop', lambda a: a['item'] == 'log' and a['qty'] == 1)))
     wait_for(lambda: any(d['id'] > 100 for d in page.evaluate('window.__wf.drops()')))
     thrown = [d for d in page.evaluate('window.__wf.drops()') if d['id'] > 100]
