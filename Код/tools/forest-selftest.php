@@ -1056,6 +1056,161 @@ wf_st_test($results, 'Игрок: join создаёт поляну, пруд, п
     }
 });
 
+// 4к. Realtime (РТ-02): подписанные токены и квитанции, золотые векторы Node ↔ PHP
+require_once dirname(__DIR__) . '/api/forest/lib/rt.php';
+function wf_st_rt_vectors()
+{
+    static $v = null;
+    if ($v === null) {
+        $v = json_decode((string) @file_get_contents(dirname(__DIR__) . '/games/wild-forest/tests/vectors/rt.json'), true);
+        if (!is_array($v)) {
+            throw new RuntimeException('нет файла векторов: games/wild-forest/tests/vectors/rt.json');
+        }
+    }
+    return $v;
+}
+function wf_st_rt_ring(array $keys): array
+{
+    $ring = [];
+    foreach ($keys as $kid => $b64) {
+        $ring[$kid] = (string) wf_rt_b64u_dec($b64);
+    }
+    return $ring;
+}
+wf_st_test($results, 'Realtime: sodium и настройки связки (информационно)', function () {
+    $cfg = wf_rt_settings();
+    $text = 'sodium=' . (wf_rt_alg_supported('ed25519') ? 'есть' : 'нет (нужен hmac)') . '; связка: ' . ($cfg['enabled'] ? 'включена, alg=' . $cfg['alg'] . ', kid=' . $cfg['sign_kid'] . ', ключей проверки=' . count($cfg['verify']) : 'выключена (' . $cfg['problem'] . ')');
+    return [$text, $text];
+});
+wf_st_test($results, 'Realtime: лимиты в config.php совпадают с протоколом Node', function () {
+    $bad = [];
+    foreach (wf_st_rt_vectors()['limits'] as $name => $value) {
+        if ((int) forest_config('rt.' . $name) !== (int) $value) {
+            $bad[] = $name;
+        }
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Realtime: проверка токенов по золотым векторам (все случаи)', function () {
+    $v = wf_st_rt_vectors();
+    $bad = [];
+    $skipped = 0;
+    foreach ($v['verify'] as $c) {
+        if ($c['alg'] === 'ed25519' && !wf_rt_alg_supported('ed25519')) {
+            $skipped++;
+            continue;
+        }
+        $r = wf_rt_verify_token((string) $c['token'], $c['alg'], wf_st_rt_ring($c['keys']), (int) $c['now'], $c['typ']);
+        $okExpected = !empty($c['expect']['ok']);
+        if ($r['ok'] !== $okExpected || (!$okExpected && $r['error'] !== $c['expect']['error']) || ($okExpected && $r['payload']['pid'] !== $c['expect']['pid'])) {
+            $bad[] = $c['name'];
+        }
+    }
+    return ['0 расхождений', count($bad) ? implode('; ', array_slice($bad, 0, 5)) : '0 расхождений' . ($skipped ? ' (пропущено без sodium: ' . $skipped . ')' : '')];
+});
+wf_st_test($results, 'Realtime: подпись PHP совпадает с Node побайтно, JSON без экранирования', function () {
+    $v = wf_st_rt_vectors();
+    $bad = [];
+    foreach ($v['sign'] as $c) {
+        if ($c['alg'] === 'ed25519' && !wf_rt_alg_supported('ed25519')) {
+            continue;
+        }
+        $part = wf_rt_b64u_enc((string) $c['payload_json']);
+        $sig = wf_rt_sign_raw($c['alg'], (string) wf_rt_b64u_dec($c['key']), $part);
+        if ($sig === null || $part . '.' . wf_rt_b64u_enc($sig) !== $c['token']) {
+            $bad[] = $c['alg'];
+        }
+    }
+    foreach ($v['encode'] as $e) {
+        if (json_encode($e['array'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !== $e['json']) {
+            $bad[] = 'json';
+        }
+    }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Realtime: токен PHP проходит свою же проверку, подделка и чужой ключ нет', function () {
+    $now = 1760000000;
+    $bad = [];
+    foreach (['hmac' => str_repeat("\x07", 32), 'ed25519' => null] as $alg => $key) {
+        if (!wf_rt_alg_supported($alg)) {
+            continue;
+        }
+        if ($alg === 'ed25519') {
+            $kp = sodium_crypto_sign_keypair();
+            $sign = sodium_crypto_sign_secretkey($kp);
+            $verify = sodium_crypto_sign_publickey($kp);
+        } else {
+            $sign = $verify = $key;
+        }
+        $t = wf_rt_make_token($alg, 'p1', $sign, 'tok', 5, wf_rt_login_extra('Тихая Заводь', 'Мшистый Бор', 3, 4.6) + ['pid' => 99], $now, (int) forest_config('rt.token_ttl_s'));
+        $ok = $t !== null && wf_rt_verify_token($t, $alg, ['p1' => $verify], $now, 'tok');
+        if (!$ok || !$ok['ok'] || $ok['payload']['pid'] !== 5 || $ok['payload']['nm'] !== 'Тихая Заводь') {
+            $bad[] = $alg . ': круг';
+        }
+        if ($t !== null) {
+            [$a, $b] = explode('.', $t);
+            $forged = wf_rt_b64u_enc(str_replace('"pid":5', '"pid":6', (string) wf_rt_b64u_dec($a))) . '.' . $b;
+            if (wf_rt_verify_token($forged, $alg, ['p1' => $verify], $now, 'tok')['ok']) {
+                $bad[] = $alg . ': подделка принята';
+            }
+            if (wf_rt_verify_token($t, $alg, ['p1' => $alg === 'hmac' ? str_repeat("\x08", 32) : sodium_crypto_sign_publickey(sodium_crypto_sign_keypair())], $now, 'tok')['ok']) {
+                $bad[] = $alg . ': чужой ключ принят';
+            }
+            if (wf_rt_verify_token($t, $alg, ['p1' => $verify], $now + 700, 'tok')['error'] !== 'expired') {
+                $bad[] = $alg . ': срок';
+            }
+        }
+    }
+    return ['0 расхождений', count($bad) ? implode('; ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Realtime: проверка полей квитанции (чужой pid, rid, дальность, обмен)', function () {
+    $good = ['pid' => 5, 'rid' => 'AbCdEfGh12345678', 'k' => 'cp', 'd' => ['x' => 10.5, 'z' => -3]];
+    $bad = [];
+    if (wf_rt_receipt_check($good, 5) !== null) { $bad[] = 'честная cp'; }
+    if (wf_rt_receipt_check($good, 6) !== 'bad_token') { $bad[] = 'чужой pid'; }
+    if (wf_rt_receipt_check(['rid' => 'коротко'] + $good, 5) !== 'bad_token') { $bad[] = 'rid'; }
+    if (wf_rt_receipt_check(['d' => ['x' => 1e9, 'z' => 0]] + $good, 5) !== 'too_far') { $bad[] = 'дальность'; }
+    if (wf_rt_receipt_check(['d' => ['x' => 'a', 'z' => 0]] + $good, 5) !== 'too_far') { $bad[] = 'не число'; }
+    if (wf_rt_receipt_check(['k' => 'trade', 'd' => ['tid' => 't1', 'st' => 'done']] + $good, 5) !== null) { $bad[] = 'trade'; }
+    if (wf_rt_receipt_check(['k' => 'trade', 'd' => ['st' => 'done']] + $good, 5) !== 'bad_token') { $bad[] = 'trade без tid'; }
+    if (wf_rt_receipt_check(['k' => 'boom'] + $good, 5) !== 'bad_token') { $bad[] = 'вид'; }
+    if (wf_rt_receipt_check(['d' => ['x' => 1, 'z' => 1, 'pad' => str_repeat('a', 2000)]] + $good, 5) !== 'bad_token') { $bad[] = 'размер'; }
+    return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+});
+wf_st_test($results, 'Realtime: квитанция идемпотентна по rid (регистр важен), старые чистятся (тестовые строки, потом уборка)', function () use ($conn) {
+    $pid = 2147000002;
+    $clean = function () use ($conn, $pid) {
+        $conn->query('DELETE FROM `forest_rt_receipts` WHERE `pid` = ' . $pid);
+    };
+    $clean();
+    try {
+        $now = time();
+        $p = ['pid' => $pid, 'rid' => 'AbCdEfGh12345678', 'k' => 'cp', 'iat' => $now, 'd' => ['x' => 1, 'z' => 2]];
+        $bad = [];
+        if (wf_rt_receipt_store($conn, $p, $now) !== 'new') { $bad[] = 'первый раз'; }
+        if (wf_rt_receipt_store($conn, $p, $now) !== 'dup') { $bad[] = 'повтор'; }
+        if (wf_rt_receipt_store($conn, ['rid' => 'abcdefgh12345678'] + $p, $now) !== 'new') { $bad[] = 'регистр rid'; }
+        $old = ['rid' => 'OldOldOld12345678', 'iat' => $now - (int) forest_config('rt.keep_receipts_s') - 10] + $p;
+        wf_rt_receipt_store($conn, $old, $now);
+        wf_rt_cleanup($conn, $now);
+        $left = (int) $conn->query('SELECT COUNT(*) FROM `forest_rt_receipts` WHERE `pid` = ' . $pid)->fetch_row()[0];
+        if ($left !== 2) { $bad[] = 'после чистки строк ' . $left . ' вместо 2'; }
+        return ['0 расхождений', count($bad) ? implode(', ', $bad) : '0 расхождений'];
+    } finally {
+        $clean();
+    }
+});
+wf_st_test($results, 'Realtime: токен для ручной проверки в Node (скопируй, команда в realtime/README.md)', function () {
+    $cfg = wf_rt_settings();
+    if (!$cfg['enabled']) {
+        $text = 'связка выключена: ' . $cfg['problem'];
+        return [$text, $text];
+    }
+    $token = wf_rt_make_token($cfg['alg'], $cfg['sign_kid'], $cfg['sign_key'], 'selftest', 0, [], time(), (int) forest_config('rt.token_ttl_s'));
+    $text = (string) $token;
+    return [$text, $text];
+});
+
 wf_st_test($results, 'Мир: время сверки векторов, секунд' . ($wfQuick ? ' (режим quick)' : ' (полный прогон)'), function () use ($wfStarted) {
     $sec = round(microtime(true) - $wfStarted, 1);
     return [(string) $sec, (string) $sec]; // информационная строка: всегда зелёная

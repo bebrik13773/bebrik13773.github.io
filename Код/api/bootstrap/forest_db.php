@@ -10,7 +10,7 @@
 
 require_once __DIR__ . '/db.php';
 
-const FOREST_SCHEMA_VERSION = 5;
+const FOREST_SCHEMA_VERSION = 6;
 
 /** Конфиг баланса (Код/api/forest/config.php), читается один раз за запрос. */
 function forest_config($path = null)
@@ -66,6 +66,7 @@ function forest_expected_tables()
         'forest_helpers' => 3, 'forest_trades' => 3, 'forest_presence' => 3, 'forest_chat' => 3,
         'forest_ratings' => 3, 'forest_seasons' => 3, 'forest_event_log' => 3,
         'forest_admins' => 4,
+        'forest_rt_receipts' => 6,
     ];
 }
 
@@ -134,6 +135,7 @@ function forest_ensure_schema($conn)
             3 => 'forest_migration_3',
             4 => 'forest_migration_4',
             5 => 'forest_migration_5',
+            6 => 'forest_migration_6',
         ];
 
         foreach ($migrations as $version => $fn) {
@@ -475,4 +477,23 @@ function forest_migration_5($conn)
             $conn->query($sql);
         }
     }
+}
+
+/**
+ * Миграция 6 (РТ-02): квитанции realtime-сервера. rid уникален (идемпотентность: повтор игнорируется),
+ * сравнение двоичное (ascii_bin), потому что base64url различает регистр. Старше 2 суток чистятся лениво.
+ */
+function forest_migration_6($conn)
+{
+    $t = FOREST_TABLE_TAIL;
+
+    forest_ddl($conn, "CREATE TABLE IF NOT EXISTS `forest_rt_receipts` (
+        `rid` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+        `pid` INT NOT NULL,
+        `typ` VARCHAR(8) NOT NULL,
+        `ts` INT UNSIGNED NOT NULL,
+        `data_json` TEXT NULL,
+        KEY `idx_forest_rt_pid` (`pid`, `typ`, `ts`),
+        KEY `idx_forest_rt_ts` (`ts`)
+    ){$t}", 'forest_rt_receipts');
 }

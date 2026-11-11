@@ -1,0 +1,10 @@
+<?php
+// Скопируй в rt_config.php (файл в .gitignore; на хостинге его пишет workflow из секретов GitHub BOBER_RT_*).
+// Значения печатает: node realtime/tools/gen-keys.mjs
+return [
+    'alg' => 'ed25519',                 // или 'hmac', если на хостинге нет sodium
+    'url' => 'wss://ТВОЙ-ДОМЕН/',       // адрес realtime-сервера
+    'sign_kid' => 'p1',                 // ключ, которым подписывает PHP
+    'sign_key' => '',                   // секретный ключ PHP (base64url)
+    'verify_keys' => 'r1:',             // ключи проверки квитанций РТ: kid:ключ,kid2:ключ2
+];

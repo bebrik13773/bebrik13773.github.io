@@ -5,3 +5,4 @@ config.local.json
 .codex.local.json
 node_modules/
 realtime/.env
+Код/config/rt_config.php

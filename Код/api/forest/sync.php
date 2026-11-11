@@ -13,6 +13,7 @@ require_once __DIR__ . '/lib/crate.php';
 require_once __DIR__ . '/lib/build.php';
 require_once __DIR__ . '/lib/upgrades.php';
 require_once __DIR__ . '/lib/garden.php';
+require_once __DIR__ . '/lib/rt.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
@@ -206,6 +207,20 @@ try {
     ];
     // Сад (ДЛ-19): саженцы с пересчитанным ростом (один запрос; пусто, если ничего не посажено).
     $payload['saplings'] = wf_garden_list_out(wf_garden_load($conn, $playerId, $now), $now, (int) $row['axe_lvl']);
+    // Realtime (РТ-02): квитанции от РТ (идемпотентно по rid) и новый токен входа, когда осталось меньше 3 минут.
+    // Токен выдаётся только если клиент прислал rt_exp (срок своего токена, 0 — токена нет).
+    if (isset($in['receipts']) && is_array($in['receipts'])) {
+        $rcp = wf_rt_process_receipts($conn, $playerId, $in['receipts'], $now);
+        if ($rcp) {
+            $payload['rcp'] = $rcp;
+        }
+    }
+    if (isset($in['rt_exp']) && is_numeric($in['rt_exp'])) {
+        $rtBlock = wf_rt_client_block($row, $now, (int) $in['rt_exp'], wf_player_pack_capacity((int) $row['pack_lvl']), wf_upg_has_boots($row));
+        if ($rtBlock) {
+            $payload['rt'] = $rtBlock;
+        }
+    }
     if ($correct !== null) {
         $payload['correct_pos'] = $correct;
     }

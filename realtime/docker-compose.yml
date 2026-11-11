@@ -13,6 +13,11 @@ services:
       BUILD_SHA: ${BUILD_SHA:-dev}
       WF_ORIGINS: ${WF_ORIGINS:-https://bober-api.gt.tc}
       WF_MAX_CONN: ${WF_MAX_CONN:-150}
+      # Подписи токенов (РТ-02): значения печатает node tools/gen-keys.mjs
+      WF_RT_ALG: ${WF_RT_ALG:-ed25519}
+      WF_RT_SIGN_KID: ${WF_RT_SIGN_KID:-}
+      WF_RT_SIGN_KEY: ${WF_RT_SIGN_KEY:-}
+      WF_RT_VERIFY_KEYS: ${WF_RT_VERIFY_KEYS:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

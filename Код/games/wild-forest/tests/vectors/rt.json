@@ -1,0 +1,816 @@
+{
+ "version": 1,
+ "now": 1760000000,
+ "limits": {
+  "token_max_len": 4096,
+  "token_ttl_s": 600,
+  "token_refresh_s": 180,
+  "max_age_s": 600,
+  "skew_s": 60,
+  "evt_ttl_s": 120,
+  "receipts_per_sync": 5,
+  "receipt_data_bytes": 1024,
+  "cp_interval_s": 10,
+  "keep_receipts_s": 172800
+ },
+ "keys": {
+  "ed25519": {
+   "php_secret": "5DGSqUTT2OWNQ5FDAhyKrD7TEN5DPu7U6cNg0RttLjgfjqNyUG3DPcNNP1pFnE3eZotflREarK0Sf99xFFPcOw",
+   "php_public": "H46jclBtwz3DTT9aRZxN3maLX5URGqytEn_fcRRT3Ds",
+   "rt_secret": "AZiigXwWpL9r7ap2EiVjEeTZpU2wFy14Y7AKC8xWEXrdAp9YJKEifau2qiLQkqMq1SlvWyj6vnOkXQHzyn5bNQ",
+   "rt_public": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+  },
+  "hmac": {
+   "key_a": "n1GQ76HWJWbUwY-kJK6VkoqbKWw8CEOVWXbS7xsDHpE",
+   "key_b": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+  }
+ },
+ "sign": [
+  {
+   "alg": "ed25519",
+   "key": "5DGSqUTT2OWNQ5FDAhyKrD7TEN5DPu7U6cNg0RttLjgfjqNyUG3DPcNNP1pFnE3eZotflREarK0Sf99xFFPcOw",
+   "payload_json": "{\"v\":1,\"kid\":\"p1\",\"typ\":\"tok\",\"pid\":7,\"iat\":1760000000,\"exp\":1760000600,\"nm\":\"Тихая Заводь\",\"vn\":\"а/б \\\"в\\\"\",\"lv\":3,\"vmax\":4.6}",
+   "token": "eyJ2IjoxLCJraWQiOiJwMSIsInR5cCI6InRvayIsInBpZCI6NywiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDA2MDAsIm5tIjoi0KLQuNGF0LDRjyDQl9Cw0LLQvtC00YwiLCJ2biI6ItCwL9CxIFwi0LJcIiIsImx2IjozLCJ2bWF4Ijo0LjZ9.lnIvRKESAu4vbhErJAZuStZ5h5tX3Gncbl-M5I0ewEuW9GiyNtS5TgGV1uzITHSXKJu33sjlPv0RIcMWc9h1BA"
+  },
+  {
+   "alg": "hmac",
+   "key": "n1GQ76HWJWbUwY-kJK6VkoqbKWw8CEOVWXbS7xsDHpE",
+   "payload_json": "{\"v\":1,\"kid\":\"p1\",\"typ\":\"tok\",\"pid\":7,\"iat\":1760000000,\"exp\":1760000600,\"nm\":\"Тихая Заводь\",\"vn\":\"а/б \\\"в\\\"\",\"lv\":3,\"vmax\":4.6}",
+   "token": "eyJ2IjoxLCJraWQiOiJwMSIsInR5cCI6InRvayIsInBpZCI6NywiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDA2MDAsIm5tIjoi0KLQuNGF0LDRjyDQl9Cw0LLQvtC00YwiLCJ2biI6ItCwL9CxIFwi0LJcIiIsImx2IjozLCJ2bWF4Ijo0LjZ9.Kbj5SxLKQhV0hd5G4fhRABlDbhCkb8fxlsApqfbYL7c"
+  }
+ ],
+ "verify": [
+  {
+   "name": "ed25519: квитанция cp",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.bhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: квитанция trade",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJ0cmFkZS0wMDAxLXh5enh5eiIsImsiOiJ0cmFkZSIsImQiOnsidGlkIjoidDkiLCJzdCI6ImRvbmUifX0.jStyWfxEK10srpNDUb8m6WTVHa-VF6I0Fmgqu4quFl2PAOcrUitAFjqoHFl3KTYNALF505M2a3cZYRaf71l1CA",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: тип не проверяется (null)",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": null,
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.bhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: токен входа tok (ключи PHP)",
+   "alg": "ed25519",
+   "keys": {
+    "p1": "H46jclBtwz3DTT9aRZxN3maLX5URGqytEn_fcRRT3Ds"
+   },
+   "typ": "tok",
+   "token": "eyJ2IjoxLCJraWQiOiJwMSIsInR5cCI6InRvayIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJubSI6ItCi0LjRhdCw0Y8g0JfQsNCy0L7QtNGMIiwidm4iOiLQnNGI0LjRgdGC0YvQuSDQkdC-0YAiLCJsdiI6Mywic2siOiJkZWZhdWx0Iiwidm1heCI6NC42LCJtdSI6MCwiZmwiOjB9.qcifkIhePCXmj9V6OyKyAJPeV10j5p3MXRTMApfMoaUryx4iXZ4pIGOM1qLJaZvSMRcWlNE32sFBKlV0Jp0pCA",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: подмена pid без подписи",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NywiaWF0IjoxNzU5OTk5OTk1LCJleHAiOjE3NjAwMDA1OTUsInJpZCI6IkFiQ2RFZkdoMTIzNDU2NzgiLCJrIjoiY3AiLCJkIjp7IngiOjEyMDQuNSwieiI6LTg4LjMsInJ5IjoxLjU3LCJ0IjoxNzYwMDAwMDAwMDAwfX0.bhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: испорченная подпись",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.AhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: неизвестный kid",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJ6eiIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.LjpHAMQOHytlK_cevXOGgnr2Mewfin6izqvTIH1mhw75fs5oyTmQrgrHoJYRvcSLYkUFJ_wpnpom18awW5H-AA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: чужой ключ при том же kid",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.iGviFKKQLgG9DqO5uAWMjCip0Rz-hYf296XK-Jx_VMVtvbQMQvPu1h6_mq_Pf4DOKzKUaJENy6ZCvQ8LHiH5CA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: вышел срок (exp в прошлом)",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTMwMCwiZXhwIjoxNzU5OTk5OTAwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.K2yTC_yL-TUkiDF1ciGyPdcAz5NmLmIodrGD7z14SwEPmgHHZdNrPA0HepnVcP59xoAo8BdM2_jJwVyYGoxcAA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "expired"
+   }
+  },
+  {
+   "name": "ed25519: старше 10 минут при живом exp",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTM5OSwiZXhwIjoxNzU5OTk5OTk5LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.ny9gtt4-ck1n2UCoUbayF0VLix8h1nveKkNpKsL-7cQLbZkAXJ3VMIPmE1lvdqDQj22FHa7FLVinbODy3oDNBA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "expired"
+   }
+  },
+  {
+   "name": "ed25519: ровно 600 секунд назад: ещё можно",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTQwMCwiZXhwIjoxNzYwMDAwMDAwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.MPDdMIgnHE2o2hYMXZNxz1VHWTtsm-d0XnjE_8WNCF7q4SN4DwEMQXwQU8Z1kb18w_hNOOoP_0qTY_sjyQj-Cg",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: из будущего на 120 с",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDEyMCwiZXhwIjoxNzYwMDAwNzIwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.-3fEPO3Cy7HwnCHHkmEZS3HVxeChuVQVJq1KnbQfsCUm2t0PPrpwUVNg14yhwyuuM4k7aR03hOS_amVkI1scAQ",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: из будущего на 30 с (в допуске)",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDAzMCwiZXhwIjoxNzYwMDAwNjMwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.pezphlAUZ4g8K_bY-JfnwaHuhAgpFnPcWRql9yj4inQKpQYmK8zRFYrvSlyWNuRcw9kD_IrHmI7fbNSy388OBw",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: срок жизни длиннее допустимого",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDAwMCwiZXhwIjoxNzYwMDAwNjAxLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.PAGhT1TBXQTcPQTyLqqXJkCXyFMO0wxCIiyliGBIjhfuvloxMkyrLsTM_TU6itzk_AZTAqMRQAMvHwaTlF4aDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: не тот тип (tok как rcp)",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InRvayIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.SaFQSJHNlYBXWHLtgN91nXLwC7KZhQ1L6zekr3m6cEVBV3EQf_JIm0Xo-Ob_mtmUnrEiS7Umo6uZjCzMjULwDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: версия протокола новее",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoyLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.-n4sOWe1cQ2KIjz3dkItw63W5mYBaf0MrwtRn8_prRqeFBI08OzJty2Xc4Xn0mKXV2qCNSGgsIFYPM6hqJEeAw",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "outdated"
+   }
+  },
+  {
+   "name": "ed25519: версия 0",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjowLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.6zJu9Nt_OOQKagqIouRxf6MinMjnet0RuP6w2ZE339qWX32hZIY_vUOFTsNrzQ6Mgsn65fWQ15QA06YYAH6uCQ",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: pid не число",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6IjQyIiwiaWF0IjoxNzU5OTk5OTk1LCJleHAiOjE3NjAwMDA1OTUsInJpZCI6IkFiQ2RFZkdoMTIzNDU2NzgiLCJrIjoiY3AiLCJkIjp7IngiOjEyMDQuNSwieiI6LTg4LjMsInJ5IjoxLjU3LCJ0IjoxNzYwMDAwMDAwMDAwfX0.6c0Vvo0VSGYsPkpeV9mIOdKLLqxFZzCPj2v2S4y0JwmNugdOpE_VV7ZetzlMKDrge5EW8aapJVhU_ntt3UcFAQ",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: ротация: старый ключ r1",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU",
+    "r2": "pBC2eWfjRavhkSG9u9kOepi-SPShm-8SIkmFynuUVIw"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.bhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: ротация: новый ключ r2",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU",
+    "r2": "pBC2eWfjRavhkSG9u9kOepi-SPShm-8SIkmFynuUVIw"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMiIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.-jz9yA12ARa4ph4H1onN0p0K-RF_WjpeHrlMg1lLNCsp8mbs9aVyPrA2YmgOG1bxuqKVLG7EDxuksQvc76PBCw",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "ed25519: мусор: пусто",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: мусор: без точки",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "abc",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: мусор: три части",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "a.b.c",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: мусор: только точки",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "....",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: мусор: не base64url",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "a+b/c=.d+e/f=",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "ed25519: мусор: слишком длинный",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: квитанция cp",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.GRnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: квитанция trade",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJ0cmFkZS0wMDAxLXh5enh5eiIsImsiOiJ0cmFkZSIsImQiOnsidGlkIjoidDkiLCJzdCI6ImRvbmUifX0.B1nYnog7jQ5LyzUBXn_GwWcGp6sRR1Lj7N1Bx2VfsO0",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: тип не проверяется (null)",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": null,
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.GRnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: токен входа tok (ключи PHP)",
+   "alg": "hmac",
+   "keys": {
+    "p1": "n1GQ76HWJWbUwY-kJK6VkoqbKWw8CEOVWXbS7xsDHpE"
+   },
+   "typ": "tok",
+   "token": "eyJ2IjoxLCJraWQiOiJwMSIsInR5cCI6InRvayIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJubSI6ItCi0LjRhdCw0Y8g0JfQsNCy0L7QtNGMIiwidm4iOiLQnNGI0LjRgdGC0YvQuSDQkdC-0YAiLCJsdiI6Mywic2siOiJkZWZhdWx0Iiwidm1heCI6NC42LCJtdSI6MCwiZmwiOjB9.dZIPdmBhftMZR88Pe-GBPITHG82tNboiU7WwfZByZHE",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: подмена pid без подписи",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NywiaWF0IjoxNzU5OTk5OTk1LCJleHAiOjE3NjAwMDA1OTUsInJpZCI6IkFiQ2RFZkdoMTIzNDU2NzgiLCJrIjoiY3AiLCJkIjp7IngiOjEyMDQuNSwieiI6LTg4LjMsInJ5IjoxLjU3LCJ0IjoxNzYwMDAwMDAwMDAwfX0.GRnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: испорченная подпись",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.ARnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: неизвестный kid",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJ6eiIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.agIxMz2rzRo900R09ZlPwb9MyBDfLQP8Lkc_bxJxwv4",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: чужой ключ при том же kid",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.CVwymOXhl2Psxxs6lli2ZNFQjytTGi5AtJLbi0u2jVU",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: вышел срок (exp в прошлом)",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTMwMCwiZXhwIjoxNzU5OTk5OTAwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.6qBj4SeaHrQDC6c0eosRrN8mI3WALQzFXP6JYOJrCII",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "expired"
+   }
+  },
+  {
+   "name": "hmac: старше 10 минут при живом exp",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTM5OSwiZXhwIjoxNzU5OTk5OTk5LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.qyFLCDJbKCMaqSKPUEWHPjRbIzDc_6Mr69mqvDaImm8",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "expired"
+   }
+  },
+  {
+   "name": "hmac: ровно 600 секунд назад: ещё можно",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTQwMCwiZXhwIjoxNzYwMDAwMDAwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.YrEDxCc9OLC7mJlM-rSp0A-jJ0L1P08TJZML-XOoOlM",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: из будущего на 120 с",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDEyMCwiZXhwIjoxNzYwMDAwNzIwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.v4wKzpuqMxXSjZAJafgNeN_uBC3LbH41S0nBLBhXikQ",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: из будущего на 30 с (в допуске)",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDAzMCwiZXhwIjoxNzYwMDAwNjMwLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.CgOgZzlWws64W8ht5-yHXRu74tUVawSotT4PfZziR2A",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: срок жизни длиннее допустимого",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc2MDAwMDAwMCwiZXhwIjoxNzYwMDAwNjAxLCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.xZwd5MII0BeS2VWDhADi5YTZ7dZUoP-BUIv6NlRiDUI",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: не тот тип (tok как rcp)",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InRvayIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.zJu0VnnxOjUP4FF4jYGgP_VxGJ7qHQZjLknsvXvPtjA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: версия протокола новее",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoyLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.pNsOip0e23Dq0XsbQwYhdAwrVX2j9BKzCcFcGtyLEHE",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "outdated"
+   }
+  },
+  {
+   "name": "hmac: версия 0",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjowLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.WGXyxSxqpAYegsHIboE7mtjh972YOPDk1LenfhvAWig",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: pid не число",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6IjQyIiwiaWF0IjoxNzU5OTk5OTk1LCJleHAiOjE3NjAwMDA1OTUsInJpZCI6IkFiQ2RFZkdoMTIzNDU2NzgiLCJrIjoiY3AiLCJkIjp7IngiOjEyMDQuNSwieiI6LTg4LjMsInJ5IjoxLjU3LCJ0IjoxNzYwMDAwMDAwMDAwfX0.v73I43_xyRX7_ZhJE5EaDcyg8ksmcQHHG56ynrvUcJ4",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: ротация: старый ключ r1",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc",
+    "r2": "6sIw_kslYu0KwQuBfSVhkFD2TrGpSIXgISupCQ-xWUQ"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.GRnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: ротация: новый ключ r2",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc",
+    "r2": "6sIw_kslYu0KwQuBfSVhkFD2TrGpSIXgISupCQ-xWUQ"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMiIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.9JVnBDN2E-9OYEDYA9cdi6v9B8L8nNk0v0vjiFjS1s4",
+   "now": 1760000000,
+   "expect": {
+    "ok": true,
+    "pid": 42
+   }
+  },
+  {
+   "name": "hmac: мусор: пусто",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: мусор: без точки",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "abc",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: мусор: три части",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "a.b.c",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: мусор: только точки",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "....",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: мусор: не base64url",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "a+b/c=.d+e/f=",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "hmac: мусор: слишком длинный",
+   "alg": "hmac",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "смена алгоритма: ed25519-токен при hmac-проверке",
+   "alg": "hmac",
+   "keys": {
+    "r1": "3QKfWCShIn2rtqoi0JKjKtUpb1so-r5zpF0B88p-WzU"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.bhKCS2gWFlEhtNoVxYiZ1VVZws2pZ3ruJO2uOO4LjPcGn7fiNAoyGNg1bk6eP9Vs4ixO4sC4NHLbaCGK0kqdDA",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  },
+  {
+   "name": "смена алгоритма: hmac-токен при ed25519-проверке",
+   "alg": "ed25519",
+   "keys": {
+    "r1": "t1U5QK3Xw3D_eRLtLnvsIiQ2cB5Js9ju8fVAOcDhcvc"
+   },
+   "typ": "rcp",
+   "token": "eyJ2IjoxLCJraWQiOiJyMSIsInR5cCI6InJjcCIsInBpZCI6NDIsImlhdCI6MTc1OTk5OTk5NSwiZXhwIjoxNzYwMDAwNTk1LCJyaWQiOiJBYkNkRWZHaDEyMzQ1Njc4IiwiayI6ImNwIiwiZCI6eyJ4IjoxMjA0LjUsInoiOi04OC4zLCJyeSI6MS41NywidCI6MTc2MDAwMDAwMDAwMH19.GRnQH9pkft4lCsHn-Fv2JB06teqiKu2EIHwoG8K_Ej0",
+   "now": 1760000000,
+   "expect": {
+    "ok": false,
+    "error": "bad_token"
+   }
+  }
+ ],
+ "encode": [
+  {
+   "array": {
+    "v": 1,
+    "nm": "Тихая Заводь",
+    "vn": "а/б",
+    "lv": 3,
+    "vmax": 4.6
+   },
+   "json": "{\"v\":1,\"nm\":\"Тихая Заводь\",\"vn\":\"а/б\",\"lv\":3,\"vmax\":4.6}"
+  }
+ ]
+}

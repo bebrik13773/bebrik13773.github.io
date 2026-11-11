@@ -123,6 +123,38 @@ jobs:
         ];
         EOF
 
+    - name: 🔐 Build runtime Realtime config (Дикий Лес, РТ-02)
+      shell: bash
+      env:
+        RT_ALG: ${{ secrets.BOBER_RT_ALG }}
+        RT_URL: ${{ secrets.BOBER_RT_URL }}
+        RT_SIGN_KID: ${{ secrets.BOBER_RT_SIGN_KID }}
+        RT_SIGN_KEY: ${{ secrets.BOBER_RT_SIGN_KEY }}
+        RT_VERIFY_KEYS: ${{ secrets.BOBER_RT_VERIFY_KEYS }}
+      run: |
+        # Секреты могут быть ещё не заданы: тогда realtime просто выключен, игра работает через обычный sync.
+        php_escape() {
+          python3 -c "import sys; value = sys.stdin.read(); print(value.replace('\\\\', '\\\\\\\\').replace(\"'\", \"\\\\'\").replace('\\r', '').replace('\\n', '\\\\n'), end='')"
+        }
+
+        RT_ALG_ESCAPED="$(printf '%s' "$RT_ALG" | php_escape)"
+        RT_URL_ESCAPED="$(printf '%s' "$RT_URL" | php_escape)"
+        RT_SIGN_KID_ESCAPED="$(printf '%s' "$RT_SIGN_KID" | php_escape)"
+        RT_SIGN_KEY_ESCAPED="$(printf '%s' "$RT_SIGN_KEY" | php_escape)"
+        RT_VERIFY_KEYS_ESCAPED="$(printf '%s' "$RT_VERIFY_KEYS" | php_escape)"
+
+        cat > ./Код/config/rt_config.php <<EOF
+        <?php
+
+        return [
+            'alg' => '${RT_ALG_ESCAPED}',
+            'url' => '${RT_URL_ESCAPED}',
+            'sign_kid' => '${RT_SIGN_KID_ESCAPED}',
+            'sign_key' => '${RT_SIGN_KEY_ESCAPED}',
+            'verify_keys' => '${RT_VERIFY_KEYS_ESCAPED}',
+        ];
+        EOF
+
     - name: 🏷️ Stamp build commit id (кликер)
       shell: bash
       run: |
@@ -175,6 +207,7 @@ jobs:
         echo "- **Runtime Config (кликер):** \`Код/config/db_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "- **Runtime Config (трекер):** \`Код/tracker_db_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "- **Runtime Config (ИИ-помощник):** \`Код/config/ai_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runtime Config (Realtime):** \`Код/config/rt_config.php\` ← GitHub Secrets" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ steps.deployment.outputs.env_name }}" == "Production" ]; then
           echo "🌐 **Live URL:** https://bober-api.gt.tc/" >> $GITHUB_STEP_SUMMARY

@@ -16,6 +16,7 @@ require_once __DIR__ . '/build.php';
 require_once __DIR__ . '/names.php';
 require_once __DIR__ . '/upgrades.php';
 require_once __DIR__ . '/garden.php';
+require_once __DIR__ . '/rt.php';
 
 /** Максимальная энергия по уровню выносливости. */
 function wf_player_energy_max(int $staminaLvl): float
@@ -359,6 +360,8 @@ function wf_player_full_state($conn, array $row): array
         // Постройки (ДЛ-16): каталог с ценами, правила места и возврата, постройки вокруг игрока (своих и чужих)
         'catalog' => wf_build_catalog(),
         'build_rules' => wf_build_rules((int) $row['level']),
+        // Realtime (РТ-02): токен входа и адрес сервера; null, если связка не настроена
+        'rt' => wf_rt_client_block($row, time(), null, wf_player_pack_capacity((int) $row['pack_lvl']), wf_upg_has_boots($row)),
         'build_upgrades' => wf_build_upgrades_out(),
         // Сад (ДЛ-19): саженцы с пересчитанным ростом, каталог семян (порода, дни роста, брёвна)
         'saplings' => wf_garden_list_out(wf_garden_load($conn, (int) $row['player_id'], time()), time(), (int) $row['axe_lvl']),
