@@ -101,51 +101,17 @@ export function decodeCtl(text) {
   }
 }
 
-// ── Бинарный кадр позиций (черновой формат v1, окончательно утверждается в РТ-03) ──
-// Заголовок 6 байт: u8 вид (1), u8 флаги (бит 0: полный кадр), u16 тик, u8 число записей, u8 резерв.
-// Запись 12 байт: u16 id, i32 x (дециметры), i32 z (дециметры), u8 угол (0..255 = 0..2π), u8 анимация.
-export const FRAME_KIND_POS = 1;
-const FRAME_HEAD = 6;
-const FRAME_ITEM = 12;
-const FRAME_MAX_ITEMS = 40;
-
-export function encodeFrame(frame) {
-  const items = frame.items || [];
-  if (items.length > FRAME_MAX_ITEMS) throw new RangeError('слишком много записей в кадре');
-  const buf = new Uint8Array(FRAME_HEAD + items.length * FRAME_ITEM);
-  const dv = new DataView(buf.buffer);
-  dv.setUint8(0, FRAME_KIND_POS);
-  dv.setUint8(1, frame.full ? 1 : 0);
-  dv.setUint16(2, frame.tick & 0xffff);
-  dv.setUint8(4, items.length);
-  items.forEach((it, i) => {
-    const o = FRAME_HEAD + i * FRAME_ITEM;
-    dv.setUint16(o, it.id & 0xffff);
-    dv.setInt32(o + 2, Math.round(it.x * 10));
-    dv.setInt32(o + 6, Math.round(it.z * 10));
-    const turn = ((it.ry % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    dv.setUint8(o + 10, Math.round((turn / (2 * Math.PI)) * 256) & 0xff);
-    dv.setUint8(o + 11, it.anim & 0xff);
-  });
-  return buf;
-}
-
-export function decodeFrame(bytes) {
-  if (!(bytes instanceof Uint8Array) || bytes.length < FRAME_HEAD) return null;
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (dv.getUint8(0) !== FRAME_KIND_POS) return null;
-  const n = dv.getUint8(4);
-  if (n > FRAME_MAX_ITEMS || bytes.length !== FRAME_HEAD + n * FRAME_ITEM) return null;
-  const items = [];
-  for (let i = 0; i < n; i++) {
-    const o = FRAME_HEAD + i * FRAME_ITEM;
-    items.push({
-      id: dv.getUint16(o),
-      x: dv.getInt32(o + 2) / 10,
-      z: dv.getInt32(o + 6) / 10,
-      ry: (dv.getUint8(o + 10) / 256) * 2 * Math.PI,
-      anim: dv.getUint8(o + 11),
-    });
-  }
-  return { full: (dv.getUint8(1) & 1) === 1, tick: dv.getUint16(2), items };
-}
+// ── Присутствие (РТ-03) ──
+/** Анимации бобра в кадре (1 байт): порядок совпадает с STATE_NAMES в entities/beaver-anim.js. */
+export const ANIM = Object.freeze(['idle', 'walk', 'run', 'chop', 'carry', 'sleep', 'scared', 'eat']);
+/** Эмодзи-жесты: id 1..6 (0 — нет). Текста нет, модерация не нужна. */
+export const EMO = Object.freeze(['wave', 'axe', 'heart', 'fire', 'shake', 'laugh']);
+/** Параметры присутствия (сервер сообщает их клиенту в auth_ok). */
+export const PRESENCE = Object.freeze({
+  tickMs: 200,          // рассылка кадров
+  fullEveryMs: 2000,    // полный кадр раз в столько
+  cellM: 128,           // сетка интереса, м
+  maxNeighbors: 20,     // ближайших соседей
+  emoCooldownMs: 5000,  // эмодзи не чаще
+  worldRadiusM: 100000, // граница мира
+});

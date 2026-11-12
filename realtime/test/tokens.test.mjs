@@ -94,17 +94,6 @@ test('proto: base64url, tokenInfo, управляющие сообщения, б
   assert.equal(proto.decodeCtl('[1]'), null);
   assert.equal(proto.decodeCtl('{"x":1}'), null);
   assert.equal(proto.decodeCtl('x'.repeat(5000)), null);
-  const frame = { full: true, tick: 70000, items: [{ id: 3, x: 1204.5, z: -88.3, ry: 1.57, anim: 2 }, { id: 65535, x: -99999.9, z: 99999.9, ry: 6.2, anim: 255 }] };
-  const bytes = proto.encodeFrame(frame);
-  assert.equal(bytes.length, 6 + 2 * 12);
-  const back = proto.decodeFrame(bytes);
-  assert.equal(back.full, true);
-  assert.equal(back.tick, 70000 & 0xffff);
-  assert.equal(back.items[0].x, 1204.5);
-  assert.equal(back.items[1].z, 99999.9);
-  assert.ok(Math.abs(back.items[0].ry - 1.57) < 0.03);
-  assert.equal(proto.decodeFrame(bytes.subarray(0, 10)), null);
-  assert.equal(proto.decodeFrame(new Uint8Array(3)), null);
 });
 
 // ── сервер: вход по токену ───────────────────────────────────────────────

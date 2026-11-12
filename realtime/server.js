@@ -1,12 +1,15 @@
 // Бобёр Кликер: Дикий Лес — realtime-сервер (РТ-01, каркас).
-// Сервер ничего не решает и не ходит в PHP: принимает WebSocket, проверяет подписанные токены входа (РТ-02)
-// и отвечает /health. Присутствие, эмодзи и чекпоинты приходят в РТ-03.
+// Сервер ничего не решает и не ходит в PHP: принимает WebSocket, проверяет подписанные токены входа (РТ-02),
+// ведёт присутствие игроков (РТ-03: позиции 5 Гц, кадры тиками по 200 мс, эмодзи, чекпоинты) и отвечает /health и /metrics.
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import { WebSocketServer } from 'ws';
-import { PROTO, TYP, ERR, LIMITS, encodeCtl, decodeCtl } from './lib/proto.js';
+import { PROTO, TYP, ERR, LIMITS, PRESENCE, encodeCtl, decodeCtl } from './lib/proto.js';
 import { parseKeyring, verifyToken, signReceipt } from './lib/tokens.js';
+import { Hub } from './lib/hub.js';
+import { decodePos } from './lib/snapshot.js';
+import { makeConnLimits, classOf, IpCounter, clientIp } from './lib/limits.js';
 
 export const BUILD = process.env.BUILD_SHA || process.env.SOURCE_COMMIT || 'dev';
 const DEFAULT_ORIGINS = ['https://bober-api.gt.tc', 'http://bober-api.gt.tc', 'http://localhost', 'http://127.0.0.1'];
@@ -53,6 +56,13 @@ export function createRealtime(opts = {}) {
   const authReady = auth.verifyKeys.size > 0;
   const authTimeoutMs = opts.authTimeoutMs ?? Number(process.env.WF_AUTH_TIMEOUT_MS || 10000);
   const nowS = opts.now ?? (() => Math.floor(Date.now() / 1000));
+  const tickMs = opts.tickMs ?? Number(process.env.WF_TICK_MS || PRESENCE.tickMs);
+  const idleMs = opts.idleMs ?? Number(process.env.WF_IDLE_MS || 120000);
+  const ips = new IpCounter(opts.maxPerIp ?? Number(process.env.WF_MAX_PER_IP || 20));
+  const hub = opts.hub ?? new Hub({
+    tickMs,
+    receipt: auth.signer ? (f) => signReceipt(auth.signer, f, { now: nowS() }) : null,
+  });
   const byPid = new Map(); // pid → ws (последнее соединение побеждает)
   const startedAt = Date.now();
   let accepted = 0;
@@ -76,6 +86,7 @@ export function createRealtime(opts = {}) {
         rss_mb: Math.round(process.memoryUsage().rss / 1048576),
         tls: Boolean(certPath && keyPath),
         proto: PROTO,
+        presence: hub.stats(),
         auth: {
           alg: auth.alg,
           configured: authReady,
@@ -92,6 +103,19 @@ export function createRealtime(opts = {}) {
         'Access-Control-Allow-Origin': '*',
       });
       res.end(body);
+      return;
+    }
+    if (url === '/metrics') {
+      const st = hub.stats();
+      const lines = [
+        ['wf_connections', wss.clients.size], ['wf_players', st.players], ['wf_msgs_in_total', st.msgIn],
+        ['wf_msgs_per_s', st.msgs_per_s], ['wf_msgs_dropped_total', st.msgDropped], ['wf_frames_out_total', st.framesOut],
+        ['wf_bytes_out_total', st.bytesOut], ['wf_corrections_total', st.corrections], ['wf_blocks_total', st.blocks],
+        ['wf_tick_avg_ms', st.tick_avg_ms], ['wf_tick_max_ms', st.tick_max_ms], ['wf_rss_bytes', process.memoryUsage().rss],
+        ['wf_rejected_total', rejected],
+      ].map(([k, v]) => `${k} ${v}`).join('\n');
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(lines + '\n');
       return;
     }
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -123,11 +147,29 @@ export function createRealtime(opts = {}) {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    const ip = clientIp(req);
+    if (!ips.acquire(ip)) {
+      rejected++;
+      socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => { ws.ip = ip; wss.emit('connection', ws, req); });
   });
 
   const send = (ws, msg) => {
-    try { ws.send(encodeCtl(msg)); } catch { /* ignore */ }
+    try { const text = encodeCtl(msg); hub.m.bytesOut += text.length; ws.send(text); } catch { /* ignore */ }
+  };
+  const connOf = (ws) => ({
+    sendJson: (m) => send(ws, m),
+    sendBin: (b) => { try { hub.m.bytesOut += b.length; ws.send(b); } catch { /* ignore */ } },
+    buffered: () => ws.bufferedAmount,
+    close: (c, r) => ws.close(c, r),
+  });
+  const drop = (ws, now) => {
+    hub.m.msgDropped++;
+    if (now - (ws.dropAt || 0) > 10000) { ws.dropAt = now; ws.drops = 0; }
+    if (++ws.drops > 100) { send(ws, { t: 'err', code: ERR.rate }); ws.close(4008, 'rate'); }
   };
 
   function handleAuth(ws, m) {
@@ -151,8 +193,16 @@ export function createRealtime(opts = {}) {
       send(ws, { t: 'err', code: ERR.bad_token });
       return;
     }
+    const now = Date.now();
+    if (hub.isBlocked(p.pid, now)) {
+      authFail++;
+      send(ws, { t: 'err', code: ERR.too_far, why: 'blocked' });
+      ws.close(4005, 'cheat');
+      return;
+    }
     const old = byPid.get(p.pid);
     if (old && old !== ws) {
+      if (old.player) { hub.leave(old.player); old.player = null; }
       send(old, { t: 'err', code: ERR.rate, why: 'replaced' });
       old.close(4002, 'replaced');
     }
@@ -161,7 +211,14 @@ export function createRealtime(opts = {}) {
     ws.profile = { nm: p.nm, vn: p.vn, lv: p.lv, sk: p.sk, vmax: p.vmax, mu: p.mu, fl: p.fl };
     byPid.set(p.pid, ws);
     authOk++;
-    send(ws, { t: 'auth_ok', pid: p.pid, exp: p.exp, kid: p.kid });
+    if (ws.player) hub.refresh(ws.player, ws.profile);
+    else ws.player = hub.join(connOf(ws), p.pid, ws.profile, now);
+    if (!ws.player) { send(ws, { t: 'err', code: ERR.full }); ws.close(1013, 'full'); return; }
+    // auth_ok играет роль welcome: id для кадров, часы сервера и параметры присутствия
+    send(ws, {
+      t: 'auth_ok', pid: p.pid, exp: p.exp, kid: p.kid,
+      id: ws.player.id, server_ts: now, tick_ms: tickMs, full_ms: hub.fullEveryMs, max_n: hub.maxNeighbors, cp_s: hub.cpIntervalMs / 1000,
+    });
   }
 
   wss.on('connection', (ws) => {
@@ -170,7 +227,13 @@ export function createRealtime(opts = {}) {
     ws.pid = 0;
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('error', () => {});
-    ws.on('close', () => { if (ws.pid && byPid.get(ws.pid) === ws) byPid.delete(ws.pid); });
+    ws.limits = makeConnLimits(Date.now());
+    ws.lastMsgAt = Date.now();
+    ws.on('close', () => {
+      ips.release(ws.ip);
+      if (ws.player) { hub.leave(ws.player); ws.player = null; }
+      if (ws.pid && byPid.get(ws.pid) === ws) byPid.delete(ws.pid);
+    });
     send(ws, { t: 'hello', build: BUILD, server_ts: Date.now(), proto: PROTO, auth: authReady });
     if (authReady && authTimeoutMs > 0) {
       const t = setTimeout(() => { if (!ws.pid) ws.close(4001, 'auth_timeout'); }, authTimeoutMs);
@@ -178,11 +241,24 @@ export function createRealtime(opts = {}) {
       ws.on('close', () => clearTimeout(t));
     }
     ws.on('message', (data, isBinary) => {
-      if (isBinary) return; // бинарные кадры добавит РТ-03
+      const now = Date.now();
+      ws.lastMsgAt = now;
+      hub.m.msgIn++;
+      if (isBinary) { // позиция: 11 байт
+        if (!ws.player || !ws.limits.pos.take(now)) { drop(ws, now); return; }
+        const pos = decodePos(data);
+        if (!pos) { drop(ws, now); return; }
+        hub.onPos(ws.player, pos, now);
+        return;
+      }
       const m = decodeCtl(data.toString());
-      if (!m) return;
-      if (m.t === 'ping') send(ws, { t: 'pong', c: m.c ?? null, server_ts: Date.now() });
+      if (!m) { drop(ws, now); return; }
+      if (!ws.limits[classOf(m.t)].take(now)) { drop(ws, now); return; }
+      if (m.t === 'ping') send(ws, { t: 'pong', c: m.c ?? null, server_ts: now });
       else if (m.t === 'auth') handleAuth(ws, m);
+      else if (m.t === 'emo' && ws.player) {
+        if (hub.onEmoji(ws.player, m.e, now) === 'rate') send(ws, { t: 'err', code: ERR.rate, why: 'emo' });
+      }
     });
   });
 
@@ -197,17 +273,21 @@ export function createRealtime(opts = {}) {
         ws.close(4003, 'expired');
         continue;
       }
+      if (idleMs > 0 && Date.now() - ws.lastMsgAt > idleMs) { ws.close(4009, 'idle'); continue; }
       ws.isAlive = false;
       try { ws.ping(); } catch { /* ignore */ }
     }
-  }, 25000);
+  }, opts.beatMs ?? 20000);
   beat.unref();
+  const ticker = setInterval(() => hub.tick(Date.now()), tickMs);
+  ticker.unref();
 
   return {
     server,
     wss,
     auth,
     byPid,
+    hub,
     /** Подписать квитанцию ключом сервера (для РТ-03: чекпоинты и итоги обмена). */
     receipt: (fields, o) => {
       if (!auth.signer) throw new Error('ключ подписи РТ не задан');
@@ -216,6 +296,7 @@ export function createRealtime(opts = {}) {
     listen: () => new Promise((resolve) => server.listen(port, host, () => resolve(server.address().port))),
     close: () => new Promise((resolve) => {
       clearInterval(beat);
+      clearInterval(ticker);
       for (const ws of wss.clients) ws.terminate();
       server.close(() => resolve());
     }),
