@@ -11,6 +11,6 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "ws": "8.18.0"
+    "ws": "8.21.0"
   }
 }
